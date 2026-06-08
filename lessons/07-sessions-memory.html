@@ -253,10 +253,106 @@ table.t td.mono, table.t td .mono { font-family: ui-monospace, monospace; font-s
     <div class="part"><span class="i18n" data-lang="zh">第二部分 · 用户视角</span><span class="i18n" data-lang="en">Part 2 · User's View</span></div>
     <h1><span class="i18n" data-lang="zh">会话与记忆</span><span class="i18n" data-lang="en">Sessions & Memory</span></h1>
   </div>
-  <div class="i18n" data-lang="zh"><p class="lead">（占位）本课「会话与记忆」内容将于后续任务补全。</p>
-<div class="card key"><div class="tag">✅ 关键要点</div>待补充。</div></div>
-<div class="i18n" data-lang="en"><p class="lead">(stub) Lesson "Sessions & Memory" — content coming in a later task.</p>
-<div class="card key"><div class="tag">✅ Key points</div>TBD.</div></div>
+  <div class="i18n" data-lang="zh">
+<p class="lead">默认情况下，每次 <span class="inline">run()</span> 都是"失忆"的。要让 Agent <strong>记住上文</strong>，
+就把同一个 <strong>会话（<span class="mono">AgentSession</span>）</strong>传给连续的调用。更长期的记忆，则交给 <strong>ContextProvider</strong>。</p>
+
+<div class="card analogy">
+  <div class="tag">📒 生活类比</div>
+  <span class="mono">AgentSession</span> 像一本<strong>共享记事本</strong>：每轮对话都写进同一本，下一轮模型翻看它就"记得"。
+  <strong>ContextProvider</strong> 则像一位<strong>助理</strong>，在每次回答前把"相关的旧记忆 / 外部知识"悄悄塞进上下文。
+</div>
+
+<h2>多轮对话：带上会话</h2>
+<div class="codefile">
+  <div class="cf-head"><span class="dot"></span><span class="path">samples/01-get-started/03_multi_turn.py</span></div>
+<pre>session = agent.create_session()
+
+result = <span class="kw">await</span> agent.run(
+    <span class="st">"My name is Alice and I love hiking."</span>, session=session)
+
+result = <span class="kw">await</span> agent.run(
+    <span class="st">"What do you remember about me?"</span>, session=session)
+<span class="cm"># → 记得 Alice、喜欢徒步</span></pre>
+</div>
+<p>关键就一点：<strong>把同一个 <span class="mono">session</span> 透传给每次 <span class="mono">run()</span></strong>，历史便自动累积。
+不传 session，则每次都是全新对话。</p>
+
+<h2>更长期的记忆 / 外部知识</h2>
+<div class="card detail">
+  <div class="tag">🔬 ContextProvider</div>
+  会话只在"本轮对话"内累积。要跨会话记住用户偏好，或在回答前注入检索到的知识（RAG），用
+  <span class="inline">ContextProvider</span>：例如 <span class="inline">MemoryContextProvider</span> 把记忆存进可检索的库，
+  每次 run 前自动把相关条目拼进上下文。（记忆库 / 各存储后端见第 16 课与各 provider 包。）
+</div>
+
+<div class="card key">
+  <div class="tag">✅ 关键要点</div>
+  <ul>
+    <li>无状态是默认；<strong>用 <span class="mono">AgentSession</span> 携带多轮历史</strong>。</li>
+    <li><span class="mono">agent.create_session()</span> 建会话，<span class="mono">run(…, session=session)</span> 复用它。</li>
+    <li>跨会话 / 外部知识用 <span class="mono">ContextProvider</span>（如 <span class="mono">MemoryContextProvider</span>）。</li>
+  </ul>
+</div>
+
+<div class="card spark">
+  <div class="tag">💡 设计亮点</div>
+  把"短期对话历史"（Session）和"长期可检索记忆"（ContextProvider）<strong>分成两层</strong>：
+  前者简单透传，后者可插拔。需求小就只用 Session，需求大再加 Provider，复杂度按需付费。
+</div>
+</div>
+<div class="i18n" data-lang="en">
+<p class="lead">By default each <span class="inline">run()</span> is "amnesiac". To make an Agent <strong>remember</strong>,
+pass the same <strong>session (<span class="mono">AgentSession</span>)</strong> across calls. For longer-term memory, use a
+<strong>ContextProvider</strong>.</p>
+
+<div class="card analogy">
+  <div class="tag">📒 Analogy</div>
+  An <span class="mono">AgentSession</span> is a <strong>shared notebook</strong>: every turn writes into the same book,
+  so next turn the model "remembers" by reading it. A <strong>ContextProvider</strong> is an <strong>assistant</strong>
+  that quietly slips "relevant old memories / external knowledge" into the context before each answer.
+</div>
+
+<h2>Multi-turn: carry a session</h2>
+<div class="codefile">
+  <div class="cf-head"><span class="dot"></span><span class="path">samples/01-get-started/03_multi_turn.py</span></div>
+<pre>session = agent.create_session()
+
+result = <span class="kw">await</span> agent.run(
+    <span class="st">"My name is Alice and I love hiking."</span>, session=session)
+
+result = <span class="kw">await</span> agent.run(
+    <span class="st">"What do you remember about me?"</span>, session=session)
+<span class="cm"># → remembers Alice, likes hiking</span></pre>
+</div>
+<p>The whole trick: <strong>pass the same <span class="mono">session</span> into every <span class="mono">run()</span></strong> and
+history accumulates. Omit the session and each call starts fresh.</p>
+
+<h2>Longer-term memory / external knowledge</h2>
+<div class="card detail">
+  <div class="tag">🔬 ContextProvider</div>
+  A session only accumulates within "this conversation". To remember user preferences across sessions, or to inject
+  retrieved knowledge (RAG) before answering, use a <span class="inline">ContextProvider</span> — e.g.
+  <span class="inline">MemoryContextProvider</span> stores memories in a searchable store and splices relevant entries
+  into context before each run. (Memory stores / backends: Lesson 16 and the provider packages.)
+</div>
+
+<div class="card key">
+  <div class="tag">✅ Key points</div>
+  <ul>
+    <li>Stateless by default; <strong>use <span class="mono">AgentSession</span> to carry multi-turn history</strong>.</li>
+    <li><span class="mono">agent.create_session()</span> creates one; <span class="mono">run(…, session=session)</span> reuses it.</li>
+    <li>Cross-session / external knowledge → <span class="mono">ContextProvider</span> (e.g. <span class="mono">MemoryContextProvider</span>).</li>
+  </ul>
+</div>
+
+<div class="card spark">
+  <div class="tag">💡 Design highlight</div>
+  Short-term history (Session) and long-term searchable memory (ContextProvider) are <strong>two layers</strong>:
+  the former is a simple pass-through, the latter is pluggable. Use just Session for small needs, add a Provider for
+  big ones — complexity is pay-as-you-go.
+</div>
+</div>
   <div class="footnav"><a class="prev" href="06-tools.html"><div class="dir"><span class="i18n" data-lang="zh">← 上一课</span><span class="i18n" data-lang="en">← Prev</span></div><div class="ttl"><span class="i18n" data-lang="zh">工具 Tools</span><span class="i18n" data-lang="en">Tools</span></div></a><a class="next" href="08-agent-internals.html"><div class="dir"><span class="i18n" data-lang="zh">下一课 →</span><span class="i18n" data-lang="en">Next →</span></div><div class="ttl"><span class="i18n" data-lang="zh">Agent 内部</span><span class="i18n" data-lang="en">Agent Internals</span></div></a></div>
 </div>
 

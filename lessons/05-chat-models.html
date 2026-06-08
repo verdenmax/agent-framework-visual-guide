@@ -253,10 +253,138 @@ table.t td.mono, table.t td .mono { font-family: ui-monospace, monospace; font-s
     <div class="part"><span class="i18n" data-lang="zh">第二部分 · 用户视角</span><span class="i18n" data-lang="en">Part 2 · User's View</span></div>
     <h1><span class="i18n" data-lang="zh">ChatClient 与创建 Agent</span><span class="i18n" data-lang="en">ChatClient & Creating Agents</span></h1>
   </div>
-  <div class="i18n" data-lang="zh"><p class="lead">（占位）本课「ChatClient 与创建 Agent」内容将于后续任务补全。</p>
-<div class="card key"><div class="tag">✅ 关键要点</div>待补充。</div></div>
-<div class="i18n" data-lang="en"><p class="lead">(stub) Lesson "ChatClient & Creating Agents" — content coming in a later task.</p>
-<div class="card key"><div class="tag">✅ Key points</div>TBD.</div></div>
+  <div class="i18n" data-lang="zh">
+<p class="lead"><strong>ChatClient</strong> 是"连到某个模型"的厂商无关接口；<strong>Agent</strong> 在它之上加了
+名字、系统指令、工具和循环。本课讲怎么从 ChatClient 造出 Agent，并用 <span class="inline">run</span> 跑起来。</p>
+
+<div class="card analogy">
+  <div class="tag">🎧 生活类比</div>
+  <strong>ChatClient</strong> 像<strong>对讲机</strong>：能和某个频道（模型）通话，但不带"人设"。
+  <strong>Agent</strong> 像拿着对讲机、并被交代了岗位职责（instructions）和工具的<strong>值班员</strong>——你对值班员说话，他负责完成任务。
+</div>
+
+<h2>两种创建方式</h2>
+<div class="cols">
+  <div class="col"><h4>方式 A：<span class="mono">Agent(client=…)</span></h4>
+<pre class="code"><span class="kw">from</span> agent_framework <span class="kw">import</span> Agent
+agent = Agent(
+  client=client,
+  name=<span class="st">"HelloAgent"</span>,
+  instructions=<span class="st">"You are friendly."</span>,
+)</pre></div>
+  <div class="col"><h4>方式 B：<span class="mono">client.as_agent(…)</span></h4>
+<pre class="code">agent = client.as_agent(
+  name=<span class="st">"HelloAgent"</span>,
+  instructions=<span class="st">"You are friendly."</span>,
+)
+<span class="cm"># 等价，更顺手</span></pre></div>
+</div>
+<p>两种都行；<span class="inline">as_agent</span> 读起来更顺。底下都是同一个 <span class="mono">Agent</span>。</p>
+
+<h2>跑起来：run 与流式</h2>
+<div class="codefile">
+  <div class="cf-head"><span class="dot"></span><span class="path">非流式 vs 流式</span></div>
+<pre><span class="cm"># 非流式：一次拿到完整回答</span>
+result = <span class="kw">await</span> agent.run(<span class="st">"What is the capital of France?"</span>)
+<span class="fn">print</span>(result)
+
+<span class="cm"># 流式：逐块拿到 token</span>
+<span class="kw">async for</span> chunk <span class="kw">in</span> agent.run(<span class="st">"Tell me a fun fact."</span>, stream=<span class="kw">True</span>):
+    <span class="kw">if</span> chunk.text:
+        <span class="fn">print</span>(chunk.text, end=<span class="st">""</span>, flush=<span class="kw">True</span>)</pre>
+</div>
+<p>同一个 <span class="inline">run()</span>：不传 <span class="mono">stream</span> 返回完整 <span class="mono">AgentResponse</span>；
+传 <span class="mono">stream=True</span> 返回一个异步迭代器，逐块给 <span class="mono">AgentResponseUpdate</span>。</p>
+
+<div class="card detail">
+  <div class="tag">🔬 换厂商</div>
+  把 <span class="inline">FoundryChatClient</span> 换成 <span class="inline">OpenAIChatClient</span>、
+  <span class="inline">AnthropicChatClient</span>、<span class="inline">OllamaChatClient</span>……Agent 那层<strong>一行都不用改</strong>。
+  各 client 来自对应 provider 包（见第 16 课）。
+</div>
+
+<div class="card key">
+  <div class="tag">✅ 关键要点</div>
+  <ul>
+    <li><strong>ChatClient = 连模型</strong>（厂商无关）；<strong>Agent = ChatClient + 人设 + 工具 + 循环</strong>。</li>
+    <li>创建：<span class="mono">Agent(client=…)</span> 或 <span class="mono">client.as_agent(…)</span>，二选一。</li>
+    <li><span class="mono">run()</span> 默认完整返回；<span class="mono">run(stream=True)</span> 逐块流式返回。</li>
+  </ul>
+</div>
+
+<div class="card spark">
+  <div class="tag">💡 设计亮点</div>
+  <strong>流式与非流式共用一个 <span class="mono">run()</span></strong>，靠一个 <span class="mono">stream</span> 开关切换返回形态。
+  调用心智统一，省掉两套 API。
+</div>
+</div>
+<div class="i18n" data-lang="en">
+<p class="lead">A <strong>ChatClient</strong> is the vendor-agnostic "connect to a model" interface; an <strong>Agent</strong>
+adds a name, system instructions, tools and a loop on top. This lesson builds an Agent from a ChatClient and runs
+it with <span class="inline">run</span>.</p>
+
+<div class="card analogy">
+  <div class="tag">🎧 Analogy</div>
+  A <strong>ChatClient</strong> is like a <strong>walkie-talkie</strong>: it can talk to a channel (model) but has no
+  persona. An <strong>Agent</strong> is the <strong>operator</strong> holding that walkie-talkie who has been briefed on
+  duties (instructions) and tools — you talk to the operator, who gets the job done.
+</div>
+
+<h2>Two ways to create</h2>
+<div class="cols">
+  <div class="col"><h4>A: <span class="mono">Agent(client=…)</span></h4>
+<pre class="code"><span class="kw">from</span> agent_framework <span class="kw">import</span> Agent
+agent = Agent(
+  client=client,
+  name=<span class="st">"HelloAgent"</span>,
+  instructions=<span class="st">"You are friendly."</span>,
+)</pre></div>
+  <div class="col"><h4>B: <span class="mono">client.as_agent(…)</span></h4>
+<pre class="code">agent = client.as_agent(
+  name=<span class="st">"HelloAgent"</span>,
+  instructions=<span class="st">"You are friendly."</span>,
+)
+<span class="cm"># equivalent, reads nicer</span></pre></div>
+</div>
+<p>Both work; <span class="inline">as_agent</span> reads more fluently. Same <span class="mono">Agent</span> underneath.</p>
+
+<h2>Run it: blocking and streaming</h2>
+<div class="codefile">
+  <div class="cf-head"><span class="dot"></span><span class="path">non-streaming vs streaming</span></div>
+<pre><span class="cm"># non-streaming: full answer at once</span>
+result = <span class="kw">await</span> agent.run(<span class="st">"What is the capital of France?"</span>)
+<span class="fn">print</span>(result)
+
+<span class="cm"># streaming: tokens as they arrive</span>
+<span class="kw">async for</span> chunk <span class="kw">in</span> agent.run(<span class="st">"Tell me a fun fact."</span>, stream=<span class="kw">True</span>):
+    <span class="kw">if</span> chunk.text:
+        <span class="fn">print</span>(chunk.text, end=<span class="st">""</span>, flush=<span class="kw">True</span>)</pre>
+</div>
+<p>One <span class="inline">run()</span>: without <span class="mono">stream</span> it returns a full <span class="mono">AgentResponse</span>;
+with <span class="mono">stream=True</span> it returns an async iterator yielding <span class="mono">AgentResponseUpdate</span> chunks.</p>
+
+<div class="card detail">
+  <div class="tag">🔬 Switching vendors</div>
+  Replace <span class="inline">FoundryChatClient</span> with <span class="inline">OpenAIChatClient</span>,
+  <span class="inline">AnthropicChatClient</span>, <span class="inline">OllamaChatClient</span>… and the Agent layer
+  <strong>doesn't change at all</strong>. Each client comes from its provider package (Lesson 16).
+</div>
+
+<div class="card key">
+  <div class="tag">✅ Key points</div>
+  <ul>
+    <li><strong>ChatClient = the model</strong> (vendor-agnostic); <strong>Agent = ChatClient + persona + tools + loop</strong>.</li>
+    <li>Create with <span class="mono">Agent(client=…)</span> or <span class="mono">client.as_agent(…)</span>.</li>
+    <li><span class="mono">run()</span> returns the full response; <span class="mono">run(stream=True)</span> streams chunks.</li>
+  </ul>
+</div>
+
+<div class="card spark">
+  <div class="tag">💡 Design highlight</div>
+  <strong>Streaming and non-streaming share one <span class="mono">run()</span></strong>, toggled by a single
+  <span class="mono">stream</span> flag. One mental model, no second API.
+</div>
+</div>
   <div class="footnav"><a class="prev" href="04-messages.html"><div class="dir"><span class="i18n" data-lang="zh">← 上一课</span><span class="i18n" data-lang="en">← Prev</span></div><div class="ttl"><span class="i18n" data-lang="zh">消息与内容</span><span class="i18n" data-lang="en">Messages & Content</span></div></a><a class="next" href="06-tools.html"><div class="dir"><span class="i18n" data-lang="zh">下一课 →</span><span class="i18n" data-lang="en">Next →</span></div><div class="ttl"><span class="i18n" data-lang="zh">工具 Tools</span><span class="i18n" data-lang="en">Tools</span></div></a></div>
 </div>
 

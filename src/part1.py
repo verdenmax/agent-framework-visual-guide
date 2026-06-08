@@ -354,7 +354,7 @@ L03_ZH = r"""
       <div class="a">把同一个 <strong>会话（session）</strong>传给连续的 run，历史会自动累积：
 <pre class="code"><span class="kw">from</span> agent_framework <span class="kw">import</span> Agent
 agent = Agent(client=client, instructions=<span class="st">"…"</span>)
-session = agent.get_new_session()
+session = agent.create_session()
 <span class="kw">await</span> agent.run(<span class="st">"我叫小明"</span>, session=session)
 <span class="kw">await</span> agent.run(<span class="st">"我叫什么？"</span>, session=session)  <span class="cm"># 记得"小明"</span></pre>
         <em>（会话与记忆见第 07 课，这里只需知道历史是"会话"携带的。）</em></div>
@@ -421,7 +421,7 @@ happens underneath. Understand this <strong>lifecycle</strong> and every later "
       <div class="a">Pass the same <strong>session</strong> across runs and history accumulates automatically:
 <pre class="code"><span class="kw">from</span> agent_framework <span class="kw">import</span> Agent
 agent = Agent(client=client, instructions=<span class="st">"…"</span>)
-session = agent.get_new_session()
+session = agent.create_session()
 <span class="kw">await</span> agent.run(<span class="st">"My name is Sam"</span>, session=session)
 <span class="kw">await</span> agent.run(<span class="st">"What's my name?"</span>, session=session)  <span class="cm"># remembers "Sam"</span></pre>
         <em>(Sessions & memory are Lesson 07; here just note history rides on the "session".)</em></div>

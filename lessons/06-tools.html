@@ -253,10 +253,132 @@ table.t td.mono, table.t td .mono { font-family: ui-monospace, monospace; font-s
     <div class="part"><span class="i18n" data-lang="zh">第二部分 · 用户视角</span><span class="i18n" data-lang="en">Part 2 · User's View</span></div>
     <h1><span class="i18n" data-lang="zh">工具 Tools</span><span class="i18n" data-lang="en">Tools</span></h1>
   </div>
-  <div class="i18n" data-lang="zh"><p class="lead">（占位）本课「工具 Tools」内容将于后续任务补全。</p>
-<div class="card key"><div class="tag">✅ 关键要点</div>待补充。</div></div>
-<div class="i18n" data-lang="en"><p class="lead">(stub) Lesson "Tools" — content coming in a later task.</p>
-<div class="card key"><div class="tag">✅ Key points</div>TBD.</div></div>
+  <div class="i18n" data-lang="zh">
+<p class="lead"><strong>工具（Tool）</strong>让 Agent 不只是"会说"，还能"会做"：查天气、读数据库、调 API。
+你写一个普通 Python 函数，用 <span class="inline">@tool</span> 一标，模型就能调用它。</p>
+
+<div class="card analogy">
+  <div class="tag">🧰 生活类比</div>
+  模型像个<strong>聪明但手短的大脑</strong>：它知道"该查天气了"，但自己摸不到温度计。
+  工具就是你递给它的<strong>一件件趁手家伙</strong>，并附上说明书（函数签名 + docstring），它照着说明书使用。
+</div>
+
+<h2>定义一个工具</h2>
+<div class="codefile">
+  <div class="cf-head"><span class="dot"></span><span class="path">samples/01-get-started/02_add_tools.py</span></div>
+<pre><span class="kw">from</span> typing <span class="kw">import</span> Annotated
+<span class="kw">from</span> agent_framework <span class="kw">import</span> Agent, tool
+<span class="kw">from</span> pydantic <span class="kw">import</span> Field
+
+<span class="nb">@tool</span>(approval_mode=<span class="st">"never_require"</span>)
+<span class="kw">def</span> <span class="fn">get_weather</span>(
+    location: Annotated[str, Field(description=<span class="st">"The location to get weather for."</span>)],
+) -> str:
+    <span class="st">&quot;&quot;&quot;Get the weather for a given location.&quot;&quot;&quot;</span>
+    <span class="kw">return</span> <span class="st">f"It's sunny in {location}."</span>
+
+agent = Agent(client=client, name=<span class="st">"WeatherAgent"</span>,
+    instructions=<span class="st">"Use get_weather to answer."</span>,
+    tools=[get_weather])
+
+result = <span class="kw">await</span> agent.run(<span class="st">"What's the weather in Seattle?"</span>)</pre>
+</div>
+
+<h2>三件事自动发生</h2>
+<div class="vflow">
+  <div class="step"><div class="num">1</div><div class="sc"><h4>生成 schema</h4>
+    <p>从函数签名 + <span class="mono">Annotated[..., Field(description=…)]</span> + docstring 自动生成 JSON Schema，交给模型。</p></div></div>
+  <div class="step"><div class="num">2</div><div class="sc"><h4>模型决定调用</h4>
+    <p>模型在回答里产出一个 <span class="mono">function_call</span>（函数名 + 参数）。</p></div></div>
+  <div class="step"><div class="num">3</div><div class="sc"><h4>框架执行并回灌</h4>
+    <p>Agent 调用你的函数，把 <span class="mono">function_result</span> 追加进对话，再让模型继续。</p></div></div>
+</div>
+
+<div class="card warn">
+  <div class="tag">⚠️ 审批模式</div>
+  <span class="inline">approval_mode="never_require"</span> 仅为示例图省事——<strong>生产中应使用
+  <span class="inline">"always_require"</span></strong>，在工具执行前要求人工确认（尤其是写操作 / 花钱的操作）。
+</div>
+
+<div class="card key">
+  <div class="tag">✅ 关键要点</div>
+  <ul>
+    <li><span class="mono">@tool</span> 把普通函数变成模型可调用的工具，schema 自动生成。</li>
+    <li>用 <span class="mono">Annotated[..., Field(description=…)]</span> 给参数写说明，docstring 写函数用途。</li>
+    <li>把工具放进 <span class="mono">Agent(tools=[…])</span>；执行 + 回灌由框架完成。</li>
+  </ul>
+</div>
+
+<div class="card spark">
+  <div class="tag">💡 设计亮点</div>
+  <strong>"函数即工具"</strong>：你不用手写 JSON Schema，类型注解和 docstring 就是契约。
+  代码与给模型的描述<strong>永远同步</strong>，因为它们本来就是同一份。
+</div>
+</div>
+<div class="i18n" data-lang="en">
+<p class="lead"><strong>Tools</strong> let an Agent not just "talk" but "do": fetch weather, read a database, call an API.
+Write an ordinary Python function, tag it with <span class="inline">@tool</span>, and the model can call it.</p>
+
+<div class="card analogy">
+  <div class="tag">🧰 Analogy</div>
+  The model is a <strong>smart brain with short arms</strong>: it knows "time to check the weather" but can't reach
+  the thermometer. Tools are the <strong>handy instruments</strong> you hand it, each with a manual (function signature
+  + docstring) it follows.
+</div>
+
+<h2>Define a tool</h2>
+<div class="codefile">
+  <div class="cf-head"><span class="dot"></span><span class="path">samples/01-get-started/02_add_tools.py</span></div>
+<pre><span class="kw">from</span> typing <span class="kw">import</span> Annotated
+<span class="kw">from</span> agent_framework <span class="kw">import</span> Agent, tool
+<span class="kw">from</span> pydantic <span class="kw">import</span> Field
+
+<span class="nb">@tool</span>(approval_mode=<span class="st">"never_require"</span>)
+<span class="kw">def</span> <span class="fn">get_weather</span>(
+    location: Annotated[str, Field(description=<span class="st">"The location to get weather for."</span>)],
+) -> str:
+    <span class="st">&quot;&quot;&quot;Get the weather for a given location.&quot;&quot;&quot;</span>
+    <span class="kw">return</span> <span class="st">f"It's sunny in {location}."</span>
+
+agent = Agent(client=client, name=<span class="st">"WeatherAgent"</span>,
+    instructions=<span class="st">"Use get_weather to answer."</span>,
+    tools=[get_weather])
+
+result = <span class="kw">await</span> agent.run(<span class="st">"What's the weather in Seattle?"</span>)</pre>
+</div>
+
+<h2>Three things happen automatically</h2>
+<div class="vflow">
+  <div class="step"><div class="num">1</div><div class="sc"><h4>Generate schema</h4>
+    <p>A JSON Schema is built from the signature + <span class="mono">Annotated[..., Field(description=…)]</span> + docstring, and handed to the model.</p></div></div>
+  <div class="step"><div class="num">2</div><div class="sc"><h4>Model decides to call</h4>
+    <p>The model emits a <span class="mono">function_call</span> (function name + arguments) in its response.</p></div></div>
+  <div class="step"><div class="num">3</div><div class="sc"><h4>Framework executes & feeds back</h4>
+    <p>The Agent runs your function, appends the <span class="mono">function_result</span>, and lets the model continue.</p></div></div>
+</div>
+
+<div class="card warn">
+  <div class="tag">⚠️ Approval mode</div>
+  <span class="inline">approval_mode="never_require"</span> is just for sample brevity — <strong>in production use
+  <span class="inline">"always_require"</span></strong> to require human confirmation before a tool runs (especially
+  for writes / spend).
+</div>
+
+<div class="card key">
+  <div class="tag">✅ Key points</div>
+  <ul>
+    <li><span class="mono">@tool</span> turns a plain function into a model-callable tool; the schema is auto-generated.</li>
+    <li>Use <span class="mono">Annotated[..., Field(description=…)]</span> for params and a docstring for purpose.</li>
+    <li>Put tools in <span class="mono">Agent(tools=[…])</span>; execution + feedback is handled by the framework.</li>
+  </ul>
+</div>
+
+<div class="card spark">
+  <div class="tag">💡 Design highlight</div>
+  <strong>"A function is a tool"</strong>: you never hand-write JSON Schema — type hints and the docstring are the
+  contract. Code and the model-facing description <strong>can't drift</strong>, because they're the same thing.
+</div>
+</div>
   <div class="footnav"><a class="prev" href="05-chat-models.html"><div class="dir"><span class="i18n" data-lang="zh">← 上一课</span><span class="i18n" data-lang="en">← Prev</span></div><div class="ttl"><span class="i18n" data-lang="zh">ChatClient 与创建 Agent</span><span class="i18n" data-lang="en">ChatClient & Creating Agents</span></div></a><a class="next" href="07-sessions-memory.html"><div class="dir"><span class="i18n" data-lang="zh">下一课 →</span><span class="i18n" data-lang="en">Next →</span></div><div class="ttl"><span class="i18n" data-lang="zh">会话与记忆</span><span class="i18n" data-lang="en">Sessions & Memory</span></div></a></div>
 </div>
 

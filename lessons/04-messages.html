@@ -253,10 +253,145 @@ table.t td.mono, table.t td .mono { font-family: ui-monospace, monospace; font-s
     <div class="part"><span class="i18n" data-lang="zh">第二部分 · 用户视角</span><span class="i18n" data-lang="en">Part 2 · User's View</span></div>
     <h1><span class="i18n" data-lang="zh">消息与内容</span><span class="i18n" data-lang="en">Messages & Content</span></h1>
   </div>
-  <div class="i18n" data-lang="zh"><p class="lead">（占位）本课「消息与内容」内容将于后续任务补全。</p>
-<div class="card key"><div class="tag">✅ 关键要点</div>待补充。</div></div>
-<div class="i18n" data-lang="en"><p class="lead">(stub) Lesson "Messages & Content" — content coming in a later task.</p>
-<div class="card key"><div class="tag">✅ Key points</div>TBD.</div></div>
+  <div class="i18n" data-lang="zh">
+<p class="lead">和模型对话，本质是来回传递一串<strong>消息</strong>。MAF 把消息做成<strong>结构化对象</strong>
+<span class="inline">Message</span>，而不是裸字典——类型更安全，还能携带工具调用、图片等多种内容。</p>
+
+<div class="card analogy">
+  <div class="tag">✉️ 生活类比</div>
+  一条 <span class="mono">Message</span> 像一个<strong>信封</strong>：信封上写着<strong>寄件人身份</strong>（<span class="mono">role</span>：
+  user / assistant / system / tool），信封里可以装<strong>多张内容卡片</strong>（<span class="mono">contents</span>：
+  一段文字、一张图、一次工具调用、一份工具结果……）。
+</div>
+
+<h2>三个核心类型</h2>
+<table class="t">
+  <tr><th>类型</th><th>作用</th><th>来自</th></tr>
+  <tr><td class="mono">Message</td><td>一条消息 = <span class="mono">role</span> + <span class="mono">contents</span></td><td class="mono">_types.py</td></tr>
+  <tr><td class="mono">Role</td><td>身份：<span class="mono">"system"/"user"/"assistant"/"tool"</span></td><td class="mono">_types.py</td></tr>
+  <tr><td class="mono">Content</td><td>统一内容类型，用工厂方法构造</td><td class="mono">_types.py</td></tr>
+</table>
+
+<h2>手拼 dict vs 结构化消息</h2>
+<div class="cols">
+  <div class="col"><h4>😣 裸字典</h4>
+<pre class="code">messages = [
+  {<span class="st">"role"</span>: <span class="st">"system"</span>, <span class="st">"content"</span>: <span class="st">"你是助手"</span>},
+  {<span class="st">"role"</span>: <span class="st">"user"</span>, <span class="st">"content"</span>: <span class="st">"你好"</span>},
+]
+<span class="cm"># key 容易拼错，工具调用要手搓</span></pre></div>
+  <div class="col"><h4>🙂 Message 对象</h4>
+<pre class="code"><span class="kw">from</span> agent_framework <span class="kw">import</span> Message
+messages = [
+  Message(<span class="st">"system"</span>, <span class="st">"你是助手"</span>),
+  Message(<span class="st">"user"</span>, <span class="st">"你好"</span>),
+]
+<span class="cm"># 类型安全，可带多种 Content</span></pre></div>
+</div>
+<p><span class="inline">Message</span> 的第二个参数 <span class="mono">contents</span> 接受字符串（自动转成文本内容）、
+<span class="mono">Content</span> 对象，或它们的列表。读文本用 <span class="inline">msg.text</span>。</p>
+
+<details class="accordion">
+  <summary><span class="badge-num">1</span> Content 能装哪些东西？ <span class="hint">点击展开</span></summary>
+  <div class="acc-body">
+    <div class="qa">
+      <div class="q">🧪 用工厂方法构造</div>
+      <div class="a"><span class="mono">Content</span> 是<strong>统一类型</strong>，用类方法创建不同种类：
+<pre class="code">Content.from_text(<span class="st">"一段文字"</span>)
+Content.from_data(data=..., media_type=<span class="st">"image/png"</span>)  <span class="cm"># 图片/二进制</span>
+Content.from_uri(uri=<span class="st">"https://…"</span>, media_type=<span class="st">"image/png"</span>)
+Content.from_function_call(...)      <span class="cm"># 模型要调工具</span>
+Content.from_function_result(...)    <span class="cm"># 工具执行结果</span></pre>
+        所以一条 <span class="mono">Message</span> 可以图文混排，也能承载工具调用 / 结果。</div>
+    </div>
+  </div>
+</details>
+
+<div class="card key">
+  <div class="tag">✅ 关键要点</div>
+  <ul>
+    <li>对话 = 一串 <span class="mono">Message</span>；每条 = <span class="mono">role</span> + <span class="mono">contents</span>。</li>
+    <li><span class="mono">Role</span> 有四种：system / user / assistant / tool。</li>
+    <li><span class="mono">Content</span> 是统一类型，用 <span class="mono">from_text/from_data/from_function_call…</span> 构造。</li>
+  </ul>
+</div>
+
+<div class="card spark">
+  <div class="tag">💡 设计亮点</div>
+  把"文本、图片、工具调用、工具结果"<strong>统一成一种 Content</strong>，靠 <span class="mono">type</span> 字段区分。
+  消息结构因此既简单又可扩展——新增一种内容不破坏老代码。
+</div>
+</div>
+<div class="i18n" data-lang="en">
+<p class="lead">Talking to a model is really passing a list of <strong>messages</strong> back and forth. MAF makes
+messages <strong>structured objects</strong> (<span class="inline">Message</span>) instead of bare dicts — type-safe,
+and able to carry tool calls, images and more.</p>
+
+<div class="card analogy">
+  <div class="tag">✉️ Analogy</div>
+  A <span class="mono">Message</span> is like an <strong>envelope</strong>: the outside states the <strong>sender's
+  identity</strong> (<span class="mono">role</span>: user / assistant / system / tool), and inside you can place
+  <strong>several content cards</strong> (<span class="mono">contents</span>: some text, an image, a tool call, a tool result…).
+</div>
+
+<h2>Three core types</h2>
+<table class="t">
+  <tr><th>Type</th><th>Role</th><th>From</th></tr>
+  <tr><td class="mono">Message</td><td>one message = <span class="mono">role</span> + <span class="mono">contents</span></td><td class="mono">_types.py</td></tr>
+  <tr><td class="mono">Role</td><td>identity: <span class="mono">"system"/"user"/"assistant"/"tool"</span></td><td class="mono">_types.py</td></tr>
+  <tr><td class="mono">Content</td><td>unified content type, built via factory methods</td><td class="mono">_types.py</td></tr>
+</table>
+
+<h2>Hand-built dicts vs structured messages</h2>
+<div class="cols">
+  <div class="col"><h4>😣 Bare dicts</h4>
+<pre class="code">messages = [
+  {<span class="st">"role"</span>: <span class="st">"system"</span>, <span class="st">"content"</span>: <span class="st">"You are a bot"</span>},
+  {<span class="st">"role"</span>: <span class="st">"user"</span>, <span class="st">"content"</span>: <span class="st">"hi"</span>},
+]
+<span class="cm"># typo-prone keys; tool calls by hand</span></pre></div>
+  <div class="col"><h4>🙂 Message objects</h4>
+<pre class="code"><span class="kw">from</span> agent_framework <span class="kw">import</span> Message
+messages = [
+  Message(<span class="st">"system"</span>, <span class="st">"You are a bot"</span>),
+  Message(<span class="st">"user"</span>, <span class="st">"hi"</span>),
+]
+<span class="cm"># type-safe, carries any Content</span></pre></div>
+</div>
+<p><span class="inline">Message</span>'s second argument <span class="mono">contents</span> accepts a string (auto-converted to text),
+a <span class="mono">Content</span> object, or a list of them. Read the text via <span class="inline">msg.text</span>.</p>
+
+<details class="accordion">
+  <summary><span class="badge-num">1</span> What can a Content hold? <span class="hint">expand</span></summary>
+  <div class="acc-body">
+    <div class="qa">
+      <div class="q">🧪 Built with factory methods</div>
+      <div class="a"><span class="mono">Content</span> is a <strong>unified type</strong>; class methods create each kind:
+<pre class="code">Content.from_text(<span class="st">"some text"</span>)
+Content.from_data(data=..., media_type=<span class="st">"image/png"</span>)  <span class="cm"># image/binary</span>
+Content.from_uri(uri=<span class="st">"https://…"</span>, media_type=<span class="st">"image/png"</span>)
+Content.from_function_call(...)      <span class="cm"># model wants a tool</span>
+Content.from_function_result(...)    <span class="cm"># tool execution result</span></pre>
+        So one <span class="mono">Message</span> can mix text and images, and carry tool calls / results.</div>
+    </div>
+  </div>
+</details>
+
+<div class="card key">
+  <div class="tag">✅ Key points</div>
+  <ul>
+    <li>A conversation = a list of <span class="mono">Message</span>; each = <span class="mono">role</span> + <span class="mono">contents</span>.</li>
+    <li><span class="mono">Role</span> has four values: system / user / assistant / tool.</li>
+    <li><span class="mono">Content</span> is one unified type built via <span class="mono">from_text/from_data/from_function_call…</span></li>
+  </ul>
+</div>
+
+<div class="card spark">
+  <div class="tag">💡 Design highlight</div>
+  Text, images, tool calls and tool results are <strong>unified into one Content</strong>, discriminated by a
+  <span class="mono">type</span> field. The message shape stays simple yet extensible — adding a content kind breaks nothing.
+</div>
+</div>
   <div class="footnav"><a class="prev" href="03-lifecycle.html"><div class="dir"><span class="i18n" data-lang="zh">← 上一课</span><span class="i18n" data-lang="en">← Prev</span></div><div class="ttl"><span class="i18n" data-lang="zh">一次 run() 的生命周期</span><span class="i18n" data-lang="en">Lifecycle of a Run</span></div></a><a class="next" href="05-chat-models.html"><div class="dir"><span class="i18n" data-lang="zh">下一课 →</span><span class="i18n" data-lang="en">Next →</span></div><div class="ttl"><span class="i18n" data-lang="zh">ChatClient 与创建 Agent</span><span class="i18n" data-lang="en">ChatClient & Creating Agents</span></div></a></div>
 </div>
 

@@ -84,6 +84,11 @@ PAGES = [
     ("18-custom-middleware.html", {"zh": "写自己的中间件", "en": "Writing Your Own Middleware"}, P5),
     ("19-durability-hitl.html", {"zh": "检查点 · 人在环 · 持久化", "en": "Checkpointing, HITL & Durability"}, P5),
     ("20-capstone.html", {"zh": "端到端实战：多 Agent 工作流", "en": "Capstone: A Multi-Agent Workflow"}, P5),
+    ("23-skills.html", {"zh": "Agent Skills 技能系统", "en": "Agent Skills"}, P5),
+    ("24-mcp.html", {"zh": "MCP 工具协议", "en": "MCP Tool Protocol"}, P5),
+    ("25-hosted-agents.html", {"zh": "Foundry 托管 Agent", "en": "Foundry Hosted Agents"}, P5),
+    ("26-a2a-agui.html", {"zh": "A2A + AG-UI 协议", "en": "A2A & AG-UI Protocols"}, P5),
+    ("27-eval-timetravel.html", {"zh": "评估与时间旅行", "en": "Evaluation & Time-Travel"}, P5),
     ("21-vs-others.html", {"zh": "横向对比：AF vs 其他框架", "en": "AF vs Other Frameworks"}, P6),
     ("22-stack-map.html", {"zh": "全栈坐标系 & 学习地图", "en": "Full-Stack Map & Learning Path"}, P6),
 ]
@@ -435,6 +440,11 @@ SUBTITLES = {
     "18-custom-middleware.html": {"zh": "自定义 AgentMiddleware / FunctionMiddleware", "en": "custom Agent/Function middleware"},
     "19-durability-hitl.html": {"zh": "checkpoint · 人在环 · DurableTask", "en": "checkpoint · HITL · DurableTask"},
     "20-capstone.html": {"zh": "把所有零件拼成一个工作流", "en": "assemble everything into one workflow"},
+    "23-skills.html": {"zh": "Skill / SkillResource / SkillScript", "en": "Skill / SkillResource / SkillScript"},
+    "24-mcp.html": {"zh": "MCPStdioTool · MCPStreamableHTTPTool", "en": "MCPStdioTool · MCPStreamableHTTPTool"},
+    "25-hosted-agents.html": {"zh": "2 行代码部署到 Foundry", "en": "deploy to Foundry in 2 lines"},
+    "26-a2a-agui.html": {"zh": "Agent 互调 · Agent-UI 交互", "en": "agent-to-agent · agent-to-UI"},
+    "27-eval-timetravel.html": {"zh": "Evaluator · Workflow replay", "en": "Evaluator · Workflow replay"},
     "21-vs-others.html": {"zh": "AF vs LangGraph / AutoGen / SK", "en": "AF vs LangGraph / AutoGen / SK"},
     "22-stack-map.html": {"zh": "编排流派 · 全栈分层 · 你在哪", "en": "orchestration schools · stack layers · you are here"},
 }
@@ -467,7 +477,7 @@ def index_page(standalone=False, lesson_prefix=""):
     nav_tag = "" if standalone else f"<script>{NAV_SCRIPT}</script>"
     page_title = f"{SITE_NAME} · 从零理解整个项目"
     desc = ("从零理解整个 Microsoft Agent Framework 项目的中英双语图解教程：宏观结构、"
-            "用户用法、内部源码、自己动手做 Agent。6 部分 22 课，每课配真实代码对应与设计亮点。")
+            "用户用法、内部源码、自己动手做 Agent。6 部分 27 课，每课配真实代码对应与设计亮点。")
     html = f"""<!DOCTYPE html>
 <html lang="zh-CN" data-lang="zh"><head>
 <meta charset="utf-8">

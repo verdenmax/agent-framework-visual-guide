@@ -2,17 +2,17 @@
 <html lang="zh-CN" data-lang="zh"><head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>20 · 端到端实战：多 Agent 工作流 — Capstone: A Multi-Agent Workflow · Agent Framework 图解教程 · Visual Guide</title>
-<meta name="description" content="第五部分 · 自己动手做 Agent｜端到端实战：多 Agent 工作流（Capstone: A Multi-Agent Workflow）：面向新手的 Agent Framework 图解教程，配真实源码对应与设计亮点。">
+<title>23 · Foundry 托管 Agent — Foundry Hosted Agents · Agent Framework 图解教程 · Visual Guide</title>
+<meta name="description" content="第五部分 · 自己动手做 Agent｜Foundry 托管 Agent（Foundry Hosted Agents）：面向新手的 Agent Framework 图解教程，配真实源码对应与设计亮点。">
 <meta name="theme-color" content="#0078d4">
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml;base64,PHN2ZyB4bWxucz0naHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmcnIHZpZXdCb3g9JzAgMCAzMiAzMic+PHJlY3Qgd2lkdGg9JzMyJyBoZWlnaHQ9JzMyJyByeD0nNycgZmlsbD0nIzAwNzhkNCcvPjx0ZXh0IHg9JzE2JyB5PScyMicgZm9udC1mYW1pbHk9J3N5c3RlbS11aSxzYW5zLXNlcmlmJyBmb250LXNpemU9JzEzJyBmb250LXdlaWdodD0nNzAwJyBmaWxsPScjZmZmJyB0ZXh0LWFuY2hvcj0nbWlkZGxlJz5BRjwvdGV4dD48L3N2Zz4=">
 <meta property="og:type" content="article">
 <meta property="og:site_name" content="Agent Framework 图解教程 · Visual Guide">
-<meta property="og:title" content="20 · 端到端实战：多 Agent 工作流 — Capstone: A Multi-Agent Workflow · Agent Framework 图解教程 · Visual Guide">
-<meta property="og:description" content="第五部分 · 自己动手做 Agent｜端到端实战：多 Agent 工作流（Capstone: A Multi-Agent Workflow）：面向新手的 Agent Framework 图解教程，配真实源码对应与设计亮点。">
+<meta property="og:title" content="23 · Foundry 托管 Agent — Foundry Hosted Agents · Agent Framework 图解教程 · Visual Guide">
+<meta property="og:description" content="第五部分 · 自己动手做 Agent｜Foundry 托管 Agent（Foundry Hosted Agents）：面向新手的 Agent Framework 图解教程，配真实源码对应与设计亮点。">
 <meta name="twitter:card" content="summary">
-<meta name="twitter:title" content="20 · 端到端实战：多 Agent 工作流 — Capstone: A Multi-Agent Workflow · Agent Framework 图解教程 · Visual Guide">
-<meta name="twitter:description" content="第五部分 · 自己动手做 Agent｜端到端实战：多 Agent 工作流（Capstone: A Multi-Agent Workflow）：面向新手的 Agent Framework 图解教程，配真实源码对应与设计亮点。">
+<meta name="twitter:title" content="23 · Foundry 托管 Agent — Foundry Hosted Agents · Agent Framework 图解教程 · Visual Guide">
+<meta name="twitter:description" content="第五部分 · 自己动手做 Agent｜Foundry 托管 Agent（Foundry Hosted Agents）：面向新手的 Agent Framework 图解教程，配真实源码对应与设计亮点。">
 <script>try{var l=localStorage.getItem('af-guide-lang')||'zh';document.documentElement.setAttribute('data-lang',l);}catch(e){}</script>
 <style>
 * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -242,221 +242,186 @@ table.t td.mono, table.t td .mono { font-family: ui-monospace, monospace; font-s
     <a class="home" href="../index.html">📘 <span class="i18n" data-lang="zh">Agent Framework 图解教程 · </span><span class="i18n" data-lang="en">Agent Framework Visual Guide · </span><b><span class="i18n" data-lang="zh">目录</span><span class="i18n" data-lang="en">Contents</span></b></a>
     <div class="pills">
       <span class="pill"><span class="i18n" data-lang="zh">第五部分 · 自己动手做 Agent</span><span class="i18n" data-lang="en">Part 5 · Build Your Own</span></span>
-      <span class="pill">20 / 27</span>
+      <span class="pill">23 / 27</span>
       <span class="langtoggle">EN</span>
     </div>
   </div>
-  <div class="progress"><span style="width:74%"></span></div>
+  <div class="progress"><span style="width:85%"></span></div>
 </div>
 <div class="wrap">
   <div class="hero">
     <div class="part"><span class="i18n" data-lang="zh">第五部分 · 自己动手做 Agent</span><span class="i18n" data-lang="en">Part 5 · Build Your Own</span></div>
-    <h1><span class="i18n" data-lang="zh">端到端实战：多 Agent 工作流</span><span class="i18n" data-lang="en">Capstone: A Multi-Agent Workflow</span></h1>
+    <h1><span class="i18n" data-lang="zh">Foundry 托管 Agent</span><span class="i18n" data-lang="en">Foundry Hosted Agents</span></h1>
   </div>
   <div class="i18n" data-lang="zh">
-<p class="lead">最后一课实战：把前面学的<strong>Agent + 工具 + 编排 + 检查点</strong>拼成一个
-<strong>多 Agent 工作流</strong>。</p>
+<p class="lead"><strong>Foundry 托管 Agent</strong>——只需 ~2 行额外代码，就能把本地 Agent 部署到 Azure AI Foundry 云端，
+获得自动伸缩、会话管理和企业级监控。</p>
 
 <div class="card analogy">
-  <div class="tag">🧩 生活类比</div>
-  这节课像<strong>拼乐高</strong>：前面每课教你认识一种零件（Agent、工具、编排、检查点），
-  现在把它们拼成一辆完整的车——能跑、能转弯、能刹车。
+  <div class="tag">📚 生活类比</div>
+  本地跑 Agent 像在<strong>自家厨房做饭</strong>（灵活但只能服务自己）；
+  Foundry 托管就像把菜谱交给<strong>云厨房</strong>——它帮你准备食材、管理订单、扩容厨师，你只管出菜谱。
 </div>
 
-<h2>场景：写作 → 审稿</h2>
-<div class="vflow">
-  <div class="step"><div class="num">1</div><div class="sc"><h4>创建两个 Agent</h4>
-    <p><strong>Writer</strong>：根据提示写文章。<strong>Reviewer</strong>：审稿、提修改意见。</p></div></div>
-  <div class="step"><div class="num">2</div><div class="sc"><h4>用 SequentialBuilder 编排</h4>
-    <p>Writer 写完 → Reviewer 审稿，串行。</p></div></div>
-  <div class="step"><div class="num">3</div><div class="sc"><h4>跑起来</h4>
-    <p><span class="mono">workflow.run("Write about AI agents")</span>。</p></div></div>
-</div>
+<h2>两种托管模式</h2>
+<table class="t">
+  <tr><th>模式</th><th>类名</th><th>特点</th><th>适用场景</th></tr>
+  <tr><td>Responses API</td><td class="mono">ResponsesHostServer</td><td>完整的 Azure AI Foundry Responses 协议，支持流式、审批工作流</td><td>需要与 Foundry 生态深度集成</td></tr>
+  <tr><td>Invocations</td><td class="mono">InvocationsHostServer</td><td>轻量级 JSON 请求/响应，支持流式</td><td>快速部署，简单场景</td></tr>
+</table>
 
+<h2>最小托管模式</h2>
 <div class="codefile">
-  <div class="cf-head"><span class="dot"></span><span class="path">端到端示例骨架</span></div>
-<pre><span class="kw">from</span> agent_framework <span class="kw">import</span> Agent
-<span class="kw">from</span> agent_framework.orchestrations <span class="kw">import</span> SequentialBuilder
+  <div class="cf-head"><span class="dot"></span><span class="path">Invocations 模式</span></div>
+<pre><span class="kw">from</span> agent_framework_foundry_hosting <span class="kw">import</span> InvocationsHostServer
 
-writer = Agent(client=client, name=<span class="st">"Writer"</span>,
-    instructions=<span class="st">"Write a short article on the given topic."</span>)
-reviewer = Agent(client=client, name=<span class="st">"Reviewer"</span>,
-    instructions=<span class="st">"Review the article. Suggest improvements."</span>)
-
-workflow = SequentialBuilder(participants=[writer, reviewer]).build()
-result = <span class="kw">await</span> workflow.run(<span class="st">"Write about AI agents"</span>)</pre>
+server = InvocationsHostServer(agent=my_agent)
+server.run()
+<span class="cm"># 就这么简单——Agent 已在云端运行！</span></pre>
 </div>
 
 <details class="accordion">
-  <summary><span class="badge-num">1</span> 完整代码骨架（扩展版） <span class="hint">点击展开详解</span></summary>
+  <summary><span class="badge-num">1</span> Responses vs Invocations <span class="hint">点击展开详解</span></summary>
   <div class="acc-body">
     <div class="qa">
       <div class="q">🧪 示例</div>
-      <div class="a">完整的 25-30 行可工作示例：
-<pre class="code"><span class="kw">from</span> agent_framework <span class="kw">import</span> Agent, tool, OpenAIChatClient
-<span class="kw">from</span> agent_framework.orchestrations <span class="kw">import</span> SequentialBuilder
-<span class="kw">from</span> agent_framework <span class="kw">import</span> InMemoryCheckpointStorage
+      <div class="a">两种模式的初始化：
+<pre class="code"><span class="cm"># Responses 模式 — 完整 Foundry API 集成</span>
+<span class="kw">from</span> agent_framework_foundry_hosting <span class="kw">import</span> ResponsesHostServer
+server = ResponsesHostServer(agent=my_agent)
 
-<span class="cm"># 工具</span>
-<span class="nb">@tool</span>
-<span class="kw">def</span> <span class="fn">web_search</span>(query: str) -> str:
-    <span class="st">&quot;&quot;&quot;搜索网络&quot;&quot;&quot;</span>
-    <span class="kw">return</span> f<span class="st">&quot;Results for {query}&quot;</span>
-
-<span class="cm"># 中间件</span>
-<span class="kw">class</span> <span class="fn">LoggingMiddleware</span>(ChatMiddleware):
-    <span class="kw">async def</span> <span class="fn">process</span>(self, context, call_next):
-        logger.info(f<span class="st">&quot;Input: {context.messages}&quot;</span>)
-        <span class="kw">await</span> call_next()
-        logger.info(f<span class="st">&quot;Output: {context.result}&quot;</span>)
-
-<span class="cm"># Agents</span>
-client = OpenAIChatClient(model=<span class="st">&quot;gpt-4o&quot;</span>)
-writer = client.as_agent(name=<span class="st">&quot;Writer&quot;</span>,
-    instructions=<span class="st">&quot;Write articles&quot;</span>,
-    tools=[web_search],
-    chat_middleware=[LoggingMiddleware()])
-
-reviewer = client.as_agent(name=<span class="st">&quot;Reviewer&quot;</span>,
-    instructions=<span class="st">&quot;Review and improve&quot;</span>)
-
-<span class="cm"># 工作流</span>
-storage = InMemoryCheckpointStorage()
-workflow = SequentialBuilder(
-    participants=[writer, reviewer],
-    checkpoint_storage=storage
-).build()
-
-result = <span class="kw">await</span> workflow.run(<span class="st">&quot;Write about MAF&quot;</span>)</pre>
-所有组件整合：Agent、工具、中间件、检查点、编排。
+<span class="cm"># Invocations 模式 — 轻量级 JSON</span>
+<span class="kw">from</span> agent_framework_foundry_hosting <span class="kw">import</span> InvocationsHostServer
+server = InvocationsHostServer(agent=my_agent)</pre>
       </div>
     </div>
     <div class="qa">
       <div class="q">❓ 为什么这件事必要</div>
-      <div class="a">看到所有组件一起工作能巩固理解。可复制粘贴的代码是最好的学习工具。</div>
+      <div class="a">不同场景对 API 复杂度要求不同：<strong>Responses 模式</strong>提供完整的 Foundry Responses API
+        （包括类型转换、审批存储、流式事件），适合企业级集成；
+        <strong>Invocations 模式</strong>更简洁，适合快速原型和简单部署。</div>
     </div>
     <div class="qa">
       <div class="q">✅ MAF 的做法与优点</div>
-      <div class="a">MAF 的可组合性意味着每个组件（Agent、工具、中间件、检查点、编排）都能干净地组合在一起。</div>
+      <div class="a">两种模式都自动管理 <span class="mono">AgentSession</span>（按 session_id 隔离会话状态），
+        支持流式响应（<span class="mono">StreamingResponse</span>），
+        且都用 <span class="mono">async</span> 实现高并发。切换模式只需换一个类名。</div>
     </div>
     <div class="qa">
       <div class="q">🔀 还有什么其他方案</div>
-      <div class="a">样板代码繁重的框架需要 100+ 行才能实现相同功能。MAF 保持在 30 行以内。</div>
+      <div class="a"><strong>自建 FastAPI 服务</strong>（灵活但要自己处理会话管理、伸缩）；
+        <strong>LangServe</strong>（LangChain 的部署方案，不兼容 Foundry 生态）；
+        <strong>容器化 + K8s</strong>（完全自主但运维成本高）。</div>
     </div>
   </div>
 </details>
 
 <details class="accordion">
-  <summary><span class="badge-num">2</span> 加入 Concurrent 变体 <span class="hint">点击展开详解</span></summary>
+  <summary><span class="badge-num">2</span> 部署步骤 <span class="hint">点击展开详解</span></summary>
   <div class="acc-body">
     <div class="qa">
       <div class="q">🧪 示例</div>
-      <div class="a">用 Sequential 替换为：Writer + FactChecker 并行运行，然后 Reviewer 串行运行：
-<pre class="code"><span class="kw">from</span> agent_framework.orchestrations <span class="kw">import</span> (
-    SequentialBuilder, ConcurrentBuilder
-)
+      <div class="a">典型的部署流程：
+<pre class="code"><span class="cm"># 1. 安装包</span>
+pip install agent-framework-foundry-hosting
 
-<span class="cm"># 阶段 1：并行</span>
-concurrent_stage = ConcurrentBuilder(
-    participants=[writer, fact_checker]
-).build()
+<span class="cm"># 2. 写 server.py</span>
+<span class="kw">from</span> agent_framework_foundry_hosting <span class="kw">import</span> InvocationsHostServer
+server = InvocationsHostServer(agent=my_agent)
+server.run()
 
-<span class="cm"># 阶段 2：串行（等待并行阶段完成）</span>
-workflow = SequentialBuilder(
-    participants=[concurrent_stage, reviewer]
-).build()
-
-result = <span class="kw">await</span> workflow.run(<span class="st">&quot;Write about AI&quot;</span>)</pre>
-Builder 可组合：混合并行和串行阶段。
+<span class="cm"># 3. 部署到 Azure AI Foundry</span>
+<span class="cm"># 通过 Foundry portal 或 CLI 部署</span></pre>
       </div>
     </div>
     <div class="qa">
       <div class="q">❓ 为什么这件事必要</div>
-      <div class="a">串行工作流在步骤独立时很慢。并行执行减少实际时间。</div>
+      <div class="a">从本地原型到生产部署的"最后一公里"往往最痛苦：
+        要处理容器化、服务发现、负载均衡、认证等。Foundry 托管把这些都抽象掉了。</div>
     </div>
     <div class="qa">
       <div class="q">✅ MAF 的做法与优点</div>
-      <div class="a">MAF 的 ConcurrentBuilder + SequentialBuilder 自然组合。自由混合并行和串行阶段。</div>
+      <div class="a">只需 <span class="mono">pip install</span> + 2-3 行代码，Agent 就变成可部署的 Web 服务。
+        <span class="mono">ResponsesHostServer</span> 还自动处理 Responses API 的类型转换（Message → Item）和
+        <span class="mono">ApprovalStorage</span>（函数调用审批）。</div>
     </div>
     <div class="qa">
       <div class="q">🔀 还有什么其他方案</div>
-      <div class="a">手动 asyncio.gather()、线程池。MAF 的 builder 自动处理扇出/扇入。</div>
+      <div class="a"><strong>Azure Container Apps</strong>（更底层控制但更多配置）；
+        <strong>AWS Lambda + API Gateway</strong>（无服务器但冷启动慢）；
+        <strong>自建 Docker + Nginx</strong>（完全自主但运维成本高）。</div>
     </div>
   </div>
 </details>
 
 <details class="accordion">
-  <summary><span class="badge-num">3</span> 加入人在环 <span class="hint">点击展开详解</span></summary>
+  <summary><span class="badge-num">3</span> 托管基础设施优势 <span class="hint">点击展开详解</span></summary>
   <div class="acc-body">
     <div class="qa">
       <div class="q">🧪 示例</div>
-      <div class="a">给 Reviewer 添加 <span class="mono">publish</span> 工具，带 <span class="mono">approval_mode="always_require"</span>：
-<pre class="code"><span class="nb">@tool</span>(approval_mode=<span class="st">&quot;always_require&quot;</span>)
-<span class="kw">def</span> <span class="fn">publish</span>(content: str):
-    <span class="st">&quot;&quot;&quot;发布文章（需要审批）&quot;&quot;&quot;</span>
-    <span class="cm"># 实际发布逻辑</span>
-    <span class="kw">return</span> f<span class="st">&quot;Published: {content[:50]}...&quot;</span>
+      <div class="a">Foundry 托管自动提供的能力：
+<pre class="code"><span class="cm"># 你只写 Agent 逻辑：</span>
+agent = Agent(client=client, tools=[...], name=<span class="st">"my-agent"</span>)
+server = InvocationsHostServer(agent=agent)
 
-reviewer = client.as_agent(
-    name=<span class="st">&quot;Reviewer&quot;</span>,
-    instructions=<span class="st">&quot;Review and publish if good&quot;</span>,
-    tools=[publish]  <span class="cm"># 发布前必须人工审批</span>
-)</pre>
-在文章发布前，必须有人批准。框架处理暂停、通知和恢复。
+<span class="cm"># Foundry 自动提供：</span>
+<span class="cm"># ✓ 自动伸缩（根据请求量）</span>
+<span class="cm"># ✓ 会话管理（多用户隔离）</span>
+<span class="cm"># ✓ 监控和日志</span>
+<span class="cm"># ✓ 认证和授权</span></pre>
       </div>
     </div>
     <div class="qa">
       <div class="q">❓ 为什么这件事必要</div>
-      <div class="a">自动发布而不审查有风险。发布步骤的 HITL 防止不良内容上线。</div>
+      <div class="a">生产环境的 Agent 需要处理并发、故障恢复、安全审计等问题。
+        手动搭建这些基础设施需要数周时间，Foundry 托管让你专注于 Agent 逻辑。</div>
     </div>
     <div class="qa">
       <div class="q">✅ MAF 的做法与优点</div>
-      <div class="a">工具定义上的一个参数（<span class="mono">approval_mode</span>）。框架处理暂停、通知和恢复。</div>
+      <div class="a">框架把"Agent 开发"和"部署运维"完全解耦：
+        本地用 <span class="mono">Agent.run()</span> 调试，生产用 <span class="mono">HostServer.run()</span> 部署，
+        Agent 代码零修改。这是"write once, deploy anywhere"的理念。</div>
     </div>
     <div class="qa">
       <div class="q">🔀 还有什么其他方案</div>
-      <div class="a">自定义 webhook 审批、外部审核 API。MAF 的方法是声明式且内置的。</div>
+      <div class="a"><strong>自建微服务架构</strong>（灵活但成本高）；
+        <strong>Vercel AI SDK</strong>（适合前端 AI 应用但不是完整 Agent 托管）；
+        <strong>Modal / Beam</strong>（Python 函数云部署，但缺乏 Agent 专属功能）。</div>
     </div>
   </div>
 </details>
 
 <details class="accordion">
-  <summary><span class="badge-num">4</span> 生产化清单 <span class="hint">点击展开详解</span></summary>
+  <summary><span class="badge-num">4</span> 什么时候不用托管 <span class="hint">点击展开详解</span></summary>
   <div class="acc-body">
     <div class="qa">
       <div class="q">🧪 示例</div>
-      <div class="a">生产就绪检查清单：
-<pre class="code"><span class="cm"># ✓ 添加 OpenTelemetry 追踪</span>
-<span class="kw">from</span> agent_framework.telemetry <span class="kw">import</span> setup_otel
-setup_otel(service_name=<span class="st">&quot;my-agent&quot;</span>)
+      <div class="a">不适合 Foundry 托管的场景：
+<pre class="code"><span class="cm"># ✗ 纯本地/离线环境</span>
+<span class="cm"># ✗ 需要自定义底层网络配置</span>
+<span class="cm"># ✗ 已有完善的 K8s 部署体系</span>
+<span class="cm"># ✗ 数据合规要求不允许云端托管</span>
 
-<span class="cm"># ✓ 切换到持久化存储</span>
-<span class="kw">from</span> agent_framework_redis <span class="kw">import</span> RedisCheckpointStorage
-storage = RedisCheckpointStorage(conn_string)
-
-<span class="cm"># ✓ 添加错误处理中间件</span>
-middleware=[ErrorHandlingMiddleware(), RetryMiddleware()]
-
-<span class="cm"># ✓ 设置 token 预算</span>
-agent = client.as_agent(..., max_tokens=<span class="nb">10000</span>)
-
-<span class="cm"># ✓ 添加速率限制</span>
-<span class="cm"># ✓ 配置日志级别</span>
-logging.basicConfig(level=logging.INFO)</pre>
-从演示到生产的差距清单。
+<span class="cm"># 这些场景下，直接用 Agent.run() 集成到</span>
+<span class="cm"># 你自己的 FastAPI/Flask 服务中</span></pre>
       </div>
     </div>
     <div class="qa">
       <div class="q">❓ 为什么这件事必要</div>
-      <div class="a">演示代码 ≠ 生产代码。知道差距可防止中断和成本超支。</div>
+      <div class="a">托管并非万能——如果你已经有成熟的基础设施，或者有严格的数据驻留要求，
+        直接把 Agent 集成到自有服务可能更合适。</div>
     </div>
     <div class="qa">
       <div class="q">✅ MAF 的做法与优点</div>
-      <div class="a">MAF 提供所有生产构建块：OTel 集成、持久化存储包、重试/日志/计费中间件。无需第三方胶水。</div>
+      <div class="a">MAF 不强制托管——<span class="mono">Agent</span> 类本身完全独立，
+        <span class="mono">HostServer</span> 只是一个可选的薄包装层。
+        你可以把 Agent 嵌入任何 Python Web 框架（FastAPI、Flask、Django）。</div>
     </div>
     <div class="qa">
       <div class="q">🔀 还有什么其他方案</div>
-      <div class="a">平台特定解决方案（Azure Monitor、Datadog）。MAF 是云无关的；OTel 导出到任何后端。</div>
+      <div class="a"><strong>FastAPI + Agent.run()</strong>（自建最灵活）；
+        <strong>A2A 协议</strong>（跨系统 Agent 互调）；
+        <strong>MCP 服务器模式</strong>（把 Agent 暴露为 MCP 工具供其他系统调用）。</div>
     </div>
   </div>
 </details>
@@ -464,223 +429,192 @@ logging.basicConfig(level=logging.INFO)</pre>
 <div class="card key">
   <div class="tag">✅ 关键要点</div>
   <ul>
-    <li>多 Agent 工作流 = 几个 Agent + 一个 Builder + <span class="mono">.build().run()</span>。</li>
-    <li>工具、中间件、检查点、人在环——全部可以叠加进去。</li>
-    <li>从"hello agent"到"生产级多 Agent"，代码增量很小。</li>
+    <li>两种模式：<strong>ResponsesHostServer</strong>（完整 Foundry API）和 <strong>InvocationsHostServer</strong>（轻量 JSON）。</li>
+    <li>~2 行代码把本地 Agent 变成云端服务——会话管理、伸缩、监控自动搞定。</li>
+    <li>Agent 代码<strong>零修改</strong>：本地 <span class="mono">.run()</span>、云端 <span class="mono">HostServer.run()</span>。</li>
+    <li>不强制托管——Agent 可嵌入任何 Python Web 框架。</li>
   </ul>
 </div>
 
 <div class="card spark">
   <div class="tag">💡 设计亮点</div>
-  <strong>复杂度是增量的</strong>：单 Agent → 加工具 → 加编排 → 加检查点 → 加审批，每一步只增加几行代码。
-  这就是"从原型到生产"的体验。
+  <strong>"开发即部署"</strong>——Agent 逻辑完全不依赖托管层。
+  HostServer 是一个<strong>可选的薄适配器</strong>，把你的 Agent 翻译成 Foundry 能理解的协议。
+  这意味着同一个 Agent 既能本地调试，又能一键上云。
 </div>
 </div>
 <div class="i18n" data-lang="en">
-<p class="lead">Capstone: assemble <strong>Agent + tools + orchestration + checkpoints</strong> from earlier lessons
-into a <strong>multi-Agent workflow</strong>.</p>
+<p class="lead"><strong>Foundry Hosted Agents</strong> — with ~2 extra lines of code, deploy your local Agent to Azure AI
+Foundry cloud and get auto-scaling, session management and enterprise monitoring for free.</p>
 
 <div class="card analogy">
-  <div class="tag">🧩 Analogy</div>
-  This lesson is like <strong>building with LEGO</strong>: earlier lessons taught you each brick type
-  (Agent, tools, orchestration, checkpoints); now you snap them together into a complete car —
-  one that drives, turns and brakes.
+  <div class="tag">📚 Analogy</div>
+  Running an Agent locally is like <strong>cooking at home</strong> (flexible but serves only you).
+  Foundry hosting is handing your recipe to a <strong>cloud kitchen</strong> — it procures ingredients,
+  manages orders, scales up chefs. You just supply the recipe.
 </div>
 
-<h2>Scenario: write → review</h2>
-<div class="vflow">
-  <div class="step"><div class="num">1</div><div class="sc"><h4>Create two Agents</h4>
-    <p><strong>Writer</strong>: writes an article from a prompt. <strong>Reviewer</strong>: reviews it, suggests edits.</p></div></div>
-  <div class="step"><div class="num">2</div><div class="sc"><h4>Orchestrate with SequentialBuilder</h4>
-    <p>Writer finishes → Reviewer reviews, in sequence.</p></div></div>
-  <div class="step"><div class="num">3</div><div class="sc"><h4>Run it</h4>
-    <p><span class="mono">workflow.run("Write about AI agents")</span>.</p></div></div>
-</div>
+<h2>Two hosting modes</h2>
+<table class="t">
+  <tr><th>Mode</th><th>Class</th><th>Features</th><th>Use case</th></tr>
+  <tr><td>Responses API</td><td class="mono">ResponsesHostServer</td><td>Full Azure AI Foundry Responses protocol; streaming, approval workflows</td><td>Deep Foundry ecosystem integration</td></tr>
+  <tr><td>Invocations</td><td class="mono">InvocationsHostServer</td><td>Lightweight JSON request/response; streaming</td><td>Quick deployment, simple scenarios</td></tr>
+</table>
 
+<h2>Minimal hosting pattern</h2>
 <div class="codefile">
-  <div class="cf-head"><span class="dot"></span><span class="path">end-to-end skeleton</span></div>
-<pre><span class="kw">from</span> agent_framework <span class="kw">import</span> Agent
-<span class="kw">from</span> agent_framework.orchestrations <span class="kw">import</span> SequentialBuilder
+  <div class="cf-head"><span class="dot"></span><span class="path">Invocations mode</span></div>
+<pre><span class="kw">from</span> agent_framework_foundry_hosting <span class="kw">import</span> InvocationsHostServer
 
-writer = Agent(client=client, name=<span class="st">"Writer"</span>,
-    instructions=<span class="st">"Write a short article on the given topic."</span>)
-reviewer = Agent(client=client, name=<span class="st">"Reviewer"</span>,
-    instructions=<span class="st">"Review the article. Suggest improvements."</span>)
-
-workflow = SequentialBuilder(participants=[writer, reviewer]).build()
-result = <span class="kw">await</span> workflow.run(<span class="st">"Write about AI agents"</span>)</pre>
+server = InvocationsHostServer(agent=my_agent)
+server.run()
+<span class="cm"># That's it — Agent is live in the cloud!</span></pre>
 </div>
 
 <details class="accordion">
-  <summary><span class="badge-num">1</span> Extended code skeleton <span class="hint">expand</span></summary>
+  <summary><span class="badge-num">1</span> Responses vs Invocations <span class="hint">expand</span></summary>
   <div class="acc-body">
     <div class="qa">
       <div class="q">🧪 Example</div>
-      <div class="a">Full working example in ~25-30 lines:
-<pre class="code"><span class="kw">from</span> agent_framework <span class="kw">import</span> Agent, tool, OpenAIChatClient
-<span class="kw">from</span> agent_framework.orchestrations <span class="kw">import</span> SequentialBuilder
-<span class="kw">from</span> agent_framework <span class="kw">import</span> InMemoryCheckpointStorage
+      <div class="a">Initialising each mode:
+<pre class="code"><span class="cm"># Responses mode — full Foundry API</span>
+<span class="kw">from</span> agent_framework_foundry_hosting <span class="kw">import</span> ResponsesHostServer
+server = ResponsesHostServer(agent=my_agent)
 
-<span class="cm"># Tool</span>
-<span class="nb">@tool</span>
-<span class="kw">def</span> <span class="fn">web_search</span>(query: str) -> str:
-    <span class="st">&quot;&quot;&quot;Search the web&quot;&quot;&quot;</span>
-    <span class="kw">return</span> f<span class="st">&quot;Results for {query}&quot;</span>
-
-<span class="cm"># Middleware</span>
-<span class="kw">class</span> <span class="fn">LoggingMiddleware</span>(ChatMiddleware):
-    <span class="kw">async def</span> <span class="fn">process</span>(self, context, call_next):
-        logger.info(f<span class="st">&quot;Input: {context.messages}&quot;</span>)
-        <span class="kw">await</span> call_next()
-        logger.info(f<span class="st">&quot;Output: {context.result}&quot;</span>)
-
-<span class="cm"># Agents</span>
-client = OpenAIChatClient(model=<span class="st">&quot;gpt-4o&quot;</span>)
-writer = client.as_agent(name=<span class="st">&quot;Writer&quot;</span>,
-    instructions=<span class="st">&quot;Write articles&quot;</span>,
-    tools=[web_search],
-    chat_middleware=[LoggingMiddleware()])
-
-reviewer = client.as_agent(name=<span class="st">&quot;Reviewer&quot;</span>,
-    instructions=<span class="st">&quot;Review and improve&quot;</span>)
-
-<span class="cm"># Workflow</span>
-storage = InMemoryCheckpointStorage()
-workflow = SequentialBuilder(
-    participants=[writer, reviewer],
-    checkpoint_storage=storage
-).build()
-
-result = <span class="kw">await</span> workflow.run(<span class="st">&quot;Write about MAF&quot;</span>)</pre>
-All pieces together: agent, tool, middleware, checkpoint, orchestration.
+<span class="cm"># Invocations mode — lightweight JSON</span>
+<span class="kw">from</span> agent_framework_foundry_hosting <span class="kw">import</span> InvocationsHostServer
+server = InvocationsHostServer(agent=my_agent)</pre>
       </div>
     </div>
     <div class="qa">
       <div class="q">❓ Why this matters</div>
-      <div class="a">Seeing all pieces together cements understanding. Copy-paste-able code is the best learning tool.</div>
+      <div class="a">Different scenarios demand different API complexity.
+        <strong>Responses mode</strong> provides the full Foundry Responses API with type conversion,
+        approval storage and streaming events — ideal for enterprise integration.
+        <strong>Invocations mode</strong> is leaner for quick prototyping and simple deployment.</div>
     </div>
     <div class="qa">
       <div class="q">✅ How MAF does it</div>
-      <div class="a">MAF's composability means each piece (agent, tool, middleware, checkpoint, orchestration) snaps together cleanly.</div>
+      <div class="a">Both modes auto-manage <span class="mono">AgentSession</span> (isolated by session_id),
+        support streaming (<span class="mono">StreamingResponse</span>), and use <span class="mono">async</span>
+        for high concurrency. Switching modes requires changing only one class name.</div>
     </div>
     <div class="qa">
       <div class="q">🔀 Alternatives</div>
-      <div class="a">Boilerplate-heavy frameworks need 100+ lines for the same. MAF keeps it under 30.</div>
+      <div class="a"><strong>Self-built FastAPI service</strong> (flexible but you handle session management and scaling);
+        <strong>LangServe</strong> (LangChain's deploy tool — not Foundry-compatible);
+        <strong>Containerised + K8s</strong> (full control but high ops cost).</div>
     </div>
   </div>
 </details>
 
 <details class="accordion">
-  <summary><span class="badge-num">2</span> Adding concurrency <span class="hint">expand</span></summary>
+  <summary><span class="badge-num">2</span> Deployment steps <span class="hint">expand</span></summary>
   <div class="acc-body">
     <div class="qa">
       <div class="q">🧪 Example</div>
-      <div class="a">Replace Sequential with: Writer + FactChecker run in parallel, then Reviewer runs serially:
-<pre class="code"><span class="kw">from</span> agent_framework.orchestrations <span class="kw">import</span> (
-    SequentialBuilder, ConcurrentBuilder
-)
+      <div class="a">A typical deployment flow:
+<pre class="code"><span class="cm"># 1. Install the package</span>
+pip install agent-framework-foundry-hosting
 
-<span class="cm"># Stage 1: concurrent</span>
-concurrent_stage = ConcurrentBuilder(
-    participants=[writer, fact_checker]
-).build()
+<span class="cm"># 2. Write server.py</span>
+<span class="kw">from</span> agent_framework_foundry_hosting <span class="kw">import</span> InvocationsHostServer
+server = InvocationsHostServer(agent=my_agent)
+server.run()
 
-<span class="cm"># Stage 2: sequential (waits for concurrent stage)</span>
-workflow = SequentialBuilder(
-    participants=[concurrent_stage, reviewer]
-).build()
-
-result = <span class="kw">await</span> workflow.run(<span class="st">&quot;Write about AI&quot;</span>)</pre>
-Builders compose: mix parallel and sequential stages.
+<span class="cm"># 3. Deploy to Azure AI Foundry</span>
+<span class="cm"># Via the Foundry portal or CLI</span></pre>
       </div>
     </div>
     <div class="qa">
       <div class="q">❓ Why this matters</div>
-      <div class="a">Sequential workflows are slow when steps are independent. Parallel execution cuts wall-clock time.</div>
+      <div class="a">The "last mile" from local prototype to production is often the most painful:
+        containerisation, service discovery, load balancing, auth.
+        Foundry hosting abstracts it all away.</div>
     </div>
     <div class="qa">
       <div class="q">✅ How MAF does it</div>
-      <div class="a">MAF's ConcurrentBuilder + SequentialBuilder compose naturally. Mix parallel and sequential stages freely.</div>
+      <div class="a">Just <span class="mono">pip install</span> + 2-3 lines and your Agent becomes a deployable web service.
+        <span class="mono">ResponsesHostServer</span> also auto-handles Responses API type conversion
+        (Message → Item) and <span class="mono">ApprovalStorage</span> (function-call approval).</div>
     </div>
     <div class="qa">
       <div class="q">🔀 Alternatives</div>
-      <div class="a">Manual asyncio.gather(), thread pools. MAF's builders handle fan-out/fan-in automatically.</div>
+      <div class="a"><strong>Azure Container Apps</strong> (lower-level control, more config);
+        <strong>AWS Lambda + API Gateway</strong> (serverless but cold-start latency);
+        <strong>Self-hosted Docker + Nginx</strong> (full control, high ops cost).</div>
     </div>
   </div>
 </details>
 
 <details class="accordion">
-  <summary><span class="badge-num">3</span> Adding HITL <span class="hint">expand</span></summary>
+  <summary><span class="badge-num">3</span> Managed infrastructure benefits <span class="hint">expand</span></summary>
   <div class="acc-body">
     <div class="qa">
       <div class="q">🧪 Example</div>
-      <div class="a">Add a <span class="mono">publish</span> tool to Reviewer with <span class="mono">approval_mode="always_require"</span>:
-<pre class="code"><span class="nb">@tool</span>(approval_mode=<span class="st">&quot;always_require&quot;</span>)
-<span class="kw">def</span> <span class="fn">publish</span>(content: str):
-    <span class="st">&quot;&quot;&quot;Publish article (requires approval)&quot;&quot;&quot;</span>
-    <span class="cm"># actual publish logic</span>
-    <span class="kw">return</span> f<span class="st">&quot;Published: {content[:50]}...&quot;</span>
+      <div class="a">What Foundry hosting gives you automatically:
+<pre class="code"><span class="cm"># You write Agent logic only:</span>
+agent = Agent(client=client, tools=[...], name=<span class="st">"my-agent"</span>)
+server = InvocationsHostServer(agent=agent)
 
-reviewer = client.as_agent(
-    name=<span class="st">&quot;Reviewer&quot;</span>,
-    instructions=<span class="st">&quot;Review and publish if good&quot;</span>,
-    tools=[publish]  <span class="cm"># must be human-approved before publish</span>
-)</pre>
-Before the article is published, a human must approve. Framework handles pausing, notifying, and resuming.
+<span class="cm"># Foundry provides automatically:</span>
+<span class="cm"># ✓ Auto-scaling (based on request volume)</span>
+<span class="cm"># ✓ Session management (multi-user isolation)</span>
+<span class="cm"># ✓ Monitoring and logging</span>
+<span class="cm"># ✓ Authentication and authorisation</span></pre>
       </div>
     </div>
     <div class="qa">
       <div class="q">❓ Why this matters</div>
-      <div class="a">Auto-publishing without review is risky. HITL at the publish step prevents bad content from going live.</div>
+      <div class="a">Production Agents need to handle concurrency, failure recovery and security auditing.
+        Building that infrastructure manually takes weeks; Foundry hosting lets you focus on Agent logic.</div>
     </div>
     <div class="qa">
       <div class="q">✅ How MAF does it</div>
-      <div class="a">One parameter (<span class="mono">approval_mode</span>) on the tool definition. The framework handles pausing, notifying, and resuming.</div>
+      <div class="a">The framework fully decouples "Agent development" from "deployment ops":
+        debug locally with <span class="mono">Agent.run()</span>, deploy with <span class="mono">HostServer.run()</span>,
+        zero changes to Agent code. A true "write once, deploy anywhere" philosophy.</div>
     </div>
     <div class="qa">
       <div class="q">🔀 Alternatives</div>
-      <div class="a">Custom webhook approval, external moderation API. MAF's approach is declarative and built-in.</div>
+      <div class="a"><strong>Self-built microservices</strong> (flexible but costly);
+        <strong>Vercel AI SDK</strong> (frontend AI apps, not full Agent hosting);
+        <strong>Modal / Beam</strong> (Python function cloud deploy, lacks Agent-specific features).</div>
     </div>
   </div>
 </details>
 
 <details class="accordion">
-  <summary><span class="badge-num">4</span> Production checklist <span class="hint">expand</span></summary>
+  <summary><span class="badge-num">4</span> When NOT to use hosted <span class="hint">expand</span></summary>
   <div class="acc-body">
     <div class="qa">
       <div class="q">🧪 Example</div>
-      <div class="a">Production-ready checklist:
-<pre class="code"><span class="cm"># ✓ Add OpenTelemetry tracing</span>
-<span class="kw">from</span> agent_framework.telemetry <span class="kw">import</span> setup_otel
-setup_otel(service_name=<span class="st">&quot;my-agent&quot;</span>)
+      <div class="a">Scenarios where Foundry hosting isn't the best fit:
+<pre class="code"><span class="cm"># ✗ Pure local / offline environments</span>
+<span class="cm"># ✗ Custom low-level network configuration needed</span>
+<span class="cm"># ✗ Existing mature K8s deployment pipeline</span>
+<span class="cm"># ✗ Data-residency compliance forbids cloud hosting</span>
 
-<span class="cm"># ✓ Switch to persistent storage</span>
-<span class="kw">from</span> agent_framework_redis <span class="kw">import</span> RedisCheckpointStorage
-storage = RedisCheckpointStorage(conn_string)
-
-<span class="cm"># ✓ Add error handling middleware</span>
-middleware=[ErrorHandlingMiddleware(), RetryMiddleware()]
-
-<span class="cm"># ✓ Set token budgets</span>
-agent = client.as_agent(..., max_tokens=<span class="nb">10000</span>)
-
-<span class="cm"># ✓ Add rate limiting</span>
-<span class="cm"># ✓ Configure logging</span>
-logging.basicConfig(level=logging.INFO)</pre>
-Checklist of gaps from demo to production.
+<span class="cm"># In these cases, embed Agent.run() directly</span>
+<span class="cm"># into your own FastAPI/Flask service</span></pre>
       </div>
     </div>
     <div class="qa">
       <div class="q">❓ Why this matters</div>
-      <div class="a">Demo code ≠ production code. Knowing the gaps prevents outages and cost overruns.</div>
+      <div class="a">Hosting isn't one-size-fits-all. If you already have mature infrastructure or strict
+        data-residency requirements, integrating the Agent into your own service may be better.</div>
     </div>
     <div class="qa">
       <div class="q">✅ How MAF does it</div>
-      <div class="a">MAF provides all production building blocks: OTel integration, persistent storage packages, middleware for retries/logging/billing. No third-party glue needed.</div>
+      <div class="a">MAF doesn't force hosting — the <span class="mono">Agent</span> class is completely standalone.
+        <span class="mono">HostServer</span> is just an optional thin wrapper. You can embed an Agent
+        into any Python web framework (FastAPI, Flask, Django).</div>
     </div>
     <div class="qa">
       <div class="q">🔀 Alternatives</div>
-      <div class="a">Platform-specific solutions (Azure Monitor, Datadog). MAF is cloud-agnostic; OTel exports to any backend.</div>
+      <div class="a"><strong>FastAPI + Agent.run()</strong> (most flexible self-hosted option);
+        <strong>A2A protocol</strong> (cross-system Agent interop);
+        <strong>MCP server mode</strong> (expose Agent as an MCP tool for other systems).</div>
     </div>
   </div>
 </details>
@@ -688,19 +622,21 @@ Checklist of gaps from demo to production.
 <div class="card key">
   <div class="tag">✅ Key points</div>
   <ul>
-    <li>Multi-Agent workflow = a few Agents + one Builder + <span class="mono">.build().run()</span>.</li>
-    <li>Tools, middleware, checkpoints, HITL — all stackable.</li>
-    <li>From "hello agent" to "production multi-Agent" with minimal code increase.</li>
+    <li>Two modes: <strong>ResponsesHostServer</strong> (full Foundry API) and <strong>InvocationsHostServer</strong> (lightweight JSON).</li>
+    <li>~2 lines turn a local Agent into a cloud service — sessions, scaling, monitoring included.</li>
+    <li>Agent code is <strong>unchanged</strong>: local <span class="mono">.run()</span>, cloud <span class="mono">HostServer.run()</span>.</li>
+    <li>Hosting is optional — Agents embed into any Python web framework.</li>
   </ul>
 </div>
 
 <div class="card spark">
   <div class="tag">💡 Design highlight</div>
-  <strong>Complexity is incremental</strong>: single Agent → add tools → add orchestration → add checkpoints → add
-  approvals, each step adds only a few lines. That's the "prototype to production" experience.
+  <strong>"Dev is deploy"</strong> — Agent logic has zero dependency on the hosting layer.
+  HostServer is an <strong>optional thin adapter</strong> translating your Agent into the protocol Foundry understands.
+  The same Agent works locally for debugging and goes live with one line.
 </div>
 </div>
-  <div class="footnav"><a class="prev" href="19-durability-hitl.html"><div class="dir"><span class="i18n" data-lang="zh">← 上一课</span><span class="i18n" data-lang="en">← Prev</span></div><div class="ttl"><span class="i18n" data-lang="zh">检查点 · 人在环 · 持久化</span><span class="i18n" data-lang="en">Checkpointing, HITL & Durability</span></div></a><a class="next" href="23-skills.html"><div class="dir"><span class="i18n" data-lang="zh">下一课 →</span><span class="i18n" data-lang="en">Next →</span></div><div class="ttl"><span class="i18n" data-lang="zh">Agent Skills 技能系统</span><span class="i18n" data-lang="en">Agent Skills</span></div></a></div>
+  <div class="footnav"><a class="prev" href="24-mcp.html"><div class="dir"><span class="i18n" data-lang="zh">← 上一课</span><span class="i18n" data-lang="en">← Prev</span></div><div class="ttl"><span class="i18n" data-lang="zh">MCP 工具协议</span><span class="i18n" data-lang="en">MCP Tool Protocol</span></div></a><a class="next" href="26-a2a-agui.html"><div class="dir"><span class="i18n" data-lang="zh">下一课 →</span><span class="i18n" data-lang="en">Next →</span></div><div class="ttl"><span class="i18n" data-lang="zh">A2A + AG-UI 协议</span><span class="i18n" data-lang="en">A2A & AG-UI Protocols</span></div></a></div>
 </div>
 
 <script>

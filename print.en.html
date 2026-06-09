@@ -264,7 +264,7 @@ h2, h3, h4 { break-after: avoid; }
   <div class="emoji">📘</div>
   <h1>Agent Framework Visual Guide</h1>
   <div class="sub">Understand the whole project from scratch · Big picture → Usage → Internals → Build your own</div>
-  <div class="meta">22 lessons · 6 parts · real source-code references in every lesson<br>
+  <div class="meta">27 lessons · 6 parts · real source-code references in every lesson<br>
     Generated 2026-06-09 · verdenmax · MIT License</div>
 </section>
 <section class="print-toc"><div class="wrap"><h2>Table of Contents</h2>
@@ -302,11 +302,16 @@ h2, h3, h4 { break-after: avoid; }
 <li value="18">Writing Your Own Middleware</li>
 <li value="19">Checkpointing, HITL & Durability</li>
 <li value="20">Capstone: A Multi-Agent Workflow</li>
+<li value="21">Agent Skills</li>
+<li value="22">MCP Tool Protocol</li>
+<li value="23">Foundry Hosted Agents</li>
+<li value="24">A2A & AG-UI Protocols</li>
+<li value="25">Evaluation & Time-Travel</li>
 </ol>
 <div class="tp">Part 6 · Bonus</div>
 <ol>
-<li value="21">AF vs Other Frameworks</li>
-<li value="22">Full-Stack Map & Learning Path</li>
+<li value="26">AF vs Other Frameworks</li>
+<li value="27">Full-Stack Map & Learning Path</li>
 </ol></div></section>
 <section class="print-lesson"><div class="wrap"><div class="lesson-head"><div class="lp">Part 1 · Big Picture</div><h1><span class="ln">01 ·</span> What is Agent Framework</h1></div>
 <p class="lead" style="font-size:1.06rem;color:var(--muted);margin-top:-.6rem">
@@ -4557,7 +4562,1027 @@ Checklist of gaps from demo to production.
   approvals, each step adds only a few lines. That's the "prototype to production" experience.
 </div>
 </div></section>
-<section class="print-lesson"><div class="wrap"><div class="lesson-head"><div class="lp">Part 6 · Bonus</div><h1><span class="ln">21 ·</span> AF vs Other Frameworks</h1></div>
+<section class="print-lesson"><div class="wrap"><div class="lesson-head"><div class="lp">Part 5 · Build Your Own</div><h1><span class="ln">21 ·</span> Agent Skills</h1></div>
+<p class="lead"><strong>Agent Skills</strong> let you package domain knowledge into discoverable, reusable modules —
+Agents get not just tools but <strong>knowledge bases</strong>.</p>
+
+<div class="card analogy">
+  <div class="tag">📚 Analogy</div>
+  Tools are <strong>hammers and wrenches</strong> (they do actions); skills are <strong>operation manuals + reference
+  material</strong> (they know how and why). A master craftsman = tools + skills: capable hands plus experience.
+</div>
+
+<h2>Core concepts</h2>
+<table class="t">
+  <tr><th>Concept</th><th>Role</th><th>Source</th></tr>
+  <tr><td class="mono">Skill</td><td>A complete skill = resources + scripts + metadata</td><td class="mono">_skills.py</td></tr>
+  <tr><td class="mono">SkillResource</td><td>Knowledge files attached to a skill</td><td class="mono">_skills.py</td></tr>
+  <tr><td class="mono">SkillScript</td><td>Executable code snippets in a skill</td><td class="mono">_skills.py</td></tr>
+  <tr><td class="mono">SkillsSource</td><td>Where skills come from (folder / code / MCP)</td><td class="mono">_skills.py</td></tr>
+  <tr><td class="mono">InlineSkill</td><td>Skill defined directly in code</td><td class="mono">_skills.py</td></tr>
+</table>
+
+<h2>Define a skill</h2>
+<div class="codefile">
+  <div class="cf-head"><span class="dot"></span><span class="path">code-defined skill</span></div>
+<pre><span class="kw">from</span> agent_framework <span class="kw">import</span> InlineSkill, InlineSkillResource
+
+skill = InlineSkill(
+    name=<span class="st">"company-policies"</span>,
+    description=<span class="st">"Company HR policies and guidelines"</span>,
+    resources=[
+        InlineSkillResource(
+            name=<span class="st">"leave-policy"</span>,
+            content=<span class="st">"Employees get 20 days PTO per year..."</span>,
+            mime_type=<span class="st">"text/plain"</span>,
+        ),
+    ],
+)</pre>
+</div>
+
+<details class="accordion" open>
+  <summary><span class="badge-num">1</span> Three skill sources <span class="hint">expand</span></summary>
+  <div class="acc-body">
+    <div class="qa">
+      <div class="q">🧪 Example</div>
+      <div class="a">Skills can be loaded from three sources:
+<pre class="code"><span class="cm"># 1. Inline (InlineSkill)</span>
+skill = InlineSkill(name=<span class="st">"..."</span>, resources=[...])
+
+<span class="cm"># 2. File system (folder with .md/.py files)</span>
+<span class="cm"># samples/02-agents/skills/file_based_skill/</span>
+
+<span class="cm"># 3. MCP server (MCPSkill)</span>
+<span class="kw">from</span> agent_framework <span class="kw">import</span> MCPSkill
+<span class="cm"># fetch skills remotely via MCP protocol</span></pre>
+      </div>
+    </div>
+    <div class="qa">
+      <div class="q">❓ Why this matters</div>
+      <div class="a">Tools alone (actions) aren't enough — an Agent needs <strong>domain knowledge</strong> to use tools correctly.
+        A customer-service Agent must know the company's return policy to answer return questions.
+        Skills turn "knowledge" into manageable, version-controlled, shareable modules.</div>
+    </div>
+    <div class="qa">
+      <div class="q">✅ How MAF does it</div>
+      <div class="a">MAF makes skills <strong>first-class</strong>: a Skill has name, description, resources (knowledge), scripts (executable code).
+        <span class="mono">SkillsSource</span> and <span class="mono">AggregatingSkillsSource</span> aggregate multiple sources.
+        The Agent auto-discovers and injects relevant skills at run time.</div>
+    </div>
+    <div class="qa">
+      <div class="q">🔀 Alternatives</div>
+      <div class="a"><strong>Hardcode knowledge in instructions</strong> (simple but not reusable);
+        <strong>ContextProvider + RAG</strong> (good for large knowledge bases but no script capability);
+        <strong>MCP resources</strong> (protocol-standardised; MAF's MCPSkill is exactly this).</div>
+    </div>
+  </div>
+</details>
+
+<details class="accordion" open>
+  <summary><span class="badge-num">2</span> SkillResource vs SkillScript <span class="hint">expand</span></summary>
+  <div class="acc-body">
+    <div class="qa">
+      <div class="q">🧪 Example</div>
+      <div class="a"><span class="mono">SkillResource</span> is <strong>read-only knowledge</strong>;
+        <span class="mono">SkillScript</span> is <strong>executable code</strong>:
+<pre class="code"><span class="cm"># Resource: read-only knowledge</span>
+InlineSkillResource(name=<span class="st">"faq"</span>, content=<span class="st">"Q: ... A: ..."</span>)
+
+<span class="cm"># Script: executable code</span>
+InlineSkillScript(name=<span class="st">"calc"</span>, code=<span class="st">"result = price * 1.1"</span>)</pre>
+      </div>
+    </div>
+    <div class="qa">
+      <div class="q">❓ Why this matters</div>
+      <div class="a">Some domain knowledge is <strong>static</strong> (return policy docs); some needs
+        <strong>dynamic computation</strong> (tax-rate formulas). Putting both in a skill lets the Agent read
+        knowledge AND run calculations.</div>
+    </div>
+    <div class="qa">
+      <div class="q">✅ How MAF does it</div>
+      <div class="a">Resource and Script both live under the same Skill, described by <span class="mono">SkillFrontmatter</span>.
+        The framework injects Resource content into context at run time; Scripts can be executed via
+        <span class="mono">SkillScriptRunner</span>.</div>
+    </div>
+    <div class="qa">
+      <div class="q">🔀 Alternatives</div>
+      <div class="a"><strong>Embed knowledge in tools</strong> (not modular);
+        <strong>Separate knowledge service</strong> (more flexible but more complex);
+        <strong>LangChain Document + Retriever</strong> (retrieval only, no script execution).</div>
+    </div>
+  </div>
+</details>
+
+<details class="accordion" open>
+  <summary><span class="badge-num">3</span> Skill discovery &amp; aggregation <span class="hint">expand</span></summary>
+  <div class="acc-body">
+    <div class="qa">
+      <div class="q">🧪 Example</div>
+      <div class="a">Aggregate skills from multiple sources:
+<pre class="code"><span class="kw">from</span> agent_framework <span class="kw">import</span> AggregatingSkillsSource
+
+source = AggregatingSkillsSource(sources=[
+    file_skills_source,    <span class="cm"># folder-based</span>
+    inline_skills_source,  <span class="cm"># code-defined</span>
+    mcp_skills_source,     <span class="cm"># MCP server</span>
+])</pre>
+      </div>
+    </div>
+    <div class="qa">
+      <div class="q">❓ Why this matters</div>
+      <div class="a">Real projects draw knowledge from many places: internal docs, external APIs, codebases.
+        <span class="mono">AggregatingSkillsSource</span> unifies them so the Agent discovers all skills from one entry point.</div>
+    </div>
+    <div class="qa">
+      <div class="q">✅ How MAF does it</div>
+      <div class="a">Aggregation is <strong>pluggable</strong>: each <span class="mono">SkillsSource</span> implements a "list skills" interface;
+        <span class="mono">AggregatingSkillsSource</span> merges them. New sources just implement the <span class="mono">SkillsSource</span> protocol.</div>
+    </div>
+    <div class="qa">
+      <div class="q">🔀 Alternatives</div>
+      <div class="a"><strong>Single hardcoded source</strong> (simple but not extensible);
+        <strong>Search engine for skill discovery</strong> (more flexible but more complex);
+        <strong>MCP resource lists</strong> (protocol-standardised but requires all sources to support MCP).</div>
+    </div>
+  </div>
+</details>
+
+<details class="accordion" open>
+  <summary><span class="badge-num">4</span> Sample code overview <span class="hint">expand</span></summary>
+  <div class="acc-body">
+    <div class="qa">
+      <div class="q">🧪 Example</div>
+      <div class="a"><span class="mono">samples/02-agents/skills/</span> has 7 samples:
+<pre class="code">skills/
+├── class_based_skill/     <span class="cm"># class-defined skill</span>
+├── code_defined_skill/    <span class="cm"># inline code skill</span>
+├── file_based_skill/      <span class="cm"># file system loaded</span>
+├── mcp_based_skill/       <span class="cm"># MCP remote skill</span>
+├── mixed_skills/          <span class="cm"># multiple sources mixed</span>
+├── script_approval/       <span class="cm"># script exec needs approval</span>
+└── skill_filtering/       <span class="cm"># filter skills by condition</span></pre>
+      </div>
+    </div>
+    <div class="qa">
+      <div class="q">❓ Why this matters</div>
+      <div class="a">Samples are faster than docs — each covers one usage pattern.</div>
+    </div>
+    <div class="qa">
+      <div class="q">✅ How MAF does it</div>
+      <div class="a">Samples progress from simple to complex: inline (simplest) → file → MCP → mixed → approval → filtering.
+        Each is a single runnable file.</div>
+    </div>
+    <div class="qa">
+      <div class="q">🔀 Alternatives</div>
+      <div class="a">No specific alternative — these are official reference implementations.
+        If your scenario isn't covered, model it after <span class="mono">mixed_skills</span>.</div>
+    </div>
+  </div>
+</details>
+
+<div class="card key">
+  <div class="tag">✅ Key points</div>
+  <ul>
+    <li><strong>Skill = knowledge module</strong>: Resource (read-only) + Script (executable) + metadata.</li>
+    <li>Three sources: <strong>inline</strong> (InlineSkill), <strong>file system</strong>, <strong>MCP remote</strong>.</li>
+    <li><span class="mono">AggregatingSkillsSource</span> merges multiple sources; Agent auto-discovers.</li>
+    <li>Skills ≠ tools: tools do actions, skills provide knowledge and executable code.</li>
+  </ul>
+</div>
+
+<div class="card spark">
+  <div class="tag">💡 Design highlight</div>
+  <strong>Knowledge and code unified as "skills"</strong> — no longer scattered across instructions, ContextProviders
+  and tools. A skill module can be independently distributed, version-controlled and reused across Agents.
+</div>
+</div></section>
+<section class="print-lesson"><div class="wrap"><div class="lesson-head"><div class="lp">Part 5 · Build Your Own</div><h1><span class="ln">22 ·</span> MCP Tool Protocol</h1></div>
+<p class="lead"><strong>MCP (Model Context Protocol)</strong> is the <strong>open standard</strong> for connecting tools and
+resources to LLMs — MAF can both <strong>call</strong> MCP servers and <strong>expose</strong> an Agent as one.</p>
+
+<div class="card analogy">
+  <div class="tag">📚 Analogy</div>
+  MCP is like the <strong>USB standard</strong>: whether you plug in a keyboard, mouse or hard drive, the USB protocol
+  lets it work instantly. MCP gives LLMs and tools a unified "interface protocol" — no custom code per tool.
+</div>
+
+<h2>Three transport types</h2>
+<table class="t">
+  <tr><th>Transport</th><th>Class</th><th>When to use</th></tr>
+  <tr><td>Stdio (subprocess)</td><td class="mono">MCPStdioTool</td><td>Local CLI tools; ideal for dev/test</td></tr>
+  <tr><td>HTTP/SSE (Streamable HTTP)</td><td class="mono">MCPStreamableHTTPTool</td><td>Remote Web APIs; production-grade</td></tr>
+  <tr><td>WebSocket</td><td class="mono">MCPWebsocketTool</td><td>Bi-directional real-time communication</td></tr>
+</table>
+
+<h2>Connect to an MCP server</h2>
+<div class="codefile">
+  <div class="cf-head"><span class="dot"></span><span class="path">MCPStdioTool usage</span></div>
+<pre><span class="kw">from</span> agent_framework <span class="kw">import</span> Agent, MCPStdioTool
+
+mcp_tool = MCPStdioTool(
+    name=<span class="st">"filesystem"</span>,
+    command=<span class="st">"npx"</span>,
+    args=[<span class="st">"-y"</span>, <span class="st">"@modelcontextprotocol/server-filesystem"</span>, <span class="st">"/data"</span>],
+)
+
+<span class="kw">async with</span> Agent(
+    client=client,
+    tools=mcp_tool,
+    name=<span class="st">"fs-agent"</span>,
+) <span class="kw">as</span> agent:
+    response = <span class="kw">await</span> agent.run(<span class="st">"List all .txt files"</span>)</pre>
+</div>
+
+<details class="accordion" open>
+  <summary><span class="badge-num">1</span> Three transports deep dive <span class="hint">expand</span></summary>
+  <div class="acc-body">
+    <div class="qa">
+      <div class="q">🧪 Example</div>
+      <div class="a">Each transport has its own class:
+<pre class="code"><span class="cm"># 1. Stdio — local subprocess</span>
+MCPStdioTool(name=<span class="st">"fs"</span>, command=<span class="st">"npx"</span>, args=[<span class="st">"-y"</span>, <span class="st">"server-fs"</span>])
+
+<span class="cm"># 2. HTTP/SSE — remote web service</span>
+MCPStreamableHTTPTool(name=<span class="st">"api"</span>, url=<span class="st">"https://api.example.com/mcp"</span>)
+
+<span class="cm"># 3. WebSocket — bi-directional real-time</span>
+MCPWebsocketTool(name=<span class="st">"rt"</span>, url=<span class="st">"wss://service.example.com/mcp"</span>)</pre>
+      </div>
+    </div>
+    <div class="qa">
+      <div class="q">❓ Why this matters</div>
+      <div class="a">Different deployments need different transports: Stdio is easiest for local dev (no network),
+        HTTP/SSE is most reliable for production, WebSocket suits bi-directional real-time pushes.
+        The shared <span class="mono">MCPTool</span> base class hides transport details from Agent code.</div>
+    </div>
+    <div class="qa">
+      <div class="q">✅ How MAF does it</div>
+      <div class="a">All three subclasses inherit from <span class="mono">MCPTool</span> (2 400+ lines) and handle connection lifecycle,
+        tool discovery and JSON-RPC communication automatically.
+        <span class="mono">MCPTaskOptions</span> configures timeouts and cancellation policies uniformly.
+        Agents use <span class="mono">async with</span> for automatic connection management.</div>
+    </div>
+    <div class="qa">
+      <div class="q">🔀 Alternatives</div>
+      <div class="a"><strong>Plain HTTP REST</strong> (simple but no standard tool-discovery protocol);
+        <strong>gRPC</strong> (high performance but limited LLM ecosystem support);
+        <strong>LangChain ToolNode</strong> (framework-internal, not cross-framework).</div>
+    </div>
+  </div>
+</details>
+
+<details class="accordion" open>
+  <summary><span class="badge-num">2</span> MCP approval model <span class="hint">expand</span></summary>
+  <div class="acc-body">
+    <div class="qa">
+      <div class="q">🧪 Example</div>
+      <div class="a"><span class="mono">MCPTaskOptions</span> controls the long-running task lifecycle:
+<pre class="code"><span class="kw">from</span> datetime <span class="kw">import</span> timedelta
+<span class="kw">from</span> agent_framework <span class="kw">import</span> MCPStdioTool, MCPTaskOptions
+
+tool = MCPStdioTool(
+    name=<span class="st">"long-task"</span>,
+    command=<span class="st">"python"</span>, args=[<span class="st">"server.py"</span>],
+    task_options=MCPTaskOptions(
+        default_ttl=timedelta(minutes=2),
+        max_task_wait=timedelta(minutes=5),
+        cancel_remote_task_on_local_cancellation=<span class="kw">True</span>,
+    ),
+)</pre>
+      </div>
+    </div>
+    <div class="qa">
+      <div class="q">❓ Why this matters</div>
+      <div class="a">Some MCP tools run for a long time (data analysis, file conversion).
+        They need status polling, timeout control and a cancellation mechanism.
+        <span class="mono">MCPTaskOptions</span> transparently handles the <span class="mono">tools/call → tasks/get → tasks/result</span> lifecycle.</div>
+    </div>
+    <div class="qa">
+      <div class="q">✅ How MAF does it</div>
+      <div class="a">Follows the SEP-2663 long-running task spec: submit then auto-poll,
+        cancel with automatic remote cleanup, graceful fallback for legacy servers.
+        Also supports <span class="mono">header_provider</span> for auth injection (e.g. Bearer tokens).</div>
+    </div>
+    <div class="qa">
+      <div class="q">🔀 Alternatives</div>
+      <div class="a"><strong>Manual polling + timeout</strong> (tedious and error-prone);
+        <strong>Background task queues</strong> (e.g. Celery — heavyweight);
+        <strong>Server-Sent Events only</strong> (already built into <span class="mono">MCPStreamableHTTPTool</span>).</div>
+    </div>
+  </div>
+</details>
+
+<details class="accordion" open>
+  <summary><span class="badge-num">3</span> Agent as MCP server <span class="hint">expand</span></summary>
+  <div class="acc-body">
+    <div class="qa">
+      <div class="q">🧪 Example</div>
+      <div class="a">MAF Agents can <strong>serve</strong> as MCP servers, not just consume them:
+<pre class="code"><span class="cm"># samples/02-agents/mcp/agent_as_mcp_server.py</span>
+<span class="cm"># Register the Agent as an MCP server</span>
+<span class="cm"># External MCP clients call this Agent's capabilities</span>
+<span class="cm"># Enables Agent ↔ Agent MCP interop</span></pre>
+      </div>
+    </div>
+    <div class="qa">
+      <div class="q">❓ Why this matters</div>
+      <div class="a">In multi-agent systems, one Agent's capabilities can be reused by others via the standard
+        MCP protocol. A "translation Agent" exposes its abilities as an MCP server; other Agents
+        call it through <span class="mono">MCPStdioTool</span> — no need to know the implementation.</div>
+    </div>
+    <div class="qa">
+      <div class="q">✅ How MAF does it</div>
+      <div class="a">The framework supports MCP bi-directionally: <strong>consumer side</strong> with three transports for
+        external tools; <strong>server side</strong> exposing Agent capabilities as MCP tools.
+        This lets MAF Agents integrate seamlessly into any MCP ecosystem.</div>
+    </div>
+    <div class="qa">
+      <div class="q">🔀 Alternatives</div>
+      <div class="a"><strong>A2A protocol</strong> (higher-level Agent-to-Agent, covered in L26);
+        <strong>Custom REST API</strong> (flexible but no standard discovery);
+        <strong>Message queues</strong> (good for async but higher latency).</div>
+    </div>
+  </div>
+</details>
+
+<details class="accordion" open>
+  <summary><span class="badge-num">4</span> MCP vs direct @tool <span class="hint">expand</span></summary>
+  <div class="acc-body">
+    <div class="qa">
+      <div class="q">🧪 Example</div>
+      <div class="a">Compare both approaches:
+<pre class="code"><span class="cm"># Direct @tool — defined in-process</span>
+<span class="kw">@tool</span>
+<span class="kw">def</span> read_file(path: <span class="kw">str</span>) -> <span class="kw">str</span>:
+    <span class="kw">return</span> open(path).read()
+
+<span class="cm"># MCP Tool — provided by external service</span>
+MCPStdioTool(name=<span class="st">"fs"</span>, command=<span class="st">"npx"</span>,
+    args=[<span class="st">"-y"</span>, <span class="st">"server-fs"</span>, <span class="st">"/data"</span>])</pre>
+      </div>
+    </div>
+    <div class="qa">
+      <div class="q">❓ Why this matters</div>
+      <div class="a"><span class="mono">@tool</span> is an in-process Python function — simple and fast but project-scoped.
+        MCP tools use a standard protocol — cross-language, cross-project, cross-framework.
+        Both can be mixed: <span class="mono">Agent(tools=[my_tool, mcp_tool])</span>.</div>
+    </div>
+    <div class="qa">
+      <div class="q">✅ How MAF does it</div>
+      <div class="a">MAF unifies both models: <span class="mono">@tool</span> and <span class="mono">MCPTool</span> implement the same tool interface
+        so the Agent doesn't care about tool origin. MCP tools auto-discover their schema
+        via the protocol — no manual JSON Schema needed.</div>
+    </div>
+    <div class="qa">
+      <div class="q">🔀 Alternatives</div>
+      <div class="a"><strong>All @tool</strong> (simplest but no cross-project reuse);
+        <strong>All MCP</strong> (most standard but overhead for trivial local tools);
+        <strong>OpenAPI plugins</strong> (REST-standardised but lack LLM-specific tool discovery).</div>
+    </div>
+  </div>
+</details>
+
+<div class="card key">
+  <div class="tag">✅ Key points</div>
+  <ul>
+    <li><strong>MCP is the open standard for LLM tool connectivity</strong> — plug-and-play, cross-framework.</li>
+    <li>Three transports: <strong>Stdio</strong> (local dev), <strong>HTTP/SSE</strong> (production), <strong>WebSocket</strong> (real-time).</li>
+    <li><span class="mono">MCPTaskOptions</span> handles long-running task timeouts, polling and cancellation.</li>
+    <li>MAF Agents can both <strong>call</strong> MCP tools and <strong>serve as</strong> MCP servers.</li>
+  </ul>
+</div>
+
+<div class="card spark">
+  <div class="tag">💡 Design highlight</div>
+  <strong>@tool and MCPTool look identical to the Agent</strong> — both are just "tools that do things."
+  Start with @tool for rapid prototyping, then graduate mature tools to MCP services for
+  a smooth transition from local development to standardised distribution.
+</div>
+</div></section>
+<section class="print-lesson"><div class="wrap"><div class="lesson-head"><div class="lp">Part 5 · Build Your Own</div><h1><span class="ln">23 ·</span> Foundry Hosted Agents</h1></div>
+<p class="lead"><strong>Foundry Hosted Agents</strong> — with ~2 extra lines of code, deploy your local Agent to Azure AI
+Foundry cloud and get auto-scaling, session management and enterprise monitoring for free.</p>
+
+<div class="card analogy">
+  <div class="tag">📚 Analogy</div>
+  Running an Agent locally is like <strong>cooking at home</strong> (flexible but serves only you).
+  Foundry hosting is handing your recipe to a <strong>cloud kitchen</strong> — it procures ingredients,
+  manages orders, scales up chefs. You just supply the recipe.
+</div>
+
+<h2>Two hosting modes</h2>
+<table class="t">
+  <tr><th>Mode</th><th>Class</th><th>Features</th><th>Use case</th></tr>
+  <tr><td>Responses API</td><td class="mono">ResponsesHostServer</td><td>Full Azure AI Foundry Responses protocol; streaming, approval workflows</td><td>Deep Foundry ecosystem integration</td></tr>
+  <tr><td>Invocations</td><td class="mono">InvocationsHostServer</td><td>Lightweight JSON request/response; streaming</td><td>Quick deployment, simple scenarios</td></tr>
+</table>
+
+<h2>Minimal hosting pattern</h2>
+<div class="codefile">
+  <div class="cf-head"><span class="dot"></span><span class="path">Invocations mode</span></div>
+<pre><span class="kw">from</span> agent_framework_foundry_hosting <span class="kw">import</span> InvocationsHostServer
+
+server = InvocationsHostServer(agent=my_agent)
+server.run()
+<span class="cm"># That's it — Agent is live in the cloud!</span></pre>
+</div>
+
+<details class="accordion" open>
+  <summary><span class="badge-num">1</span> Responses vs Invocations <span class="hint">expand</span></summary>
+  <div class="acc-body">
+    <div class="qa">
+      <div class="q">🧪 Example</div>
+      <div class="a">Initialising each mode:
+<pre class="code"><span class="cm"># Responses mode — full Foundry API</span>
+<span class="kw">from</span> agent_framework_foundry_hosting <span class="kw">import</span> ResponsesHostServer
+server = ResponsesHostServer(agent=my_agent)
+
+<span class="cm"># Invocations mode — lightweight JSON</span>
+<span class="kw">from</span> agent_framework_foundry_hosting <span class="kw">import</span> InvocationsHostServer
+server = InvocationsHostServer(agent=my_agent)</pre>
+      </div>
+    </div>
+    <div class="qa">
+      <div class="q">❓ Why this matters</div>
+      <div class="a">Different scenarios demand different API complexity.
+        <strong>Responses mode</strong> provides the full Foundry Responses API with type conversion,
+        approval storage and streaming events — ideal for enterprise integration.
+        <strong>Invocations mode</strong> is leaner for quick prototyping and simple deployment.</div>
+    </div>
+    <div class="qa">
+      <div class="q">✅ How MAF does it</div>
+      <div class="a">Both modes auto-manage <span class="mono">AgentSession</span> (isolated by session_id),
+        support streaming (<span class="mono">StreamingResponse</span>), and use <span class="mono">async</span>
+        for high concurrency. Switching modes requires changing only one class name.</div>
+    </div>
+    <div class="qa">
+      <div class="q">🔀 Alternatives</div>
+      <div class="a"><strong>Self-built FastAPI service</strong> (flexible but you handle session management and scaling);
+        <strong>LangServe</strong> (LangChain's deploy tool — not Foundry-compatible);
+        <strong>Containerised + K8s</strong> (full control but high ops cost).</div>
+    </div>
+  </div>
+</details>
+
+<details class="accordion" open>
+  <summary><span class="badge-num">2</span> Deployment steps <span class="hint">expand</span></summary>
+  <div class="acc-body">
+    <div class="qa">
+      <div class="q">🧪 Example</div>
+      <div class="a">A typical deployment flow:
+<pre class="code"><span class="cm"># 1. Install the package</span>
+pip install agent-framework-foundry-hosting
+
+<span class="cm"># 2. Write server.py</span>
+<span class="kw">from</span> agent_framework_foundry_hosting <span class="kw">import</span> InvocationsHostServer
+server = InvocationsHostServer(agent=my_agent)
+server.run()
+
+<span class="cm"># 3. Deploy to Azure AI Foundry</span>
+<span class="cm"># Via the Foundry portal or CLI</span></pre>
+      </div>
+    </div>
+    <div class="qa">
+      <div class="q">❓ Why this matters</div>
+      <div class="a">The "last mile" from local prototype to production is often the most painful:
+        containerisation, service discovery, load balancing, auth.
+        Foundry hosting abstracts it all away.</div>
+    </div>
+    <div class="qa">
+      <div class="q">✅ How MAF does it</div>
+      <div class="a">Just <span class="mono">pip install</span> + 2-3 lines and your Agent becomes a deployable web service.
+        <span class="mono">ResponsesHostServer</span> also auto-handles Responses API type conversion
+        (Message → Item) and <span class="mono">ApprovalStorage</span> (function-call approval).</div>
+    </div>
+    <div class="qa">
+      <div class="q">🔀 Alternatives</div>
+      <div class="a"><strong>Azure Container Apps</strong> (lower-level control, more config);
+        <strong>AWS Lambda + API Gateway</strong> (serverless but cold-start latency);
+        <strong>Self-hosted Docker + Nginx</strong> (full control, high ops cost).</div>
+    </div>
+  </div>
+</details>
+
+<details class="accordion" open>
+  <summary><span class="badge-num">3</span> Managed infrastructure benefits <span class="hint">expand</span></summary>
+  <div class="acc-body">
+    <div class="qa">
+      <div class="q">🧪 Example</div>
+      <div class="a">What Foundry hosting gives you automatically:
+<pre class="code"><span class="cm"># You write Agent logic only:</span>
+agent = Agent(client=client, tools=[...], name=<span class="st">"my-agent"</span>)
+server = InvocationsHostServer(agent=agent)
+
+<span class="cm"># Foundry provides automatically:</span>
+<span class="cm"># ✓ Auto-scaling (based on request volume)</span>
+<span class="cm"># ✓ Session management (multi-user isolation)</span>
+<span class="cm"># ✓ Monitoring and logging</span>
+<span class="cm"># ✓ Authentication and authorisation</span></pre>
+      </div>
+    </div>
+    <div class="qa">
+      <div class="q">❓ Why this matters</div>
+      <div class="a">Production Agents need to handle concurrency, failure recovery and security auditing.
+        Building that infrastructure manually takes weeks; Foundry hosting lets you focus on Agent logic.</div>
+    </div>
+    <div class="qa">
+      <div class="q">✅ How MAF does it</div>
+      <div class="a">The framework fully decouples "Agent development" from "deployment ops":
+        debug locally with <span class="mono">Agent.run()</span>, deploy with <span class="mono">HostServer.run()</span>,
+        zero changes to Agent code. A true "write once, deploy anywhere" philosophy.</div>
+    </div>
+    <div class="qa">
+      <div class="q">🔀 Alternatives</div>
+      <div class="a"><strong>Self-built microservices</strong> (flexible but costly);
+        <strong>Vercel AI SDK</strong> (frontend AI apps, not full Agent hosting);
+        <strong>Modal / Beam</strong> (Python function cloud deploy, lacks Agent-specific features).</div>
+    </div>
+  </div>
+</details>
+
+<details class="accordion" open>
+  <summary><span class="badge-num">4</span> When NOT to use hosted <span class="hint">expand</span></summary>
+  <div class="acc-body">
+    <div class="qa">
+      <div class="q">🧪 Example</div>
+      <div class="a">Scenarios where Foundry hosting isn't the best fit:
+<pre class="code"><span class="cm"># ✗ Pure local / offline environments</span>
+<span class="cm"># ✗ Custom low-level network configuration needed</span>
+<span class="cm"># ✗ Existing mature K8s deployment pipeline</span>
+<span class="cm"># ✗ Data-residency compliance forbids cloud hosting</span>
+
+<span class="cm"># In these cases, embed Agent.run() directly</span>
+<span class="cm"># into your own FastAPI/Flask service</span></pre>
+      </div>
+    </div>
+    <div class="qa">
+      <div class="q">❓ Why this matters</div>
+      <div class="a">Hosting isn't one-size-fits-all. If you already have mature infrastructure or strict
+        data-residency requirements, integrating the Agent into your own service may be better.</div>
+    </div>
+    <div class="qa">
+      <div class="q">✅ How MAF does it</div>
+      <div class="a">MAF doesn't force hosting — the <span class="mono">Agent</span> class is completely standalone.
+        <span class="mono">HostServer</span> is just an optional thin wrapper. You can embed an Agent
+        into any Python web framework (FastAPI, Flask, Django).</div>
+    </div>
+    <div class="qa">
+      <div class="q">🔀 Alternatives</div>
+      <div class="a"><strong>FastAPI + Agent.run()</strong> (most flexible self-hosted option);
+        <strong>A2A protocol</strong> (cross-system Agent interop);
+        <strong>MCP server mode</strong> (expose Agent as an MCP tool for other systems).</div>
+    </div>
+  </div>
+</details>
+
+<div class="card key">
+  <div class="tag">✅ Key points</div>
+  <ul>
+    <li>Two modes: <strong>ResponsesHostServer</strong> (full Foundry API) and <strong>InvocationsHostServer</strong> (lightweight JSON).</li>
+    <li>~2 lines turn a local Agent into a cloud service — sessions, scaling, monitoring included.</li>
+    <li>Agent code is <strong>unchanged</strong>: local <span class="mono">.run()</span>, cloud <span class="mono">HostServer.run()</span>.</li>
+    <li>Hosting is optional — Agents embed into any Python web framework.</li>
+  </ul>
+</div>
+
+<div class="card spark">
+  <div class="tag">💡 Design highlight</div>
+  <strong>"Dev is deploy"</strong> — Agent logic has zero dependency on the hosting layer.
+  HostServer is an <strong>optional thin adapter</strong> translating your Agent into the protocol Foundry understands.
+  The same Agent works locally for debugging and goes live with one line.
+</div>
+</div></section>
+<section class="print-lesson"><div class="wrap"><div class="lesson-head"><div class="lp">Part 5 · Build Your Own</div><h1><span class="ln">24 ·</span> A2A & AG-UI Protocols</h1></div>
+<p class="lead"><strong>A2A (Agent-to-Agent)</strong> exposes an Agent as a service for other Agents to call;
+<strong>AG-UI</strong> gives Agents a structured real-time channel to the frontend —
+together they connect "Agent ↔ Agent" and "Agent ↔ User Interface".</p>
+
+<div class="card analogy">
+  <div class="tag">📚 Analogy</div>
+  A2A is a <strong>B2B API</strong> between companies — Company A's Agent can call Company B's Agent service.
+  AG-UI is the <strong>customer-facing display</strong> — the backend Agent's progress and intermediate results
+  stream to the screen in real time.
+</div>
+
+<h2>A2A vs AG-UI</h2>
+<table class="t">
+  <tr><th>Protocol</th><th>Direction</th><th>Purpose</th><th>Package</th></tr>
+  <tr><td>A2A</td><td>Agent → Agent</td><td>Expose an Agent as a callable service for other Agents</td><td class="mono">agent-framework-a2a</td></tr>
+  <tr><td>AG-UI</td><td>Agent → UI</td><td>Push real-time updates to the UI during Agent execution</td><td class="mono">agent-framework-ag-ui</td></tr>
+</table>
+
+<h2>A2A server example</h2>
+<div class="codefile">
+  <div class="cf-head"><span class="dot"></span><span class="path">A2A server</span></div>
+<pre><span class="kw">from</span> agent_framework.a2a <span class="kw">import</span> A2AExecutor
+<span class="kw">from</span> a2a.server.request_handlers <span class="kw">import</span> DefaultRequestHandler
+<span class="kw">from</span> a2a.server.routes <span class="kw">import</span> create_agent_card_routes, create_jsonrpc_routes
+
+executor = A2AExecutor(agent, stream=<span class="kw">True</span>)
+handler = DefaultRequestHandler(
+    agent_executor=executor,
+    task_store=InMemoryTaskStore(),
+    agent_card=agent_card,
+)
+<span class="cm"># Starlette app with AgentCard + JSON-RPC routes</span></pre>
+</div>
+
+<details class="accordion" open>
+  <summary><span class="badge-num">1</span> A2A deep dive <span class="hint">expand</span></summary>
+  <div class="acc-body">
+    <div class="qa">
+      <div class="q">🧪 Example</div>
+      <div class="a">Core A2A classes:
+<pre class="code"><span class="cm"># Client: call a remote A2A Agent</span>
+<span class="kw">from</span> agent_framework.a2a <span class="kw">import</span> A2AAgent
+a2a_agent = A2AAgent(url=<span class="st">"http://remote-agent/a2a"</span>)
+response = <span class="kw">await</span> a2a_agent.run(<span class="st">"Translate this"</span>)
+
+<span class="cm"># Server: expose local Agent as A2A service</span>
+<span class="kw">from</span> agent_framework.a2a <span class="kw">import</span> A2AExecutor
+executor = A2AExecutor(my_agent, stream=<span class="kw">True</span>)</pre>
+      </div>
+    </div>
+    <div class="qa">
+      <div class="q">❓ Why this matters</div>
+      <div class="a">Complex tasks need <strong>multi-Agent collaboration</strong>: one translates, one summarises, one QA-checks.
+        A2A lets each Agent deploy independently and interop via a standard protocol — no tight coupling.
+        <span class="mono">A2AAgentSession</span> auto-manages context_id / task_id / task_state.</div>
+    </div>
+    <div class="qa">
+      <div class="q">✅ How MAF does it</div>
+      <div class="a"><span class="mono">A2AAgent</span> wraps <span class="mono">BaseAgent</span> as an A2A client;
+        <span class="mono">A2AExecutor</span> exposes any MAF Agent as an A2A service.
+        Supports AgentCard discovery, JSON-RPC communication and long-running task continuation
+        (<span class="mono">A2AContinuationToken</span>).</div>
+    </div>
+    <div class="qa">
+      <div class="q">🔀 Alternatives</div>
+      <div class="a"><strong>MCP interop</strong> (lower level — tool-level, not Agent-level);
+        <strong>Custom REST APIs</strong> (flexible but no standard Agent discovery or task management);
+        <strong>Message-queue Agents</strong> (good for async but not request/response).</div>
+    </div>
+  </div>
+</details>
+
+<details class="accordion" open>
+  <summary><span class="badge-num">2</span> AG-UI deep dive <span class="hint">expand</span></summary>
+  <div class="acc-body">
+    <div class="qa">
+      <div class="q">🧪 Example</div>
+      <div class="a">Quick FastAPI integration:
+<pre class="code"><span class="kw">from</span> agent_framework.ag_ui <span class="kw">import</span> (
+    add_agent_framework_fastapi_endpoint,
+    AgentFrameworkAgent,
+)
+<span class="kw">from</span> fastapi <span class="kw">import</span> FastAPI
+
+app = FastAPI()
+ag_ui_agent = AgentFrameworkAgent(agent=my_agent)
+add_agent_framework_fastapi_endpoint(app, ag_ui_agent)</pre>
+      </div>
+    </div>
+    <div class="qa">
+      <div class="q">❓ Why this matters</div>
+      <div class="a">Users need to <strong>see what the Agent is doing</strong>: intermediate steps, tool calls, state changes.
+        AG-UI pushes structured event streams (RunStarted → content events → RunFinished)
+        to the UI in real time — not just the final answer.</div>
+    </div>
+    <div class="qa">
+      <div class="q">✅ How MAF does it</div>
+      <div class="a"><span class="mono">AgentFrameworkAgent</span> wraps MAF Agents for AG-UI compatibility;
+        <span class="mono">AGUIEventConverter</span> auto-converts internal events to AG-UI events.
+        Supports state schemas (dict or Pydantic), predictive state updates and interrupt flows.</div>
+    </div>
+    <div class="qa">
+      <div class="q">🔀 Alternatives</div>
+      <div class="a"><strong>Custom SSE</strong> (flexible but no standard event format);
+        <strong>Custom WebSocket protocol</strong> (bidirectional but you define everything yourself);
+        <strong>Vercel AI SDK useChat</strong> (frontend-friendly but Vercel-ecosystem-locked).</div>
+    </div>
+  </div>
+</details>
+
+<details class="accordion" open>
+  <summary><span class="badge-num">3</span> Combining A2A + AG-UI <span class="hint">expand</span></summary>
+  <div class="acc-body">
+    <div class="qa">
+      <div class="q">🧪 Example</div>
+      <div class="a">The two protocols work together:
+<pre class="code"><span class="cm"># Agent A (backend) calls Agent B via A2A</span>
+a2a_agent = A2AAgent(url=<span class="st">"http://agent-b/a2a"</span>)
+
+<span class="cm"># Agent A streams progress to UI via AG-UI</span>
+ag_ui_agent = AgentFrameworkAgent(agent=agent_a)
+add_agent_framework_fastapi_endpoint(app, ag_ui_agent)
+
+<span class="cm"># User sees: Agent A is calling Agent B...</span>
+<span class="cm"># User sees: Agent B returned the translation...</span></pre>
+      </div>
+    </div>
+    <div class="qa">
+      <div class="q">❓ Why this matters</div>
+      <div class="a">In real scenarios users need the <strong>full picture</strong> of multi-Agent collaboration:
+        A2A manages Agent-to-Agent calls while AG-UI shows the user the live process.
+        Without A2A there's no Agent interop; without AG-UI the user sees nothing until the end.</div>
+    </div>
+    <div class="qa">
+      <div class="q">✅ How MAF does it</div>
+      <div class="a">The two protocols are <strong>orthogonal</strong>: A2A solves "how Agents talk to each other";
+        AG-UI solves "how Agents report to users". Internal events (usage, custom events)
+        auto-map to AG-UI CUSTOM event types; multimodal content (images, files) has standard support.</div>
+    </div>
+    <div class="qa">
+      <div class="q">🔀 Alternatives</div>
+      <div class="a"><strong>Monolithic Agent + direct UI</strong> (simple but won't scale to multi-Agent);
+        <strong>Message bus + custom UI protocol</strong> (flexible but heavy development);
+        <strong>LangGraph Studio</strong> (visual debugging, not a production UI solution).</div>
+    </div>
+  </div>
+</details>
+
+<details class="accordion" open>
+  <summary><span class="badge-num">4</span> When to use each <span class="hint">expand</span></summary>
+  <div class="acc-body">
+    <div class="qa">
+      <div class="q">🧪 Example</div>
+      <div class="a">Selection guide:
+<pre class="code"><span class="cm"># Agents need to call each other? → A2A</span>
+<span class="cm"># Need real-time UI progress? → AG-UI</span>
+<span class="cm"># Cross-framework tool reuse? → MCP (L24)</span>
+<span class="cm"># Cloud hosting? → Foundry Hosting (L25)</span>
+
+<span class="cm"># Multi-Agent + user UI → A2A + AG-UI combo</span>
+<span class="cm"># Single Agent + simple deploy → Foundry Hosting</span></pre>
+      </div>
+    </div>
+    <div class="qa">
+      <div class="q">❓ Why this matters</div>
+      <div class="a">MAF provides multiple "external exposure" mechanisms (MCP / Foundry / A2A / AG-UI).
+        Choosing the wrong one adds unnecessary complexity. Understanding each protocol's purpose
+        is key to making the right choice.</div>
+    </div>
+    <div class="qa">
+      <div class="q">✅ How MAF does it</div>
+      <div class="a">Every protocol is an <strong>optional thin wrapper</strong> — Agent core logic stays unchanged.
+        Start with Foundry hosting for a single Agent, add A2A for multi-Agent collaboration,
+        then layer AG-UI for real-time UI. Adopt incrementally, not all at once.</div>
+    </div>
+    <div class="qa">
+      <div class="q">🔀 Alternatives</div>
+      <div class="a"><strong>All-custom REST APIs</strong> (most flexible but reinvents the wheel);
+        <strong>GraphQL subscriptions</strong> (great for complex queries but overkill for Agent scenarios);
+        <strong>gRPC streaming</strong> (high performance but limited ecosystem support).</div>
+    </div>
+  </div>
+</details>
+
+<div class="card key">
+  <div class="tag">✅ Key points</div>
+  <ul>
+    <li><strong>A2A</strong>: Agent-to-Agent protocol — <span class="mono">A2AAgent</span> (client) + <span class="mono">A2AExecutor</span> (server), with AgentCard discovery.</li>
+    <li><strong>AG-UI</strong>: Agent-to-UI protocol — <span class="mono">AgentFrameworkAgent</span> wrapper + one-line FastAPI integration.</li>
+    <li>The two are <strong>orthogonal</strong>: A2A handles "inter-Agent", AG-UI handles "Agent → user". Use independently or together.</li>
+    <li>All protocols are <strong>optional thin layers</strong> — core Agent code remains unchanged.</li>
+  </ul>
+</div>
+
+<div class="card spark">
+  <div class="tag">💡 Design highlight</div>
+  <strong>Four protocols (MCP / Foundry / A2A / AG-UI) cover every direction of Agent external communication</strong>:
+  tool calls, cloud hosting, Agent interop, UI streaming.
+  Each is an optional thin adapter — write Agent logic once, plug in whichever "communication socket" you need.
+</div>
+</div></section>
+<section class="print-lesson"><div class="wrap"><div class="lesson-head"><div class="lp">Part 5 · Build Your Own</div><h1><span class="ln">25 ·</span> Evaluation & Time-Travel</h1></div>
+<p class="lead"><strong>Evaluation</strong> systematically tests Agent output quality;
+<strong>Time-travel</strong> replays workflow runs from checkpoints for debugging —
+together they take Agents from "it runs" to "it's reliable".</p>
+
+<div class="card analogy">
+  <div class="tag">📚 Analogy</div>
+  Evaluation is <strong>grading an exam</strong> — give the Agent a set of questions, score the answers with a rubric.
+  Time-travel is <strong>instant replay in sports</strong> — rewind to any moment and analyse frame-by-frame
+  what went wrong.
+</div>
+
+<h2>Core evaluation concepts</h2>
+<table class="t">
+  <tr><th>Concept</th><th>Role</th><th>Source</th></tr>
+  <tr><td class="mono">EvalItem</td><td>One eval datum = input + expected output</td><td class="mono">_evaluation.py</td></tr>
+  <tr><td class="mono">Evaluator</td><td>Evaluator protocol (Azure Foundry / local LLM-as-judge / custom)</td><td class="mono">_evaluation.py</td></tr>
+  <tr><td class="mono">RubricScore</td><td>Multi-dimensional score (e.g. relevance, accuracy, completeness)</td><td class="mono">_evaluation.py</td></tr>
+  <tr><td class="mono">EvalResults</td><td>Result summary (pass rate, per-item scores, report URL)</td><td class="mono">_evaluation.py</td></tr>
+</table>
+
+<h2>Evaluation workflow</h2>
+<div class="codefile">
+  <div class="cf-head"><span class="dot"></span><span class="path">evaluate an Agent</span></div>
+<pre><span class="kw">from</span> agent_framework <span class="kw">import</span> (
+    Agent, LocalEvaluator, evaluate_agent, evaluator, keyword_check
+)
+
+<span class="cm"># Custom evaluator function</span>
+<span class="kw">@evaluator</span>
+<span class="kw">def</span> is_helpful(response: <span class="kw">str</span>) -> <span class="kw">bool</span>:
+    <span class="kw">return</span> len(response) > 10
+
+<span class="cm"># Combine built-in + custom checks</span>
+local = LocalEvaluator(keyword_check(<span class="st">"weather"</span>), is_helpful)
+
+<span class="cm"># Run evaluation</span>
+results = <span class="kw">await</span> evaluate_agent(
+    agent=agent,
+    queries=[<span class="st">"What's the weather?"</span>, <span class="st">"Will it rain?"</span>],
+    evaluators=local,
+)
+results[0].raise_for_status()  <span class="cm"># assert pass in CI</span></pre>
+</div>
+
+<details class="accordion" open>
+  <summary><span class="badge-num">1</span> Evaluation workflow <span class="hint">expand</span></summary>
+  <div class="acc-body">
+    <div class="qa">
+      <div class="q">🧪 Example</div>
+      <div class="a">The full evaluation flow:
+<pre class="code"><span class="cm"># 1. Define eval data</span>
+queries = [<span class="st">"What's the weather?"</span>, <span class="st">"Will it rain?"</span>]
+
+<span class="cm"># 2. Run Agent to get responses</span>
+<span class="cm"># evaluate_agent() calls agent.run() for each query</span>
+
+<span class="cm"># 3. Score</span>
+<span class="cm"># Each Evaluator scores every (input, output) pair</span>
+
+<span class="cm"># 4. Inspect results</span>
+<span class="kw">for</span> r <span class="kw">in</span> results:
+    print(f<span class="st">"{r.provider}: {r.passed}/{r.total}"</span>)
+    <span class="kw">for</span> item <span class="kw">in</span> r.items:
+        <span class="kw">for</span> score <span class="kw">in</span> item.scores:
+            print(f<span class="st">"  {score.name}: {'PASS' if score.passed else 'FAIL'}"</span>)</pre>
+      </div>
+    </div>
+    <div class="qa">
+      <div class="q">❓ Why this matters</div>
+      <div class="a">LLM output is <strong>non-deterministic</strong> — the same question may get a different answer each time.
+        Without systematic evaluation you can't tell whether a prompt change made the Agent better or worse.
+        Evaluation is the Agent's <strong>unit test suite</strong>.</div>
+    </div>
+    <div class="qa">
+      <div class="q">✅ How MAF does it</div>
+      <div class="a"><span class="mono">evaluate_agent()</span> runs the full pipeline in one call: auto-invokes <span class="mono">agent.run()</span>
+        for each query, collects responses, hands them to Evaluators. Supports multiple backends:
+        Azure AI Foundry cloud eval, <span class="mono">LocalEvaluator</span> for local checks, custom <span class="mono">@evaluator</span> functions.</div>
+    </div>
+    <div class="qa">
+      <div class="q">🔀 Alternatives</div>
+      <div class="a"><strong>Manual testing</strong> (not repeatable, not scalable);
+        <strong>OpenAI Evals</strong> (OpenAI-specific);
+        <strong>RAGAS</strong> (focused on RAG evaluation);
+        <strong>LangSmith</strong> (LangChain-ecosystem tracing + eval).</div>
+    </div>
+  </div>
+</details>
+
+<details class="accordion" open>
+  <summary><span class="badge-num">2</span> RubricScore multi-dimensional scoring <span class="hint">expand</span></summary>
+  <div class="acc-body">
+    <div class="qa">
+      <div class="q">🧪 Example</div>
+      <div class="a"><span class="mono">RubricScore</span> breaks evaluation into dimensions:
+<pre class="code"><span class="cm"># EvalScoreResult.dimensions contains:</span>
+<span class="cm">#   RubricScore(name="relevance", score=0.9)</span>
+<span class="cm">#   RubricScore(name="accuracy", score=0.85)</span>
+<span class="cm">#   RubricScore(name="completeness", score=0.7)</span>
+
+<span class="cm"># EvalScoreResult also has:</span>
+<span class="cm">#   name: evaluator name</span>
+<span class="cm">#   score: aggregate score</span>
+<span class="cm">#   passed: whether threshold was met</span>
+<span class="cm">#   sample: raw evaluator output (rationale)</span></pre>
+      </div>
+    </div>
+    <div class="qa">
+      <div class="q">❓ Why this matters</div>
+      <div class="a">A single aggregate score is not enough — an Agent response may be "relevant but inaccurate"
+        or "accurate but incomplete". Multi-dimensional scoring pinpoints the Agent's <strong>weak spots</strong>
+        for targeted improvement.</div>
+    </div>
+    <div class="qa">
+      <div class="q">✅ How MAF does it</div>
+      <div class="a"><span class="mono">EvalScoreResult</span> contains aggregate score + dimension scores + raw rationale (sample).
+        <span class="mono">AgentEvalConverter</span> auto-converts Agent I/O to eval format.
+        Results support <span class="mono">raise_for_status()</span> for CI gating.</div>
+    </div>
+    <div class="qa">
+      <div class="q">🔀 Alternatives</div>
+      <div class="a"><strong>Single-dimension LLM-as-judge</strong> (simple but low information);
+        <strong>Human annotation</strong> (most accurate but costly and slow);
+        <strong>Custom scorer functions</strong> (flexible but more code — MAF's <span class="mono">@evaluator</span> is the streamlined version).</div>
+    </div>
+  </div>
+</details>
+
+<details class="accordion" open>
+  <summary><span class="badge-num">3</span> Time-travel mechanics <span class="hint">expand</span></summary>
+  <div class="acc-body">
+    <div class="qa">
+      <div class="q">🧪 Example</div>
+      <div class="a">Replay a workflow from a checkpoint:
+<pre class="code"><span class="kw">from</span> agent_framework <span class="kw">import</span> InMemoryCheckpointStorage
+
+storage = InMemoryCheckpointStorage()
+workflow = builder.build()
+
+<span class="cm"># First run — checkpoints are saved</span>
+<span class="kw">async for</span> event <span class="kw">in</span> workflow.run(message=10, stream=<span class="kw">True</span>):
+    <span class="kw">if</span> should_interrupt(): <span class="kw">break</span>
+
+<span class="cm"># Resume from checkpoint — skip completed steps</span>
+cp = <span class="kw">await</span> storage.get_latest(workflow_name=workflow.name)
+<span class="kw">async for</span> event <span class="kw">in</span> workflow.run(
+    checkpoint_id=cp.checkpoint_id, stream=<span class="kw">True</span>
+):
+    <span class="cm"># Completed @step functions return cached results</span>
+    <span class="cm"># Only pending steps actually execute</span></pre>
+      </div>
+    </div>
+    <div class="qa">
+      <div class="q">❓ Why this matters</div>
+      <div class="a">Workflows can halt mid-way due to network failures, timeouts or deliberate interrupts.
+        Without checkpoints you'd rerun everything from scratch (wasting time and token budget).
+        Time-travel lets you <strong>resume from where you left off</strong> — completed steps use cached results.</div>
+    </div>
+    <div class="qa">
+      <div class="q">✅ How MAF does it</div>
+      <div class="a"><span class="mono">WorkflowCheckpoint</span> captures full state: message history, Executor states,
+        iteration count and pending HITL events. <span class="mono">CheckpointStorage</span> protocol has in-memory
+        and file implementations. Executors save custom state via <span class="mono">on_checkpoint_save/restore</span> hooks.</div>
+    </div>
+    <div class="qa">
+      <div class="q">🔀 Alternatives</div>
+      <div class="a"><strong>Durable Functions</strong> (Azure's durable execution — lower level);
+        <strong>Temporal.io</strong> (dedicated workflow engine — heavier);
+        <strong>Manual intermediate state</strong> (works but easy to miss edge cases).</div>
+    </div>
+  </div>
+</details>
+
+<details class="accordion" open>
+  <summary><span class="badge-num">4</span> Combining eval + replay <span class="hint">expand</span></summary>
+  <div class="acc-body">
+    <div class="qa">
+      <div class="q">🧪 Example</div>
+      <div class="a">Evaluation and time-travel work hand-in-hand:
+<pre class="code"><span class="cm"># 1. Run eval — spot a failing query</span>
+results = <span class="kw">await</span> evaluate_agent(agent=agent, queries=[...])
+
+<span class="cm"># 2. Time-travel the failing workflow</span>
+<span class="cm"># Replay from checkpoint, inspect each @step's I/O</span>
+
+<span class="cm"># 3. Fix and re-evaluate to confirm improvement</span>
+<span class="cm"># results[0].raise_for_status() passes = fix confirmed</span></pre>
+      </div>
+    </div>
+    <div class="qa">
+      <div class="q">❓ Why this matters</div>
+      <div class="a">Evaluation spots the problem; time-travel locates the cause — a complete
+        <strong>detect → diagnose → fix → verify</strong> loop. Without time-travel you know
+        "this query failed" but not <strong>which step</strong> went wrong.</div>
+    </div>
+    <div class="qa">
+      <div class="q">✅ How MAF does it</div>
+      <div class="a">Evaluation and replay share the same Agent / Workflow abstractions — eval runs
+        <span class="mono">agent.run()</span>; replay runs <span class="mono">workflow.run(checkpoint_id=...)</span>.
+        In HITL scenarios <span class="mono">_set_responses</span> pre-fills human answers so replay is fully automated.</div>
+    </div>
+    <div class="qa">
+      <div class="q">🔀 Alternatives</div>
+      <div class="a"><strong>Log analysis only</strong> (less complete than full checkpoint state);
+        <strong>LangSmith Trace</strong> (visual tracing but can't resume execution from a breakpoint);
+        <strong>Unit-test mocking</strong> (fast but doesn't test real LLM behaviour).</div>
+    </div>
+  </div>
+</details>
+
+<div class="card key">
+  <div class="tag">✅ Key points</div>
+  <ul>
+    <li><strong>Evaluation = Agent unit tests</strong>: <span class="mono">EvalItem</span> (input) → <span class="mono">Evaluator</span> (score) → <span class="mono">EvalResults</span> (results).</li>
+    <li><span class="mono">RubricScore</span> supports multi-dimensional scoring; <span class="mono">raise_for_status()</span> for CI gating.</li>
+    <li><strong>Time-travel</strong> via <span class="mono">WorkflowCheckpoint</span> saves/restores full state; completed steps use cache.</li>
+    <li>Together they form a complete "detect → diagnose → fix → verify" loop.</li>
+  </ul>
+</div>
+
+<div class="card spark">
+  <div class="tag">💡 Design highlight</div>
+  <strong>Evaluation and replay share the same Agent/Workflow abstractions</strong> — no extra debugging tools
+  or tracing systems needed. One <span class="mono">evaluate_agent()</span> call = batch Agent runs + auto scoring + CI integration.
+  One <span class="mono">checkpoint_id</span> parameter = resume from any breakpoint, diagnosing issues step by step.
+</div>
+</div></section>
+<section class="print-lesson"><div class="wrap"><div class="lesson-head"><div class="lp">Part 6 · Bonus</div><h1><span class="ln">26 ·</span> AF vs Other Frameworks</h1></div>
 <p class="lead">MAF isn't the only agent framework. This lesson compares four major ones to give you
 <strong>global coordinates</strong>.</p>
 
@@ -4752,7 +5777,7 @@ SK:        ~25k  (large enterprise user base)</pre>
   between LangGraph and AutoGen. Prebuilt orchestrations are sugar; the underlying Workflow is the engine. Mix freely.
 </div>
 </div></section>
-<section class="print-lesson"><div class="wrap"><div class="lesson-head"><div class="lp">Part 6 · Bonus</div><h1><span class="ln">22 ·</span> Full-Stack Map & Learning Path</h1></div>
+<section class="print-lesson"><div class="wrap"><div class="lesson-head"><div class="lp">Part 6 · Bonus</div><h1><span class="ln">27 ·</span> Full-Stack Map & Learning Path</h1></div>
 <p class="lead">Final lesson — zoom out: place MAF in the <strong>AI full-stack</strong> coordinate system and see
 what's worth learning next door.</p>
 

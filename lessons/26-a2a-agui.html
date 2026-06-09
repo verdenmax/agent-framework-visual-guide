@@ -2,17 +2,17 @@
 <html lang="zh-CN" data-lang="zh"><head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>20 · 端到端实战：多 Agent 工作流 — Capstone: A Multi-Agent Workflow · Agent Framework 图解教程 · Visual Guide</title>
-<meta name="description" content="第五部分 · 自己动手做 Agent｜端到端实战：多 Agent 工作流（Capstone: A Multi-Agent Workflow）：面向新手的 Agent Framework 图解教程，配真实源码对应与设计亮点。">
+<title>24 · A2A + AG-UI 协议 — A2A & AG-UI Protocols · Agent Framework 图解教程 · Visual Guide</title>
+<meta name="description" content="第五部分 · 自己动手做 Agent｜A2A + AG-UI 协议（A2A & AG-UI Protocols）：面向新手的 Agent Framework 图解教程，配真实源码对应与设计亮点。">
 <meta name="theme-color" content="#0078d4">
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml;base64,PHN2ZyB4bWxucz0naHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmcnIHZpZXdCb3g9JzAgMCAzMiAzMic+PHJlY3Qgd2lkdGg9JzMyJyBoZWlnaHQ9JzMyJyByeD0nNycgZmlsbD0nIzAwNzhkNCcvPjx0ZXh0IHg9JzE2JyB5PScyMicgZm9udC1mYW1pbHk9J3N5c3RlbS11aSxzYW5zLXNlcmlmJyBmb250LXNpemU9JzEzJyBmb250LXdlaWdodD0nNzAwJyBmaWxsPScjZmZmJyB0ZXh0LWFuY2hvcj0nbWlkZGxlJz5BRjwvdGV4dD48L3N2Zz4=">
 <meta property="og:type" content="article">
 <meta property="og:site_name" content="Agent Framework 图解教程 · Visual Guide">
-<meta property="og:title" content="20 · 端到端实战：多 Agent 工作流 — Capstone: A Multi-Agent Workflow · Agent Framework 图解教程 · Visual Guide">
-<meta property="og:description" content="第五部分 · 自己动手做 Agent｜端到端实战：多 Agent 工作流（Capstone: A Multi-Agent Workflow）：面向新手的 Agent Framework 图解教程，配真实源码对应与设计亮点。">
+<meta property="og:title" content="24 · A2A + AG-UI 协议 — A2A & AG-UI Protocols · Agent Framework 图解教程 · Visual Guide">
+<meta property="og:description" content="第五部分 · 自己动手做 Agent｜A2A + AG-UI 协议（A2A & AG-UI Protocols）：面向新手的 Agent Framework 图解教程，配真实源码对应与设计亮点。">
 <meta name="twitter:card" content="summary">
-<meta name="twitter:title" content="20 · 端到端实战：多 Agent 工作流 — Capstone: A Multi-Agent Workflow · Agent Framework 图解教程 · Visual Guide">
-<meta name="twitter:description" content="第五部分 · 自己动手做 Agent｜端到端实战：多 Agent 工作流（Capstone: A Multi-Agent Workflow）：面向新手的 Agent Framework 图解教程，配真实源码对应与设计亮点。">
+<meta name="twitter:title" content="24 · A2A + AG-UI 协议 — A2A & AG-UI Protocols · Agent Framework 图解教程 · Visual Guide">
+<meta name="twitter:description" content="第五部分 · 自己动手做 Agent｜A2A + AG-UI 协议（A2A & AG-UI Protocols）：面向新手的 Agent Framework 图解教程，配真实源码对应与设计亮点。">
 <script>try{var l=localStorage.getItem('af-guide-lang')||'zh';document.documentElement.setAttribute('data-lang',l);}catch(e){}</script>
 <style>
 * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -242,221 +242,194 @@ table.t td.mono, table.t td .mono { font-family: ui-monospace, monospace; font-s
     <a class="home" href="../index.html">📘 <span class="i18n" data-lang="zh">Agent Framework 图解教程 · </span><span class="i18n" data-lang="en">Agent Framework Visual Guide · </span><b><span class="i18n" data-lang="zh">目录</span><span class="i18n" data-lang="en">Contents</span></b></a>
     <div class="pills">
       <span class="pill"><span class="i18n" data-lang="zh">第五部分 · 自己动手做 Agent</span><span class="i18n" data-lang="en">Part 5 · Build Your Own</span></span>
-      <span class="pill">20 / 27</span>
+      <span class="pill">24 / 27</span>
       <span class="langtoggle">EN</span>
     </div>
   </div>
-  <div class="progress"><span style="width:74%"></span></div>
+  <div class="progress"><span style="width:88%"></span></div>
 </div>
 <div class="wrap">
   <div class="hero">
     <div class="part"><span class="i18n" data-lang="zh">第五部分 · 自己动手做 Agent</span><span class="i18n" data-lang="en">Part 5 · Build Your Own</span></div>
-    <h1><span class="i18n" data-lang="zh">端到端实战：多 Agent 工作流</span><span class="i18n" data-lang="en">Capstone: A Multi-Agent Workflow</span></h1>
+    <h1><span class="i18n" data-lang="zh">A2A + AG-UI 协议</span><span class="i18n" data-lang="en">A2A & AG-UI Protocols</span></h1>
   </div>
   <div class="i18n" data-lang="zh">
-<p class="lead">最后一课实战：把前面学的<strong>Agent + 工具 + 编排 + 检查点</strong>拼成一个
-<strong>多 Agent 工作流</strong>。</p>
+<p class="lead"><strong>A2A（Agent-to-Agent）</strong>让 Agent 作为服务暴露给其他 Agent 调用；
+<strong>AG-UI</strong>让 Agent 与前端 UI 实时结构化通信——两个协议合力打通"Agent ↔ Agent"和"Agent ↔ 用户界面"。</p>
 
 <div class="card analogy">
-  <div class="tag">🧩 生活类比</div>
-  这节课像<strong>拼乐高</strong>：前面每课教你认识一种零件（Agent、工具、编排、检查点），
-  现在把它们拼成一辆完整的车——能跑、能转弯、能刹车。
+  <div class="tag">📚 生活类比</div>
+  A2A 像<strong>企业间的 B2B 接口</strong>——公司 A 的 Agent 可以调用公司 B 的 Agent 服务；
+  AG-UI 像<strong>客服前台的显示屏</strong>——后台 Agent 的进度、中间结果实时推送到用户看到的界面上。
 </div>
 
-<h2>场景：写作 → 审稿</h2>
-<div class="vflow">
-  <div class="step"><div class="num">1</div><div class="sc"><h4>创建两个 Agent</h4>
-    <p><strong>Writer</strong>：根据提示写文章。<strong>Reviewer</strong>：审稿、提修改意见。</p></div></div>
-  <div class="step"><div class="num">2</div><div class="sc"><h4>用 SequentialBuilder 编排</h4>
-    <p>Writer 写完 → Reviewer 审稿，串行。</p></div></div>
-  <div class="step"><div class="num">3</div><div class="sc"><h4>跑起来</h4>
-    <p><span class="mono">workflow.run("Write about AI agents")</span>。</p></div></div>
-</div>
+<h2>A2A vs AG-UI</h2>
+<table class="t">
+  <tr><th>协议</th><th>方向</th><th>用途</th><th>包名</th></tr>
+  <tr><td>A2A</td><td>Agent → Agent</td><td>把 Agent 暴露为可被其他 Agent 调用的服务</td><td class="mono">agent-framework-a2a</td></tr>
+  <tr><td>AG-UI</td><td>Agent → UI</td><td>Agent 执行过程中向 UI 推送实时更新</td><td class="mono">agent-framework-ag-ui</td></tr>
+</table>
 
+<h2>A2A 服务端示例</h2>
 <div class="codefile">
-  <div class="cf-head"><span class="dot"></span><span class="path">端到端示例骨架</span></div>
-<pre><span class="kw">from</span> agent_framework <span class="kw">import</span> Agent
-<span class="kw">from</span> agent_framework.orchestrations <span class="kw">import</span> SequentialBuilder
+  <div class="cf-head"><span class="dot"></span><span class="path">A2A 服务器</span></div>
+<pre><span class="kw">from</span> agent_framework.a2a <span class="kw">import</span> A2AExecutor
+<span class="kw">from</span> a2a.server.request_handlers <span class="kw">import</span> DefaultRequestHandler
+<span class="kw">from</span> a2a.server.routes <span class="kw">import</span> create_agent_card_routes, create_jsonrpc_routes
 
-writer = Agent(client=client, name=<span class="st">"Writer"</span>,
-    instructions=<span class="st">"Write a short article on the given topic."</span>)
-reviewer = Agent(client=client, name=<span class="st">"Reviewer"</span>,
-    instructions=<span class="st">"Review the article. Suggest improvements."</span>)
-
-workflow = SequentialBuilder(participants=[writer, reviewer]).build()
-result = <span class="kw">await</span> workflow.run(<span class="st">"Write about AI agents"</span>)</pre>
+executor = A2AExecutor(agent, stream=<span class="kw">True</span>)
+handler = DefaultRequestHandler(
+    agent_executor=executor,
+    task_store=InMemoryTaskStore(),
+    agent_card=agent_card,
+)
+<span class="cm"># Starlette app with AgentCard + JSON-RPC routes</span></pre>
 </div>
 
 <details class="accordion">
-  <summary><span class="badge-num">1</span> 完整代码骨架（扩展版） <span class="hint">点击展开详解</span></summary>
+  <summary><span class="badge-num">1</span> A2A 深入 <span class="hint">点击展开详解</span></summary>
   <div class="acc-body">
     <div class="qa">
       <div class="q">🧪 示例</div>
-      <div class="a">完整的 25-30 行可工作示例：
-<pre class="code"><span class="kw">from</span> agent_framework <span class="kw">import</span> Agent, tool, OpenAIChatClient
-<span class="kw">from</span> agent_framework.orchestrations <span class="kw">import</span> SequentialBuilder
-<span class="kw">from</span> agent_framework <span class="kw">import</span> InMemoryCheckpointStorage
+      <div class="a">A2A 的核心类：
+<pre class="code"><span class="cm"># 客户端：调用远程 A2A Agent</span>
+<span class="kw">from</span> agent_framework.a2a <span class="kw">import</span> A2AAgent
+a2a_agent = A2AAgent(url=<span class="st">"http://remote-agent/a2a"</span>)
+response = <span class="kw">await</span> a2a_agent.run(<span class="st">"Translate this"</span>)
 
-<span class="cm"># 工具</span>
-<span class="nb">@tool</span>
-<span class="kw">def</span> <span class="fn">web_search</span>(query: str) -> str:
-    <span class="st">&quot;&quot;&quot;搜索网络&quot;&quot;&quot;</span>
-    <span class="kw">return</span> f<span class="st">&quot;Results for {query}&quot;</span>
-
-<span class="cm"># 中间件</span>
-<span class="kw">class</span> <span class="fn">LoggingMiddleware</span>(ChatMiddleware):
-    <span class="kw">async def</span> <span class="fn">process</span>(self, context, call_next):
-        logger.info(f<span class="st">&quot;Input: {context.messages}&quot;</span>)
-        <span class="kw">await</span> call_next()
-        logger.info(f<span class="st">&quot;Output: {context.result}&quot;</span>)
-
-<span class="cm"># Agents</span>
-client = OpenAIChatClient(model=<span class="st">&quot;gpt-4o&quot;</span>)
-writer = client.as_agent(name=<span class="st">&quot;Writer&quot;</span>,
-    instructions=<span class="st">&quot;Write articles&quot;</span>,
-    tools=[web_search],
-    chat_middleware=[LoggingMiddleware()])
-
-reviewer = client.as_agent(name=<span class="st">&quot;Reviewer&quot;</span>,
-    instructions=<span class="st">&quot;Review and improve&quot;</span>)
-
-<span class="cm"># 工作流</span>
-storage = InMemoryCheckpointStorage()
-workflow = SequentialBuilder(
-    participants=[writer, reviewer],
-    checkpoint_storage=storage
-).build()
-
-result = <span class="kw">await</span> workflow.run(<span class="st">&quot;Write about MAF&quot;</span>)</pre>
-所有组件整合：Agent、工具、中间件、检查点、编排。
+<span class="cm"># 服务端：把本地 Agent 暴露为 A2A 服务</span>
+<span class="kw">from</span> agent_framework.a2a <span class="kw">import</span> A2AExecutor
+executor = A2AExecutor(my_agent, stream=<span class="kw">True</span>)</pre>
       </div>
     </div>
     <div class="qa">
       <div class="q">❓ 为什么这件事必要</div>
-      <div class="a">看到所有组件一起工作能巩固理解。可复制粘贴的代码是最好的学习工具。</div>
+      <div class="a">复杂业务需要<strong>多个 Agent 协作</strong>：一个做翻译，一个做摘要，一个做质量检查。
+        A2A 让每个 Agent 独立部署并通过标准协议互调，不需要紧耦合。
+        <span class="mono">A2AAgentSession</span> 自动管理 context_id / task_id / task_state。</div>
     </div>
     <div class="qa">
       <div class="q">✅ MAF 的做法与优点</div>
-      <div class="a">MAF 的可组合性意味着每个组件（Agent、工具、中间件、检查点、编排）都能干净地组合在一起。</div>
+      <div class="a"><span class="mono">A2AAgent</span> 包装 <span class="mono">BaseAgent</span> 为 A2A 客户端，
+        <span class="mono">A2AExecutor</span> 把任何 MAF Agent 暴露为 A2A 服务。
+        支持 AgentCard 发现、JSON-RPC 通信、长时间任务续传（<span class="mono">A2AContinuationToken</span>）。</div>
     </div>
     <div class="qa">
       <div class="q">🔀 还有什么其他方案</div>
-      <div class="a">样板代码繁重的框架需要 100+ 行才能实现相同功能。MAF 保持在 30 行以内。</div>
+      <div class="a"><strong>MCP 互调</strong>（更底层，工具级别而非 Agent 级别）；
+        <strong>REST API 自定义</strong>（灵活但缺乏标准化的 Agent 发现和任务管理）；
+        <strong>消息队列 Agent</strong>（适合异步但不适合请求/响应模式）。</div>
     </div>
   </div>
 </details>
 
 <details class="accordion">
-  <summary><span class="badge-num">2</span> 加入 Concurrent 变体 <span class="hint">点击展开详解</span></summary>
+  <summary><span class="badge-num">2</span> AG-UI 深入 <span class="hint">点击展开详解</span></summary>
   <div class="acc-body">
     <div class="qa">
       <div class="q">🧪 示例</div>
-      <div class="a">用 Sequential 替换为：Writer + FactChecker 并行运行，然后 Reviewer 串行运行：
-<pre class="code"><span class="kw">from</span> agent_framework.orchestrations <span class="kw">import</span> (
-    SequentialBuilder, ConcurrentBuilder
+      <div class="a">AG-UI 快速集成到 FastAPI：
+<pre class="code"><span class="kw">from</span> agent_framework.ag_ui <span class="kw">import</span> (
+    add_agent_framework_fastapi_endpoint,
+    AgentFrameworkAgent,
 )
+<span class="kw">from</span> fastapi <span class="kw">import</span> FastAPI
 
-<span class="cm"># 阶段 1：并行</span>
-concurrent_stage = ConcurrentBuilder(
-    participants=[writer, fact_checker]
-).build()
-
-<span class="cm"># 阶段 2：串行（等待并行阶段完成）</span>
-workflow = SequentialBuilder(
-    participants=[concurrent_stage, reviewer]
-).build()
-
-result = <span class="kw">await</span> workflow.run(<span class="st">&quot;Write about AI&quot;</span>)</pre>
-Builder 可组合：混合并行和串行阶段。
+app = FastAPI()
+ag_ui_agent = AgentFrameworkAgent(agent=my_agent)
+add_agent_framework_fastapi_endpoint(app, ag_ui_agent)</pre>
       </div>
     </div>
     <div class="qa">
       <div class="q">❓ 为什么这件事必要</div>
-      <div class="a">串行工作流在步骤独立时很慢。并行执行减少实际时间。</div>
+      <div class="a">用户需要<strong>看到 Agent 在做什么</strong>：中间步骤、工具调用、状态变化。
+        AG-UI 协议让 Agent 以结构化事件流（RunStarted → 内容事件 → RunFinished）
+        向 UI 推送实时更新，而不只是最终结果。</div>
     </div>
     <div class="qa">
       <div class="q">✅ MAF 的做法与优点</div>
-      <div class="a">MAF 的 ConcurrentBuilder + SequentialBuilder 自然组合。自由混合并行和串行阶段。</div>
+      <div class="a"><span class="mono">AgentFrameworkAgent</span> 把 MAF Agent 包装为 AG-UI 兼容对象，
+        <span class="mono">AGUIEventConverter</span> 自动转换框架内部事件为 AG-UI 事件。
+        支持状态 schema（dict 或 Pydantic）、预测性状态更新和中断流程。</div>
     </div>
     <div class="qa">
       <div class="q">🔀 还有什么其他方案</div>
-      <div class="a">手动 asyncio.gather()、线程池。MAF 的 builder 自动处理扇出/扇入。</div>
+      <div class="a"><strong>Server-Sent Events 自定义</strong>（灵活但没有标准事件格式）；
+        <strong>WebSocket 自定义</strong>（双向但要自己定义协议）；
+        <strong>Vercel AI SDK useChat</strong>（前端友好但绑定 Vercel 生态）。</div>
     </div>
   </div>
 </details>
 
 <details class="accordion">
-  <summary><span class="badge-num">3</span> 加入人在环 <span class="hint">点击展开详解</span></summary>
+  <summary><span class="badge-num">3</span> A2A + AG-UI 组合 <span class="hint">点击展开详解</span></summary>
   <div class="acc-body">
     <div class="qa">
       <div class="q">🧪 示例</div>
-      <div class="a">给 Reviewer 添加 <span class="mono">publish</span> 工具，带 <span class="mono">approval_mode="always_require"</span>：
-<pre class="code"><span class="nb">@tool</span>(approval_mode=<span class="st">&quot;always_require&quot;</span>)
-<span class="kw">def</span> <span class="fn">publish</span>(content: str):
-    <span class="st">&quot;&quot;&quot;发布文章（需要审批）&quot;&quot;&quot;</span>
-    <span class="cm"># 实际发布逻辑</span>
-    <span class="kw">return</span> f<span class="st">&quot;Published: {content[:50]}...&quot;</span>
+      <div class="a">两个协议可以组合使用：
+<pre class="code"><span class="cm"># Agent A (后端) 通过 A2A 调用 Agent B</span>
+a2a_agent = A2AAgent(url=<span class="st">"http://agent-b/a2a"</span>)
 
-reviewer = client.as_agent(
-    name=<span class="st">&quot;Reviewer&quot;</span>,
-    instructions=<span class="st">&quot;Review and publish if good&quot;</span>,
-    tools=[publish]  <span class="cm"># 发布前必须人工审批</span>
-)</pre>
-在文章发布前，必须有人批准。框架处理暂停、通知和恢复。
+<span class="cm"># Agent A 同时通过 AG-UI 向前端推送进度</span>
+ag_ui_agent = AgentFrameworkAgent(agent=agent_a)
+add_agent_framework_fastapi_endpoint(app, ag_ui_agent)
+
+<span class="cm"># 用户看到：Agent A 正在调用 Agent B...</span>
+<span class="cm"># 用户看到：Agent B 返回了翻译结果...</span></pre>
       </div>
     </div>
     <div class="qa">
       <div class="q">❓ 为什么这件事必要</div>
-      <div class="a">自动发布而不审查有风险。发布步骤的 HITL 防止不良内容上线。</div>
+      <div class="a">真实场景中，用户需要看到多 Agent 协作的<strong>全过程</strong>：
+        A2A 管理 Agent 间的调用，AG-UI 把过程实时展示给用户。
+        两者缺一不可——缺了 A2A 就没有 Agent 互调，缺了 AG-UI 用户就看不到过程。</div>
     </div>
     <div class="qa">
       <div class="q">✅ MAF 的做法与优点</div>
-      <div class="a">工具定义上的一个参数（<span class="mono">approval_mode</span>）。框架处理暂停、通知和恢复。</div>
+      <div class="a">两个协议<strong>正交设计</strong>：A2A 解决"Agent 间如何通信"，AG-UI 解决"Agent 如何向用户汇报"。
+        框架内的事件（usage、custom events）自动映射到 AG-UI 的 CUSTOM 事件类型，
+        多模态内容（图片、文件）也有标准化支持。</div>
     </div>
     <div class="qa">
       <div class="q">🔀 还有什么其他方案</div>
-      <div class="a">自定义 webhook 审批、外部审核 API。MAF 的方法是声明式且内置的。</div>
+      <div class="a"><strong>单体 Agent + 直接 UI</strong>（简单但不可扩展到多 Agent）；
+        <strong>消息总线 + 自定义 UI 协议</strong>（灵活但开发量大）；
+        <strong>LangGraph Studio</strong>（可视化调试但不是生产 UI 方案）。</div>
     </div>
   </div>
 </details>
 
 <details class="accordion">
-  <summary><span class="badge-num">4</span> 生产化清单 <span class="hint">点击展开详解</span></summary>
+  <summary><span class="badge-num">4</span> 什么时候用哪个 <span class="hint">点击展开详解</span></summary>
   <div class="acc-body">
     <div class="qa">
       <div class="q">🧪 示例</div>
-      <div class="a">生产就绪检查清单：
-<pre class="code"><span class="cm"># ✓ 添加 OpenTelemetry 追踪</span>
-<span class="kw">from</span> agent_framework.telemetry <span class="kw">import</span> setup_otel
-setup_otel(service_name=<span class="st">&quot;my-agent&quot;</span>)
+      <div class="a">选择指南：
+<pre class="code"><span class="cm"># 需要 Agent 互相调用？ → A2A</span>
+<span class="cm"># 需要向用户实时展示进度？ → AG-UI</span>
+<span class="cm"># 需要跨框架工具复用？ → MCP (L24)</span>
+<span class="cm"># 需要云端托管？ → Foundry Hosting (L25)</span>
 
-<span class="cm"># ✓ 切换到持久化存储</span>
-<span class="kw">from</span> agent_framework_redis <span class="kw">import</span> RedisCheckpointStorage
-storage = RedisCheckpointStorage(conn_string)
-
-<span class="cm"># ✓ 添加错误处理中间件</span>
-middleware=[ErrorHandlingMiddleware(), RetryMiddleware()]
-
-<span class="cm"># ✓ 设置 token 预算</span>
-agent = client.as_agent(..., max_tokens=<span class="nb">10000</span>)
-
-<span class="cm"># ✓ 添加速率限制</span>
-<span class="cm"># ✓ 配置日志级别</span>
-logging.basicConfig(level=logging.INFO)</pre>
-从演示到生产的差距清单。
+<span class="cm"># 多 Agent + 用户界面 → A2A + AG-UI 组合</span>
+<span class="cm"># 单 Agent + 简单部署 → Foundry Hosting</span></pre>
       </div>
     </div>
     <div class="qa">
       <div class="q">❓ 为什么这件事必要</div>
-      <div class="a">演示代码 ≠ 生产代码。知道差距可防止中断和成本超支。</div>
+      <div class="a">MAF 提供了多种"对外暴露"方式（MCP / Foundry / A2A / AG-UI），
+        选错方式会增加不必要的复杂度。理解每种协议的定位才能做出正确选择。</div>
     </div>
     <div class="qa">
       <div class="q">✅ MAF 的做法与优点</div>
-      <div class="a">MAF 提供所有生产构建块：OTel 集成、持久化存储包、重试/日志/计费中间件。无需第三方胶水。</div>
+      <div class="a">每种协议都是<strong>可选的薄包装层</strong>——Agent 核心逻辑完全不变。
+        你可以先用 Foundry 托管单 Agent，之后加 A2A 做多 Agent 协作，
+        再加 AG-UI 做实时 UI。渐进式采用，不用一次全上。</div>
     </div>
     <div class="qa">
       <div class="q">🔀 还有什么其他方案</div>
-      <div class="a">平台特定解决方案（Azure Monitor、Datadog）。MAF 是云无关的；OTel 导出到任何后端。</div>
+      <div class="a"><strong>全部 REST API 自定义</strong>（最灵活但重复造轮子）；
+        <strong>GraphQL subscriptions</strong>（适合复杂查询但 Agent 场景过于复杂）；
+        <strong>gRPC streaming</strong>（高性能但生态支持有限）。</div>
     </div>
   </div>
 </details>
@@ -464,223 +437,201 @@ logging.basicConfig(level=logging.INFO)</pre>
 <div class="card key">
   <div class="tag">✅ 关键要点</div>
   <ul>
-    <li>多 Agent 工作流 = 几个 Agent + 一个 Builder + <span class="mono">.build().run()</span>。</li>
-    <li>工具、中间件、检查点、人在环——全部可以叠加进去。</li>
-    <li>从"hello agent"到"生产级多 Agent"，代码增量很小。</li>
+    <li><strong>A2A</strong>：Agent-to-Agent 协议——<span class="mono">A2AAgent</span>（客户端）+ <span class="mono">A2AExecutor</span>（服务端），支持 AgentCard 发现。</li>
+    <li><strong>AG-UI</strong>：Agent-to-UI 协议——<span class="mono">AgentFrameworkAgent</span> 包装 + FastAPI 端点一行集成。</li>
+    <li>两者<strong>正交</strong>：A2A 管"Agent 间"，AG-UI 管"Agent → 用户"，可独立或组合使用。</li>
+    <li>所有协议都是<strong>可选薄层</strong>，Agent 核心代码不变。</li>
   </ul>
 </div>
 
 <div class="card spark">
   <div class="tag">💡 设计亮点</div>
-  <strong>复杂度是增量的</strong>：单 Agent → 加工具 → 加编排 → 加检查点 → 加审批，每一步只增加几行代码。
-  这就是"从原型到生产"的体验。
+  <strong>四种协议（MCP / Foundry / A2A / AG-UI）覆盖 Agent 对外通信的所有方向</strong>：
+  工具调用、云端托管、Agent 互调、UI 推送。
+  每个都是可选的薄适配层——Agent 核心逻辑写一次，按需插上不同的"通信插头"。
 </div>
 </div>
 <div class="i18n" data-lang="en">
-<p class="lead">Capstone: assemble <strong>Agent + tools + orchestration + checkpoints</strong> from earlier lessons
-into a <strong>multi-Agent workflow</strong>.</p>
+<p class="lead"><strong>A2A (Agent-to-Agent)</strong> exposes an Agent as a service for other Agents to call;
+<strong>AG-UI</strong> gives Agents a structured real-time channel to the frontend —
+together they connect "Agent ↔ Agent" and "Agent ↔ User Interface".</p>
 
 <div class="card analogy">
-  <div class="tag">🧩 Analogy</div>
-  This lesson is like <strong>building with LEGO</strong>: earlier lessons taught you each brick type
-  (Agent, tools, orchestration, checkpoints); now you snap them together into a complete car —
-  one that drives, turns and brakes.
+  <div class="tag">📚 Analogy</div>
+  A2A is a <strong>B2B API</strong> between companies — Company A's Agent can call Company B's Agent service.
+  AG-UI is the <strong>customer-facing display</strong> — the backend Agent's progress and intermediate results
+  stream to the screen in real time.
 </div>
 
-<h2>Scenario: write → review</h2>
-<div class="vflow">
-  <div class="step"><div class="num">1</div><div class="sc"><h4>Create two Agents</h4>
-    <p><strong>Writer</strong>: writes an article from a prompt. <strong>Reviewer</strong>: reviews it, suggests edits.</p></div></div>
-  <div class="step"><div class="num">2</div><div class="sc"><h4>Orchestrate with SequentialBuilder</h4>
-    <p>Writer finishes → Reviewer reviews, in sequence.</p></div></div>
-  <div class="step"><div class="num">3</div><div class="sc"><h4>Run it</h4>
-    <p><span class="mono">workflow.run("Write about AI agents")</span>.</p></div></div>
-</div>
+<h2>A2A vs AG-UI</h2>
+<table class="t">
+  <tr><th>Protocol</th><th>Direction</th><th>Purpose</th><th>Package</th></tr>
+  <tr><td>A2A</td><td>Agent → Agent</td><td>Expose an Agent as a callable service for other Agents</td><td class="mono">agent-framework-a2a</td></tr>
+  <tr><td>AG-UI</td><td>Agent → UI</td><td>Push real-time updates to the UI during Agent execution</td><td class="mono">agent-framework-ag-ui</td></tr>
+</table>
 
+<h2>A2A server example</h2>
 <div class="codefile">
-  <div class="cf-head"><span class="dot"></span><span class="path">end-to-end skeleton</span></div>
-<pre><span class="kw">from</span> agent_framework <span class="kw">import</span> Agent
-<span class="kw">from</span> agent_framework.orchestrations <span class="kw">import</span> SequentialBuilder
+  <div class="cf-head"><span class="dot"></span><span class="path">A2A server</span></div>
+<pre><span class="kw">from</span> agent_framework.a2a <span class="kw">import</span> A2AExecutor
+<span class="kw">from</span> a2a.server.request_handlers <span class="kw">import</span> DefaultRequestHandler
+<span class="kw">from</span> a2a.server.routes <span class="kw">import</span> create_agent_card_routes, create_jsonrpc_routes
 
-writer = Agent(client=client, name=<span class="st">"Writer"</span>,
-    instructions=<span class="st">"Write a short article on the given topic."</span>)
-reviewer = Agent(client=client, name=<span class="st">"Reviewer"</span>,
-    instructions=<span class="st">"Review the article. Suggest improvements."</span>)
-
-workflow = SequentialBuilder(participants=[writer, reviewer]).build()
-result = <span class="kw">await</span> workflow.run(<span class="st">"Write about AI agents"</span>)</pre>
+executor = A2AExecutor(agent, stream=<span class="kw">True</span>)
+handler = DefaultRequestHandler(
+    agent_executor=executor,
+    task_store=InMemoryTaskStore(),
+    agent_card=agent_card,
+)
+<span class="cm"># Starlette app with AgentCard + JSON-RPC routes</span></pre>
 </div>
 
 <details class="accordion">
-  <summary><span class="badge-num">1</span> Extended code skeleton <span class="hint">expand</span></summary>
+  <summary><span class="badge-num">1</span> A2A deep dive <span class="hint">expand</span></summary>
   <div class="acc-body">
     <div class="qa">
       <div class="q">🧪 Example</div>
-      <div class="a">Full working example in ~25-30 lines:
-<pre class="code"><span class="kw">from</span> agent_framework <span class="kw">import</span> Agent, tool, OpenAIChatClient
-<span class="kw">from</span> agent_framework.orchestrations <span class="kw">import</span> SequentialBuilder
-<span class="kw">from</span> agent_framework <span class="kw">import</span> InMemoryCheckpointStorage
+      <div class="a">Core A2A classes:
+<pre class="code"><span class="cm"># Client: call a remote A2A Agent</span>
+<span class="kw">from</span> agent_framework.a2a <span class="kw">import</span> A2AAgent
+a2a_agent = A2AAgent(url=<span class="st">"http://remote-agent/a2a"</span>)
+response = <span class="kw">await</span> a2a_agent.run(<span class="st">"Translate this"</span>)
 
-<span class="cm"># Tool</span>
-<span class="nb">@tool</span>
-<span class="kw">def</span> <span class="fn">web_search</span>(query: str) -> str:
-    <span class="st">&quot;&quot;&quot;Search the web&quot;&quot;&quot;</span>
-    <span class="kw">return</span> f<span class="st">&quot;Results for {query}&quot;</span>
-
-<span class="cm"># Middleware</span>
-<span class="kw">class</span> <span class="fn">LoggingMiddleware</span>(ChatMiddleware):
-    <span class="kw">async def</span> <span class="fn">process</span>(self, context, call_next):
-        logger.info(f<span class="st">&quot;Input: {context.messages}&quot;</span>)
-        <span class="kw">await</span> call_next()
-        logger.info(f<span class="st">&quot;Output: {context.result}&quot;</span>)
-
-<span class="cm"># Agents</span>
-client = OpenAIChatClient(model=<span class="st">&quot;gpt-4o&quot;</span>)
-writer = client.as_agent(name=<span class="st">&quot;Writer&quot;</span>,
-    instructions=<span class="st">&quot;Write articles&quot;</span>,
-    tools=[web_search],
-    chat_middleware=[LoggingMiddleware()])
-
-reviewer = client.as_agent(name=<span class="st">&quot;Reviewer&quot;</span>,
-    instructions=<span class="st">&quot;Review and improve&quot;</span>)
-
-<span class="cm"># Workflow</span>
-storage = InMemoryCheckpointStorage()
-workflow = SequentialBuilder(
-    participants=[writer, reviewer],
-    checkpoint_storage=storage
-).build()
-
-result = <span class="kw">await</span> workflow.run(<span class="st">&quot;Write about MAF&quot;</span>)</pre>
-All pieces together: agent, tool, middleware, checkpoint, orchestration.
+<span class="cm"># Server: expose local Agent as A2A service</span>
+<span class="kw">from</span> agent_framework.a2a <span class="kw">import</span> A2AExecutor
+executor = A2AExecutor(my_agent, stream=<span class="kw">True</span>)</pre>
       </div>
     </div>
     <div class="qa">
       <div class="q">❓ Why this matters</div>
-      <div class="a">Seeing all pieces together cements understanding. Copy-paste-able code is the best learning tool.</div>
+      <div class="a">Complex tasks need <strong>multi-Agent collaboration</strong>: one translates, one summarises, one QA-checks.
+        A2A lets each Agent deploy independently and interop via a standard protocol — no tight coupling.
+        <span class="mono">A2AAgentSession</span> auto-manages context_id / task_id / task_state.</div>
     </div>
     <div class="qa">
       <div class="q">✅ How MAF does it</div>
-      <div class="a">MAF's composability means each piece (agent, tool, middleware, checkpoint, orchestration) snaps together cleanly.</div>
+      <div class="a"><span class="mono">A2AAgent</span> wraps <span class="mono">BaseAgent</span> as an A2A client;
+        <span class="mono">A2AExecutor</span> exposes any MAF Agent as an A2A service.
+        Supports AgentCard discovery, JSON-RPC communication and long-running task continuation
+        (<span class="mono">A2AContinuationToken</span>).</div>
     </div>
     <div class="qa">
       <div class="q">🔀 Alternatives</div>
-      <div class="a">Boilerplate-heavy frameworks need 100+ lines for the same. MAF keeps it under 30.</div>
+      <div class="a"><strong>MCP interop</strong> (lower level — tool-level, not Agent-level);
+        <strong>Custom REST APIs</strong> (flexible but no standard Agent discovery or task management);
+        <strong>Message-queue Agents</strong> (good for async but not request/response).</div>
     </div>
   </div>
 </details>
 
 <details class="accordion">
-  <summary><span class="badge-num">2</span> Adding concurrency <span class="hint">expand</span></summary>
+  <summary><span class="badge-num">2</span> AG-UI deep dive <span class="hint">expand</span></summary>
   <div class="acc-body">
     <div class="qa">
       <div class="q">🧪 Example</div>
-      <div class="a">Replace Sequential with: Writer + FactChecker run in parallel, then Reviewer runs serially:
-<pre class="code"><span class="kw">from</span> agent_framework.orchestrations <span class="kw">import</span> (
-    SequentialBuilder, ConcurrentBuilder
+      <div class="a">Quick FastAPI integration:
+<pre class="code"><span class="kw">from</span> agent_framework.ag_ui <span class="kw">import</span> (
+    add_agent_framework_fastapi_endpoint,
+    AgentFrameworkAgent,
 )
+<span class="kw">from</span> fastapi <span class="kw">import</span> FastAPI
 
-<span class="cm"># Stage 1: concurrent</span>
-concurrent_stage = ConcurrentBuilder(
-    participants=[writer, fact_checker]
-).build()
-
-<span class="cm"># Stage 2: sequential (waits for concurrent stage)</span>
-workflow = SequentialBuilder(
-    participants=[concurrent_stage, reviewer]
-).build()
-
-result = <span class="kw">await</span> workflow.run(<span class="st">&quot;Write about AI&quot;</span>)</pre>
-Builders compose: mix parallel and sequential stages.
+app = FastAPI()
+ag_ui_agent = AgentFrameworkAgent(agent=my_agent)
+add_agent_framework_fastapi_endpoint(app, ag_ui_agent)</pre>
       </div>
     </div>
     <div class="qa">
       <div class="q">❓ Why this matters</div>
-      <div class="a">Sequential workflows are slow when steps are independent. Parallel execution cuts wall-clock time.</div>
+      <div class="a">Users need to <strong>see what the Agent is doing</strong>: intermediate steps, tool calls, state changes.
+        AG-UI pushes structured event streams (RunStarted → content events → RunFinished)
+        to the UI in real time — not just the final answer.</div>
     </div>
     <div class="qa">
       <div class="q">✅ How MAF does it</div>
-      <div class="a">MAF's ConcurrentBuilder + SequentialBuilder compose naturally. Mix parallel and sequential stages freely.</div>
+      <div class="a"><span class="mono">AgentFrameworkAgent</span> wraps MAF Agents for AG-UI compatibility;
+        <span class="mono">AGUIEventConverter</span> auto-converts internal events to AG-UI events.
+        Supports state schemas (dict or Pydantic), predictive state updates and interrupt flows.</div>
     </div>
     <div class="qa">
       <div class="q">🔀 Alternatives</div>
-      <div class="a">Manual asyncio.gather(), thread pools. MAF's builders handle fan-out/fan-in automatically.</div>
+      <div class="a"><strong>Custom SSE</strong> (flexible but no standard event format);
+        <strong>Custom WebSocket protocol</strong> (bidirectional but you define everything yourself);
+        <strong>Vercel AI SDK useChat</strong> (frontend-friendly but Vercel-ecosystem-locked).</div>
     </div>
   </div>
 </details>
 
 <details class="accordion">
-  <summary><span class="badge-num">3</span> Adding HITL <span class="hint">expand</span></summary>
+  <summary><span class="badge-num">3</span> Combining A2A + AG-UI <span class="hint">expand</span></summary>
   <div class="acc-body">
     <div class="qa">
       <div class="q">🧪 Example</div>
-      <div class="a">Add a <span class="mono">publish</span> tool to Reviewer with <span class="mono">approval_mode="always_require"</span>:
-<pre class="code"><span class="nb">@tool</span>(approval_mode=<span class="st">&quot;always_require&quot;</span>)
-<span class="kw">def</span> <span class="fn">publish</span>(content: str):
-    <span class="st">&quot;&quot;&quot;Publish article (requires approval)&quot;&quot;&quot;</span>
-    <span class="cm"># actual publish logic</span>
-    <span class="kw">return</span> f<span class="st">&quot;Published: {content[:50]}...&quot;</span>
+      <div class="a">The two protocols work together:
+<pre class="code"><span class="cm"># Agent A (backend) calls Agent B via A2A</span>
+a2a_agent = A2AAgent(url=<span class="st">"http://agent-b/a2a"</span>)
 
-reviewer = client.as_agent(
-    name=<span class="st">&quot;Reviewer&quot;</span>,
-    instructions=<span class="st">&quot;Review and publish if good&quot;</span>,
-    tools=[publish]  <span class="cm"># must be human-approved before publish</span>
-)</pre>
-Before the article is published, a human must approve. Framework handles pausing, notifying, and resuming.
+<span class="cm"># Agent A streams progress to UI via AG-UI</span>
+ag_ui_agent = AgentFrameworkAgent(agent=agent_a)
+add_agent_framework_fastapi_endpoint(app, ag_ui_agent)
+
+<span class="cm"># User sees: Agent A is calling Agent B...</span>
+<span class="cm"># User sees: Agent B returned the translation...</span></pre>
       </div>
     </div>
     <div class="qa">
       <div class="q">❓ Why this matters</div>
-      <div class="a">Auto-publishing without review is risky. HITL at the publish step prevents bad content from going live.</div>
+      <div class="a">In real scenarios users need the <strong>full picture</strong> of multi-Agent collaboration:
+        A2A manages Agent-to-Agent calls while AG-UI shows the user the live process.
+        Without A2A there's no Agent interop; without AG-UI the user sees nothing until the end.</div>
     </div>
     <div class="qa">
       <div class="q">✅ How MAF does it</div>
-      <div class="a">One parameter (<span class="mono">approval_mode</span>) on the tool definition. The framework handles pausing, notifying, and resuming.</div>
+      <div class="a">The two protocols are <strong>orthogonal</strong>: A2A solves "how Agents talk to each other";
+        AG-UI solves "how Agents report to users". Internal events (usage, custom events)
+        auto-map to AG-UI CUSTOM event types; multimodal content (images, files) has standard support.</div>
     </div>
     <div class="qa">
       <div class="q">🔀 Alternatives</div>
-      <div class="a">Custom webhook approval, external moderation API. MAF's approach is declarative and built-in.</div>
+      <div class="a"><strong>Monolithic Agent + direct UI</strong> (simple but won't scale to multi-Agent);
+        <strong>Message bus + custom UI protocol</strong> (flexible but heavy development);
+        <strong>LangGraph Studio</strong> (visual debugging, not a production UI solution).</div>
     </div>
   </div>
 </details>
 
 <details class="accordion">
-  <summary><span class="badge-num">4</span> Production checklist <span class="hint">expand</span></summary>
+  <summary><span class="badge-num">4</span> When to use each <span class="hint">expand</span></summary>
   <div class="acc-body">
     <div class="qa">
       <div class="q">🧪 Example</div>
-      <div class="a">Production-ready checklist:
-<pre class="code"><span class="cm"># ✓ Add OpenTelemetry tracing</span>
-<span class="kw">from</span> agent_framework.telemetry <span class="kw">import</span> setup_otel
-setup_otel(service_name=<span class="st">&quot;my-agent&quot;</span>)
+      <div class="a">Selection guide:
+<pre class="code"><span class="cm"># Agents need to call each other? → A2A</span>
+<span class="cm"># Need real-time UI progress? → AG-UI</span>
+<span class="cm"># Cross-framework tool reuse? → MCP (L24)</span>
+<span class="cm"># Cloud hosting? → Foundry Hosting (L25)</span>
 
-<span class="cm"># ✓ Switch to persistent storage</span>
-<span class="kw">from</span> agent_framework_redis <span class="kw">import</span> RedisCheckpointStorage
-storage = RedisCheckpointStorage(conn_string)
-
-<span class="cm"># ✓ Add error handling middleware</span>
-middleware=[ErrorHandlingMiddleware(), RetryMiddleware()]
-
-<span class="cm"># ✓ Set token budgets</span>
-agent = client.as_agent(..., max_tokens=<span class="nb">10000</span>)
-
-<span class="cm"># ✓ Add rate limiting</span>
-<span class="cm"># ✓ Configure logging</span>
-logging.basicConfig(level=logging.INFO)</pre>
-Checklist of gaps from demo to production.
+<span class="cm"># Multi-Agent + user UI → A2A + AG-UI combo</span>
+<span class="cm"># Single Agent + simple deploy → Foundry Hosting</span></pre>
       </div>
     </div>
     <div class="qa">
       <div class="q">❓ Why this matters</div>
-      <div class="a">Demo code ≠ production code. Knowing the gaps prevents outages and cost overruns.</div>
+      <div class="a">MAF provides multiple "external exposure" mechanisms (MCP / Foundry / A2A / AG-UI).
+        Choosing the wrong one adds unnecessary complexity. Understanding each protocol's purpose
+        is key to making the right choice.</div>
     </div>
     <div class="qa">
       <div class="q">✅ How MAF does it</div>
-      <div class="a">MAF provides all production building blocks: OTel integration, persistent storage packages, middleware for retries/logging/billing. No third-party glue needed.</div>
+      <div class="a">Every protocol is an <strong>optional thin wrapper</strong> — Agent core logic stays unchanged.
+        Start with Foundry hosting for a single Agent, add A2A for multi-Agent collaboration,
+        then layer AG-UI for real-time UI. Adopt incrementally, not all at once.</div>
     </div>
     <div class="qa">
       <div class="q">🔀 Alternatives</div>
-      <div class="a">Platform-specific solutions (Azure Monitor, Datadog). MAF is cloud-agnostic; OTel exports to any backend.</div>
+      <div class="a"><strong>All-custom REST APIs</strong> (most flexible but reinvents the wheel);
+        <strong>GraphQL subscriptions</strong> (great for complex queries but overkill for Agent scenarios);
+        <strong>gRPC streaming</strong> (high performance but limited ecosystem support).</div>
     </div>
   </div>
 </details>
@@ -688,19 +639,21 @@ Checklist of gaps from demo to production.
 <div class="card key">
   <div class="tag">✅ Key points</div>
   <ul>
-    <li>Multi-Agent workflow = a few Agents + one Builder + <span class="mono">.build().run()</span>.</li>
-    <li>Tools, middleware, checkpoints, HITL — all stackable.</li>
-    <li>From "hello agent" to "production multi-Agent" with minimal code increase.</li>
+    <li><strong>A2A</strong>: Agent-to-Agent protocol — <span class="mono">A2AAgent</span> (client) + <span class="mono">A2AExecutor</span> (server), with AgentCard discovery.</li>
+    <li><strong>AG-UI</strong>: Agent-to-UI protocol — <span class="mono">AgentFrameworkAgent</span> wrapper + one-line FastAPI integration.</li>
+    <li>The two are <strong>orthogonal</strong>: A2A handles "inter-Agent", AG-UI handles "Agent → user". Use independently or together.</li>
+    <li>All protocols are <strong>optional thin layers</strong> — core Agent code remains unchanged.</li>
   </ul>
 </div>
 
 <div class="card spark">
   <div class="tag">💡 Design highlight</div>
-  <strong>Complexity is incremental</strong>: single Agent → add tools → add orchestration → add checkpoints → add
-  approvals, each step adds only a few lines. That's the "prototype to production" experience.
+  <strong>Four protocols (MCP / Foundry / A2A / AG-UI) cover every direction of Agent external communication</strong>:
+  tool calls, cloud hosting, Agent interop, UI streaming.
+  Each is an optional thin adapter — write Agent logic once, plug in whichever "communication socket" you need.
 </div>
 </div>
-  <div class="footnav"><a class="prev" href="19-durability-hitl.html"><div class="dir"><span class="i18n" data-lang="zh">← 上一课</span><span class="i18n" data-lang="en">← Prev</span></div><div class="ttl"><span class="i18n" data-lang="zh">检查点 · 人在环 · 持久化</span><span class="i18n" data-lang="en">Checkpointing, HITL & Durability</span></div></a><a class="next" href="23-skills.html"><div class="dir"><span class="i18n" data-lang="zh">下一课 →</span><span class="i18n" data-lang="en">Next →</span></div><div class="ttl"><span class="i18n" data-lang="zh">Agent Skills 技能系统</span><span class="i18n" data-lang="en">Agent Skills</span></div></a></div>
+  <div class="footnav"><a class="prev" href="25-hosted-agents.html"><div class="dir"><span class="i18n" data-lang="zh">← 上一课</span><span class="i18n" data-lang="en">← Prev</span></div><div class="ttl"><span class="i18n" data-lang="zh">Foundry 托管 Agent</span><span class="i18n" data-lang="en">Foundry Hosted Agents</span></div></a><a class="next" href="27-eval-timetravel.html"><div class="dir"><span class="i18n" data-lang="zh">下一课 →</span><span class="i18n" data-lang="en">Next →</span></div><div class="ttl"><span class="i18n" data-lang="zh">评估与时间旅行</span><span class="i18n" data-lang="en">Evaluation & Time-Travel</span></div></a></div>
 </div>
 
 <script>

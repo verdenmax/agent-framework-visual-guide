@@ -2,17 +2,17 @@
 <html lang="zh-CN" data-lang="zh"><head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>20 · 端到端实战：多 Agent 工作流 — Capstone: A Multi-Agent Workflow · Agent Framework 图解教程 · Visual Guide</title>
-<meta name="description" content="第五部分 · 自己动手做 Agent｜端到端实战：多 Agent 工作流（Capstone: A Multi-Agent Workflow）：面向新手的 Agent Framework 图解教程，配真实源码对应与设计亮点。">
+<title>22 · MCP 工具协议 — MCP Tool Protocol · Agent Framework 图解教程 · Visual Guide</title>
+<meta name="description" content="第五部分 · 自己动手做 Agent｜MCP 工具协议（MCP Tool Protocol）：面向新手的 Agent Framework 图解教程，配真实源码对应与设计亮点。">
 <meta name="theme-color" content="#0078d4">
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml;base64,PHN2ZyB4bWxucz0naHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmcnIHZpZXdCb3g9JzAgMCAzMiAzMic+PHJlY3Qgd2lkdGg9JzMyJyBoZWlnaHQ9JzMyJyByeD0nNycgZmlsbD0nIzAwNzhkNCcvPjx0ZXh0IHg9JzE2JyB5PScyMicgZm9udC1mYW1pbHk9J3N5c3RlbS11aSxzYW5zLXNlcmlmJyBmb250LXNpemU9JzEzJyBmb250LXdlaWdodD0nNzAwJyBmaWxsPScjZmZmJyB0ZXh0LWFuY2hvcj0nbWlkZGxlJz5BRjwvdGV4dD48L3N2Zz4=">
 <meta property="og:type" content="article">
 <meta property="og:site_name" content="Agent Framework 图解教程 · Visual Guide">
-<meta property="og:title" content="20 · 端到端实战：多 Agent 工作流 — Capstone: A Multi-Agent Workflow · Agent Framework 图解教程 · Visual Guide">
-<meta property="og:description" content="第五部分 · 自己动手做 Agent｜端到端实战：多 Agent 工作流（Capstone: A Multi-Agent Workflow）：面向新手的 Agent Framework 图解教程，配真实源码对应与设计亮点。">
+<meta property="og:title" content="22 · MCP 工具协议 — MCP Tool Protocol · Agent Framework 图解教程 · Visual Guide">
+<meta property="og:description" content="第五部分 · 自己动手做 Agent｜MCP 工具协议（MCP Tool Protocol）：面向新手的 Agent Framework 图解教程，配真实源码对应与设计亮点。">
 <meta name="twitter:card" content="summary">
-<meta name="twitter:title" content="20 · 端到端实战：多 Agent 工作流 — Capstone: A Multi-Agent Workflow · Agent Framework 图解教程 · Visual Guide">
-<meta name="twitter:description" content="第五部分 · 自己动手做 Agent｜端到端实战：多 Agent 工作流（Capstone: A Multi-Agent Workflow）：面向新手的 Agent Framework 图解教程，配真实源码对应与设计亮点。">
+<meta name="twitter:title" content="22 · MCP 工具协议 — MCP Tool Protocol · Agent Framework 图解教程 · Visual Guide">
+<meta name="twitter:description" content="第五部分 · 自己动手做 Agent｜MCP 工具协议（MCP Tool Protocol）：面向新手的 Agent Framework 图解教程，配真实源码对应与设计亮点。">
 <script>try{var l=localStorage.getItem('af-guide-lang')||'zh';document.documentElement.setAttribute('data-lang',l);}catch(e){}</script>
 <style>
 * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -242,221 +242,198 @@ table.t td.mono, table.t td .mono { font-family: ui-monospace, monospace; font-s
     <a class="home" href="../index.html">📘 <span class="i18n" data-lang="zh">Agent Framework 图解教程 · </span><span class="i18n" data-lang="en">Agent Framework Visual Guide · </span><b><span class="i18n" data-lang="zh">目录</span><span class="i18n" data-lang="en">Contents</span></b></a>
     <div class="pills">
       <span class="pill"><span class="i18n" data-lang="zh">第五部分 · 自己动手做 Agent</span><span class="i18n" data-lang="en">Part 5 · Build Your Own</span></span>
-      <span class="pill">20 / 27</span>
+      <span class="pill">22 / 27</span>
       <span class="langtoggle">EN</span>
     </div>
   </div>
-  <div class="progress"><span style="width:74%"></span></div>
+  <div class="progress"><span style="width:81%"></span></div>
 </div>
 <div class="wrap">
   <div class="hero">
     <div class="part"><span class="i18n" data-lang="zh">第五部分 · 自己动手做 Agent</span><span class="i18n" data-lang="en">Part 5 · Build Your Own</span></div>
-    <h1><span class="i18n" data-lang="zh">端到端实战：多 Agent 工作流</span><span class="i18n" data-lang="en">Capstone: A Multi-Agent Workflow</span></h1>
+    <h1><span class="i18n" data-lang="zh">MCP 工具协议</span><span class="i18n" data-lang="en">MCP Tool Protocol</span></h1>
   </div>
   <div class="i18n" data-lang="zh">
-<p class="lead">最后一课实战：把前面学的<strong>Agent + 工具 + 编排 + 检查点</strong>拼成一个
-<strong>多 Agent 工作流</strong>。</p>
+<p class="lead"><strong>MCP（Model Context Protocol）</strong>是连接工具/资源到 LLM 的<strong>开放标准</strong>——
+MAF 既能<strong>调用</strong> MCP 服务器上的工具，也能把 Agent 自身<strong>暴露为</strong> MCP 服务器。</p>
 
 <div class="card analogy">
-  <div class="tag">🧩 生活类比</div>
-  这节课像<strong>拼乐高</strong>：前面每课教你认识一种零件（Agent、工具、编排、检查点），
-  现在把它们拼成一辆完整的车——能跑、能转弯、能刹车。
+  <div class="tag">📚 生活类比</div>
+  MCP 就像<strong>USB 接口标准</strong>：不管你插的是键盘、鼠标还是硬盘，只要都走 USB 协议就能即插即用。
+  MCP 让 LLM 和工具之间有了统一的"接口协议"，不用为每个工具写定制代码。
 </div>
 
-<h2>场景：写作 → 审稿</h2>
-<div class="vflow">
-  <div class="step"><div class="num">1</div><div class="sc"><h4>创建两个 Agent</h4>
-    <p><strong>Writer</strong>：根据提示写文章。<strong>Reviewer</strong>：审稿、提修改意见。</p></div></div>
-  <div class="step"><div class="num">2</div><div class="sc"><h4>用 SequentialBuilder 编排</h4>
-    <p>Writer 写完 → Reviewer 审稿，串行。</p></div></div>
-  <div class="step"><div class="num">3</div><div class="sc"><h4>跑起来</h4>
-    <p><span class="mono">workflow.run("Write about AI agents")</span>。</p></div></div>
-</div>
+<h2>三种传输方式</h2>
+<table class="t">
+  <tr><th>传输类型</th><th>类名</th><th>适用场景</th></tr>
+  <tr><td>Stdio（子进程）</td><td class="mono">MCPStdioTool</td><td>本地 CLI 工具，开发/测试阶段最常用</td></tr>
+  <tr><td>HTTP/SSE（Streamable HTTP）</td><td class="mono">MCPStreamableHTTPTool</td><td>远程 Web API，生产部署首选</td></tr>
+  <tr><td>WebSocket</td><td class="mono">MCPWebsocketTool</td><td>需要双向实时通信的场景</td></tr>
+</table>
 
+<h2>连接 MCP 服务器</h2>
 <div class="codefile">
-  <div class="cf-head"><span class="dot"></span><span class="path">端到端示例骨架</span></div>
-<pre><span class="kw">from</span> agent_framework <span class="kw">import</span> Agent
-<span class="kw">from</span> agent_framework.orchestrations <span class="kw">import</span> SequentialBuilder
+  <div class="cf-head"><span class="dot"></span><span class="path">使用 MCPStdioTool</span></div>
+<pre><span class="kw">from</span> agent_framework <span class="kw">import</span> Agent, MCPStdioTool
 
-writer = Agent(client=client, name=<span class="st">"Writer"</span>,
-    instructions=<span class="st">"Write a short article on the given topic."</span>)
-reviewer = Agent(client=client, name=<span class="st">"Reviewer"</span>,
-    instructions=<span class="st">"Review the article. Suggest improvements."</span>)
-
-workflow = SequentialBuilder(participants=[writer, reviewer]).build()
-result = <span class="kw">await</span> workflow.run(<span class="st">"Write about AI agents"</span>)</pre>
-</div>
-
-<details class="accordion">
-  <summary><span class="badge-num">1</span> 完整代码骨架（扩展版） <span class="hint">点击展开详解</span></summary>
-  <div class="acc-body">
-    <div class="qa">
-      <div class="q">🧪 示例</div>
-      <div class="a">完整的 25-30 行可工作示例：
-<pre class="code"><span class="kw">from</span> agent_framework <span class="kw">import</span> Agent, tool, OpenAIChatClient
-<span class="kw">from</span> agent_framework.orchestrations <span class="kw">import</span> SequentialBuilder
-<span class="kw">from</span> agent_framework <span class="kw">import</span> InMemoryCheckpointStorage
-
-<span class="cm"># 工具</span>
-<span class="nb">@tool</span>
-<span class="kw">def</span> <span class="fn">web_search</span>(query: str) -> str:
-    <span class="st">&quot;&quot;&quot;搜索网络&quot;&quot;&quot;</span>
-    <span class="kw">return</span> f<span class="st">&quot;Results for {query}&quot;</span>
-
-<span class="cm"># 中间件</span>
-<span class="kw">class</span> <span class="fn">LoggingMiddleware</span>(ChatMiddleware):
-    <span class="kw">async def</span> <span class="fn">process</span>(self, context, call_next):
-        logger.info(f<span class="st">&quot;Input: {context.messages}&quot;</span>)
-        <span class="kw">await</span> call_next()
-        logger.info(f<span class="st">&quot;Output: {context.result}&quot;</span>)
-
-<span class="cm"># Agents</span>
-client = OpenAIChatClient(model=<span class="st">&quot;gpt-4o&quot;</span>)
-writer = client.as_agent(name=<span class="st">&quot;Writer&quot;</span>,
-    instructions=<span class="st">&quot;Write articles&quot;</span>,
-    tools=[web_search],
-    chat_middleware=[LoggingMiddleware()])
-
-reviewer = client.as_agent(name=<span class="st">&quot;Reviewer&quot;</span>,
-    instructions=<span class="st">&quot;Review and improve&quot;</span>)
-
-<span class="cm"># 工作流</span>
-storage = InMemoryCheckpointStorage()
-workflow = SequentialBuilder(
-    participants=[writer, reviewer],
-    checkpoint_storage=storage
-).build()
-
-result = <span class="kw">await</span> workflow.run(<span class="st">&quot;Write about MAF&quot;</span>)</pre>
-所有组件整合：Agent、工具、中间件、检查点、编排。
-      </div>
-    </div>
-    <div class="qa">
-      <div class="q">❓ 为什么这件事必要</div>
-      <div class="a">看到所有组件一起工作能巩固理解。可复制粘贴的代码是最好的学习工具。</div>
-    </div>
-    <div class="qa">
-      <div class="q">✅ MAF 的做法与优点</div>
-      <div class="a">MAF 的可组合性意味着每个组件（Agent、工具、中间件、检查点、编排）都能干净地组合在一起。</div>
-    </div>
-    <div class="qa">
-      <div class="q">🔀 还有什么其他方案</div>
-      <div class="a">样板代码繁重的框架需要 100+ 行才能实现相同功能。MAF 保持在 30 行以内。</div>
-    </div>
-  </div>
-</details>
-
-<details class="accordion">
-  <summary><span class="badge-num">2</span> 加入 Concurrent 变体 <span class="hint">点击展开详解</span></summary>
-  <div class="acc-body">
-    <div class="qa">
-      <div class="q">🧪 示例</div>
-      <div class="a">用 Sequential 替换为：Writer + FactChecker 并行运行，然后 Reviewer 串行运行：
-<pre class="code"><span class="kw">from</span> agent_framework.orchestrations <span class="kw">import</span> (
-    SequentialBuilder, ConcurrentBuilder
+mcp_tool = MCPStdioTool(
+    name=<span class="st">"filesystem"</span>,
+    command=<span class="st">"npx"</span>,
+    args=[<span class="st">"-y"</span>, <span class="st">"@modelcontextprotocol/server-filesystem"</span>, <span class="st">"/data"</span>],
 )
 
-<span class="cm"># 阶段 1：并行</span>
-concurrent_stage = ConcurrentBuilder(
-    participants=[writer, fact_checker]
-).build()
+<span class="kw">async with</span> Agent(
+    client=client,
+    tools=mcp_tool,
+    name=<span class="st">"fs-agent"</span>,
+) <span class="kw">as</span> agent:
+    response = <span class="kw">await</span> agent.run(<span class="st">"List all .txt files"</span>)</pre>
+</div>
 
-<span class="cm"># 阶段 2：串行（等待并行阶段完成）</span>
-workflow = SequentialBuilder(
-    participants=[concurrent_stage, reviewer]
-).build()
+<details class="accordion">
+  <summary><span class="badge-num">1</span> 三种传输方式深入 <span class="hint">点击展开详解</span></summary>
+  <div class="acc-body">
+    <div class="qa">
+      <div class="q">🧪 示例</div>
+      <div class="a">三种传输各有用法：
+<pre class="code"><span class="cm"># 1. Stdio — 本地子进程</span>
+MCPStdioTool(name=<span class="st">"fs"</span>, command=<span class="st">"npx"</span>, args=[<span class="st">"-y"</span>, <span class="st">"server-fs"</span>])
 
-result = <span class="kw">await</span> workflow.run(<span class="st">&quot;Write about AI&quot;</span>)</pre>
-Builder 可组合：混合并行和串行阶段。
+<span class="cm"># 2. HTTP/SSE — 远程 Web 服务</span>
+MCPStreamableHTTPTool(name=<span class="st">"api"</span>, url=<span class="st">"https://api.example.com/mcp"</span>)
+
+<span class="cm"># 3. WebSocket — 双向实时</span>
+MCPWebsocketTool(name=<span class="st">"rt"</span>, url=<span class="st">"wss://service.example.com/mcp"</span>)</pre>
       </div>
     </div>
     <div class="qa">
       <div class="q">❓ 为什么这件事必要</div>
-      <div class="a">串行工作流在步骤独立时很慢。并行执行减少实际时间。</div>
+      <div class="a">不同部署环境需要不同传输方式：本地开发用 Stdio 最方便（无需网络），
+        生产环境用 HTTP/SSE 最稳定，需要实时双向推送时用 WebSocket。
+        统一基类 <span class="mono">MCPTool</span> 让上层 Agent 代码无需关心传输细节。</div>
     </div>
     <div class="qa">
       <div class="q">✅ MAF 的做法与优点</div>
-      <div class="a">MAF 的 ConcurrentBuilder + SequentialBuilder 自然组合。自由混合并行和串行阶段。</div>
+      <div class="a">三个子类都继承自 <span class="mono">MCPTool</span>（2400+ 行），自动处理连接生命周期、
+        工具发现和 JSON-RPC 通信。通过 <span class="mono">MCPTaskOptions</span> 统一配置超时、
+        取消策略等。Agent 使用 <span class="mono">async with</span> 自动管理连接。</div>
     </div>
     <div class="qa">
       <div class="q">🔀 还有什么其他方案</div>
-      <div class="a">手动 asyncio.gather()、线程池。MAF 的 builder 自动处理扇出/扇入。</div>
+      <div class="a"><strong>直接用 HTTP REST</strong>（简单但无标准化的工具发现协议）；
+        <strong>gRPC</strong>（高性能但 LLM 生态支持少）；
+        <strong>LangChain ToolNode</strong>（框架内工具，不跨框架通用）。</div>
     </div>
   </div>
 </details>
 
 <details class="accordion">
-  <summary><span class="badge-num">3</span> 加入人在环 <span class="hint">点击展开详解</span></summary>
+  <summary><span class="badge-num">2</span> MCP 审批模型 <span class="hint">点击展开详解</span></summary>
   <div class="acc-body">
     <div class="qa">
       <div class="q">🧪 示例</div>
-      <div class="a">给 Reviewer 添加 <span class="mono">publish</span> 工具，带 <span class="mono">approval_mode="always_require"</span>：
-<pre class="code"><span class="nb">@tool</span>(approval_mode=<span class="st">&quot;always_require&quot;</span>)
-<span class="kw">def</span> <span class="fn">publish</span>(content: str):
-    <span class="st">&quot;&quot;&quot;发布文章（需要审批）&quot;&quot;&quot;</span>
-    <span class="cm"># 实际发布逻辑</span>
-    <span class="kw">return</span> f<span class="st">&quot;Published: {content[:50]}...&quot;</span>
+      <div class="a"><span class="mono">MCPTaskOptions</span> 控制长时间任务的生命周期：
+<pre class="code"><span class="kw">from</span> datetime <span class="kw">import</span> timedelta
+<span class="kw">from</span> agent_framework <span class="kw">import</span> MCPStdioTool, MCPTaskOptions
 
-reviewer = client.as_agent(
-    name=<span class="st">&quot;Reviewer&quot;</span>,
-    instructions=<span class="st">&quot;Review and publish if good&quot;</span>,
-    tools=[publish]  <span class="cm"># 发布前必须人工审批</span>
+tool = MCPStdioTool(
+    name=<span class="st">"long-task"</span>,
+    command=<span class="st">"python"</span>, args=[<span class="st">"server.py"</span>],
+    task_options=MCPTaskOptions(
+        default_ttl=timedelta(minutes=2),
+        max_task_wait=timedelta(minutes=5),
+        cancel_remote_task_on_local_cancellation=<span class="kw">True</span>,
+    ),
 )</pre>
-在文章发布前，必须有人批准。框架处理暂停、通知和恢复。
       </div>
     </div>
     <div class="qa">
       <div class="q">❓ 为什么这件事必要</div>
-      <div class="a">自动发布而不审查有风险。发布步骤的 HITL 防止不良内容上线。</div>
+      <div class="a">有些 MCP 工具执行时间很长（数据分析、文件转换等），
+        需要轮询状态、超时控制和取消机制。
+        <span class="mono">MCPTaskOptions</span> 透明处理 <span class="mono">tools/call → tasks/get → tasks/result</span> 生命周期。</div>
     </div>
     <div class="qa">
       <div class="q">✅ MAF 的做法与优点</div>
-      <div class="a">工具定义上的一个参数（<span class="mono">approval_mode</span>）。框架处理暂停、通知和恢复。</div>
+      <div class="a">遵循 SEP-2663 长时间任务规范：提交任务后自动轮询，
+        支持取消时自动清理远端资源，对不支持 tasks 的旧服务器自动降级。
+        还有 <span class="mono">header_provider</span> 做认证注入（如 Bearer token）。</div>
     </div>
     <div class="qa">
       <div class="q">🔀 还有什么其他方案</div>
-      <div class="a">自定义 webhook 审批、外部审核 API。MAF 的方法是声明式且内置的。</div>
+      <div class="a"><strong>手动轮询 + 超时</strong>（繁琐且容易出错）；
+        <strong>后台任务队列</strong>（如 Celery，太重量级）；
+        <strong>Server-Sent Events</strong>（HTTP SSE 已内置在 <span class="mono">MCPStreamableHTTPTool</span> 中）。</div>
     </div>
   </div>
 </details>
 
 <details class="accordion">
-  <summary><span class="badge-num">4</span> 生产化清单 <span class="hint">点击展开详解</span></summary>
+  <summary><span class="badge-num">3</span> Agent 作为 MCP 服务器 <span class="hint">点击展开详解</span></summary>
   <div class="acc-body">
     <div class="qa">
       <div class="q">🧪 示例</div>
-      <div class="a">生产就绪检查清单：
-<pre class="code"><span class="cm"># ✓ 添加 OpenTelemetry 追踪</span>
-<span class="kw">from</span> agent_framework.telemetry <span class="kw">import</span> setup_otel
-setup_otel(service_name=<span class="st">&quot;my-agent&quot;</span>)
-
-<span class="cm"># ✓ 切换到持久化存储</span>
-<span class="kw">from</span> agent_framework_redis <span class="kw">import</span> RedisCheckpointStorage
-storage = RedisCheckpointStorage(conn_string)
-
-<span class="cm"># ✓ 添加错误处理中间件</span>
-middleware=[ErrorHandlingMiddleware(), RetryMiddleware()]
-
-<span class="cm"># ✓ 设置 token 预算</span>
-agent = client.as_agent(..., max_tokens=<span class="nb">10000</span>)
-
-<span class="cm"># ✓ 添加速率限制</span>
-<span class="cm"># ✓ 配置日志级别</span>
-logging.basicConfig(level=logging.INFO)</pre>
-从演示到生产的差距清单。
+      <div class="a">MAF Agent 不仅能<strong>调用</strong> MCP 工具，还能<strong>作为</strong> MCP 服务器被其他客户端调用：
+<pre class="code"><span class="cm"># samples/02-agents/mcp/agent_as_mcp_server.py</span>
+<span class="cm"># Agent 把自身注册为 MCP 服务器</span>
+<span class="cm"># 外部 MCP 客户端可以调用此 Agent 的能力</span>
+<span class="cm"># 实现 Agent ↔ Agent 的 MCP 互调</span></pre>
       </div>
     </div>
     <div class="qa">
       <div class="q">❓ 为什么这件事必要</div>
-      <div class="a">演示代码 ≠ 生产代码。知道差距可防止中断和成本超支。</div>
+      <div class="a">多 Agent 系统中，一个 Agent 的能力可以被其他 Agent 通过标准 MCP 协议复用。
+        比如一个"翻译 Agent"作为 MCP 服务器暴露自己的翻译能力，
+        其他 Agent 通过 <span class="mono">MCPStdioTool</span> 调用它——无需知道内部实现。</div>
     </div>
     <div class="qa">
       <div class="q">✅ MAF 的做法与优点</div>
-      <div class="a">MAF 提供所有生产构建块：OTel 集成、持久化存储包、重试/日志/计费中间件。无需第三方胶水。</div>
+      <div class="a">框架双向支持 MCP：<strong>消费端</strong>通过三种传输类型调用外部工具，
+        <strong>服务端</strong>把 Agent 能力暴露为 MCP 工具。
+        这让 MAF Agent 可以无缝融入任何 MCP 生态系统。</div>
     </div>
     <div class="qa">
       <div class="q">🔀 还有什么其他方案</div>
-      <div class="a">平台特定解决方案（Azure Monitor、Datadog）。MAF 是云无关的；OTel 导出到任何后端。</div>
+      <div class="a"><strong>A2A 协议</strong>（Agent-to-Agent，更高层的 Agent 互调协议）；
+        <strong>自定义 REST API</strong>（灵活但缺乏标准化发现机制）；
+        <strong>消息队列</strong>（适合异步场景但延迟较高）。</div>
+    </div>
+  </div>
+</details>
+
+<details class="accordion">
+  <summary><span class="badge-num">4</span> MCP vs 直接 @tool <span class="hint">点击展开详解</span></summary>
+  <div class="acc-body">
+    <div class="qa">
+      <div class="q">🧪 示例</div>
+      <div class="a">对比两种方式：
+<pre class="code"><span class="cm"># 直接 @tool —— 代码内定义</span>
+<span class="kw">@tool</span>
+<span class="kw">def</span> read_file(path: <span class="kw">str</span>) -> <span class="kw">str</span>:
+    <span class="kw">return</span> open(path).read()
+
+<span class="cm"># MCP Tool —— 外部服务提供</span>
+MCPStdioTool(name=<span class="st">"fs"</span>, command=<span class="st">"npx"</span>,
+    args=[<span class="st">"-y"</span>, <span class="st">"server-fs"</span>, <span class="st">"/data"</span>])</pre>
+      </div>
+    </div>
+    <div class="qa">
+      <div class="q">❓ 为什么这件事必要</div>
+      <div class="a"><span class="mono">@tool</span> 是进程内的 Python 函数，简单快速但只限本项目使用；
+        MCP Tool 走标准协议，可以跨语言、跨项目、跨框架复用。
+        两者可以混合使用——<span class="mono">Agent(tools=[my_tool, mcp_tool])</span>。</div>
+    </div>
+    <div class="qa">
+      <div class="q">✅ MAF 的做法与优点</div>
+      <div class="a">MAF 统一了两种工具模型：<span class="mono">@tool</span> 和 <span class="mono">MCPTool</span> 都实现相同的工具接口，
+        Agent 无需区分工具来源。MCP 工具的 schema 通过协议自动发现，
+        无需手动维护 JSON Schema。</div>
+    </div>
+    <div class="qa">
+      <div class="q">🔀 还有什么其他方案</div>
+      <div class="a"><strong>全部用 @tool</strong>（最简单但不可跨项目复用）；
+        <strong>全部用 MCP</strong>（最标准化但本地简单工具开销大）；
+        <strong>OpenAPI 插件</strong>（REST 标准化但缺少 LLM 特有的工具发现）。</div>
     </div>
   </div>
 </details>
@@ -464,223 +441,202 @@ logging.basicConfig(level=logging.INFO)</pre>
 <div class="card key">
   <div class="tag">✅ 关键要点</div>
   <ul>
-    <li>多 Agent 工作流 = 几个 Agent + 一个 Builder + <span class="mono">.build().run()</span>。</li>
-    <li>工具、中间件、检查点、人在环——全部可以叠加进去。</li>
-    <li>从"hello agent"到"生产级多 Agent"，代码增量很小。</li>
+    <li><strong>MCP 是 LLM 工具连接的开放标准</strong>——即插即用，跨框架通用。</li>
+    <li>三种传输：<strong>Stdio</strong>（本地开发）、<strong>HTTP/SSE</strong>（生产部署）、<strong>WebSocket</strong>（实时通信）。</li>
+    <li><span class="mono">MCPTaskOptions</span> 处理长时间任务的超时、轮询和取消。</li>
+    <li>MAF Agent 既能<strong>调用</strong> MCP 工具，也能<strong>作为</strong> MCP 服务器暴露能力。</li>
   </ul>
 </div>
 
 <div class="card spark">
   <div class="tag">💡 设计亮点</div>
-  <strong>复杂度是增量的</strong>：单 Agent → 加工具 → 加编排 → 加检查点 → 加审批，每一步只增加几行代码。
-  这就是"从原型到生产"的体验。
+  <strong>@tool 和 MCPTool 在 Agent 眼里没有区别</strong>——都是"能做事的工具"。
+  你可以从 @tool 起步做快速原型，之后把成熟的工具迁移为 MCP 服务，
+  实现从本地开发到标准化分发的平滑过渡。
 </div>
 </div>
 <div class="i18n" data-lang="en">
-<p class="lead">Capstone: assemble <strong>Agent + tools + orchestration + checkpoints</strong> from earlier lessons
-into a <strong>multi-Agent workflow</strong>.</p>
+<p class="lead"><strong>MCP (Model Context Protocol)</strong> is the <strong>open standard</strong> for connecting tools and
+resources to LLMs — MAF can both <strong>call</strong> MCP servers and <strong>expose</strong> an Agent as one.</p>
 
 <div class="card analogy">
-  <div class="tag">🧩 Analogy</div>
-  This lesson is like <strong>building with LEGO</strong>: earlier lessons taught you each brick type
-  (Agent, tools, orchestration, checkpoints); now you snap them together into a complete car —
-  one that drives, turns and brakes.
+  <div class="tag">📚 Analogy</div>
+  MCP is like the <strong>USB standard</strong>: whether you plug in a keyboard, mouse or hard drive, the USB protocol
+  lets it work instantly. MCP gives LLMs and tools a unified "interface protocol" — no custom code per tool.
 </div>
 
-<h2>Scenario: write → review</h2>
-<div class="vflow">
-  <div class="step"><div class="num">1</div><div class="sc"><h4>Create two Agents</h4>
-    <p><strong>Writer</strong>: writes an article from a prompt. <strong>Reviewer</strong>: reviews it, suggests edits.</p></div></div>
-  <div class="step"><div class="num">2</div><div class="sc"><h4>Orchestrate with SequentialBuilder</h4>
-    <p>Writer finishes → Reviewer reviews, in sequence.</p></div></div>
-  <div class="step"><div class="num">3</div><div class="sc"><h4>Run it</h4>
-    <p><span class="mono">workflow.run("Write about AI agents")</span>.</p></div></div>
-</div>
+<h2>Three transport types</h2>
+<table class="t">
+  <tr><th>Transport</th><th>Class</th><th>When to use</th></tr>
+  <tr><td>Stdio (subprocess)</td><td class="mono">MCPStdioTool</td><td>Local CLI tools; ideal for dev/test</td></tr>
+  <tr><td>HTTP/SSE (Streamable HTTP)</td><td class="mono">MCPStreamableHTTPTool</td><td>Remote Web APIs; production-grade</td></tr>
+  <tr><td>WebSocket</td><td class="mono">MCPWebsocketTool</td><td>Bi-directional real-time communication</td></tr>
+</table>
 
+<h2>Connect to an MCP server</h2>
 <div class="codefile">
-  <div class="cf-head"><span class="dot"></span><span class="path">end-to-end skeleton</span></div>
-<pre><span class="kw">from</span> agent_framework <span class="kw">import</span> Agent
-<span class="kw">from</span> agent_framework.orchestrations <span class="kw">import</span> SequentialBuilder
+  <div class="cf-head"><span class="dot"></span><span class="path">MCPStdioTool usage</span></div>
+<pre><span class="kw">from</span> agent_framework <span class="kw">import</span> Agent, MCPStdioTool
 
-writer = Agent(client=client, name=<span class="st">"Writer"</span>,
-    instructions=<span class="st">"Write a short article on the given topic."</span>)
-reviewer = Agent(client=client, name=<span class="st">"Reviewer"</span>,
-    instructions=<span class="st">"Review the article. Suggest improvements."</span>)
-
-workflow = SequentialBuilder(participants=[writer, reviewer]).build()
-result = <span class="kw">await</span> workflow.run(<span class="st">"Write about AI agents"</span>)</pre>
-</div>
-
-<details class="accordion">
-  <summary><span class="badge-num">1</span> Extended code skeleton <span class="hint">expand</span></summary>
-  <div class="acc-body">
-    <div class="qa">
-      <div class="q">🧪 Example</div>
-      <div class="a">Full working example in ~25-30 lines:
-<pre class="code"><span class="kw">from</span> agent_framework <span class="kw">import</span> Agent, tool, OpenAIChatClient
-<span class="kw">from</span> agent_framework.orchestrations <span class="kw">import</span> SequentialBuilder
-<span class="kw">from</span> agent_framework <span class="kw">import</span> InMemoryCheckpointStorage
-
-<span class="cm"># Tool</span>
-<span class="nb">@tool</span>
-<span class="kw">def</span> <span class="fn">web_search</span>(query: str) -> str:
-    <span class="st">&quot;&quot;&quot;Search the web&quot;&quot;&quot;</span>
-    <span class="kw">return</span> f<span class="st">&quot;Results for {query}&quot;</span>
-
-<span class="cm"># Middleware</span>
-<span class="kw">class</span> <span class="fn">LoggingMiddleware</span>(ChatMiddleware):
-    <span class="kw">async def</span> <span class="fn">process</span>(self, context, call_next):
-        logger.info(f<span class="st">&quot;Input: {context.messages}&quot;</span>)
-        <span class="kw">await</span> call_next()
-        logger.info(f<span class="st">&quot;Output: {context.result}&quot;</span>)
-
-<span class="cm"># Agents</span>
-client = OpenAIChatClient(model=<span class="st">&quot;gpt-4o&quot;</span>)
-writer = client.as_agent(name=<span class="st">&quot;Writer&quot;</span>,
-    instructions=<span class="st">&quot;Write articles&quot;</span>,
-    tools=[web_search],
-    chat_middleware=[LoggingMiddleware()])
-
-reviewer = client.as_agent(name=<span class="st">&quot;Reviewer&quot;</span>,
-    instructions=<span class="st">&quot;Review and improve&quot;</span>)
-
-<span class="cm"># Workflow</span>
-storage = InMemoryCheckpointStorage()
-workflow = SequentialBuilder(
-    participants=[writer, reviewer],
-    checkpoint_storage=storage
-).build()
-
-result = <span class="kw">await</span> workflow.run(<span class="st">&quot;Write about MAF&quot;</span>)</pre>
-All pieces together: agent, tool, middleware, checkpoint, orchestration.
-      </div>
-    </div>
-    <div class="qa">
-      <div class="q">❓ Why this matters</div>
-      <div class="a">Seeing all pieces together cements understanding. Copy-paste-able code is the best learning tool.</div>
-    </div>
-    <div class="qa">
-      <div class="q">✅ How MAF does it</div>
-      <div class="a">MAF's composability means each piece (agent, tool, middleware, checkpoint, orchestration) snaps together cleanly.</div>
-    </div>
-    <div class="qa">
-      <div class="q">🔀 Alternatives</div>
-      <div class="a">Boilerplate-heavy frameworks need 100+ lines for the same. MAF keeps it under 30.</div>
-    </div>
-  </div>
-</details>
-
-<details class="accordion">
-  <summary><span class="badge-num">2</span> Adding concurrency <span class="hint">expand</span></summary>
-  <div class="acc-body">
-    <div class="qa">
-      <div class="q">🧪 Example</div>
-      <div class="a">Replace Sequential with: Writer + FactChecker run in parallel, then Reviewer runs serially:
-<pre class="code"><span class="kw">from</span> agent_framework.orchestrations <span class="kw">import</span> (
-    SequentialBuilder, ConcurrentBuilder
+mcp_tool = MCPStdioTool(
+    name=<span class="st">"filesystem"</span>,
+    command=<span class="st">"npx"</span>,
+    args=[<span class="st">"-y"</span>, <span class="st">"@modelcontextprotocol/server-filesystem"</span>, <span class="st">"/data"</span>],
 )
 
-<span class="cm"># Stage 1: concurrent</span>
-concurrent_stage = ConcurrentBuilder(
-    participants=[writer, fact_checker]
-).build()
+<span class="kw">async with</span> Agent(
+    client=client,
+    tools=mcp_tool,
+    name=<span class="st">"fs-agent"</span>,
+) <span class="kw">as</span> agent:
+    response = <span class="kw">await</span> agent.run(<span class="st">"List all .txt files"</span>)</pre>
+</div>
 
-<span class="cm"># Stage 2: sequential (waits for concurrent stage)</span>
-workflow = SequentialBuilder(
-    participants=[concurrent_stage, reviewer]
-).build()
+<details class="accordion">
+  <summary><span class="badge-num">1</span> Three transports deep dive <span class="hint">expand</span></summary>
+  <div class="acc-body">
+    <div class="qa">
+      <div class="q">🧪 Example</div>
+      <div class="a">Each transport has its own class:
+<pre class="code"><span class="cm"># 1. Stdio — local subprocess</span>
+MCPStdioTool(name=<span class="st">"fs"</span>, command=<span class="st">"npx"</span>, args=[<span class="st">"-y"</span>, <span class="st">"server-fs"</span>])
 
-result = <span class="kw">await</span> workflow.run(<span class="st">&quot;Write about AI&quot;</span>)</pre>
-Builders compose: mix parallel and sequential stages.
+<span class="cm"># 2. HTTP/SSE — remote web service</span>
+MCPStreamableHTTPTool(name=<span class="st">"api"</span>, url=<span class="st">"https://api.example.com/mcp"</span>)
+
+<span class="cm"># 3. WebSocket — bi-directional real-time</span>
+MCPWebsocketTool(name=<span class="st">"rt"</span>, url=<span class="st">"wss://service.example.com/mcp"</span>)</pre>
       </div>
     </div>
     <div class="qa">
       <div class="q">❓ Why this matters</div>
-      <div class="a">Sequential workflows are slow when steps are independent. Parallel execution cuts wall-clock time.</div>
+      <div class="a">Different deployments need different transports: Stdio is easiest for local dev (no network),
+        HTTP/SSE is most reliable for production, WebSocket suits bi-directional real-time pushes.
+        The shared <span class="mono">MCPTool</span> base class hides transport details from Agent code.</div>
     </div>
     <div class="qa">
       <div class="q">✅ How MAF does it</div>
-      <div class="a">MAF's ConcurrentBuilder + SequentialBuilder compose naturally. Mix parallel and sequential stages freely.</div>
+      <div class="a">All three subclasses inherit from <span class="mono">MCPTool</span> (2 400+ lines) and handle connection lifecycle,
+        tool discovery and JSON-RPC communication automatically.
+        <span class="mono">MCPTaskOptions</span> configures timeouts and cancellation policies uniformly.
+        Agents use <span class="mono">async with</span> for automatic connection management.</div>
     </div>
     <div class="qa">
       <div class="q">🔀 Alternatives</div>
-      <div class="a">Manual asyncio.gather(), thread pools. MAF's builders handle fan-out/fan-in automatically.</div>
+      <div class="a"><strong>Plain HTTP REST</strong> (simple but no standard tool-discovery protocol);
+        <strong>gRPC</strong> (high performance but limited LLM ecosystem support);
+        <strong>LangChain ToolNode</strong> (framework-internal, not cross-framework).</div>
     </div>
   </div>
 </details>
 
 <details class="accordion">
-  <summary><span class="badge-num">3</span> Adding HITL <span class="hint">expand</span></summary>
+  <summary><span class="badge-num">2</span> MCP approval model <span class="hint">expand</span></summary>
   <div class="acc-body">
     <div class="qa">
       <div class="q">🧪 Example</div>
-      <div class="a">Add a <span class="mono">publish</span> tool to Reviewer with <span class="mono">approval_mode="always_require"</span>:
-<pre class="code"><span class="nb">@tool</span>(approval_mode=<span class="st">&quot;always_require&quot;</span>)
-<span class="kw">def</span> <span class="fn">publish</span>(content: str):
-    <span class="st">&quot;&quot;&quot;Publish article (requires approval)&quot;&quot;&quot;</span>
-    <span class="cm"># actual publish logic</span>
-    <span class="kw">return</span> f<span class="st">&quot;Published: {content[:50]}...&quot;</span>
+      <div class="a"><span class="mono">MCPTaskOptions</span> controls the long-running task lifecycle:
+<pre class="code"><span class="kw">from</span> datetime <span class="kw">import</span> timedelta
+<span class="kw">from</span> agent_framework <span class="kw">import</span> MCPStdioTool, MCPTaskOptions
 
-reviewer = client.as_agent(
-    name=<span class="st">&quot;Reviewer&quot;</span>,
-    instructions=<span class="st">&quot;Review and publish if good&quot;</span>,
-    tools=[publish]  <span class="cm"># must be human-approved before publish</span>
+tool = MCPStdioTool(
+    name=<span class="st">"long-task"</span>,
+    command=<span class="st">"python"</span>, args=[<span class="st">"server.py"</span>],
+    task_options=MCPTaskOptions(
+        default_ttl=timedelta(minutes=2),
+        max_task_wait=timedelta(minutes=5),
+        cancel_remote_task_on_local_cancellation=<span class="kw">True</span>,
+    ),
 )</pre>
-Before the article is published, a human must approve. Framework handles pausing, notifying, and resuming.
       </div>
     </div>
     <div class="qa">
       <div class="q">❓ Why this matters</div>
-      <div class="a">Auto-publishing without review is risky. HITL at the publish step prevents bad content from going live.</div>
+      <div class="a">Some MCP tools run for a long time (data analysis, file conversion).
+        They need status polling, timeout control and a cancellation mechanism.
+        <span class="mono">MCPTaskOptions</span> transparently handles the <span class="mono">tools/call → tasks/get → tasks/result</span> lifecycle.</div>
     </div>
     <div class="qa">
       <div class="q">✅ How MAF does it</div>
-      <div class="a">One parameter (<span class="mono">approval_mode</span>) on the tool definition. The framework handles pausing, notifying, and resuming.</div>
+      <div class="a">Follows the SEP-2663 long-running task spec: submit then auto-poll,
+        cancel with automatic remote cleanup, graceful fallback for legacy servers.
+        Also supports <span class="mono">header_provider</span> for auth injection (e.g. Bearer tokens).</div>
     </div>
     <div class="qa">
       <div class="q">🔀 Alternatives</div>
-      <div class="a">Custom webhook approval, external moderation API. MAF's approach is declarative and built-in.</div>
+      <div class="a"><strong>Manual polling + timeout</strong> (tedious and error-prone);
+        <strong>Background task queues</strong> (e.g. Celery — heavyweight);
+        <strong>Server-Sent Events only</strong> (already built into <span class="mono">MCPStreamableHTTPTool</span>).</div>
     </div>
   </div>
 </details>
 
 <details class="accordion">
-  <summary><span class="badge-num">4</span> Production checklist <span class="hint">expand</span></summary>
+  <summary><span class="badge-num">3</span> Agent as MCP server <span class="hint">expand</span></summary>
   <div class="acc-body">
     <div class="qa">
       <div class="q">🧪 Example</div>
-      <div class="a">Production-ready checklist:
-<pre class="code"><span class="cm"># ✓ Add OpenTelemetry tracing</span>
-<span class="kw">from</span> agent_framework.telemetry <span class="kw">import</span> setup_otel
-setup_otel(service_name=<span class="st">&quot;my-agent&quot;</span>)
-
-<span class="cm"># ✓ Switch to persistent storage</span>
-<span class="kw">from</span> agent_framework_redis <span class="kw">import</span> RedisCheckpointStorage
-storage = RedisCheckpointStorage(conn_string)
-
-<span class="cm"># ✓ Add error handling middleware</span>
-middleware=[ErrorHandlingMiddleware(), RetryMiddleware()]
-
-<span class="cm"># ✓ Set token budgets</span>
-agent = client.as_agent(..., max_tokens=<span class="nb">10000</span>)
-
-<span class="cm"># ✓ Add rate limiting</span>
-<span class="cm"># ✓ Configure logging</span>
-logging.basicConfig(level=logging.INFO)</pre>
-Checklist of gaps from demo to production.
+      <div class="a">MAF Agents can <strong>serve</strong> as MCP servers, not just consume them:
+<pre class="code"><span class="cm"># samples/02-agents/mcp/agent_as_mcp_server.py</span>
+<span class="cm"># Register the Agent as an MCP server</span>
+<span class="cm"># External MCP clients call this Agent's capabilities</span>
+<span class="cm"># Enables Agent ↔ Agent MCP interop</span></pre>
       </div>
     </div>
     <div class="qa">
       <div class="q">❓ Why this matters</div>
-      <div class="a">Demo code ≠ production code. Knowing the gaps prevents outages and cost overruns.</div>
+      <div class="a">In multi-agent systems, one Agent's capabilities can be reused by others via the standard
+        MCP protocol. A "translation Agent" exposes its abilities as an MCP server; other Agents
+        call it through <span class="mono">MCPStdioTool</span> — no need to know the implementation.</div>
     </div>
     <div class="qa">
       <div class="q">✅ How MAF does it</div>
-      <div class="a">MAF provides all production building blocks: OTel integration, persistent storage packages, middleware for retries/logging/billing. No third-party glue needed.</div>
+      <div class="a">The framework supports MCP bi-directionally: <strong>consumer side</strong> with three transports for
+        external tools; <strong>server side</strong> exposing Agent capabilities as MCP tools.
+        This lets MAF Agents integrate seamlessly into any MCP ecosystem.</div>
     </div>
     <div class="qa">
       <div class="q">🔀 Alternatives</div>
-      <div class="a">Platform-specific solutions (Azure Monitor, Datadog). MAF is cloud-agnostic; OTel exports to any backend.</div>
+      <div class="a"><strong>A2A protocol</strong> (higher-level Agent-to-Agent, covered in L26);
+        <strong>Custom REST API</strong> (flexible but no standard discovery);
+        <strong>Message queues</strong> (good for async but higher latency).</div>
+    </div>
+  </div>
+</details>
+
+<details class="accordion">
+  <summary><span class="badge-num">4</span> MCP vs direct @tool <span class="hint">expand</span></summary>
+  <div class="acc-body">
+    <div class="qa">
+      <div class="q">🧪 Example</div>
+      <div class="a">Compare both approaches:
+<pre class="code"><span class="cm"># Direct @tool — defined in-process</span>
+<span class="kw">@tool</span>
+<span class="kw">def</span> read_file(path: <span class="kw">str</span>) -> <span class="kw">str</span>:
+    <span class="kw">return</span> open(path).read()
+
+<span class="cm"># MCP Tool — provided by external service</span>
+MCPStdioTool(name=<span class="st">"fs"</span>, command=<span class="st">"npx"</span>,
+    args=[<span class="st">"-y"</span>, <span class="st">"server-fs"</span>, <span class="st">"/data"</span>])</pre>
+      </div>
+    </div>
+    <div class="qa">
+      <div class="q">❓ Why this matters</div>
+      <div class="a"><span class="mono">@tool</span> is an in-process Python function — simple and fast but project-scoped.
+        MCP tools use a standard protocol — cross-language, cross-project, cross-framework.
+        Both can be mixed: <span class="mono">Agent(tools=[my_tool, mcp_tool])</span>.</div>
+    </div>
+    <div class="qa">
+      <div class="q">✅ How MAF does it</div>
+      <div class="a">MAF unifies both models: <span class="mono">@tool</span> and <span class="mono">MCPTool</span> implement the same tool interface
+        so the Agent doesn't care about tool origin. MCP tools auto-discover their schema
+        via the protocol — no manual JSON Schema needed.</div>
+    </div>
+    <div class="qa">
+      <div class="q">🔀 Alternatives</div>
+      <div class="a"><strong>All @tool</strong> (simplest but no cross-project reuse);
+        <strong>All MCP</strong> (most standard but overhead for trivial local tools);
+        <strong>OpenAPI plugins</strong> (REST-standardised but lack LLM-specific tool discovery).</div>
     </div>
   </div>
 </details>
@@ -688,19 +644,21 @@ Checklist of gaps from demo to production.
 <div class="card key">
   <div class="tag">✅ Key points</div>
   <ul>
-    <li>Multi-Agent workflow = a few Agents + one Builder + <span class="mono">.build().run()</span>.</li>
-    <li>Tools, middleware, checkpoints, HITL — all stackable.</li>
-    <li>From "hello agent" to "production multi-Agent" with minimal code increase.</li>
+    <li><strong>MCP is the open standard for LLM tool connectivity</strong> — plug-and-play, cross-framework.</li>
+    <li>Three transports: <strong>Stdio</strong> (local dev), <strong>HTTP/SSE</strong> (production), <strong>WebSocket</strong> (real-time).</li>
+    <li><span class="mono">MCPTaskOptions</span> handles long-running task timeouts, polling and cancellation.</li>
+    <li>MAF Agents can both <strong>call</strong> MCP tools and <strong>serve as</strong> MCP servers.</li>
   </ul>
 </div>
 
 <div class="card spark">
   <div class="tag">💡 Design highlight</div>
-  <strong>Complexity is incremental</strong>: single Agent → add tools → add orchestration → add checkpoints → add
-  approvals, each step adds only a few lines. That's the "prototype to production" experience.
+  <strong>@tool and MCPTool look identical to the Agent</strong> — both are just "tools that do things."
+  Start with @tool for rapid prototyping, then graduate mature tools to MCP services for
+  a smooth transition from local development to standardised distribution.
 </div>
 </div>
-  <div class="footnav"><a class="prev" href="19-durability-hitl.html"><div class="dir"><span class="i18n" data-lang="zh">← 上一课</span><span class="i18n" data-lang="en">← Prev</span></div><div class="ttl"><span class="i18n" data-lang="zh">检查点 · 人在环 · 持久化</span><span class="i18n" data-lang="en">Checkpointing, HITL & Durability</span></div></a><a class="next" href="23-skills.html"><div class="dir"><span class="i18n" data-lang="zh">下一课 →</span><span class="i18n" data-lang="en">Next →</span></div><div class="ttl"><span class="i18n" data-lang="zh">Agent Skills 技能系统</span><span class="i18n" data-lang="en">Agent Skills</span></div></a></div>
+  <div class="footnav"><a class="prev" href="23-skills.html"><div class="dir"><span class="i18n" data-lang="zh">← 上一课</span><span class="i18n" data-lang="en">← Prev</span></div><div class="ttl"><span class="i18n" data-lang="zh">Agent Skills 技能系统</span><span class="i18n" data-lang="en">Agent Skills</span></div></a><a class="next" href="25-hosted-agents.html"><div class="dir"><span class="i18n" data-lang="zh">下一课 →</span><span class="i18n" data-lang="en">Next →</span></div><div class="ttl"><span class="i18n" data-lang="zh">Foundry 托管 Agent</span><span class="i18n" data-lang="en">Foundry Hosted Agents</span></div></a></div>
 </div>
 
 <script>

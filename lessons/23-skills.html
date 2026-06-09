@@ -2,17 +2,17 @@
 <html lang="zh-CN" data-lang="zh"><head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>20 · 端到端实战：多 Agent 工作流 — Capstone: A Multi-Agent Workflow · Agent Framework 图解教程 · Visual Guide</title>
-<meta name="description" content="第五部分 · 自己动手做 Agent｜端到端实战：多 Agent 工作流（Capstone: A Multi-Agent Workflow）：面向新手的 Agent Framework 图解教程，配真实源码对应与设计亮点。">
+<title>21 · Agent Skills 技能系统 — Agent Skills · Agent Framework 图解教程 · Visual Guide</title>
+<meta name="description" content="第五部分 · 自己动手做 Agent｜Agent Skills 技能系统（Agent Skills）：面向新手的 Agent Framework 图解教程，配真实源码对应与设计亮点。">
 <meta name="theme-color" content="#0078d4">
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml;base64,PHN2ZyB4bWxucz0naHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmcnIHZpZXdCb3g9JzAgMCAzMiAzMic+PHJlY3Qgd2lkdGg9JzMyJyBoZWlnaHQ9JzMyJyByeD0nNycgZmlsbD0nIzAwNzhkNCcvPjx0ZXh0IHg9JzE2JyB5PScyMicgZm9udC1mYW1pbHk9J3N5c3RlbS11aSxzYW5zLXNlcmlmJyBmb250LXNpemU9JzEzJyBmb250LXdlaWdodD0nNzAwJyBmaWxsPScjZmZmJyB0ZXh0LWFuY2hvcj0nbWlkZGxlJz5BRjwvdGV4dD48L3N2Zz4=">
 <meta property="og:type" content="article">
 <meta property="og:site_name" content="Agent Framework 图解教程 · Visual Guide">
-<meta property="og:title" content="20 · 端到端实战：多 Agent 工作流 — Capstone: A Multi-Agent Workflow · Agent Framework 图解教程 · Visual Guide">
-<meta property="og:description" content="第五部分 · 自己动手做 Agent｜端到端实战：多 Agent 工作流（Capstone: A Multi-Agent Workflow）：面向新手的 Agent Framework 图解教程，配真实源码对应与设计亮点。">
+<meta property="og:title" content="21 · Agent Skills 技能系统 — Agent Skills · Agent Framework 图解教程 · Visual Guide">
+<meta property="og:description" content="第五部分 · 自己动手做 Agent｜Agent Skills 技能系统（Agent Skills）：面向新手的 Agent Framework 图解教程，配真实源码对应与设计亮点。">
 <meta name="twitter:card" content="summary">
-<meta name="twitter:title" content="20 · 端到端实战：多 Agent 工作流 — Capstone: A Multi-Agent Workflow · Agent Framework 图解教程 · Visual Guide">
-<meta name="twitter:description" content="第五部分 · 自己动手做 Agent｜端到端实战：多 Agent 工作流（Capstone: A Multi-Agent Workflow）：面向新手的 Agent Framework 图解教程，配真实源码对应与设计亮点。">
+<meta name="twitter:title" content="21 · Agent Skills 技能系统 — Agent Skills · Agent Framework 图解教程 · Visual Guide">
+<meta name="twitter:description" content="第五部分 · 自己动手做 Agent｜Agent Skills 技能系统（Agent Skills）：面向新手的 Agent Framework 图解教程，配真实源码对应与设计亮点。">
 <script>try{var l=localStorage.getItem('af-guide-lang')||'zh';document.documentElement.setAttribute('data-lang',l);}catch(e){}</script>
 <style>
 * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -242,221 +242,190 @@ table.t td.mono, table.t td .mono { font-family: ui-monospace, monospace; font-s
     <a class="home" href="../index.html">📘 <span class="i18n" data-lang="zh">Agent Framework 图解教程 · </span><span class="i18n" data-lang="en">Agent Framework Visual Guide · </span><b><span class="i18n" data-lang="zh">目录</span><span class="i18n" data-lang="en">Contents</span></b></a>
     <div class="pills">
       <span class="pill"><span class="i18n" data-lang="zh">第五部分 · 自己动手做 Agent</span><span class="i18n" data-lang="en">Part 5 · Build Your Own</span></span>
-      <span class="pill">20 / 27</span>
+      <span class="pill">21 / 27</span>
       <span class="langtoggle">EN</span>
     </div>
   </div>
-  <div class="progress"><span style="width:74%"></span></div>
+  <div class="progress"><span style="width:77%"></span></div>
 </div>
 <div class="wrap">
   <div class="hero">
     <div class="part"><span class="i18n" data-lang="zh">第五部分 · 自己动手做 Agent</span><span class="i18n" data-lang="en">Part 5 · Build Your Own</span></div>
-    <h1><span class="i18n" data-lang="zh">端到端实战：多 Agent 工作流</span><span class="i18n" data-lang="en">Capstone: A Multi-Agent Workflow</span></h1>
+    <h1><span class="i18n" data-lang="zh">Agent Skills 技能系统</span><span class="i18n" data-lang="en">Agent Skills</span></h1>
   </div>
   <div class="i18n" data-lang="zh">
-<p class="lead">最后一课实战：把前面学的<strong>Agent + 工具 + 编排 + 检查点</strong>拼成一个
-<strong>多 Agent 工作流</strong>。</p>
+<p class="lead"><strong>Agent Skills（技能）</strong>让你把领域知识打包成可发现、可复用的模块——
+Agent 不再只有工具，还有<strong>知识库</strong>。</p>
 
 <div class="card analogy">
-  <div class="tag">🧩 生活类比</div>
-  这节课像<strong>拼乐高</strong>：前面每课教你认识一种零件（Agent、工具、编排、检查点），
-  现在把它们拼成一辆完整的车——能跑、能转弯、能刹车。
+  <div class="tag">📚 生活类比</div>
+  工具是<strong>锤子、扳手</strong>（能做动作），技能是<strong>操作手册 + 参考资料</strong>（知道怎么做、什么背景知识）。
+  一个老师傅 = 工具 + 技能：既能动手，又有经验。
 </div>
 
-<h2>场景：写作 → 审稿</h2>
-<div class="vflow">
-  <div class="step"><div class="num">1</div><div class="sc"><h4>创建两个 Agent</h4>
-    <p><strong>Writer</strong>：根据提示写文章。<strong>Reviewer</strong>：审稿、提修改意见。</p></div></div>
-  <div class="step"><div class="num">2</div><div class="sc"><h4>用 SequentialBuilder 编排</h4>
-    <p>Writer 写完 → Reviewer 审稿，串行。</p></div></div>
-  <div class="step"><div class="num">3</div><div class="sc"><h4>跑起来</h4>
-    <p><span class="mono">workflow.run("Write about AI agents")</span>。</p></div></div>
-</div>
+<h2>核心概念</h2>
+<table class="t">
+  <tr><th>概念</th><th>作用</th><th>源码</th></tr>
+  <tr><td class="mono">Skill</td><td>一个完整技能 = 资源 + 脚本 + 元数据</td><td class="mono">_skills.py</td></tr>
+  <tr><td class="mono">SkillResource</td><td>技能附带的知识文件（文本/代码/文档）</td><td class="mono">_skills.py</td></tr>
+  <tr><td class="mono">SkillScript</td><td>技能可以执行的脚本（代码片段）</td><td class="mono">_skills.py</td></tr>
+  <tr><td class="mono">SkillsSource</td><td>技能的来源（文件夹 / 代码 / MCP）</td><td class="mono">_skills.py</td></tr>
+  <tr><td class="mono">InlineSkill</td><td>代码中直接定义的技能</td><td class="mono">_skills.py</td></tr>
+</table>
 
+<h2>定义一个技能</h2>
 <div class="codefile">
-  <div class="cf-head"><span class="dot"></span><span class="path">端到端示例骨架</span></div>
-<pre><span class="kw">from</span> agent_framework <span class="kw">import</span> Agent
-<span class="kw">from</span> agent_framework.orchestrations <span class="kw">import</span> SequentialBuilder
+  <div class="cf-head"><span class="dot"></span><span class="path">代码定义技能</span></div>
+<pre><span class="kw">from</span> agent_framework <span class="kw">import</span> InlineSkill, InlineSkillResource
 
-writer = Agent(client=client, name=<span class="st">"Writer"</span>,
-    instructions=<span class="st">"Write a short article on the given topic."</span>)
-reviewer = Agent(client=client, name=<span class="st">"Reviewer"</span>,
-    instructions=<span class="st">"Review the article. Suggest improvements."</span>)
-
-workflow = SequentialBuilder(participants=[writer, reviewer]).build()
-result = <span class="kw">await</span> workflow.run(<span class="st">"Write about AI agents"</span>)</pre>
+skill = InlineSkill(
+    name=<span class="st">"company-policies"</span>,
+    description=<span class="st">"Company HR policies and guidelines"</span>,
+    resources=[
+        InlineSkillResource(
+            name=<span class="st">"leave-policy"</span>,
+            content=<span class="st">"Employees get 20 days PTO per year..."</span>,
+            mime_type=<span class="st">"text/plain"</span>,
+        ),
+    ],
+)</pre>
 </div>
 
 <details class="accordion">
-  <summary><span class="badge-num">1</span> 完整代码骨架（扩展版） <span class="hint">点击展开详解</span></summary>
+  <summary><span class="badge-num">1</span> 技能的三种来源 <span class="hint">点击展开详解</span></summary>
   <div class="acc-body">
     <div class="qa">
       <div class="q">🧪 示例</div>
-      <div class="a">完整的 25-30 行可工作示例：
-<pre class="code"><span class="kw">from</span> agent_framework <span class="kw">import</span> Agent, tool, OpenAIChatClient
-<span class="kw">from</span> agent_framework.orchestrations <span class="kw">import</span> SequentialBuilder
-<span class="kw">from</span> agent_framework <span class="kw">import</span> InMemoryCheckpointStorage
+      <div class="a">技能可以从三种来源加载：
+<pre class="code"><span class="cm"># 1. 代码内联定义（InlineSkill）</span>
+skill = InlineSkill(name=<span class="st">"..."</span>, resources=[...])
 
-<span class="cm"># 工具</span>
-<span class="nb">@tool</span>
-<span class="kw">def</span> <span class="fn">web_search</span>(query: str) -> str:
-    <span class="st">&quot;&quot;&quot;搜索网络&quot;&quot;&quot;</span>
-    <span class="kw">return</span> f<span class="st">&quot;Results for {query}&quot;</span>
+<span class="cm"># 2. 文件系统加载（文件夹里放 .md/.py 等）</span>
+<span class="cm"># samples/02-agents/skills/file_based_skill/</span>
 
-<span class="cm"># 中间件</span>
-<span class="kw">class</span> <span class="fn">LoggingMiddleware</span>(ChatMiddleware):
-    <span class="kw">async def</span> <span class="fn">process</span>(self, context, call_next):
-        logger.info(f<span class="st">&quot;Input: {context.messages}&quot;</span>)
-        <span class="kw">await</span> call_next()
-        logger.info(f<span class="st">&quot;Output: {context.result}&quot;</span>)
-
-<span class="cm"># Agents</span>
-client = OpenAIChatClient(model=<span class="st">&quot;gpt-4o&quot;</span>)
-writer = client.as_agent(name=<span class="st">&quot;Writer&quot;</span>,
-    instructions=<span class="st">&quot;Write articles&quot;</span>,
-    tools=[web_search],
-    chat_middleware=[LoggingMiddleware()])
-
-reviewer = client.as_agent(name=<span class="st">&quot;Reviewer&quot;</span>,
-    instructions=<span class="st">&quot;Review and improve&quot;</span>)
-
-<span class="cm"># 工作流</span>
-storage = InMemoryCheckpointStorage()
-workflow = SequentialBuilder(
-    participants=[writer, reviewer],
-    checkpoint_storage=storage
-).build()
-
-result = <span class="kw">await</span> workflow.run(<span class="st">&quot;Write about MAF&quot;</span>)</pre>
-所有组件整合：Agent、工具、中间件、检查点、编排。
+<span class="cm"># 3. MCP 服务器提供（MCPSkill）</span>
+<span class="kw">from</span> agent_framework <span class="kw">import</span> MCPSkill
+<span class="cm"># 通过 MCP 协议远程获取技能</span></pre>
       </div>
     </div>
     <div class="qa">
       <div class="q">❓ 为什么这件事必要</div>
-      <div class="a">看到所有组件一起工作能巩固理解。可复制粘贴的代码是最好的学习工具。</div>
+      <div class="a">Agent 光有工具（能做动作）不够——它还需要<strong>领域知识</strong>才能正确使用工具。
+        比如客服 Agent 需要知道公司的退货政策才能正确回答退货问题。
+        技能把"知识"变成可管理、可版本控制、可分享的模块。</div>
     </div>
     <div class="qa">
       <div class="q">✅ MAF 的做法与优点</div>
-      <div class="a">MAF 的可组合性意味着每个组件（Agent、工具、中间件、检查点、编排）都能干净地组合在一起。</div>
+      <div class="a">MAF 把技能做成<strong>一等公民</strong>：Skill 对象有 name、description、resources（知识）、scripts（可执行代码），
+        通过 <span class="mono">SkillsSource</span> 和 <span class="mono">AggregatingSkillsSource</span> 聚合多个来源。
+        Agent 在 run 时自动发现并注入相关技能到上下文。</div>
     </div>
     <div class="qa">
       <div class="q">🔀 还有什么其他方案</div>
-      <div class="a">样板代码繁重的框架需要 100+ 行才能实现相同功能。MAF 保持在 30 行以内。</div>
+      <div class="a"><strong>把知识硬编码进 instructions</strong>（简单但不可复用）；
+        <strong>用 ContextProvider + RAG</strong>（适合大规模知识库，但缺少"脚本"能力）；
+        <strong>用 MCP 资源</strong>（通过协议暴露知识，MAF 的 MCPSkill 正是这种方式）。</div>
     </div>
   </div>
 </details>
 
 <details class="accordion">
-  <summary><span class="badge-num">2</span> 加入 Concurrent 变体 <span class="hint">点击展开详解</span></summary>
+  <summary><span class="badge-num">2</span> SkillResource vs SkillScript <span class="hint">点击展开详解</span></summary>
   <div class="acc-body">
     <div class="qa">
       <div class="q">🧪 示例</div>
-      <div class="a">用 Sequential 替换为：Writer + FactChecker 并行运行，然后 Reviewer 串行运行：
-<pre class="code"><span class="kw">from</span> agent_framework.orchestrations <span class="kw">import</span> (
-    SequentialBuilder, ConcurrentBuilder
-)
+      <div class="a"><span class="mono">SkillResource</span> 是<strong>只读知识</strong>（文本、文档、数据文件），
+        <span class="mono">SkillScript</span> 是<strong>可执行代码</strong>（Python 脚本片段）：
+<pre class="code"><span class="cm"># Resource: 只读知识</span>
+InlineSkillResource(name=<span class="st">"faq"</span>, content=<span class="st">"Q: ... A: ..."</span>)
 
-<span class="cm"># 阶段 1：并行</span>
-concurrent_stage = ConcurrentBuilder(
-    participants=[writer, fact_checker]
-).build()
-
-<span class="cm"># 阶段 2：串行（等待并行阶段完成）</span>
-workflow = SequentialBuilder(
-    participants=[concurrent_stage, reviewer]
-).build()
-
-result = <span class="kw">await</span> workflow.run(<span class="st">&quot;Write about AI&quot;</span>)</pre>
-Builder 可组合：混合并行和串行阶段。
+<span class="cm"># Script: 可执行代码</span>
+InlineSkillScript(name=<span class="st">"calc"</span>, code=<span class="st">"result = price * 1.1"</span>)</pre>
       </div>
     </div>
     <div class="qa">
       <div class="q">❓ 为什么这件事必要</div>
-      <div class="a">串行工作流在步骤独立时很慢。并行执行减少实际时间。</div>
+      <div class="a">有些领域知识是<strong>静态的</strong>（退货政策文档），有些需要<strong>动态计算</strong>（税率计算公式）。
+        把两者都放在技能里，Agent 既能读知识又能跑计算。</div>
     </div>
     <div class="qa">
       <div class="q">✅ MAF 的做法与优点</div>
-      <div class="a">MAF 的 ConcurrentBuilder + SequentialBuilder 自然组合。自由混合并行和串行阶段。</div>
+      <div class="a">Resource 和 Script 都挂在同一个 Skill 下，通过 <span class="mono">SkillFrontmatter</span> 描述元数据（名称、描述、兼容性）。
+        框架在 Agent run 时把 Resource 内容注入上下文，Script 则可通过 <span class="mono">SkillScriptRunner</span> 执行。</div>
     </div>
     <div class="qa">
       <div class="q">🔀 还有什么其他方案</div>
-      <div class="a">手动 asyncio.gather()、线程池。MAF 的 builder 自动处理扇出/扇入。</div>
+      <div class="a"><strong>Tool 里内嵌知识</strong>（不够模块化）；
+        <strong>独立的知识管理服务</strong>（更灵活但更复杂）；
+        <strong>LangChain 的 Document + Retriever</strong>（纯检索，不支持脚本执行）。</div>
     </div>
   </div>
 </details>
 
 <details class="accordion">
-  <summary><span class="badge-num">3</span> 加入人在环 <span class="hint">点击展开详解</span></summary>
+  <summary><span class="badge-num">3</span> 技能发现与聚合 <span class="hint">点击展开详解</span></summary>
   <div class="acc-body">
     <div class="qa">
       <div class="q">🧪 示例</div>
-      <div class="a">给 Reviewer 添加 <span class="mono">publish</span> 工具，带 <span class="mono">approval_mode="always_require"</span>：
-<pre class="code"><span class="nb">@tool</span>(approval_mode=<span class="st">&quot;always_require&quot;</span>)
-<span class="kw">def</span> <span class="fn">publish</span>(content: str):
-    <span class="st">&quot;&quot;&quot;发布文章（需要审批）&quot;&quot;&quot;</span>
-    <span class="cm"># 实际发布逻辑</span>
-    <span class="kw">return</span> f<span class="st">&quot;Published: {content[:50]}...&quot;</span>
+      <div class="a">多个来源的技能可以聚合：
+<pre class="code"><span class="kw">from</span> agent_framework <span class="kw">import</span> AggregatingSkillsSource
 
-reviewer = client.as_agent(
-    name=<span class="st">&quot;Reviewer&quot;</span>,
-    instructions=<span class="st">&quot;Review and publish if good&quot;</span>,
-    tools=[publish]  <span class="cm"># 发布前必须人工审批</span>
-)</pre>
-在文章发布前，必须有人批准。框架处理暂停、通知和恢复。
+source = AggregatingSkillsSource(sources=[
+    file_skills_source,    <span class="cm"># 文件夹里的技能</span>
+    inline_skills_source,  <span class="cm"># 代码定义的技能</span>
+    mcp_skills_source,     <span class="cm"># MCP 服务器的技能</span>
+])</pre>
       </div>
     </div>
     <div class="qa">
       <div class="q">❓ 为什么这件事必要</div>
-      <div class="a">自动发布而不审查有风险。发布步骤的 HITL 防止不良内容上线。</div>
+      <div class="a">真实项目里知识来自多处：团队内部文档、外部 API、代码库。
+        <span class="mono">AggregatingSkillsSource</span> 让你把这些来源统一聚合，
+        Agent 只需要从一个入口发现所有可用技能。</div>
     </div>
     <div class="qa">
       <div class="q">✅ MAF 的做法与优点</div>
-      <div class="a">工具定义上的一个参数（<span class="mono">approval_mode</span>）。框架处理暂停、通知和恢复。</div>
+      <div class="a">聚合是<strong>可插拔</strong>的：每个 <span class="mono">SkillsSource</span> 独立实现 "列出技能" 接口，
+        <span class="mono">AggregatingSkillsSource</span> 合并它们。新来源只需实现 <span class="mono">SkillsSource</span> 协议。</div>
     </div>
     <div class="qa">
       <div class="q">🔀 还有什么其他方案</div>
-      <div class="a">自定义 webhook 审批、外部审核 API。MAF 的方法是声明式且内置的。</div>
+      <div class="a"><strong>单一来源硬编码</strong>（简单但不可扩展）；
+        <strong>用搜索引擎做技能发现</strong>（更灵活但更复杂）；
+        <strong>用 MCP resource 列表</strong>（协议标准化，但要求所有来源都支持 MCP）。</div>
     </div>
   </div>
 </details>
 
 <details class="accordion">
-  <summary><span class="badge-num">4</span> 生产化清单 <span class="hint">点击展开详解</span></summary>
+  <summary><span class="badge-num">4</span> 样例代码一览 <span class="hint">点击展开详解</span></summary>
   <div class="acc-body">
     <div class="qa">
       <div class="q">🧪 示例</div>
-      <div class="a">生产就绪检查清单：
-<pre class="code"><span class="cm"># ✓ 添加 OpenTelemetry 追踪</span>
-<span class="kw">from</span> agent_framework.telemetry <span class="kw">import</span> setup_otel
-setup_otel(service_name=<span class="st">&quot;my-agent&quot;</span>)
-
-<span class="cm"># ✓ 切换到持久化存储</span>
-<span class="kw">from</span> agent_framework_redis <span class="kw">import</span> RedisCheckpointStorage
-storage = RedisCheckpointStorage(conn_string)
-
-<span class="cm"># ✓ 添加错误处理中间件</span>
-middleware=[ErrorHandlingMiddleware(), RetryMiddleware()]
-
-<span class="cm"># ✓ 设置 token 预算</span>
-agent = client.as_agent(..., max_tokens=<span class="nb">10000</span>)
-
-<span class="cm"># ✓ 添加速率限制</span>
-<span class="cm"># ✓ 配置日志级别</span>
-logging.basicConfig(level=logging.INFO)</pre>
-从演示到生产的差距清单。
+      <div class="a"><span class="mono">samples/02-agents/skills/</span> 下有 7 个样例：
+<pre class="code">skills/
+├── class_based_skill/     <span class="cm"># 类定义的技能</span>
+├── code_defined_skill/    <span class="cm"># 代码内联定义</span>
+├── file_based_skill/      <span class="cm"># 文件系统加载</span>
+├── mcp_based_skill/       <span class="cm"># MCP 远程技能</span>
+├── mixed_skills/          <span class="cm"># 混合多种来源</span>
+├── script_approval/       <span class="cm"># 脚本执行需审批</span>
+└── skill_filtering/       <span class="cm"># 按条件过滤技能</span></pre>
       </div>
     </div>
     <div class="qa">
       <div class="q">❓ 为什么这件事必要</div>
-      <div class="a">演示代码 ≠ 生产代码。知道差距可防止中断和成本超支。</div>
+      <div class="a">看样例比读文档快——每个样例覆盖一种使用模式。</div>
     </div>
     <div class="qa">
       <div class="q">✅ MAF 的做法与优点</div>
-      <div class="a">MAF 提供所有生产构建块：OTel 集成、持久化存储包、重试/日志/计费中间件。无需第三方胶水。</div>
+      <div class="a">样例从简到繁排列：先代码内联（最简单）→ 文件加载 → MCP → 混合 → 审批 → 过滤。
+        每个样例单文件，可直接跑。</div>
     </div>
     <div class="qa">
       <div class="q">🔀 还有什么其他方案</div>
-      <div class="a">平台特定解决方案（Azure Monitor、Datadog）。MAF 是云无关的；OTel 导出到任何后端。</div>
+      <div class="a">没有特定替代——这些是官方参考实现。如果你的场景不在其中，
+        参照 <span class="mono">mixed_skills</span> 组合多种模式即可。</div>
     </div>
   </div>
 </details>
@@ -464,223 +433,193 @@ logging.basicConfig(level=logging.INFO)</pre>
 <div class="card key">
   <div class="tag">✅ 关键要点</div>
   <ul>
-    <li>多 Agent 工作流 = 几个 Agent + 一个 Builder + <span class="mono">.build().run()</span>。</li>
-    <li>工具、中间件、检查点、人在环——全部可以叠加进去。</li>
-    <li>从"hello agent"到"生产级多 Agent"，代码增量很小。</li>
+    <li><strong>Skill = 知识模块</strong>：Resource（只读知识）+ Script（可执行代码）+ 元数据。</li>
+    <li>三种来源：<strong>代码内联</strong>（InlineSkill）、<strong>文件系统</strong>、<strong>MCP 远程</strong>。</li>
+    <li><span class="mono">AggregatingSkillsSource</span> 聚合多个来源，Agent 自动发现。</li>
+    <li>技能 ≠ 工具：工具做动作，技能提供知识和可执行代码。</li>
   </ul>
 </div>
 
 <div class="card spark">
   <div class="tag">💡 设计亮点</div>
-  <strong>复杂度是增量的</strong>：单 Agent → 加工具 → 加编排 → 加检查点 → 加审批，每一步只增加几行代码。
-  这就是"从原型到生产"的体验。
+  <strong>知识和代码被统一抽象成"技能"</strong>——不再散落在 instructions、ContextProvider、工具各处。
+  一个技能模块可以独立分发、版本控制、跨 Agent 复用。
 </div>
 </div>
 <div class="i18n" data-lang="en">
-<p class="lead">Capstone: assemble <strong>Agent + tools + orchestration + checkpoints</strong> from earlier lessons
-into a <strong>multi-Agent workflow</strong>.</p>
+<p class="lead"><strong>Agent Skills</strong> let you package domain knowledge into discoverable, reusable modules —
+Agents get not just tools but <strong>knowledge bases</strong>.</p>
 
 <div class="card analogy">
-  <div class="tag">🧩 Analogy</div>
-  This lesson is like <strong>building with LEGO</strong>: earlier lessons taught you each brick type
-  (Agent, tools, orchestration, checkpoints); now you snap them together into a complete car —
-  one that drives, turns and brakes.
+  <div class="tag">📚 Analogy</div>
+  Tools are <strong>hammers and wrenches</strong> (they do actions); skills are <strong>operation manuals + reference
+  material</strong> (they know how and why). A master craftsman = tools + skills: capable hands plus experience.
 </div>
 
-<h2>Scenario: write → review</h2>
-<div class="vflow">
-  <div class="step"><div class="num">1</div><div class="sc"><h4>Create two Agents</h4>
-    <p><strong>Writer</strong>: writes an article from a prompt. <strong>Reviewer</strong>: reviews it, suggests edits.</p></div></div>
-  <div class="step"><div class="num">2</div><div class="sc"><h4>Orchestrate with SequentialBuilder</h4>
-    <p>Writer finishes → Reviewer reviews, in sequence.</p></div></div>
-  <div class="step"><div class="num">3</div><div class="sc"><h4>Run it</h4>
-    <p><span class="mono">workflow.run("Write about AI agents")</span>.</p></div></div>
-</div>
+<h2>Core concepts</h2>
+<table class="t">
+  <tr><th>Concept</th><th>Role</th><th>Source</th></tr>
+  <tr><td class="mono">Skill</td><td>A complete skill = resources + scripts + metadata</td><td class="mono">_skills.py</td></tr>
+  <tr><td class="mono">SkillResource</td><td>Knowledge files attached to a skill</td><td class="mono">_skills.py</td></tr>
+  <tr><td class="mono">SkillScript</td><td>Executable code snippets in a skill</td><td class="mono">_skills.py</td></tr>
+  <tr><td class="mono">SkillsSource</td><td>Where skills come from (folder / code / MCP)</td><td class="mono">_skills.py</td></tr>
+  <tr><td class="mono">InlineSkill</td><td>Skill defined directly in code</td><td class="mono">_skills.py</td></tr>
+</table>
 
+<h2>Define a skill</h2>
 <div class="codefile">
-  <div class="cf-head"><span class="dot"></span><span class="path">end-to-end skeleton</span></div>
-<pre><span class="kw">from</span> agent_framework <span class="kw">import</span> Agent
-<span class="kw">from</span> agent_framework.orchestrations <span class="kw">import</span> SequentialBuilder
+  <div class="cf-head"><span class="dot"></span><span class="path">code-defined skill</span></div>
+<pre><span class="kw">from</span> agent_framework <span class="kw">import</span> InlineSkill, InlineSkillResource
 
-writer = Agent(client=client, name=<span class="st">"Writer"</span>,
-    instructions=<span class="st">"Write a short article on the given topic."</span>)
-reviewer = Agent(client=client, name=<span class="st">"Reviewer"</span>,
-    instructions=<span class="st">"Review the article. Suggest improvements."</span>)
-
-workflow = SequentialBuilder(participants=[writer, reviewer]).build()
-result = <span class="kw">await</span> workflow.run(<span class="st">"Write about AI agents"</span>)</pre>
+skill = InlineSkill(
+    name=<span class="st">"company-policies"</span>,
+    description=<span class="st">"Company HR policies and guidelines"</span>,
+    resources=[
+        InlineSkillResource(
+            name=<span class="st">"leave-policy"</span>,
+            content=<span class="st">"Employees get 20 days PTO per year..."</span>,
+            mime_type=<span class="st">"text/plain"</span>,
+        ),
+    ],
+)</pre>
 </div>
 
 <details class="accordion">
-  <summary><span class="badge-num">1</span> Extended code skeleton <span class="hint">expand</span></summary>
+  <summary><span class="badge-num">1</span> Three skill sources <span class="hint">expand</span></summary>
   <div class="acc-body">
     <div class="qa">
       <div class="q">🧪 Example</div>
-      <div class="a">Full working example in ~25-30 lines:
-<pre class="code"><span class="kw">from</span> agent_framework <span class="kw">import</span> Agent, tool, OpenAIChatClient
-<span class="kw">from</span> agent_framework.orchestrations <span class="kw">import</span> SequentialBuilder
-<span class="kw">from</span> agent_framework <span class="kw">import</span> InMemoryCheckpointStorage
+      <div class="a">Skills can be loaded from three sources:
+<pre class="code"><span class="cm"># 1. Inline (InlineSkill)</span>
+skill = InlineSkill(name=<span class="st">"..."</span>, resources=[...])
 
-<span class="cm"># Tool</span>
-<span class="nb">@tool</span>
-<span class="kw">def</span> <span class="fn">web_search</span>(query: str) -> str:
-    <span class="st">&quot;&quot;&quot;Search the web&quot;&quot;&quot;</span>
-    <span class="kw">return</span> f<span class="st">&quot;Results for {query}&quot;</span>
+<span class="cm"># 2. File system (folder with .md/.py files)</span>
+<span class="cm"># samples/02-agents/skills/file_based_skill/</span>
 
-<span class="cm"># Middleware</span>
-<span class="kw">class</span> <span class="fn">LoggingMiddleware</span>(ChatMiddleware):
-    <span class="kw">async def</span> <span class="fn">process</span>(self, context, call_next):
-        logger.info(f<span class="st">&quot;Input: {context.messages}&quot;</span>)
-        <span class="kw">await</span> call_next()
-        logger.info(f<span class="st">&quot;Output: {context.result}&quot;</span>)
-
-<span class="cm"># Agents</span>
-client = OpenAIChatClient(model=<span class="st">&quot;gpt-4o&quot;</span>)
-writer = client.as_agent(name=<span class="st">&quot;Writer&quot;</span>,
-    instructions=<span class="st">&quot;Write articles&quot;</span>,
-    tools=[web_search],
-    chat_middleware=[LoggingMiddleware()])
-
-reviewer = client.as_agent(name=<span class="st">&quot;Reviewer&quot;</span>,
-    instructions=<span class="st">&quot;Review and improve&quot;</span>)
-
-<span class="cm"># Workflow</span>
-storage = InMemoryCheckpointStorage()
-workflow = SequentialBuilder(
-    participants=[writer, reviewer],
-    checkpoint_storage=storage
-).build()
-
-result = <span class="kw">await</span> workflow.run(<span class="st">&quot;Write about MAF&quot;</span>)</pre>
-All pieces together: agent, tool, middleware, checkpoint, orchestration.
+<span class="cm"># 3. MCP server (MCPSkill)</span>
+<span class="kw">from</span> agent_framework <span class="kw">import</span> MCPSkill
+<span class="cm"># fetch skills remotely via MCP protocol</span></pre>
       </div>
     </div>
     <div class="qa">
       <div class="q">❓ Why this matters</div>
-      <div class="a">Seeing all pieces together cements understanding. Copy-paste-able code is the best learning tool.</div>
+      <div class="a">Tools alone (actions) aren't enough — an Agent needs <strong>domain knowledge</strong> to use tools correctly.
+        A customer-service Agent must know the company's return policy to answer return questions.
+        Skills turn "knowledge" into manageable, version-controlled, shareable modules.</div>
     </div>
     <div class="qa">
       <div class="q">✅ How MAF does it</div>
-      <div class="a">MAF's composability means each piece (agent, tool, middleware, checkpoint, orchestration) snaps together cleanly.</div>
+      <div class="a">MAF makes skills <strong>first-class</strong>: a Skill has name, description, resources (knowledge), scripts (executable code).
+        <span class="mono">SkillsSource</span> and <span class="mono">AggregatingSkillsSource</span> aggregate multiple sources.
+        The Agent auto-discovers and injects relevant skills at run time.</div>
     </div>
     <div class="qa">
       <div class="q">🔀 Alternatives</div>
-      <div class="a">Boilerplate-heavy frameworks need 100+ lines for the same. MAF keeps it under 30.</div>
+      <div class="a"><strong>Hardcode knowledge in instructions</strong> (simple but not reusable);
+        <strong>ContextProvider + RAG</strong> (good for large knowledge bases but no script capability);
+        <strong>MCP resources</strong> (protocol-standardised; MAF's MCPSkill is exactly this).</div>
     </div>
   </div>
 </details>
 
 <details class="accordion">
-  <summary><span class="badge-num">2</span> Adding concurrency <span class="hint">expand</span></summary>
+  <summary><span class="badge-num">2</span> SkillResource vs SkillScript <span class="hint">expand</span></summary>
   <div class="acc-body">
     <div class="qa">
       <div class="q">🧪 Example</div>
-      <div class="a">Replace Sequential with: Writer + FactChecker run in parallel, then Reviewer runs serially:
-<pre class="code"><span class="kw">from</span> agent_framework.orchestrations <span class="kw">import</span> (
-    SequentialBuilder, ConcurrentBuilder
-)
+      <div class="a"><span class="mono">SkillResource</span> is <strong>read-only knowledge</strong>;
+        <span class="mono">SkillScript</span> is <strong>executable code</strong>:
+<pre class="code"><span class="cm"># Resource: read-only knowledge</span>
+InlineSkillResource(name=<span class="st">"faq"</span>, content=<span class="st">"Q: ... A: ..."</span>)
 
-<span class="cm"># Stage 1: concurrent</span>
-concurrent_stage = ConcurrentBuilder(
-    participants=[writer, fact_checker]
-).build()
-
-<span class="cm"># Stage 2: sequential (waits for concurrent stage)</span>
-workflow = SequentialBuilder(
-    participants=[concurrent_stage, reviewer]
-).build()
-
-result = <span class="kw">await</span> workflow.run(<span class="st">&quot;Write about AI&quot;</span>)</pre>
-Builders compose: mix parallel and sequential stages.
+<span class="cm"># Script: executable code</span>
+InlineSkillScript(name=<span class="st">"calc"</span>, code=<span class="st">"result = price * 1.1"</span>)</pre>
       </div>
     </div>
     <div class="qa">
       <div class="q">❓ Why this matters</div>
-      <div class="a">Sequential workflows are slow when steps are independent. Parallel execution cuts wall-clock time.</div>
+      <div class="a">Some domain knowledge is <strong>static</strong> (return policy docs); some needs
+        <strong>dynamic computation</strong> (tax-rate formulas). Putting both in a skill lets the Agent read
+        knowledge AND run calculations.</div>
     </div>
     <div class="qa">
       <div class="q">✅ How MAF does it</div>
-      <div class="a">MAF's ConcurrentBuilder + SequentialBuilder compose naturally. Mix parallel and sequential stages freely.</div>
+      <div class="a">Resource and Script both live under the same Skill, described by <span class="mono">SkillFrontmatter</span>.
+        The framework injects Resource content into context at run time; Scripts can be executed via
+        <span class="mono">SkillScriptRunner</span>.</div>
     </div>
     <div class="qa">
       <div class="q">🔀 Alternatives</div>
-      <div class="a">Manual asyncio.gather(), thread pools. MAF's builders handle fan-out/fan-in automatically.</div>
+      <div class="a"><strong>Embed knowledge in tools</strong> (not modular);
+        <strong>Separate knowledge service</strong> (more flexible but more complex);
+        <strong>LangChain Document + Retriever</strong> (retrieval only, no script execution).</div>
     </div>
   </div>
 </details>
 
 <details class="accordion">
-  <summary><span class="badge-num">3</span> Adding HITL <span class="hint">expand</span></summary>
+  <summary><span class="badge-num">3</span> Skill discovery &amp; aggregation <span class="hint">expand</span></summary>
   <div class="acc-body">
     <div class="qa">
       <div class="q">🧪 Example</div>
-      <div class="a">Add a <span class="mono">publish</span> tool to Reviewer with <span class="mono">approval_mode="always_require"</span>:
-<pre class="code"><span class="nb">@tool</span>(approval_mode=<span class="st">&quot;always_require&quot;</span>)
-<span class="kw">def</span> <span class="fn">publish</span>(content: str):
-    <span class="st">&quot;&quot;&quot;Publish article (requires approval)&quot;&quot;&quot;</span>
-    <span class="cm"># actual publish logic</span>
-    <span class="kw">return</span> f<span class="st">&quot;Published: {content[:50]}...&quot;</span>
+      <div class="a">Aggregate skills from multiple sources:
+<pre class="code"><span class="kw">from</span> agent_framework <span class="kw">import</span> AggregatingSkillsSource
 
-reviewer = client.as_agent(
-    name=<span class="st">&quot;Reviewer&quot;</span>,
-    instructions=<span class="st">&quot;Review and publish if good&quot;</span>,
-    tools=[publish]  <span class="cm"># must be human-approved before publish</span>
-)</pre>
-Before the article is published, a human must approve. Framework handles pausing, notifying, and resuming.
+source = AggregatingSkillsSource(sources=[
+    file_skills_source,    <span class="cm"># folder-based</span>
+    inline_skills_source,  <span class="cm"># code-defined</span>
+    mcp_skills_source,     <span class="cm"># MCP server</span>
+])</pre>
       </div>
     </div>
     <div class="qa">
       <div class="q">❓ Why this matters</div>
-      <div class="a">Auto-publishing without review is risky. HITL at the publish step prevents bad content from going live.</div>
+      <div class="a">Real projects draw knowledge from many places: internal docs, external APIs, codebases.
+        <span class="mono">AggregatingSkillsSource</span> unifies them so the Agent discovers all skills from one entry point.</div>
     </div>
     <div class="qa">
       <div class="q">✅ How MAF does it</div>
-      <div class="a">One parameter (<span class="mono">approval_mode</span>) on the tool definition. The framework handles pausing, notifying, and resuming.</div>
+      <div class="a">Aggregation is <strong>pluggable</strong>: each <span class="mono">SkillsSource</span> implements a "list skills" interface;
+        <span class="mono">AggregatingSkillsSource</span> merges them. New sources just implement the <span class="mono">SkillsSource</span> protocol.</div>
     </div>
     <div class="qa">
       <div class="q">🔀 Alternatives</div>
-      <div class="a">Custom webhook approval, external moderation API. MAF's approach is declarative and built-in.</div>
+      <div class="a"><strong>Single hardcoded source</strong> (simple but not extensible);
+        <strong>Search engine for skill discovery</strong> (more flexible but more complex);
+        <strong>MCP resource lists</strong> (protocol-standardised but requires all sources to support MCP).</div>
     </div>
   </div>
 </details>
 
 <details class="accordion">
-  <summary><span class="badge-num">4</span> Production checklist <span class="hint">expand</span></summary>
+  <summary><span class="badge-num">4</span> Sample code overview <span class="hint">expand</span></summary>
   <div class="acc-body">
     <div class="qa">
       <div class="q">🧪 Example</div>
-      <div class="a">Production-ready checklist:
-<pre class="code"><span class="cm"># ✓ Add OpenTelemetry tracing</span>
-<span class="kw">from</span> agent_framework.telemetry <span class="kw">import</span> setup_otel
-setup_otel(service_name=<span class="st">&quot;my-agent&quot;</span>)
-
-<span class="cm"># ✓ Switch to persistent storage</span>
-<span class="kw">from</span> agent_framework_redis <span class="kw">import</span> RedisCheckpointStorage
-storage = RedisCheckpointStorage(conn_string)
-
-<span class="cm"># ✓ Add error handling middleware</span>
-middleware=[ErrorHandlingMiddleware(), RetryMiddleware()]
-
-<span class="cm"># ✓ Set token budgets</span>
-agent = client.as_agent(..., max_tokens=<span class="nb">10000</span>)
-
-<span class="cm"># ✓ Add rate limiting</span>
-<span class="cm"># ✓ Configure logging</span>
-logging.basicConfig(level=logging.INFO)</pre>
-Checklist of gaps from demo to production.
+      <div class="a"><span class="mono">samples/02-agents/skills/</span> has 7 samples:
+<pre class="code">skills/
+├── class_based_skill/     <span class="cm"># class-defined skill</span>
+├── code_defined_skill/    <span class="cm"># inline code skill</span>
+├── file_based_skill/      <span class="cm"># file system loaded</span>
+├── mcp_based_skill/       <span class="cm"># MCP remote skill</span>
+├── mixed_skills/          <span class="cm"># multiple sources mixed</span>
+├── script_approval/       <span class="cm"># script exec needs approval</span>
+└── skill_filtering/       <span class="cm"># filter skills by condition</span></pre>
       </div>
     </div>
     <div class="qa">
       <div class="q">❓ Why this matters</div>
-      <div class="a">Demo code ≠ production code. Knowing the gaps prevents outages and cost overruns.</div>
+      <div class="a">Samples are faster than docs — each covers one usage pattern.</div>
     </div>
     <div class="qa">
       <div class="q">✅ How MAF does it</div>
-      <div class="a">MAF provides all production building blocks: OTel integration, persistent storage packages, middleware for retries/logging/billing. No third-party glue needed.</div>
+      <div class="a">Samples progress from simple to complex: inline (simplest) → file → MCP → mixed → approval → filtering.
+        Each is a single runnable file.</div>
     </div>
     <div class="qa">
       <div class="q">🔀 Alternatives</div>
-      <div class="a">Platform-specific solutions (Azure Monitor, Datadog). MAF is cloud-agnostic; OTel exports to any backend.</div>
+      <div class="a">No specific alternative — these are official reference implementations.
+        If your scenario isn't covered, model it after <span class="mono">mixed_skills</span>.</div>
     </div>
   </div>
 </details>
@@ -688,19 +627,20 @@ Checklist of gaps from demo to production.
 <div class="card key">
   <div class="tag">✅ Key points</div>
   <ul>
-    <li>Multi-Agent workflow = a few Agents + one Builder + <span class="mono">.build().run()</span>.</li>
-    <li>Tools, middleware, checkpoints, HITL — all stackable.</li>
-    <li>From "hello agent" to "production multi-Agent" with minimal code increase.</li>
+    <li><strong>Skill = knowledge module</strong>: Resource (read-only) + Script (executable) + metadata.</li>
+    <li>Three sources: <strong>inline</strong> (InlineSkill), <strong>file system</strong>, <strong>MCP remote</strong>.</li>
+    <li><span class="mono">AggregatingSkillsSource</span> merges multiple sources; Agent auto-discovers.</li>
+    <li>Skills ≠ tools: tools do actions, skills provide knowledge and executable code.</li>
   </ul>
 </div>
 
 <div class="card spark">
   <div class="tag">💡 Design highlight</div>
-  <strong>Complexity is incremental</strong>: single Agent → add tools → add orchestration → add checkpoints → add
-  approvals, each step adds only a few lines. That's the "prototype to production" experience.
+  <strong>Knowledge and code unified as "skills"</strong> — no longer scattered across instructions, ContextProviders
+  and tools. A skill module can be independently distributed, version-controlled and reused across Agents.
 </div>
 </div>
-  <div class="footnav"><a class="prev" href="19-durability-hitl.html"><div class="dir"><span class="i18n" data-lang="zh">← 上一课</span><span class="i18n" data-lang="en">← Prev</span></div><div class="ttl"><span class="i18n" data-lang="zh">检查点 · 人在环 · 持久化</span><span class="i18n" data-lang="en">Checkpointing, HITL & Durability</span></div></a><a class="next" href="23-skills.html"><div class="dir"><span class="i18n" data-lang="zh">下一课 →</span><span class="i18n" data-lang="en">Next →</span></div><div class="ttl"><span class="i18n" data-lang="zh">Agent Skills 技能系统</span><span class="i18n" data-lang="en">Agent Skills</span></div></a></div>
+  <div class="footnav"><a class="prev" href="20-capstone.html"><div class="dir"><span class="i18n" data-lang="zh">← 上一课</span><span class="i18n" data-lang="en">← Prev</span></div><div class="ttl"><span class="i18n" data-lang="zh">端到端实战：多 Agent 工作流</span><span class="i18n" data-lang="en">Capstone: A Multi-Agent Workflow</span></div></a><a class="next" href="24-mcp.html"><div class="dir"><span class="i18n" data-lang="zh">下一课 →</span><span class="i18n" data-lang="en">Next →</span></div><div class="ttl"><span class="i18n" data-lang="zh">MCP 工具协议</span><span class="i18n" data-lang="en">MCP Tool Protocol</span></div></a></div>
 </div>
 
 <script>

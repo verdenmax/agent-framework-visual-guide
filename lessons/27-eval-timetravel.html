@@ -1,0 +1,730 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-lang="zh"><head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>25 · 评估与时间旅行 — Evaluation & Time-Travel · Agent Framework 图解教程 · Visual Guide</title>
+<meta name="description" content="第五部分 · 自己动手做 Agent｜评估与时间旅行（Evaluation & Time-Travel）：面向新手的 Agent Framework 图解教程，配真实源码对应与设计亮点。">
+<meta name="theme-color" content="#0078d4">
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml;base64,PHN2ZyB4bWxucz0naHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmcnIHZpZXdCb3g9JzAgMCAzMiAzMic+PHJlY3Qgd2lkdGg9JzMyJyBoZWlnaHQ9JzMyJyByeD0nNycgZmlsbD0nIzAwNzhkNCcvPjx0ZXh0IHg9JzE2JyB5PScyMicgZm9udC1mYW1pbHk9J3N5c3RlbS11aSxzYW5zLXNlcmlmJyBmb250LXNpemU9JzEzJyBmb250LXdlaWdodD0nNzAwJyBmaWxsPScjZmZmJyB0ZXh0LWFuY2hvcj0nbWlkZGxlJz5BRjwvdGV4dD48L3N2Zz4=">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="Agent Framework 图解教程 · Visual Guide">
+<meta property="og:title" content="25 · 评估与时间旅行 — Evaluation & Time-Travel · Agent Framework 图解教程 · Visual Guide">
+<meta property="og:description" content="第五部分 · 自己动手做 Agent｜评估与时间旅行（Evaluation & Time-Travel）：面向新手的 Agent Framework 图解教程，配真实源码对应与设计亮点。">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="25 · 评估与时间旅行 — Evaluation & Time-Travel · Agent Framework 图解教程 · Visual Guide">
+<meta name="twitter:description" content="第五部分 · 自己动手做 Agent｜评估与时间旅行（Evaluation & Time-Travel）：面向新手的 Agent Framework 图解教程，配真实源码对应与设计亮点。">
+<script>try{var l=localStorage.getItem('af-guide-lang')||'zh';document.documentElement.setAttribute('data-lang',l);}catch(e){}</script>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+:root {
+  --bg: #f6f7f9; --panel: #ffffff; --panel-2: #f0f2f5; --ink: #1d2129;
+  --muted: #5b6470; --faint: #8a939f; --line: #e1e5ea;
+  --accent: #0078d4; --accent-soft: #e1effb; --accent-ink: #0a4a86;
+  --blue: #2563eb; --blue-soft: #e7efff; --amber: #b4690e; --amber-soft: #fdf1dd;
+  --purple: #7c3aed; --purple-soft: #f0e9ff; --red: #d23f3f; --red-soft: #fbe6e6;
+  --code-bg: #0f172a; --code-ink: #e2e8f0; --code-line: #1e293b;
+  --shadow: 0 1px 2px rgba(16,24,40,.06), 0 8px 24px rgba(16,24,40,.06);
+  --radius: 14px;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #0e1116; --panel: #161b22; --panel-2: #1c232c; --ink: #e6edf3;
+    --muted: #9aa6b2; --faint: #6e7a86; --line: #2a323c;
+    --accent: #4aa3e8; --accent-soft: #102a40; --accent-ink: #9fcdf2;
+    --blue: #6ea8fe; --blue-soft: #16243f; --amber: #e0a44a; --amber-soft: #33270f;
+    --purple: #b794f6; --purple-soft: #271a40; --red: #f08080; --red-soft: #3a1a1a;
+    --code-bg: #0a0f1a; --code-ink: #d8e2f0; --code-line: #14202f;
+    --shadow: 0 1px 2px rgba(0,0,0,.4), 0 10px 30px rgba(0,0,0,.35);
+  }
+}
+html { scroll-behavior: smooth; }
+body {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans SC",
+    "PingFang SC", "Microsoft YaHei", system-ui, sans-serif;
+  background: var(--bg); color: var(--ink); line-height: 1.7;
+  -webkit-font-smoothing: antialiased;
+}
+a { color: var(--accent); text-decoration: none; }
+code, .mono { font-family: "SF Mono", "JetBrains Mono", "Fira Code", ui-monospace, Menlo, Consolas, monospace; }
+
+/* ---- bilingual visibility ---- */
+html[data-lang="zh"] .i18n[data-lang="en"],
+html[data-lang="en"] .i18n[data-lang="zh"] { display: none !important; }
+.langtoggle { cursor: pointer; font-size: .72rem; font-weight: 700; color: var(--accent);
+  background: var(--accent-soft); border: 1px solid var(--accent); border-radius: 999px;
+  padding: .2rem .7rem; white-space: nowrap; }
+.langtoggle:hover { background: var(--accent); color: #fff; }
+
+/* ---- top progress bar ---- */
+.topbar {
+  position: sticky; top: 0; z-index: 50; background: var(--panel);
+  border-bottom: 1px solid var(--line); backdrop-filter: blur(8px);
+}
+.topbar-inner {
+  max-width: 960px; margin: 0 auto; padding: .7rem 1.25rem;
+  display: flex; align-items: center; justify-content: space-between; gap: 1rem;
+}
+.topbar .home { font-size: .82rem; color: var(--muted); font-weight: 600; display:flex; gap:.5rem; align-items:center; }
+.topbar .home b { color: var(--accent); }
+.topbar .pills { display: flex; align-items: center; gap: .5rem; }
+.topbar .pill { font-size: .72rem; color: var(--muted); background: var(--panel-2);
+  padding: .2rem .6rem; border-radius: 999px; border: 1px solid var(--line); white-space: nowrap; }
+.progress { height: 3px; background: var(--panel-2); }
+.progress > span { display: block; height: 100%; background: linear-gradient(90deg, var(--accent), var(--purple)); }
+
+.wrap { max-width: 820px; margin: 0 auto; padding: 2.4rem 1.25rem 5rem; }
+
+/* ---- hero ---- */
+.hero { margin-bottom: 2rem; }
+.hero .part { font-size: .76rem; letter-spacing: .08em; text-transform: uppercase;
+  color: var(--accent); font-weight: 700; margin-bottom: .55rem; }
+.hero h1 { font-size: 2.05rem; line-height: 1.2; letter-spacing: -.01em; font-weight: 750; }
+.hero .lead { margin-top: .9rem; font-size: 1.06rem; color: var(--muted); }
+
+h2 { font-size: 1.32rem; margin: 2.4rem 0 .9rem; letter-spacing: -.01em;
+  display: flex; align-items: center; gap: .55rem; }
+h2::before { content: ""; width: 4px; height: 1.05em; background: var(--accent); border-radius: 3px; display: inline-block; }
+h3 { font-size: 1.05rem; margin: 1.4rem 0 .5rem; }
+p { margin: .7rem 0; }
+ul, ol { margin: .6rem 0 .6rem 1.3rem; }
+li { margin: .3rem 0; }
+strong { color: var(--ink); font-weight: 680; }
+.inline { background: var(--panel-2); border: 1px solid var(--line); border-radius: 6px;
+  padding: .08em .4em; font-size: .9em; color: var(--accent-ink); }
+
+/* ---- callout cards ---- */
+.card { border-radius: var(--radius); padding: 1.05rem 1.2rem; margin: 1.2rem 0;
+  border: 1px solid var(--line); background: var(--panel); box-shadow: var(--shadow); }
+.card .tag { font-size: .72rem; font-weight: 700; letter-spacing: .04em; text-transform: uppercase;
+  display: inline-flex; align-items: center; gap: .4rem; margin-bottom: .5rem; }
+.card.macro { border-left: 4px solid var(--blue); }
+.card.macro .tag { color: var(--blue); }
+.card.detail { border-left: 4px solid var(--purple); }
+.card.detail .tag { color: var(--purple); }
+.card.analogy { border-left: 4px solid var(--amber); background: var(--amber-soft); }
+.card.analogy .tag { color: var(--amber); }
+.card.key { border-left: 4px solid var(--accent); background: var(--accent-soft); }
+.card.key .tag { color: var(--accent-ink); }
+.card.warn { border-left: 4px solid var(--red); background: var(--red-soft); }
+.card.warn .tag { color: var(--red); }
+.card.spark { border-left: 4px solid #e0a000;
+  background: linear-gradient(100deg, rgba(224,160,0,.12), transparent 70%); }
+.card.spark .tag { color: #c98a00; }
+@media (prefers-color-scheme: dark) { .card.spark .tag { color: #f0c050; } }
+
+/* ---- code file callout ---- */
+.codefile { margin: 1.2rem 0; border-radius: 12px; overflow: hidden; border: 1px solid var(--line);
+  box-shadow: var(--shadow); }
+.codefile .cf-head { display: flex; align-items: center; gap: .55rem; padding: .5rem .85rem;
+  background: var(--panel-2); border-bottom: 1px solid var(--line); font-size: .8rem; }
+.codefile .cf-head .dot { width: 9px; height: 9px; border-radius: 50%; background: var(--accent); flex-shrink:0; }
+.codefile .cf-head .path { font-family: ui-monospace, monospace; color: var(--ink); font-weight: 600; }
+.codefile .cf-head .ln { margin-left: auto; color: var(--faint); font-size: .72rem; }
+.codefile pre { background: var(--code-bg); color: var(--code-ink); padding: .9rem 1rem;
+  overflow-x: auto; font-size: .82rem; line-height: 1.6; }
+.codefile pre .cm { color: #7d8aa3; }
+.codefile pre .kw { color: #c792ea; }
+.codefile pre .fn { color: #82aaff; }
+.codefile pre .st { color: #c3e88d; }
+.codefile pre .nb { color: #f78c6c; }
+
+pre.code { background: var(--code-bg); color: var(--code-ink); padding: .9rem 1rem; border-radius: 12px;
+  overflow-x: auto; font-size: .83rem; line-height: 1.6; margin: 1.1rem 0; box-shadow: var(--shadow); }
+pre.code .cm { color: #7d8aa3; } pre.code .kw { color: #c792ea; }
+pre.code .fn { color: #82aaff; } pre.code .st { color: #c3e88d; } pre.code .nb { color: #f78c6c; }
+
+/* ---- collapsible accordion (details/summary) ---- */
+.accordion { border: 1px solid var(--line); border-radius: 12px; background: var(--panel);
+  margin: .7rem 0; box-shadow: var(--shadow); overflow: hidden; }
+.accordion > summary { cursor: pointer; padding: .85rem 1.1rem; font-weight: 650; font-size: .96rem;
+  list-style: none; display: flex; align-items: center; gap: .6rem; user-select: none; }
+.accordion > summary::-webkit-details-marker { display: none; }
+.accordion > summary::after { content: "\25B6"; font-size: .68rem; color: var(--accent);
+  margin-left: auto; transition: transform .15s ease; }
+.accordion[open] > summary::after { transform: rotate(90deg); }
+.accordion > summary:hover { background: var(--panel-2); }
+.accordion[open] > summary { border-bottom: 1px solid var(--line); }
+.accordion .badge-num { background: var(--accent-soft); color: var(--accent-ink);
+  width: 1.6rem; height: 1.6rem; border-radius: 7px; display: inline-flex; align-items: center;
+  justify-content: center; font-size: .82rem; font-weight: 700; flex-shrink: 0; }
+.accordion .hint { font-size: .72rem; color: var(--faint); font-weight: 400; }
+.acc-body { padding: .9rem 1.1rem 1.1rem; }
+.acc-intro { color: var(--muted); font-size: .9rem; margin: .2rem 0 .4rem; }
+.qa { margin: 1rem 0; }
+.qa:first-child { margin-top: .3rem; }
+.qa .q { font-weight: 680; font-size: .9rem; display: flex; gap: .45rem; align-items: center; margin-bottom: .3rem; }
+.qa .a { color: var(--muted); font-size: .9rem; }
+.qa .a strong { color: var(--ink); }
+.qa pre.code { margin: .5rem 0 0; font-size: .78rem; }
+
+/* ---- flow diagram ---- */
+.flow { display: flex; align-items: stretch; gap: 0; flex-wrap: wrap; margin: 1.3rem 0;
+  background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius);
+  padding: 1.2rem 1rem; box-shadow: var(--shadow); }
+.flow .node { flex: 1 1 0; min-width: 110px; text-align: center; padding: .7rem .5rem;
+  border-radius: 10px; background: var(--panel-2); border: 1px solid var(--line); }
+.flow .node .nt { font-weight: 700; font-size: .92rem; }
+.flow .node .nd { font-size: .76rem; color: var(--muted); margin-top: .2rem; }
+.flow .node.hl { background: var(--accent-soft); border-color: var(--accent); }
+.flow .arrow { align-self: center; color: var(--faint); font-size: 1.3rem; padding: 0 .35rem; }
+
+/* vertical flow */
+.vflow { margin: 1.3rem 0; }
+.vflow .step { display: flex; gap: .9rem; position: relative; padding-bottom: 1.1rem; }
+.vflow .step:not(:last-child)::before { content:""; position:absolute; left: 15px; top: 34px; bottom: -2px;
+  width: 2px; background: var(--line); }
+.vflow .num { width: 32px; height: 32px; border-radius: 50%; background: var(--accent); color: #fff;
+  display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: .85rem; flex-shrink: 0; z-index:1; }
+.vflow .sc h4 { margin: .25rem 0 .2rem; font-size: 1rem; }
+.vflow .sc p { margin: .15rem 0; font-size: .92rem; color: var(--muted); }
+.vflow .sc .mono { font-size: .8rem; color: var(--accent-ink); }
+
+/* layered architecture */
+.layers { margin: 1.3rem 0; display: flex; flex-direction: column; gap: .55rem; }
+.layer { border-radius: 12px; padding: .85rem 1.1rem; border: 1px solid var(--line); background: var(--panel);
+  box-shadow: var(--shadow); }
+.layer .lh { display: flex; align-items: center; gap: .6rem; }
+.layer .lh .badge { font-size: .7rem; font-weight: 700; padding: .12rem .5rem; border-radius: 999px; }
+.layer .lh .name { font-weight: 700; font-family: ui-monospace, monospace; }
+.layer .ld { font-size: .85rem; color: var(--muted); margin-top: .35rem; }
+.layer.l-core { border-left: 4px solid var(--accent); } .layer.l-core .badge { background: var(--accent-soft); color: var(--accent-ink); }
+.layer.l-main { border-left: 4px solid var(--blue); } .layer.l-main .badge { background: var(--blue-soft); color: var(--blue); }
+.layer.l-part { border-left: 4px solid var(--purple); } .layer.l-part .badge { background: var(--purple-soft); color: var(--purple); }
+.layer.l-app { border-left: 4px solid var(--amber); } .layer.l-app .badge { background: var(--amber-soft); color: var(--amber); }
+
+/* two-column compare */
+.cols { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin: 1.2rem 0; }
+@media (max-width: 640px) { .cols { grid-template-columns: 1fr; } }
+.col { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 1rem 1.1rem; box-shadow: var(--shadow); }
+.col h4 { margin: 0 0 .4rem; font-size: .95rem; }
+
+table.t { width: 100%; border-collapse: collapse; margin: 1.1rem 0; font-size: .9rem;
+  background: var(--panel); border-radius: 12px; overflow: hidden; box-shadow: var(--shadow); }
+table.t th, table.t td { padding: .6rem .8rem; text-align: left; border-bottom: 1px solid var(--line); }
+table.t th { background: var(--panel-2); font-size: .8rem; letter-spacing: .02em; }
+table.t tr:last-child td { border-bottom: none; }
+table.t td.mono, table.t td .mono { font-family: ui-monospace, monospace; font-size: .82rem; color: var(--accent-ink); }
+
+/* footer nav */
+.footnav { display: flex; justify-content: space-between; gap: 1rem; margin-top: 3rem;
+  padding-top: 1.4rem; border-top: 1px solid var(--line); }
+.footnav a { flex: 1; padding: .85rem 1.1rem; border-radius: 12px; border: 1px solid var(--line);
+  background: var(--panel); box-shadow: var(--shadow); transition: .15s; }
+.footnav a:hover { border-color: var(--accent); transform: translateY(-1px); }
+.footnav a.next { text-align: right; }
+.footnav .dir { font-size: .72rem; color: var(--faint); text-transform: uppercase; letter-spacing: .05em; }
+.footnav .ttl { font-weight: 700; color: var(--ink); margin-top: .15rem; }
+.footnav a.disabled { opacity: .35; pointer-events: none; }
+
+/* index page */
+.toc { display: grid; gap: .7rem; margin-top: 1.6rem; }
+.toc-part { font-size: .78rem; font-weight: 700; letter-spacing: .05em; text-transform: uppercase;
+  color: var(--accent); margin: 1.4rem 0 .2rem; }
+.toc a { display: flex; align-items: center; gap: .9rem; padding: .85rem 1.05rem; border-radius: 12px;
+  background: var(--panel); border: 1px solid var(--line); box-shadow: var(--shadow); transition: .15s; }
+.toc a:hover { border-color: var(--accent); transform: translateX(3px); }
+.toc .n { width: 30px; height: 30px; border-radius: 8px; background: var(--accent-soft); color: var(--accent-ink);
+  display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: .85rem; flex-shrink: 0; }
+.toc .tt { font-weight: 650; color: var(--ink); }
+.toc .ts { font-size: .8rem; color: var(--muted); margin-left: auto; text-align: right; }
+.hero.index h1 { font-size: 2.3rem; }
+.legend { display:flex; gap:1.2rem; flex-wrap:wrap; margin-top:1rem; font-size:.8rem; color:var(--muted); }
+.legend span { display:flex; align-items:center; gap:.4rem; }
+.legend i { width:12px; height:12px; border-radius:3px; display:inline-block; }
+.pdf-btn { display:inline-flex; align-items:center; gap:.4rem; padding:.55rem 1.1rem;
+  background:var(--accent); color:#fff; border-radius:10px; font-size:.9rem; font-weight:650;
+  box-shadow:var(--shadow); transition:.15s; }
+.pdf-btn:hover { background:var(--accent-ink); transform:translateY(-1px); }
+</style>
+</head><body>
+<div class="topbar">
+  <div class="topbar-inner">
+    <a class="home" href="../index.html">📘 <span class="i18n" data-lang="zh">Agent Framework 图解教程 · </span><span class="i18n" data-lang="en">Agent Framework Visual Guide · </span><b><span class="i18n" data-lang="zh">目录</span><span class="i18n" data-lang="en">Contents</span></b></a>
+    <div class="pills">
+      <span class="pill"><span class="i18n" data-lang="zh">第五部分 · 自己动手做 Agent</span><span class="i18n" data-lang="en">Part 5 · Build Your Own</span></span>
+      <span class="pill">25 / 27</span>
+      <span class="langtoggle">EN</span>
+    </div>
+  </div>
+  <div class="progress"><span style="width:92%"></span></div>
+</div>
+<div class="wrap">
+  <div class="hero">
+    <div class="part"><span class="i18n" data-lang="zh">第五部分 · 自己动手做 Agent</span><span class="i18n" data-lang="en">Part 5 · Build Your Own</span></div>
+    <h1><span class="i18n" data-lang="zh">评估与时间旅行</span><span class="i18n" data-lang="en">Evaluation & Time-Travel</span></h1>
+  </div>
+  <div class="i18n" data-lang="zh">
+<p class="lead"><strong>Evaluation（评估）</strong>系统化测试 Agent 输出质量；
+<strong>Time-travel（时间旅行）</strong>通过检查点回放调试工作流——两者合力让 Agent 从"能跑"进化到"可靠"。</p>
+
+<div class="card analogy">
+  <div class="tag">📚 生活类比</div>
+  Evaluation 像<strong>考试阅卷</strong>——给 Agent 一组题目，用评分标准打分看它答得好不好；
+  Time-travel 像<strong>比赛录像回放</strong>——出了问题可以倒回任意时刻，逐帧分析哪里出了错。
+</div>
+
+<h2>核心评估概念</h2>
+<table class="t">
+  <tr><th>概念</th><th>作用</th><th>源码</th></tr>
+  <tr><td class="mono">EvalItem</td><td>一条评估数据 = 输入 + 预期输出</td><td class="mono">_evaluation.py</td></tr>
+  <tr><td class="mono">Evaluator</td><td>评估器协议（Azure Foundry / 本地 LLM-as-judge / 自定义）</td><td class="mono">_evaluation.py</td></tr>
+  <tr><td class="mono">RubricScore</td><td>多维度评分（如相关性、准确性、完整性）</td><td class="mono">_evaluation.py</td></tr>
+  <tr><td class="mono">EvalResults</td><td>评估结果汇总（通过率、每项得分、报告链接）</td><td class="mono">_evaluation.py</td></tr>
+</table>
+
+<h2>评估流程示例</h2>
+<div class="codefile">
+  <div class="cf-head"><span class="dot"></span><span class="path">评估 Agent</span></div>
+<pre><span class="kw">from</span> agent_framework <span class="kw">import</span> (
+    Agent, LocalEvaluator, evaluate_agent, evaluator, keyword_check
+)
+
+<span class="cm"># 自定义评估函数</span>
+<span class="kw">@evaluator</span>
+<span class="kw">def</span> is_helpful(response: <span class="kw">str</span>) -> <span class="kw">bool</span>:
+    <span class="kw">return</span> len(response) > 10
+
+<span class="cm"># 组合内置 + 自定义检查</span>
+local = LocalEvaluator(keyword_check(<span class="st">"weather"</span>), is_helpful)
+
+<span class="cm"># 跑评估</span>
+results = <span class="kw">await</span> evaluate_agent(
+    agent=agent,
+    queries=[<span class="st">"What's the weather?"</span>, <span class="st">"Will it rain?"</span>],
+    evaluators=local,
+)
+results[0].raise_for_status()  <span class="cm"># CI 中断言通过</span></pre>
+</div>
+
+<details class="accordion">
+  <summary><span class="badge-num">1</span> 评估工作流 <span class="hint">点击展开详解</span></summary>
+  <div class="acc-body">
+    <div class="qa">
+      <div class="q">🧪 示例</div>
+      <div class="a">完整的评估流程：
+<pre class="code"><span class="cm"># 1. 定义评估数据</span>
+queries = [<span class="st">"What's the weather?"</span>, <span class="st">"Will it rain?"</span>]
+
+<span class="cm"># 2. 运行 Agent 获取响应</span>
+<span class="cm"># evaluate_agent() 自动为每个 query 调用 agent.run()</span>
+
+<span class="cm"># 3. 评分</span>
+<span class="cm"># 每个 Evaluator 对每条 (input, output) 打分</span>
+
+<span class="cm"># 4. 查看结果</span>
+<span class="kw">for</span> r <span class="kw">in</span> results:
+    print(f<span class="st">"{r.provider}: {r.passed}/{r.total}"</span>)
+    <span class="kw">for</span> item <span class="kw">in</span> r.items:
+        <span class="kw">for</span> score <span class="kw">in</span> item.scores:
+            print(f<span class="st">"  {score.name}: {'PASS' if score.passed else 'FAIL'}"</span>)</pre>
+      </div>
+    </div>
+    <div class="qa">
+      <div class="q">❓ 为什么这件事必要</div>
+      <div class="a">LLM 输出是<strong>不确定的</strong>——同一个问题每次回答可能不同。
+        没有系统化评估，你不知道改了 prompt 后 Agent 是变好还是变差。
+        评估就是 Agent 的<strong>单元测试</strong>。</div>
+    </div>
+    <div class="qa">
+      <div class="q">✅ MAF 的做法与优点</div>
+      <div class="a"><span class="mono">evaluate_agent()</span> 一行跑完整流程：自动为每个 query 调用 <span class="mono">agent.run()</span>，
+        收集响应后交给 Evaluator 打分。支持多种后端：Azure AI Foundry 云端评估、
+        <span class="mono">LocalEvaluator</span> 本地评估、自定义 <span class="mono">@evaluator</span> 函数。</div>
+    </div>
+    <div class="qa">
+      <div class="q">🔀 还有什么其他方案</div>
+      <div class="a"><strong>手动测试</strong>（不可重复、不可扩展）；
+        <strong>OpenAI Evals</strong>（OpenAI 专属）；
+        <strong>RAGAS</strong>（专注 RAG 评估）；
+        <strong>LangSmith</strong>（LangChain 生态的追踪 + 评估）。</div>
+    </div>
+  </div>
+</details>
+
+<details class="accordion">
+  <summary><span class="badge-num">2</span> RubricScore 多维评分 <span class="hint">点击展开详解</span></summary>
+  <div class="acc-body">
+    <div class="qa">
+      <div class="q">🧪 示例</div>
+      <div class="a"><span class="mono">RubricScore</span> 把评估拆成多个维度：
+<pre class="code"><span class="cm"># EvalScoreResult 中的维度评分</span>
+<span class="cm"># score.dimensions 包含：</span>
+<span class="cm">#   RubricScore(name="relevance", score=0.9)</span>
+<span class="cm">#   RubricScore(name="accuracy", score=0.85)</span>
+<span class="cm">#   RubricScore(name="completeness", score=0.7)</span>
+
+<span class="cm"># EvalScoreResult 还有：</span>
+<span class="cm">#   name: 评估器名称</span>
+<span class="cm">#   score: 总分</span>
+<span class="cm">#   passed: 是否通过阈值</span>
+<span class="cm">#   sample: 原始评估器输出（rationale）</span></pre>
+      </div>
+    </div>
+    <div class="qa">
+      <div class="q">❓ 为什么这件事必要</div>
+      <div class="a">一个总分不够——Agent 回答可能"相关但不准确"或"准确但不完整"。
+        多维评分让你精确定位 Agent 的<strong>弱项</strong>并针对性改进。</div>
+    </div>
+    <div class="qa">
+      <div class="q">✅ MAF 的做法与优点</div>
+      <div class="a"><span class="mono">EvalScoreResult</span> 包含总分 + 维度分 + 原始理由（sample）。
+        <span class="mono">AgentEvalConverter</span> 自动把 Agent 的输入输出转换为评估格式。
+        结果可直接 <span class="mono">raise_for_status()</span> 用于 CI 门控。</div>
+    </div>
+    <div class="qa">
+      <div class="q">🔀 还有什么其他方案</div>
+      <div class="a"><strong>LLM-as-judge 单维度</strong>（简单但信息量少）；
+        <strong>人工标注</strong>（最准确但成本高、速度慢）；
+        <strong>自定义 scorer 函数</strong>（灵活但需要更多代码，MAF 的 <span class="mono">@evaluator</span> 就是简化版）。</div>
+    </div>
+  </div>
+</details>
+
+<details class="accordion">
+  <summary><span class="badge-num">3</span> Time-travel 机制 <span class="hint">点击展开详解</span></summary>
+  <div class="acc-body">
+    <div class="qa">
+      <div class="q">🧪 示例</div>
+      <div class="a">通过检查点实现工作流回放：
+<pre class="code"><span class="kw">from</span> agent_framework <span class="kw">import</span> InMemoryCheckpointStorage
+
+storage = InMemoryCheckpointStorage()
+workflow = builder.build()
+
+<span class="cm"># 首次运行——保存检查点</span>
+<span class="kw">async for</span> event <span class="kw">in</span> workflow.run(message=10, stream=<span class="kw">True</span>):
+    <span class="kw">if</span> should_interrupt(): <span class="kw">break</span>
+
+<span class="cm"># 从检查点恢复——跳过已完成的步骤</span>
+cp = <span class="kw">await</span> storage.get_latest(workflow_name=workflow.name)
+<span class="kw">async for</span> event <span class="kw">in</span> workflow.run(
+    checkpoint_id=cp.checkpoint_id, stream=<span class="kw">True</span>
+):
+    <span class="cm"># 已完成的 @step 直接返回缓存结果</span>
+    <span class="cm"># 只有未完成的步骤真正执行</span></pre>
+      </div>
+    </div>
+    <div class="qa">
+      <div class="q">❓ 为什么这件事必要</div>
+      <div class="a">工作流可能因为网络故障、超时或人为中断而停在中途。
+        没有检查点就得从头重跑（浪费时间和 token 费用）。
+        Time-travel 让你<strong>从断点继续</strong>，已完成的步骤用缓存结果跳过。</div>
+    </div>
+    <div class="qa">
+      <div class="q">✅ MAF 的做法与优点</div>
+      <div class="a"><span class="mono">WorkflowCheckpoint</span> 捕获完整状态：消息历史、Executor 状态、
+        迭代计数、待处理的 HITL 事件。
+        <span class="mono">CheckpointStorage</span> 协议有内存和文件两种实现。
+        Executor 通过 <span class="mono">on_checkpoint_save/restore</span> 钩子保存自定义状态。</div>
+    </div>
+    <div class="qa">
+      <div class="q">🔀 还有什么其他方案</div>
+      <div class="a"><strong>Durable Functions</strong>（Azure 的持久化执行，更底层）；
+        <strong>Temporal.io</strong>（专业的工作流引擎，更重量级）；
+        <strong>手动保存中间状态</strong>（可行但容易遗漏边界情况）。</div>
+    </div>
+  </div>
+</details>
+
+<details class="accordion">
+  <summary><span class="badge-num">4</span> 评估 + 回放组合 <span class="hint">点击展开详解</span></summary>
+  <div class="acc-body">
+    <div class="qa">
+      <div class="q">🧪 示例</div>
+      <div class="a">评估和 time-travel 可以组合使用：
+<pre class="code"><span class="cm"># 1. 跑评估，发现某个 query 失败</span>
+results = <span class="kw">await</span> evaluate_agent(agent=agent, queries=[...])
+
+<span class="cm"># 2. 对失败 query 的工作流做 time-travel 调试</span>
+<span class="cm"># 从检查点回放，逐步检查每个 @step 的输入输出</span>
+
+<span class="cm"># 3. 修复后重新评估，确认改进</span>
+<span class="cm"># results[0].raise_for_status() 通过 = 修复成功</span></pre>
+      </div>
+    </div>
+    <div class="qa">
+      <div class="q">❓ 为什么这件事必要</div>
+      <div class="a">评估发现问题，time-travel 定位原因——这是<strong>发现 → 诊断 → 修复 → 验证</strong>的完整闭环。
+        没有 time-travel，你只知道"这个 query 失败了"但不知道<strong>哪个步骤</strong>出了问题。</div>
+    </div>
+    <div class="qa">
+      <div class="q">✅ MAF 的做法与优点</div>
+      <div class="a">评估和回放共享同一套 Agent / Workflow 抽象——评估跑 <span class="mono">agent.run()</span>，
+        回放也跑 <span class="mono">workflow.run(checkpoint_id=...)</span>。
+        HITL 场景下 <span class="mono">_set_responses</span> 可以预填人类回复，让回放完全自动化。</div>
+    </div>
+    <div class="qa">
+      <div class="q">🔀 还有什么其他方案</div>
+      <div class="a"><strong>纯日志分析</strong>（信息量不如检查点完整）；
+        <strong>LangSmith Trace</strong>（可视化追踪但不能从断点恢复执行）；
+        <strong>单元测试 mock</strong>（快但不测真实 LLM 行为）。</div>
+    </div>
+  </div>
+</details>
+
+<div class="card key">
+  <div class="tag">✅ 关键要点</div>
+  <ul>
+    <li><strong>评估 = Agent 的单元测试</strong>：<span class="mono">EvalItem</span>（输入）→ <span class="mono">Evaluator</span>（打分）→ <span class="mono">EvalResults</span>（结果）。</li>
+    <li><span class="mono">RubricScore</span> 支持多维度评分；<span class="mono">raise_for_status()</span> 用于 CI 门控。</li>
+    <li><strong>Time-travel</strong>通过 <span class="mono">WorkflowCheckpoint</span> 保存/恢复完整状态，已完成步骤用缓存跳过。</li>
+    <li>两者组合实现"发现问题 → 定位原因 → 修复 → 验证"的完整闭环。</li>
+  </ul>
+</div>
+
+<div class="card spark">
+  <div class="tag">💡 设计亮点</div>
+  <strong>评估和回放共享同一套 Agent/Workflow 抽象</strong>——不需要额外的调试工具或追踪系统。
+  一个 <span class="mono">evaluate_agent()</span> 调用 = 批量跑 Agent + 自动评分 + CI 集成。
+  一个 <span class="mono">checkpoint_id</span> 参数 = 从任意断点恢复执行，逐步诊断问题。
+</div>
+</div>
+<div class="i18n" data-lang="en">
+<p class="lead"><strong>Evaluation</strong> systematically tests Agent output quality;
+<strong>Time-travel</strong> replays workflow runs from checkpoints for debugging —
+together they take Agents from "it runs" to "it's reliable".</p>
+
+<div class="card analogy">
+  <div class="tag">📚 Analogy</div>
+  Evaluation is <strong>grading an exam</strong> — give the Agent a set of questions, score the answers with a rubric.
+  Time-travel is <strong>instant replay in sports</strong> — rewind to any moment and analyse frame-by-frame
+  what went wrong.
+</div>
+
+<h2>Core evaluation concepts</h2>
+<table class="t">
+  <tr><th>Concept</th><th>Role</th><th>Source</th></tr>
+  <tr><td class="mono">EvalItem</td><td>One eval datum = input + expected output</td><td class="mono">_evaluation.py</td></tr>
+  <tr><td class="mono">Evaluator</td><td>Evaluator protocol (Azure Foundry / local LLM-as-judge / custom)</td><td class="mono">_evaluation.py</td></tr>
+  <tr><td class="mono">RubricScore</td><td>Multi-dimensional score (e.g. relevance, accuracy, completeness)</td><td class="mono">_evaluation.py</td></tr>
+  <tr><td class="mono">EvalResults</td><td>Result summary (pass rate, per-item scores, report URL)</td><td class="mono">_evaluation.py</td></tr>
+</table>
+
+<h2>Evaluation workflow</h2>
+<div class="codefile">
+  <div class="cf-head"><span class="dot"></span><span class="path">evaluate an Agent</span></div>
+<pre><span class="kw">from</span> agent_framework <span class="kw">import</span> (
+    Agent, LocalEvaluator, evaluate_agent, evaluator, keyword_check
+)
+
+<span class="cm"># Custom evaluator function</span>
+<span class="kw">@evaluator</span>
+<span class="kw">def</span> is_helpful(response: <span class="kw">str</span>) -> <span class="kw">bool</span>:
+    <span class="kw">return</span> len(response) > 10
+
+<span class="cm"># Combine built-in + custom checks</span>
+local = LocalEvaluator(keyword_check(<span class="st">"weather"</span>), is_helpful)
+
+<span class="cm"># Run evaluation</span>
+results = <span class="kw">await</span> evaluate_agent(
+    agent=agent,
+    queries=[<span class="st">"What's the weather?"</span>, <span class="st">"Will it rain?"</span>],
+    evaluators=local,
+)
+results[0].raise_for_status()  <span class="cm"># assert pass in CI</span></pre>
+</div>
+
+<details class="accordion">
+  <summary><span class="badge-num">1</span> Evaluation workflow <span class="hint">expand</span></summary>
+  <div class="acc-body">
+    <div class="qa">
+      <div class="q">🧪 Example</div>
+      <div class="a">The full evaluation flow:
+<pre class="code"><span class="cm"># 1. Define eval data</span>
+queries = [<span class="st">"What's the weather?"</span>, <span class="st">"Will it rain?"</span>]
+
+<span class="cm"># 2. Run Agent to get responses</span>
+<span class="cm"># evaluate_agent() calls agent.run() for each query</span>
+
+<span class="cm"># 3. Score</span>
+<span class="cm"># Each Evaluator scores every (input, output) pair</span>
+
+<span class="cm"># 4. Inspect results</span>
+<span class="kw">for</span> r <span class="kw">in</span> results:
+    print(f<span class="st">"{r.provider}: {r.passed}/{r.total}"</span>)
+    <span class="kw">for</span> item <span class="kw">in</span> r.items:
+        <span class="kw">for</span> score <span class="kw">in</span> item.scores:
+            print(f<span class="st">"  {score.name}: {'PASS' if score.passed else 'FAIL'}"</span>)</pre>
+      </div>
+    </div>
+    <div class="qa">
+      <div class="q">❓ Why this matters</div>
+      <div class="a">LLM output is <strong>non-deterministic</strong> — the same question may get a different answer each time.
+        Without systematic evaluation you can't tell whether a prompt change made the Agent better or worse.
+        Evaluation is the Agent's <strong>unit test suite</strong>.</div>
+    </div>
+    <div class="qa">
+      <div class="q">✅ How MAF does it</div>
+      <div class="a"><span class="mono">evaluate_agent()</span> runs the full pipeline in one call: auto-invokes <span class="mono">agent.run()</span>
+        for each query, collects responses, hands them to Evaluators. Supports multiple backends:
+        Azure AI Foundry cloud eval, <span class="mono">LocalEvaluator</span> for local checks, custom <span class="mono">@evaluator</span> functions.</div>
+    </div>
+    <div class="qa">
+      <div class="q">🔀 Alternatives</div>
+      <div class="a"><strong>Manual testing</strong> (not repeatable, not scalable);
+        <strong>OpenAI Evals</strong> (OpenAI-specific);
+        <strong>RAGAS</strong> (focused on RAG evaluation);
+        <strong>LangSmith</strong> (LangChain-ecosystem tracing + eval).</div>
+    </div>
+  </div>
+</details>
+
+<details class="accordion">
+  <summary><span class="badge-num">2</span> RubricScore multi-dimensional scoring <span class="hint">expand</span></summary>
+  <div class="acc-body">
+    <div class="qa">
+      <div class="q">🧪 Example</div>
+      <div class="a"><span class="mono">RubricScore</span> breaks evaluation into dimensions:
+<pre class="code"><span class="cm"># EvalScoreResult.dimensions contains:</span>
+<span class="cm">#   RubricScore(name="relevance", score=0.9)</span>
+<span class="cm">#   RubricScore(name="accuracy", score=0.85)</span>
+<span class="cm">#   RubricScore(name="completeness", score=0.7)</span>
+
+<span class="cm"># EvalScoreResult also has:</span>
+<span class="cm">#   name: evaluator name</span>
+<span class="cm">#   score: aggregate score</span>
+<span class="cm">#   passed: whether threshold was met</span>
+<span class="cm">#   sample: raw evaluator output (rationale)</span></pre>
+      </div>
+    </div>
+    <div class="qa">
+      <div class="q">❓ Why this matters</div>
+      <div class="a">A single aggregate score is not enough — an Agent response may be "relevant but inaccurate"
+        or "accurate but incomplete". Multi-dimensional scoring pinpoints the Agent's <strong>weak spots</strong>
+        for targeted improvement.</div>
+    </div>
+    <div class="qa">
+      <div class="q">✅ How MAF does it</div>
+      <div class="a"><span class="mono">EvalScoreResult</span> contains aggregate score + dimension scores + raw rationale (sample).
+        <span class="mono">AgentEvalConverter</span> auto-converts Agent I/O to eval format.
+        Results support <span class="mono">raise_for_status()</span> for CI gating.</div>
+    </div>
+    <div class="qa">
+      <div class="q">🔀 Alternatives</div>
+      <div class="a"><strong>Single-dimension LLM-as-judge</strong> (simple but low information);
+        <strong>Human annotation</strong> (most accurate but costly and slow);
+        <strong>Custom scorer functions</strong> (flexible but more code — MAF's <span class="mono">@evaluator</span> is the streamlined version).</div>
+    </div>
+  </div>
+</details>
+
+<details class="accordion">
+  <summary><span class="badge-num">3</span> Time-travel mechanics <span class="hint">expand</span></summary>
+  <div class="acc-body">
+    <div class="qa">
+      <div class="q">🧪 Example</div>
+      <div class="a">Replay a workflow from a checkpoint:
+<pre class="code"><span class="kw">from</span> agent_framework <span class="kw">import</span> InMemoryCheckpointStorage
+
+storage = InMemoryCheckpointStorage()
+workflow = builder.build()
+
+<span class="cm"># First run — checkpoints are saved</span>
+<span class="kw">async for</span> event <span class="kw">in</span> workflow.run(message=10, stream=<span class="kw">True</span>):
+    <span class="kw">if</span> should_interrupt(): <span class="kw">break</span>
+
+<span class="cm"># Resume from checkpoint — skip completed steps</span>
+cp = <span class="kw">await</span> storage.get_latest(workflow_name=workflow.name)
+<span class="kw">async for</span> event <span class="kw">in</span> workflow.run(
+    checkpoint_id=cp.checkpoint_id, stream=<span class="kw">True</span>
+):
+    <span class="cm"># Completed @step functions return cached results</span>
+    <span class="cm"># Only pending steps actually execute</span></pre>
+      </div>
+    </div>
+    <div class="qa">
+      <div class="q">❓ Why this matters</div>
+      <div class="a">Workflows can halt mid-way due to network failures, timeouts or deliberate interrupts.
+        Without checkpoints you'd rerun everything from scratch (wasting time and token budget).
+        Time-travel lets you <strong>resume from where you left off</strong> — completed steps use cached results.</div>
+    </div>
+    <div class="qa">
+      <div class="q">✅ How MAF does it</div>
+      <div class="a"><span class="mono">WorkflowCheckpoint</span> captures full state: message history, Executor states,
+        iteration count and pending HITL events. <span class="mono">CheckpointStorage</span> protocol has in-memory
+        and file implementations. Executors save custom state via <span class="mono">on_checkpoint_save/restore</span> hooks.</div>
+    </div>
+    <div class="qa">
+      <div class="q">🔀 Alternatives</div>
+      <div class="a"><strong>Durable Functions</strong> (Azure's durable execution — lower level);
+        <strong>Temporal.io</strong> (dedicated workflow engine — heavier);
+        <strong>Manual intermediate state</strong> (works but easy to miss edge cases).</div>
+    </div>
+  </div>
+</details>
+
+<details class="accordion">
+  <summary><span class="badge-num">4</span> Combining eval + replay <span class="hint">expand</span></summary>
+  <div class="acc-body">
+    <div class="qa">
+      <div class="q">🧪 Example</div>
+      <div class="a">Evaluation and time-travel work hand-in-hand:
+<pre class="code"><span class="cm"># 1. Run eval — spot a failing query</span>
+results = <span class="kw">await</span> evaluate_agent(agent=agent, queries=[...])
+
+<span class="cm"># 2. Time-travel the failing workflow</span>
+<span class="cm"># Replay from checkpoint, inspect each @step's I/O</span>
+
+<span class="cm"># 3. Fix and re-evaluate to confirm improvement</span>
+<span class="cm"># results[0].raise_for_status() passes = fix confirmed</span></pre>
+      </div>
+    </div>
+    <div class="qa">
+      <div class="q">❓ Why this matters</div>
+      <div class="a">Evaluation spots the problem; time-travel locates the cause — a complete
+        <strong>detect → diagnose → fix → verify</strong> loop. Without time-travel you know
+        "this query failed" but not <strong>which step</strong> went wrong.</div>
+    </div>
+    <div class="qa">
+      <div class="q">✅ How MAF does it</div>
+      <div class="a">Evaluation and replay share the same Agent / Workflow abstractions — eval runs
+        <span class="mono">agent.run()</span>; replay runs <span class="mono">workflow.run(checkpoint_id=...)</span>.
+        In HITL scenarios <span class="mono">_set_responses</span> pre-fills human answers so replay is fully automated.</div>
+    </div>
+    <div class="qa">
+      <div class="q">🔀 Alternatives</div>
+      <div class="a"><strong>Log analysis only</strong> (less complete than full checkpoint state);
+        <strong>LangSmith Trace</strong> (visual tracing but can't resume execution from a breakpoint);
+        <strong>Unit-test mocking</strong> (fast but doesn't test real LLM behaviour).</div>
+    </div>
+  </div>
+</details>
+
+<div class="card key">
+  <div class="tag">✅ Key points</div>
+  <ul>
+    <li><strong>Evaluation = Agent unit tests</strong>: <span class="mono">EvalItem</span> (input) → <span class="mono">Evaluator</span> (score) → <span class="mono">EvalResults</span> (results).</li>
+    <li><span class="mono">RubricScore</span> supports multi-dimensional scoring; <span class="mono">raise_for_status()</span> for CI gating.</li>
+    <li><strong>Time-travel</strong> via <span class="mono">WorkflowCheckpoint</span> saves/restores full state; completed steps use cache.</li>
+    <li>Together they form a complete "detect → diagnose → fix → verify" loop.</li>
+  </ul>
+</div>
+
+<div class="card spark">
+  <div class="tag">💡 Design highlight</div>
+  <strong>Evaluation and replay share the same Agent/Workflow abstractions</strong> — no extra debugging tools
+  or tracing systems needed. One <span class="mono">evaluate_agent()</span> call = batch Agent runs + auto scoring + CI integration.
+  One <span class="mono">checkpoint_id</span> parameter = resume from any breakpoint, diagnosing issues step by step.
+</div>
+</div>
+  <div class="footnav"><a class="prev" href="26-a2a-agui.html"><div class="dir"><span class="i18n" data-lang="zh">← 上一课</span><span class="i18n" data-lang="en">← Prev</span></div><div class="ttl"><span class="i18n" data-lang="zh">A2A + AG-UI 协议</span><span class="i18n" data-lang="en">A2A & AG-UI Protocols</span></div></a><a class="next" href="21-vs-others.html"><div class="dir"><span class="i18n" data-lang="zh">下一课 →</span><span class="i18n" data-lang="en">Next →</span></div><div class="ttl"><span class="i18n" data-lang="zh">横向对比：AF vs 其他框架</span><span class="i18n" data-lang="en">AF vs Other Frameworks</span></div></a></div>
+</div>
+
+<script>
+(function(){
+  function cur(){return document.documentElement.getAttribute('data-lang')||'zh';}
+  function set(l){
+    document.documentElement.setAttribute('data-lang',l);
+    try{localStorage.setItem('af-guide-lang',l);}catch(e){}
+    document.querySelectorAll('.langtoggle').forEach(function(b){
+      b.textContent=(l==='zh'?'EN':'中');
+      b.setAttribute('aria-label', l==='zh'?'Switch to English':'切换到中文');
+    });
+  }
+  document.querySelectorAll('.langtoggle').forEach(function(b){
+    b.addEventListener('click',function(){set(cur()==='zh'?'en':'zh');});
+  });
+  set(cur());
+})();
+</script>
+</body></html>

@@ -253,10 +253,137 @@ table.t td.mono, table.t td .mono { font-family: ui-monospace, monospace; font-s
     <div class="part"><span class="i18n" data-lang="zh">第三部分 · 内部源码</span><span class="i18n" data-lang="en">Part 3 · Internals</span></div>
     <h1><span class="i18n" data-lang="zh">Workflows 工作流引擎</span><span class="i18n" data-lang="en">Workflows Engine</span></h1>
   </div>
-  <div class="i18n" data-lang="zh"><p class="lead">（占位）本课「Workflows 工作流引擎」内容将于后续任务补全。</p>
-<div class="card key"><div class="tag">✅ 关键要点</div>待补充。</div></div>
-<div class="i18n" data-lang="en"><p class="lead">(stub) Lesson "Workflows Engine" — content coming in a later task.</p>
-<div class="card key"><div class="tag">✅ Key points</div>TBD.</div></div>
+  <div class="i18n" data-lang="zh">
+<p class="lead"><strong>Workflows</strong> 是 MAF 的图执行引擎：把多个步骤（<span class="mono">Executor</span>）
+用<strong>边（Edge）</strong>连成有向图，由 <span class="mono">WorkflowBuilder</span> 构建、<span class="mono">Workflow.run()</span> 驱动。</p>
+
+<div class="card analogy">
+  <div class="tag">🗺️ 生活类比</div>
+  把 Workflow 想成<strong>地铁线路图</strong>：每个站（Executor）做一件事，
+  铁轨（Edge）决定下一站去哪。<span class="mono">WorkflowBuilder</span> 画图，<span class="mono">run()</span> 发车。
+</div>
+
+<h2>核心概念</h2>
+<table class="t">
+  <tr><th>概念</th><th>作用</th><th>源码</th></tr>
+  <tr><td class="mono">Executor</td><td>图中的一个节点，处理消息</td><td class="mono">_workflows/_executor.py</td></tr>
+  <tr><td class="mono">Edge</td><td>连接两个节点的有向边</td><td class="mono">_workflows/_edge.py</td></tr>
+  <tr><td class="mono">WorkflowBuilder</td><td>用 <span class="mono">add_edge/add_chain</span> 构建图</td><td class="mono">_workflows/_workflow_builder.py</td></tr>
+  <tr><td class="mono">WorkflowContext</td><td>节点内发消息/输出的句柄</td><td class="mono">_workflows/_workflow_context.py</td></tr>
+</table>
+
+<h2>最小示例</h2>
+<div class="codefile">
+  <div class="cf-head"><span class="dot"></span><span class="path">samples/01-get-started/07_first_graph_workflow.py</span></div>
+<pre><span class="kw">from</span> agent_framework <span class="kw">import</span> Executor, WorkflowBuilder, WorkflowContext, executor, handler
+
+<span class="kw">class</span> <span class="fn">UpperCase</span>(Executor):
+    <span class="nb">@handler</span>
+    <span class="kw">async def</span> <span class="fn">to_upper</span>(self, text: str, ctx: WorkflowContext[str]):
+        <span class="kw">await</span> ctx.send_message(text.upper())
+
+<span class="nb">@executor</span>(id=<span class="st">"reverse"</span>)
+<span class="kw">async def</span> <span class="fn">reverse</span>(text: str, ctx: WorkflowContext):
+    <span class="kw">await</span> ctx.yield_output(text[::-1])
+
+wf = WorkflowBuilder(start_executor=UpperCase(id=<span class="st">"upper"</span>)) \
+    .add_edge(UpperCase(id=<span class="st">"upper"</span>), reverse).build()
+events = <span class="kw">await</span> wf.run(<span class="st">"hello"</span>)  <span class="cm"># → "OLLEH"</span></pre>
+</div>
+
+<details class="accordion">
+  <summary><span class="badge-num">1</span> @handler vs @executor 有什么区别？ <span class="hint">点击展开</span></summary>
+  <div class="acc-body">
+    <div class="qa">
+      <div class="q">🔬 两种写法</div>
+      <div class="a"><span class="mono">@handler</span> 标记<strong>类方法</strong>（在 Executor 子类里），
+        <span class="mono">@executor</span> 标记<strong>独立函数</strong>（自动包成 FunctionExecutor）。
+        功能一样，选哪个看你喜不喜欢写类。</div>
+    </div>
+  </div>
+</details>
+
+<div class="card key">
+  <div class="tag">✅ 关键要点</div>
+  <ul>
+    <li>Workflow = <span class="mono">Executor</span>（节点）+ <span class="mono">Edge</span>（边）组成的有向图。</li>
+    <li><span class="mono">WorkflowBuilder</span> 用链式 API 构图；<span class="mono">.build()</span> 得到 <span class="mono">Workflow</span>。</li>
+    <li>节点通过 <span class="mono">ctx.send_message()</span> 传数据、<span class="mono">ctx.yield_output()</span> 输出最终结果。</li>
+  </ul>
+</div>
+
+<div class="card spark">
+  <div class="tag">💡 设计亮点</div>
+  <strong>消息驱动</strong>：节点之间传递的是"消息"而非函数调用返回值——
+  这意味着节点天然支持异步、fan-out/fan-in，且可在边上加条件/开关。
+</div>
+</div>
+<div class="i18n" data-lang="en">
+<p class="lead"><strong>Workflows</strong> are MAF's graph execution engine: wire multiple steps (<span class="mono">Executor</span>)
+into a directed graph with <strong>Edges</strong>, built by <span class="mono">WorkflowBuilder</span>, driven by
+<span class="mono">Workflow.run()</span>.</p>
+
+<div class="card analogy">
+  <div class="tag">🗺️ Analogy</div>
+  Think of a Workflow as a <strong>subway map</strong>: each station (Executor) does one thing, the tracks (Edges)
+  decide where to go next. <span class="mono">WorkflowBuilder</span> draws the map; <span class="mono">run()</span> dispatches the train.
+</div>
+
+<h2>Core concepts</h2>
+<table class="t">
+  <tr><th>Concept</th><th>Role</th><th>Source</th></tr>
+  <tr><td class="mono">Executor</td><td>A node in the graph; processes messages</td><td class="mono">_workflows/_executor.py</td></tr>
+  <tr><td class="mono">Edge</td><td>A directed edge connecting two nodes</td><td class="mono">_workflows/_edge.py</td></tr>
+  <tr><td class="mono">WorkflowBuilder</td><td>Chain API: <span class="mono">add_edge/add_chain</span> to build the graph</td><td class="mono">_workflows/_workflow_builder.py</td></tr>
+  <tr><td class="mono">WorkflowContext</td><td>Handle for sending messages / yielding output inside a node</td><td class="mono">_workflows/_workflow_context.py</td></tr>
+</table>
+
+<h2>Minimal example</h2>
+<div class="codefile">
+  <div class="cf-head"><span class="dot"></span><span class="path">samples/01-get-started/07_first_graph_workflow.py</span></div>
+<pre><span class="kw">from</span> agent_framework <span class="kw">import</span> Executor, WorkflowBuilder, WorkflowContext, executor, handler
+
+<span class="kw">class</span> <span class="fn">UpperCase</span>(Executor):
+    <span class="nb">@handler</span>
+    <span class="kw">async def</span> <span class="fn">to_upper</span>(self, text: str, ctx: WorkflowContext[str]):
+        <span class="kw">await</span> ctx.send_message(text.upper())
+
+<span class="nb">@executor</span>(id=<span class="st">"reverse"</span>)
+<span class="kw">async def</span> <span class="fn">reverse</span>(text: str, ctx: WorkflowContext):
+    <span class="kw">await</span> ctx.yield_output(text[::-1])
+
+wf = WorkflowBuilder(start_executor=UpperCase(id=<span class="st">"upper"</span>)) \
+    .add_edge(UpperCase(id=<span class="st">"upper"</span>), reverse).build()
+events = <span class="kw">await</span> wf.run(<span class="st">"hello"</span>)  <span class="cm"># → "OLLEH"</span></pre>
+</div>
+
+<details class="accordion">
+  <summary><span class="badge-num">1</span> @handler vs @executor? <span class="hint">expand</span></summary>
+  <div class="acc-body">
+    <div class="qa">
+      <div class="q">🔬 Two styles</div>
+      <div class="a"><span class="mono">@handler</span> marks a <strong>class method</strong> (inside an Executor subclass);
+        <span class="mono">@executor</span> marks a <strong>standalone function</strong> (auto-wrapped into a FunctionExecutor).
+        Same capability — pick whichever style you prefer.</div>
+    </div>
+  </div>
+</details>
+
+<div class="card key">
+  <div class="tag">✅ Key points</div>
+  <ul>
+    <li>Workflow = <span class="mono">Executor</span> (node) + <span class="mono">Edge</span> (arc) forming a directed graph.</li>
+    <li><span class="mono">WorkflowBuilder</span> chain API; <span class="mono">.build()</span> yields a <span class="mono">Workflow</span>.</li>
+    <li>Nodes use <span class="mono">ctx.send_message()</span> to forward data and <span class="mono">ctx.yield_output()</span> for final results.</li>
+  </ul>
+</div>
+
+<div class="card spark">
+  <div class="tag">💡 Design highlight</div>
+  <strong>Message-driven</strong>: nodes pass "messages", not function return values — so they naturally support
+  async, fan-out/fan-in, and you can add conditions or switches on the edges.
+</div>
+</div>
   <div class="footnav"><a class="prev" href="11-middleware.html"><div class="dir"><span class="i18n" data-lang="zh">← 上一课</span><span class="i18n" data-lang="en">← Prev</span></div><div class="ttl"><span class="i18n" data-lang="zh">中间件 Middleware</span><span class="i18n" data-lang="en">Middleware</span></div></a><a class="next" href="13-orchestration.html"><div class="dir"><span class="i18n" data-lang="zh">下一课 →</span><span class="i18n" data-lang="en">Next →</span></div><div class="ttl"><span class="i18n" data-lang="zh">编排模式</span><span class="i18n" data-lang="en">Orchestration Patterns</span></div></a></div>
 </div>
 

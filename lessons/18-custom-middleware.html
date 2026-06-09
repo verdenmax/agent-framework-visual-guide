@@ -253,10 +253,108 @@ table.t td.mono, table.t td .mono { font-family: ui-monospace, monospace; font-s
     <div class="part"><span class="i18n" data-lang="zh">第五部分 · 自己动手做 Agent</span><span class="i18n" data-lang="en">Part 5 · Build Your Own</span></div>
     <h1><span class="i18n" data-lang="zh">写自己的中间件</span><span class="i18n" data-lang="en">Writing Your Own Middleware</span></h1>
   </div>
-  <div class="i18n" data-lang="zh"><p class="lead">（占位）本课「写自己的中间件」内容将于后续任务补全。</p>
-<div class="card key"><div class="tag">✅ 关键要点</div>待补充。</div></div>
-<div class="i18n" data-lang="en"><p class="lead">(stub) Lesson "Writing Your Own Middleware" — content coming in a later task.</p>
-<div class="card key"><div class="tag">✅ Key points</div>TBD.</div></div>
+  <div class="i18n" data-lang="zh">
+<p class="lead">第 11 课讲了中间件<em>是什么</em>；本课教你<strong>写一个自己的</strong>——从零到能用。</p>
+
+<h2>实战：重试中间件</h2>
+<div class="codefile">
+  <div class="cf-head"><span class="dot"></span><span class="path">自定义 ChatMiddleware</span></div>
+<pre><span class="kw">from</span> agent_framework <span class="kw">import</span> ChatMiddleware, ChatContext
+
+<span class="kw">class</span> <span class="fn">RetryChatMiddleware</span>(ChatMiddleware):
+    <span class="kw">def</span> <span class="fn">__init__</span>(self, max_retries: int = <span class="nb">3</span>):
+        self.max_retries = max_retries
+
+    <span class="kw">async def</span> <span class="fn">process</span>(self, context: ChatContext, call_next):
+        <span class="kw">for</span> attempt <span class="kw">in</span> <span class="fn">range</span>(self.max_retries):
+            <span class="kw">try</span>:
+                <span class="kw">await</span> call_next()
+                <span class="kw">return</span>
+            <span class="kw">except</span> Exception:
+                <span class="kw">if</span> attempt == self.max_retries - <span class="nb">1</span>:
+                    <span class="kw">raise</span></pre>
+</div>
+<p>挂到 Agent 上：<span class="inline">Agent(client=client, chat_middleware=[RetryChatMiddleware(3)])</span>。</p>
+
+<details class="accordion">
+  <summary><span class="badge-num">1</span> 三层中间件分别怎么挂？ <span class="hint">点击展开</span></summary>
+  <div class="acc-body">
+    <div class="qa">
+      <div class="q">🧪 挂载方式</div>
+      <div class="a"><span class="mono">Agent(middleware=[…])</span> 挂 AgentMiddleware；
+        <span class="mono">Agent(chat_middleware=[…])</span> 挂 ChatMiddleware；
+        <span class="mono">Agent(function_middleware=[…])</span> 挂 FunctionMiddleware。
+        多个中间件按列表顺序从外到内排列。</div>
+    </div>
+  </div>
+</details>
+
+<div class="card key">
+  <div class="tag">✅ 关键要点</div>
+  <ul>
+    <li>继承 <span class="mono">*Middleware</span>，实现 <span class="mono">process(self, context, call_next)</span>。</li>
+    <li><span class="mono">await call_next()</span> 无参；结果在 <span class="mono">context.result</span>。</li>
+    <li>用 <span class="mono">Agent(middleware=…, chat_middleware=…, function_middleware=…)</span> 挂载。</li>
+  </ul>
+</div>
+
+<div class="card spark">
+  <div class="tag">💡 设计亮点</div>
+  中间件是<strong>组合式的</strong>：重试、日志、审批各自独立实现，按需拼装，互不干扰。
+</div>
+</div>
+<div class="i18n" data-lang="en">
+<p class="lead">Lesson 11 explained what middleware <em>is</em>; this lesson teaches you to
+<strong>write your own</strong> — from scratch to working.</p>
+
+<h2>Hands-on: retry middleware</h2>
+<div class="codefile">
+  <div class="cf-head"><span class="dot"></span><span class="path">custom ChatMiddleware</span></div>
+<pre><span class="kw">from</span> agent_framework <span class="kw">import</span> ChatMiddleware, ChatContext
+
+<span class="kw">class</span> <span class="fn">RetryChatMiddleware</span>(ChatMiddleware):
+    <span class="kw">def</span> <span class="fn">__init__</span>(self, max_retries: int = <span class="nb">3</span>):
+        self.max_retries = max_retries
+
+    <span class="kw">async def</span> <span class="fn">process</span>(self, context: ChatContext, call_next):
+        <span class="kw">for</span> attempt <span class="kw">in</span> <span class="fn">range</span>(self.max_retries):
+            <span class="kw">try</span>:
+                <span class="kw">await</span> call_next()
+                <span class="kw">return</span>
+            <span class="kw">except</span> Exception:
+                <span class="kw">if</span> attempt == self.max_retries - <span class="nb">1</span>:
+                    <span class="kw">raise</span></pre>
+</div>
+<p>Attach to an Agent: <span class="inline">Agent(client=client, chat_middleware=[RetryChatMiddleware(3)])</span>.</p>
+
+<details class="accordion">
+  <summary><span class="badge-num">1</span> How to attach each layer? <span class="hint">expand</span></summary>
+  <div class="acc-body">
+    <div class="qa">
+      <div class="q">🧪 Attachment</div>
+      <div class="a"><span class="mono">Agent(middleware=[…])</span> for AgentMiddleware;
+        <span class="mono">Agent(chat_middleware=[…])</span> for ChatMiddleware;
+        <span class="mono">Agent(function_middleware=[…])</span> for FunctionMiddleware.
+        Multiple middlewares are ordered outside-in by list position.</div>
+    </div>
+  </div>
+</details>
+
+<div class="card key">
+  <div class="tag">✅ Key points</div>
+  <ul>
+    <li>Subclass <span class="mono">*Middleware</span>; implement <span class="mono">process(self, context, call_next)</span>.</li>
+    <li><span class="mono">await call_next()</span> takes no args; result is on <span class="mono">context.result</span>.</li>
+    <li>Attach via <span class="mono">Agent(middleware=…, chat_middleware=…, function_middleware=…)</span>.</li>
+  </ul>
+</div>
+
+<div class="card spark">
+  <div class="tag">💡 Design highlight</div>
+  Middleware is <strong>compositional</strong>: retries, logging, approvals — each implemented independently,
+  assembled as needed, no interference.
+</div>
+</div>
   <div class="footnav"><a class="prev" href="17-declarative.html"><div class="dir"><span class="i18n" data-lang="zh">← 上一课</span><span class="i18n" data-lang="en">← Prev</span></div><div class="ttl"><span class="i18n" data-lang="zh">声明式 Agent（YAML）</span><span class="i18n" data-lang="en">Declarative Agents (YAML)</span></div></a><a class="next" href="19-durability-hitl.html"><div class="dir"><span class="i18n" data-lang="zh">下一课 →</span><span class="i18n" data-lang="en">Next →</span></div><div class="ttl"><span class="i18n" data-lang="zh">检查点 · 人在环 · 持久化</span><span class="i18n" data-lang="en">Checkpointing, HITL & Durability</span></div></a></div>
 </div>
 

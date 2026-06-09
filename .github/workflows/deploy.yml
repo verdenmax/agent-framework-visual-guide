@@ -1,0 +1,119 @@
+name: Deploy site & PDF
+
+on:
+  push:
+    branches: [master, main]
+    tags: ['v*']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install fonts
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends fonts-noto-cjk fonts-noto-color-emoji
+
+      - name: Set up Chrome
+        id: chrome
+        uses: browser-actions/setup-chrome@v1
+
+      - name: Build site (HTML)
+        working-directory: src
+        run: python build.py
+
+      - name: Build print HTML (both languages)
+        working-directory: src
+        run: python build_print.py
+
+      - name: Render Chinese PDF
+        run: |
+          "${{ steps.chrome.outputs.chrome-path }}" \
+            --headless=new --no-sandbox --disable-gpu --no-pdf-header-footer \
+            --print-to-pdf=agent-framework-visual-guide.zh.pdf \
+            --virtual-time-budget=30000 \
+            "file://$GITHUB_WORKSPACE/print.zh.html"
+          ls -la agent-framework-visual-guide.zh.pdf
+
+      - name: Render English PDF
+        run: |
+          "${{ steps.chrome.outputs.chrome-path }}" \
+            --headless=new --no-sandbox --disable-gpu --no-pdf-header-footer \
+            --print-to-pdf=agent-framework-visual-guide.en.pdf \
+            --virtual-time-budget=30000 \
+            "file://$GITHUB_WORKSPACE/print.en.html"
+          ls -la agent-framework-visual-guide.en.pdf
+
+      - name: Upload PDF artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: visual-guide-pdfs
+          path: |
+            agent-framework-visual-guide.zh.pdf
+            agent-framework-visual-guide.en.pdf
+          if-no-files-found: error
+
+      - name: Assemble _site
+        run: |
+          mkdir -p _site
+          cp index.html _site/
+          cp -r lessons _site/
+          cp agent-framework-visual-guide.zh.pdf _site/
+          cp agent-framework-visual-guide.en.pdf _site/
+          touch _site/.nojekyll
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      - name: Configure Pages
+        uses: actions/configure-pages@v5
+        with:
+          enablement: true
+
+      - name: Deploy to GitHub Pages
+        id: deploy
+        uses: actions/deploy-pages@v4
+
+  release:
+    needs: build
+    if: startsWith(github.ref, 'refs/tags/')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Download PDF artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: visual-guide-pdfs
+      - name: Publish release with PDFs
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            agent-framework-visual-guide.zh.pdf
+            agent-framework-visual-guide.en.pdf
+          generate_release_notes: true

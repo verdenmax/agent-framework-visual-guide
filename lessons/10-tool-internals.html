@@ -253,10 +253,114 @@ table.t td.mono, table.t td .mono { font-family: ui-monospace, monospace; font-s
     <div class="part"><span class="i18n" data-lang="zh">第三部分 · 内部源码</span><span class="i18n" data-lang="en">Part 3 · Internals</span></div>
     <h1><span class="i18n" data-lang="zh">工具调用内部</span><span class="i18n" data-lang="en">Tool-Calling Internals</span></h1>
   </div>
-  <div class="i18n" data-lang="zh"><p class="lead">（占位）本课「工具调用内部」内容将于后续任务补全。</p>
-<div class="card key"><div class="tag">✅ 关键要点</div>待补充。</div></div>
-<div class="i18n" data-lang="en"><p class="lead">(stub) Lesson "Tool-Calling Internals" — content coming in a later task.</p>
-<div class="card key"><div class="tag">✅ Key points</div>TBD.</div></div>
+  <div class="i18n" data-lang="zh">
+<p class="lead"><span class="inline">@tool</span> 在用户那一课看起来很"魔法"——这里拆开看它内部做了什么：
+从 Python 函数到 JSON Schema，再到模型来回调用的<strong>完整闭环</strong>。</p>
+
+<div class="card analogy">
+  <div class="tag">🔧 生活类比</div>
+  写一个工具 = 在工具架上<strong>挂了一把锤子</strong>：你写好锤子的使用说明（类型注解 + docstring），
+  框架自动打印成规范卡片（JSON Schema）贴在锤子旁边，模型读卡片决定"我要用这把"，框架帮它拿起来锤。
+</div>
+
+<h2>完整闭环</h2>
+<div class="vflow">
+  <div class="step"><div class="num">1</div><div class="sc"><h4>你写函数 + @tool</h4>
+    <p>框架用 <span class="mono">FunctionTool</span>（<span class="mono">_tools.py:240</span>）包装它。</p></div></div>
+  <div class="step"><div class="num">2</div><div class="sc"><h4>生成 JSON Schema</h4>
+    <p>从 <span class="mono">Annotated[..., Field(description=...)]</span> + 返回类型自动构建 schema。</p></div></div>
+  <div class="step"><div class="num">3</div><div class="sc"><h4>Schema 发给模型</h4>
+    <p>ChatClient 在请求里带上所有工具的 schema（<span class="mono">tools</span> 字段）。</p></div></div>
+  <div class="step"><div class="num">4</div><div class="sc"><h4>模型返回 function_call</h4>
+    <p>回复的 <span class="mono">Content</span> 里有一个 <span class="mono">function_call</span>（函数名 + JSON 参数）。</p></div></div>
+  <div class="step"><div class="num">5</div><div class="sc"><h4>框架反序列化 + 执行</h4>
+    <p>JSON 参数 → Python 对象 → 调用你的函数 → 拿到返回值。</p></div></div>
+  <div class="step"><div class="num">6</div><div class="sc"><h4>function_result 回灌</h4>
+    <p>返回值打包成 <span class="mono">function_result</span> Content，追加进消息，回到第 3 步让模型继续。</p></div></div>
+</div>
+
+<details class="accordion">
+  <summary><span class="badge-num">1</span> FunctionTool 里装了什么？ <span class="hint">点击展开</span></summary>
+  <div class="acc-body">
+    <div class="qa">
+      <div class="q">🔬 核心属性</div>
+      <div class="a"><span class="mono">FunctionTool</span> 持有：原始函数引用、生成的 JSON Schema、
+        <span class="mono">approval_mode</span>（调用前是否需要人工审批）、函数名、描述。
+        <span class="mono">@tool</span> 装饰器（<span class="mono">_tools.py:1145</span>）是构造 <span class="mono">FunctionTool</span> 的语法糖。</div>
+    </div>
+  </div>
+</details>
+
+<div class="card key">
+  <div class="tag">✅ 关键要点</div>
+  <ul>
+    <li><span class="mono">@tool</span> → <span class="mono">FunctionTool</span> → JSON Schema → 随请求发给模型。</li>
+    <li>模型回 <span class="mono">function_call</span> → 框架执行 → <span class="mono">function_result</span> 回灌 → 再让模型继续。</li>
+    <li>整个循环在 Agent 内部自动跑，调用方无感。</li>
+  </ul>
+</div>
+
+<div class="card spark">
+  <div class="tag">💡 设计亮点</div>
+  <strong>类型注解就是 schema</strong>——不存在"代码改了但忘记更新 schema"的问题，
+  因为它们在同一份源码里。这是"函数即工具"哲学的核心。
+</div>
+</div>
+<div class="i18n" data-lang="en">
+<p class="lead"><span class="inline">@tool</span> looks like magic from the user side — here we open it up: from a
+Python function to JSON Schema and back through the model's <strong>full round-trip</strong>.</p>
+
+<div class="card analogy">
+  <div class="tag">🔧 Analogy</div>
+  Defining a tool = <strong>hanging a hammer on the rack</strong>: you write the usage label (type hints +
+  docstring), the framework auto-prints a spec card (JSON Schema) next to it, the model reads the card and says
+  "I want this one", the framework picks it up and hammers for it.
+</div>
+
+<h2>The full round-trip</h2>
+<div class="vflow">
+  <div class="step"><div class="num">1</div><div class="sc"><h4>You write a function + @tool</h4>
+    <p>The framework wraps it in <span class="mono">FunctionTool</span> (<span class="mono">_tools.py:240</span>).</p></div></div>
+  <div class="step"><div class="num">2</div><div class="sc"><h4>Generate JSON Schema</h4>
+    <p>Built automatically from <span class="mono">Annotated[..., Field(description=...)]</span> + return type.</p></div></div>
+  <div class="step"><div class="num">3</div><div class="sc"><h4>Schema sent to the model</h4>
+    <p>ChatClient includes all tool schemas in the request (<span class="mono">tools</span> field).</p></div></div>
+  <div class="step"><div class="num">4</div><div class="sc"><h4>Model returns function_call</h4>
+    <p>The reply <span class="mono">Content</span> contains a <span class="mono">function_call</span> (function name + JSON args).</p></div></div>
+  <div class="step"><div class="num">5</div><div class="sc"><h4>Framework deserialises + executes</h4>
+    <p>JSON args → Python objects → call your function → capture the return value.</p></div></div>
+  <div class="step"><div class="num">6</div><div class="sc"><h4>function_result fed back</h4>
+    <p>The return value is packed as <span class="mono">function_result</span> Content, appended to messages, back to step 3.</p></div></div>
+</div>
+
+<details class="accordion">
+  <summary><span class="badge-num">1</span> What's inside a FunctionTool? <span class="hint">expand</span></summary>
+  <div class="acc-body">
+    <div class="qa">
+      <div class="q">🔬 Core attributes</div>
+      <div class="a"><span class="mono">FunctionTool</span> holds: the original function reference, the generated
+        JSON Schema, <span class="mono">approval_mode</span> (whether human approval is needed before invocation),
+        the function name and description.
+        <span class="mono">@tool</span> (<span class="mono">_tools.py:1145</span>) is syntactic sugar for constructing a <span class="mono">FunctionTool</span>.</div>
+    </div>
+  </div>
+</details>
+
+<div class="card key">
+  <div class="tag">✅ Key points</div>
+  <ul>
+    <li><span class="mono">@tool</span> → <span class="mono">FunctionTool</span> → JSON Schema → sent with the request.</li>
+    <li>Model replies <span class="mono">function_call</span> → framework executes → <span class="mono">function_result</span> fed back → model continues.</li>
+    <li>The whole loop runs automatically inside the Agent; callers are unaware.</li>
+  </ul>
+</div>
+
+<div class="card spark">
+  <div class="tag">💡 Design highlight</div>
+  <strong>Type hints ARE the schema</strong> — there is no "changed the code but forgot to update the schema" problem,
+  because they live in the same source. This is the heart of the "function is a tool" philosophy.
+</div>
+</div>
   <div class="footnav"><a class="prev" href="09-chatclient-internals.html"><div class="dir"><span class="i18n" data-lang="zh">← 上一课</span><span class="i18n" data-lang="en">← Prev</span></div><div class="ttl"><span class="i18n" data-lang="zh">ChatClient 内部</span><span class="i18n" data-lang="en">ChatClient Internals</span></div></a><a class="next" href="11-middleware.html"><div class="dir"><span class="i18n" data-lang="zh">下一课 →</span><span class="i18n" data-lang="en">Next →</span></div><div class="ttl"><span class="i18n" data-lang="zh">中间件 Middleware</span><span class="i18n" data-lang="en">Middleware</span></div></a></div>
 </div>
 

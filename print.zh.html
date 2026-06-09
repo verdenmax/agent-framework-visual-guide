@@ -1,0 +1,1591 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-lang="zh"><head>
+<meta charset="utf-8">
+<title>Agent Framework 图解教程</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+:root {
+  --bg: #f6f7f9; --panel: #ffffff; --panel-2: #f0f2f5; --ink: #1d2129;
+  --muted: #5b6470; --faint: #8a939f; --line: #e1e5ea;
+  --accent: #0078d4; --accent-soft: #e1effb; --accent-ink: #0a4a86;
+  --blue: #2563eb; --blue-soft: #e7efff; --amber: #b4690e; --amber-soft: #fdf1dd;
+  --purple: #7c3aed; --purple-soft: #f0e9ff; --red: #d23f3f; --red-soft: #fbe6e6;
+  --code-bg: #0f172a; --code-ink: #e2e8f0; --code-line: #1e293b;
+  --shadow: 0 1px 2px rgba(16,24,40,.06), 0 8px 24px rgba(16,24,40,.06);
+  --radius: 14px;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #0e1116; --panel: #161b22; --panel-2: #1c232c; --ink: #e6edf3;
+    --muted: #9aa6b2; --faint: #6e7a86; --line: #2a323c;
+    --accent: #4aa3e8; --accent-soft: #102a40; --accent-ink: #9fcdf2;
+    --blue: #6ea8fe; --blue-soft: #16243f; --amber: #e0a44a; --amber-soft: #33270f;
+    --purple: #b794f6; --purple-soft: #271a40; --red: #f08080; --red-soft: #3a1a1a;
+    --code-bg: #0a0f1a; --code-ink: #d8e2f0; --code-line: #14202f;
+    --shadow: 0 1px 2px rgba(0,0,0,.4), 0 10px 30px rgba(0,0,0,.35);
+  }
+}
+html { scroll-behavior: smooth; }
+body {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans SC",
+    "PingFang SC", "Microsoft YaHei", system-ui, sans-serif;
+  background: var(--bg); color: var(--ink); line-height: 1.7;
+  -webkit-font-smoothing: antialiased;
+}
+a { color: var(--accent); text-decoration: none; }
+code, .mono { font-family: "SF Mono", "JetBrains Mono", "Fira Code", ui-monospace, Menlo, Consolas, monospace; }
+
+/* ---- bilingual visibility ---- */
+html[data-lang="zh"] .i18n[data-lang="en"],
+html[data-lang="en"] .i18n[data-lang="zh"] { display: none !important; }
+.langtoggle { cursor: pointer; font-size: .72rem; font-weight: 700; color: var(--accent);
+  background: var(--accent-soft); border: 1px solid var(--accent); border-radius: 999px;
+  padding: .2rem .7rem; white-space: nowrap; }
+.langtoggle:hover { background: var(--accent); color: #fff; }
+
+/* ---- top progress bar ---- */
+.topbar {
+  position: sticky; top: 0; z-index: 50; background: var(--panel);
+  border-bottom: 1px solid var(--line); backdrop-filter: blur(8px);
+}
+.topbar-inner {
+  max-width: 960px; margin: 0 auto; padding: .7rem 1.25rem;
+  display: flex; align-items: center; justify-content: space-between; gap: 1rem;
+}
+.topbar .home { font-size: .82rem; color: var(--muted); font-weight: 600; display:flex; gap:.5rem; align-items:center; }
+.topbar .home b { color: var(--accent); }
+.topbar .pills { display: flex; align-items: center; gap: .5rem; }
+.topbar .pill { font-size: .72rem; color: var(--muted); background: var(--panel-2);
+  padding: .2rem .6rem; border-radius: 999px; border: 1px solid var(--line); white-space: nowrap; }
+.progress { height: 3px; background: var(--panel-2); }
+.progress > span { display: block; height: 100%; background: linear-gradient(90deg, var(--accent), var(--purple)); }
+
+.wrap { max-width: 820px; margin: 0 auto; padding: 2.4rem 1.25rem 5rem; }
+
+/* ---- hero ---- */
+.hero { margin-bottom: 2rem; }
+.hero .part { font-size: .76rem; letter-spacing: .08em; text-transform: uppercase;
+  color: var(--accent); font-weight: 700; margin-bottom: .55rem; }
+.hero h1 { font-size: 2.05rem; line-height: 1.2; letter-spacing: -.01em; font-weight: 750; }
+.hero .lead { margin-top: .9rem; font-size: 1.06rem; color: var(--muted); }
+
+h2 { font-size: 1.32rem; margin: 2.4rem 0 .9rem; letter-spacing: -.01em;
+  display: flex; align-items: center; gap: .55rem; }
+h2::before { content: ""; width: 4px; height: 1.05em; background: var(--accent); border-radius: 3px; display: inline-block; }
+h3 { font-size: 1.05rem; margin: 1.4rem 0 .5rem; }
+p { margin: .7rem 0; }
+ul, ol { margin: .6rem 0 .6rem 1.3rem; }
+li { margin: .3rem 0; }
+strong { color: var(--ink); font-weight: 680; }
+.inline { background: var(--panel-2); border: 1px solid var(--line); border-radius: 6px;
+  padding: .08em .4em; font-size: .9em; color: var(--accent-ink); }
+
+/* ---- callout cards ---- */
+.card { border-radius: var(--radius); padding: 1.05rem 1.2rem; margin: 1.2rem 0;
+  border: 1px solid var(--line); background: var(--panel); box-shadow: var(--shadow); }
+.card .tag { font-size: .72rem; font-weight: 700; letter-spacing: .04em; text-transform: uppercase;
+  display: inline-flex; align-items: center; gap: .4rem; margin-bottom: .5rem; }
+.card.macro { border-left: 4px solid var(--blue); }
+.card.macro .tag { color: var(--blue); }
+.card.detail { border-left: 4px solid var(--purple); }
+.card.detail .tag { color: var(--purple); }
+.card.analogy { border-left: 4px solid var(--amber); background: var(--amber-soft); }
+.card.analogy .tag { color: var(--amber); }
+.card.key { border-left: 4px solid var(--accent); background: var(--accent-soft); }
+.card.key .tag { color: var(--accent-ink); }
+.card.warn { border-left: 4px solid var(--red); background: var(--red-soft); }
+.card.warn .tag { color: var(--red); }
+.card.spark { border-left: 4px solid #e0a000;
+  background: linear-gradient(100deg, rgba(224,160,0,.12), transparent 70%); }
+.card.spark .tag { color: #c98a00; }
+@media (prefers-color-scheme: dark) { .card.spark .tag { color: #f0c050; } }
+
+/* ---- code file callout ---- */
+.codefile { margin: 1.2rem 0; border-radius: 12px; overflow: hidden; border: 1px solid var(--line);
+  box-shadow: var(--shadow); }
+.codefile .cf-head { display: flex; align-items: center; gap: .55rem; padding: .5rem .85rem;
+  background: var(--panel-2); border-bottom: 1px solid var(--line); font-size: .8rem; }
+.codefile .cf-head .dot { width: 9px; height: 9px; border-radius: 50%; background: var(--accent); flex-shrink:0; }
+.codefile .cf-head .path { font-family: ui-monospace, monospace; color: var(--ink); font-weight: 600; }
+.codefile .cf-head .ln { margin-left: auto; color: var(--faint); font-size: .72rem; }
+.codefile pre { background: var(--code-bg); color: var(--code-ink); padding: .9rem 1rem;
+  overflow-x: auto; font-size: .82rem; line-height: 1.6; }
+.codefile pre .cm { color: #7d8aa3; }
+.codefile pre .kw { color: #c792ea; }
+.codefile pre .fn { color: #82aaff; }
+.codefile pre .st { color: #c3e88d; }
+.codefile pre .nb { color: #f78c6c; }
+
+pre.code { background: var(--code-bg); color: var(--code-ink); padding: .9rem 1rem; border-radius: 12px;
+  overflow-x: auto; font-size: .83rem; line-height: 1.6; margin: 1.1rem 0; box-shadow: var(--shadow); }
+pre.code .cm { color: #7d8aa3; } pre.code .kw { color: #c792ea; }
+pre.code .fn { color: #82aaff; } pre.code .st { color: #c3e88d; } pre.code .nb { color: #f78c6c; }
+
+/* ---- collapsible accordion (details/summary) ---- */
+.accordion { border: 1px solid var(--line); border-radius: 12px; background: var(--panel);
+  margin: .7rem 0; box-shadow: var(--shadow); overflow: hidden; }
+.accordion > summary { cursor: pointer; padding: .85rem 1.1rem; font-weight: 650; font-size: .96rem;
+  list-style: none; display: flex; align-items: center; gap: .6rem; user-select: none; }
+.accordion > summary::-webkit-details-marker { display: none; }
+.accordion > summary::after { content: "\25B6"; font-size: .68rem; color: var(--accent);
+  margin-left: auto; transition: transform .15s ease; }
+.accordion[open] > summary::after { transform: rotate(90deg); }
+.accordion > summary:hover { background: var(--panel-2); }
+.accordion[open] > summary { border-bottom: 1px solid var(--line); }
+.accordion .badge-num { background: var(--accent-soft); color: var(--accent-ink);
+  width: 1.6rem; height: 1.6rem; border-radius: 7px; display: inline-flex; align-items: center;
+  justify-content: center; font-size: .82rem; font-weight: 700; flex-shrink: 0; }
+.accordion .hint { font-size: .72rem; color: var(--faint); font-weight: 400; }
+.acc-body { padding: .9rem 1.1rem 1.1rem; }
+.acc-intro { color: var(--muted); font-size: .9rem; margin: .2rem 0 .4rem; }
+.qa { margin: 1rem 0; }
+.qa:first-child { margin-top: .3rem; }
+.qa .q { font-weight: 680; font-size: .9rem; display: flex; gap: .45rem; align-items: center; margin-bottom: .3rem; }
+.qa .a { color: var(--muted); font-size: .9rem; }
+.qa .a strong { color: var(--ink); }
+.qa pre.code { margin: .5rem 0 0; font-size: .78rem; }
+
+/* ---- flow diagram ---- */
+.flow { display: flex; align-items: stretch; gap: 0; flex-wrap: wrap; margin: 1.3rem 0;
+  background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius);
+  padding: 1.2rem 1rem; box-shadow: var(--shadow); }
+.flow .node { flex: 1 1 0; min-width: 110px; text-align: center; padding: .7rem .5rem;
+  border-radius: 10px; background: var(--panel-2); border: 1px solid var(--line); }
+.flow .node .nt { font-weight: 700; font-size: .92rem; }
+.flow .node .nd { font-size: .76rem; color: var(--muted); margin-top: .2rem; }
+.flow .node.hl { background: var(--accent-soft); border-color: var(--accent); }
+.flow .arrow { align-self: center; color: var(--faint); font-size: 1.3rem; padding: 0 .35rem; }
+
+/* vertical flow */
+.vflow { margin: 1.3rem 0; }
+.vflow .step { display: flex; gap: .9rem; position: relative; padding-bottom: 1.1rem; }
+.vflow .step:not(:last-child)::before { content:""; position:absolute; left: 15px; top: 34px; bottom: -2px;
+  width: 2px; background: var(--line); }
+.vflow .num { width: 32px; height: 32px; border-radius: 50%; background: var(--accent); color: #fff;
+  display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: .85rem; flex-shrink: 0; z-index:1; }
+.vflow .sc h4 { margin: .25rem 0 .2rem; font-size: 1rem; }
+.vflow .sc p { margin: .15rem 0; font-size: .92rem; color: var(--muted); }
+.vflow .sc .mono { font-size: .8rem; color: var(--accent-ink); }
+
+/* layered architecture */
+.layers { margin: 1.3rem 0; display: flex; flex-direction: column; gap: .55rem; }
+.layer { border-radius: 12px; padding: .85rem 1.1rem; border: 1px solid var(--line); background: var(--panel);
+  box-shadow: var(--shadow); }
+.layer .lh { display: flex; align-items: center; gap: .6rem; }
+.layer .lh .badge { font-size: .7rem; font-weight: 700; padding: .12rem .5rem; border-radius: 999px; }
+.layer .lh .name { font-weight: 700; font-family: ui-monospace, monospace; }
+.layer .ld { font-size: .85rem; color: var(--muted); margin-top: .35rem; }
+.layer.l-core { border-left: 4px solid var(--accent); } .layer.l-core .badge { background: var(--accent-soft); color: var(--accent-ink); }
+.layer.l-main { border-left: 4px solid var(--blue); } .layer.l-main .badge { background: var(--blue-soft); color: var(--blue); }
+.layer.l-part { border-left: 4px solid var(--purple); } .layer.l-part .badge { background: var(--purple-soft); color: var(--purple); }
+.layer.l-app { border-left: 4px solid var(--amber); } .layer.l-app .badge { background: var(--amber-soft); color: var(--amber); }
+
+/* two-column compare */
+.cols { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin: 1.2rem 0; }
+@media (max-width: 640px) { .cols { grid-template-columns: 1fr; } }
+.col { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 1rem 1.1rem; box-shadow: var(--shadow); }
+.col h4 { margin: 0 0 .4rem; font-size: .95rem; }
+
+table.t { width: 100%; border-collapse: collapse; margin: 1.1rem 0; font-size: .9rem;
+  background: var(--panel); border-radius: 12px; overflow: hidden; box-shadow: var(--shadow); }
+table.t th, table.t td { padding: .6rem .8rem; text-align: left; border-bottom: 1px solid var(--line); }
+table.t th { background: var(--panel-2); font-size: .8rem; letter-spacing: .02em; }
+table.t tr:last-child td { border-bottom: none; }
+table.t td.mono, table.t td .mono { font-family: ui-monospace, monospace; font-size: .82rem; color: var(--accent-ink); }
+
+/* footer nav */
+.footnav { display: flex; justify-content: space-between; gap: 1rem; margin-top: 3rem;
+  padding-top: 1.4rem; border-top: 1px solid var(--line); }
+.footnav a { flex: 1; padding: .85rem 1.1rem; border-radius: 12px; border: 1px solid var(--line);
+  background: var(--panel); box-shadow: var(--shadow); transition: .15s; }
+.footnav a:hover { border-color: var(--accent); transform: translateY(-1px); }
+.footnav a.next { text-align: right; }
+.footnav .dir { font-size: .72rem; color: var(--faint); text-transform: uppercase; letter-spacing: .05em; }
+.footnav .ttl { font-weight: 700; color: var(--ink); margin-top: .15rem; }
+.footnav a.disabled { opacity: .35; pointer-events: none; }
+
+/* index page */
+.toc { display: grid; gap: .7rem; margin-top: 1.6rem; }
+.toc-part { font-size: .78rem; font-weight: 700; letter-spacing: .05em; text-transform: uppercase;
+  color: var(--accent); margin: 1.4rem 0 .2rem; }
+.toc a { display: flex; align-items: center; gap: .9rem; padding: .85rem 1.05rem; border-radius: 12px;
+  background: var(--panel); border: 1px solid var(--line); box-shadow: var(--shadow); transition: .15s; }
+.toc a:hover { border-color: var(--accent); transform: translateX(3px); }
+.toc .n { width: 30px; height: 30px; border-radius: 8px; background: var(--accent-soft); color: var(--accent-ink);
+  display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: .85rem; flex-shrink: 0; }
+.toc .tt { font-weight: 650; color: var(--ink); }
+.toc .ts { font-size: .8rem; color: var(--muted); margin-left: auto; text-align: right; }
+.hero.index h1 { font-size: 2.3rem; }
+.legend { display:flex; gap:1.2rem; flex-wrap:wrap; margin-top:1rem; font-size:.8rem; color:var(--muted); }
+.legend span { display:flex; align-items:center; gap:.4rem; }
+.legend i { width:12px; height:12px; border-radius:3px; display:inline-block; }
+.pdf-btn { display:inline-flex; align-items:center; gap:.4rem; padding:.55rem 1.1rem;
+  background:var(--accent); color:#fff; border-radius:10px; font-size:.9rem; font-weight:650;
+  box-shadow:var(--shadow); transition:.15s; }
+.pdf-btn:hover { background:var(--accent-ink); transform:translateY(-1px); }
+
+/* ===== print / PDF overrides ===== */
+@page { size: A4; margin: 15mm 14mm 16mm; }
+html, body { height: auto !important; overflow: visible !important; background: #fff; }
+.wrap { max-width: 100%; padding: 0; }
+.hint { display: none !important; }
+.accordion > summary { cursor: default; }
+.accordion > summary::after { display: none; }
+.accordion[open] > summary { border-bottom: 1px solid var(--line); }
+.card, .codefile, pre.code, table.t, .flow, .vflow .step, .layer,
+.accordion, .qa, .cols, .mockup { break-inside: avoid; }
+h2, h3, h4 { break-after: avoid; }
+/* hide language toggle and bilingual blocks for the other language */
+.langtoggle { display: none !important; }
+
+.print-cover { break-after: page; min-height: 90vh; display: flex; flex-direction: column;
+  justify-content: center; text-align: center; }
+.print-cover .emoji { font-size: 3.2rem; }
+.print-cover h1 { font-size: 2.4rem; margin: 1rem 0 .4rem; border: none; }
+.print-cover .sub { color: var(--muted); font-size: 1.05rem; }
+.print-cover .meta { margin-top: 2rem; color: var(--faint); font-size: .9rem; }
+
+.print-toc { break-after: page; }
+.print-toc h2 { margin-top: 0; }
+.print-toc .tp { font-size: .82rem; font-weight: 700; letter-spacing: .05em;
+  color: var(--accent); margin: 1.1rem 0 .3rem; }
+.print-toc ol { margin: 0; padding-left: 1.4rem; }
+.print-toc li { margin: .2rem 0; }
+
+.print-lesson { break-before: page; padding-top: .2rem; }
+.lesson-head { border-bottom: 2px solid var(--accent); padding-bottom: .5rem; margin-bottom: 1.2rem; }
+.lesson-head .lp { font-size: .72rem; letter-spacing: .08em; text-transform: uppercase;
+  color: var(--accent); font-weight: 700; }
+.lesson-head h1 { font-size: 1.7rem; margin: .25rem 0 0; border: none; }
+.lesson-head .ln { color: var(--faint); font-weight: 600; }
+</style>
+</head><body>
+<section class="print-cover">
+  <div class="emoji">📘</div>
+  <h1>Agent Framework 图解教程</h1>
+  <div class="sub">从零理解整个项目 · 宏观 → 用法 → 源码 → 自己动手做 Agent</div>
+  <div class="meta">共 22 课 · 6 个部分 · 每课配真实代码对应与设计亮点<br>
+    生成日期 2026-06-09 · verdenmax · MIT License</div>
+</section>
+<section class="print-toc"><div class="wrap"><h2>目录</h2>
+<div class="tp">第一部分 · 宏观全景</div>
+<ol>
+<li value="1">Agent Framework 是什么</li>
+<li value="2">Monorepo 全景</li>
+<li value="3">一次 run() 的生命周期</li>
+</ol>
+<div class="tp">第二部分 · 用户视角</div>
+<ol>
+<li value="4">消息与内容</li>
+<li value="5">ChatClient 与创建 Agent</li>
+<li value="6">工具 Tools</li>
+<li value="7">会话与记忆</li>
+</ol>
+<div class="tp">第三部分 · 内部源码</div>
+<ol>
+<li value="8">Agent 内部</li>
+<li value="9">ChatClient 内部</li>
+<li value="10">工具调用内部</li>
+<li value="11">中间件 Middleware</li>
+<li value="12">Workflows 工作流引擎</li>
+<li value="13">编排模式</li>
+<li value="14">流式与可观测性</li>
+</ol>
+<div class="tp">第四部分 · 进阶实战</div>
+<ol>
+<li value="15">读源码 / 调试 / 测试 / 贡献</li>
+</ol>
+<div class="tp">第五部分 · 自己动手做 Agent</div>
+<ol>
+<li value="16">接入各家模型</li>
+<li value="17">声明式 Agent（YAML）</li>
+<li value="18">写自己的中间件</li>
+<li value="19">检查点 · 人在环 · 持久化</li>
+<li value="20">端到端实战：多 Agent 工作流</li>
+</ol>
+<div class="tp">第六部分 · 番外篇</div>
+<ol>
+<li value="21">横向对比：AF vs 其他框架</li>
+<li value="22">全栈坐标系 & 学习地图</li>
+</ol></div></section>
+<section class="print-lesson"><div class="wrap"><div class="lesson-head"><div class="lp">第一部分 · 宏观全景</div><h1><span class="ln">01 ·</span> Agent Framework 是什么</h1></div>
+<p class="lead" style="font-size:1.06rem;color:var(--muted);margin-top:-.6rem">
+Microsoft Agent Framework（MAF）是一个用 <strong>Python 和 .NET</strong> 编写的<strong>开源框架</strong>，
+帮你把"大语言模型（LLM）"接进真实应用，并编排成<strong>能干活的 Agent 和多 Agent 工作流</strong>。
+它不替你训练模型，而是负责模型<strong>周边的所有管道</strong>，并面向<strong>生产环境</strong>。
+</p>
+
+<div class="card analogy">
+  <div class="tag">🔌 生活类比</div>
+  把大语言模型想成一台<strong>很强但很孤立的发动机</strong>：它能输出文字，却不知道你的数据库、
+  不会自己调用工具，不同厂商的接口还都不一样。MAF 就是那套<strong>标准化的"传动系统 + 仪表盘 + 配件接口"</strong>——
+  让你用同一套代码驱动任何品牌的发动机，把它接到工具、记忆、其他 Agent 上，还能在生产里<strong>监控、重启、审批</strong>。
+</div>
+
+<h2>它到底解决什么问题？</h2>
+<p>直接调用某个厂商的 SDK 当然能跑，但真实应用里你很快会撞上这几类麻烦，正是 MAF 要替你抹平的：</p>
+
+<table class="t">
+  <tr><th>痛点</th><th>没有框架时</th><th>MAF 的做法</th></tr>
+  <tr><td><strong>厂商锁定</strong></td><td>换模型要重写一大片调用代码</td><td>统一的 <span class="mono">ChatClient</span> + <span class="mono">Agent</span>，换厂商基本只改一行</td></tr>
+  <tr><td><strong>对话拼装</strong></td><td>手动拼 role/content 的字典</td><td>结构化的 <span class="mono">Message</span> / <span class="mono">Role</span> / <span class="mono">Content</span></td></tr>
+  <tr><td><strong>调用工具</strong></td><td>自己解析模型要调哪个函数、传什么参</td><td><span class="mono">@tool</span> 自动生成 schema + 解析 + 执行</td></tr>
+  <tr><td><strong>多步 / 多 Agent</strong></td><td>手写"想—做—再想"循环和协作逻辑</td><td><strong>Agent 循环</strong> + 图式 <strong>Workflows</strong> 编排</td></tr>
+  <tr><td><strong>上生产</strong></td><td>自己搞监控、持久化、人工审批</td><td>内置 <strong>OpenTelemetry</strong>、检查点、人在环、托管</td></tr>
+</table>
+
+<h2>最小的一个 Agent 长什么样</h2>
+<div class="codefile">
+  <div class="cf-head"><span class="dot"></span><span class="path">samples/01-get-started/01_hello_agent.py</span><span class="ln">最小示例</span></div>
+<pre><span class="kw">from</span> agent_framework <span class="kw">import</span> Agent
+<span class="kw">from</span> agent_framework.foundry <span class="kw">import</span> FoundryChatClient
+<span class="kw">from</span> azure.identity <span class="kw">import</span> AzureCliCredential
+
+client = FoundryChatClient(
+    project_endpoint=<span class="st">"https://your-project.services.ai.azure.com"</span>,
+    model=<span class="st">"gpt-4o"</span>, credential=AzureCliCredential(),
+)
+agent = Agent(
+    client=client, name=<span class="st">"HelloAgent"</span>,
+    instructions=<span class="st">"You are a friendly assistant. Keep your answers brief."</span>,
+)
+
+result = <span class="kw">await</span> agent.run(<span class="st">"What is the capital of France?"</span>)
+<span class="fn">print</span>(result)</pre>
+</div>
+<p>三步：<strong>选一个 ChatClient</strong>（连到某个模型）→ <strong>包成一个 Agent</strong>（给名字和系统指令）→ <strong>run 一句话</strong>。
+换厂商？把 <span class="inline">FoundryChatClient</span> 换成 <span class="inline">OpenAIChatClient</span> 即可，其余不动。</p>
+
+<h2>核心心智模型</h2>
+<div class="flow">
+  <div class="node"><div class="nt">你的代码</div><div class="nd">输入 + 指令</div></div>
+  <div class="arrow">→</div>
+  <div class="node hl"><div class="nt">Agent</div><div class="nd">组装消息 / 循环</div></div>
+  <div class="arrow">→</div>
+  <div class="node"><div class="nt">ChatClient</div><div class="nd">厂商无关</div></div>
+  <div class="arrow">→</div>
+  <div class="node"><div class="nt">LLM</div><div class="nd">+ 工具 / 记忆</div></div>
+</div>
+
+<details class="accordion" open>
+  <summary><span class="badge-num">1</span> 它和 LangChain / AutoGen / Semantic Kernel 什么关系？ <span class="hint">点击展开</span></summary>
+  <div class="acc-body">
+    <div class="qa">
+      <div class="q">❓ 一句话定位</div>
+      <div class="a">MAF 是微软把 <strong>Semantic Kernel</strong>（企业级、强类型、连接器丰富）和
+        <strong>AutoGen</strong>（多 Agent 对话与研究探索）<strong>合并演进</strong>而来的统一框架，
+        目标是"<strong>从原型到生产</strong>"一条路走到底，且 <strong>Python 与 .NET 双实现、API 对齐</strong>。</div>
+    </div>
+    <div class="qa">
+      <div class="q">✅ 它的取舍</div>
+      <div class="a">既要 LangGraph 那样的<strong>图式编排</strong>（可控、可恢复），又要 AutoGen 那样的<strong>多 Agent 协作</strong>，
+        还把<strong>可观测性 / 持久化 / 审批</strong>做成一等公民——这就是"生产级"的含义。</div>
+    </div>
+  </div>
+</details>
+
+<div class="card key">
+  <div class="tag">✅ 关键要点</div>
+  <ul>
+    <li>MAF = <strong>ChatClient（连模型）+ Agent（循环）+ Tools（工具）+ Workflows（编排）+ 生产能力</strong>。</li>
+    <li>它<strong>不训练模型</strong>，负责模型周边的全部管道；<strong>Python 和 .NET</strong> 双实现。</li>
+    <li>定位：<strong>Semantic Kernel + AutoGen 的统一继任者</strong>，从原型直达生产。</li>
+  </ul>
+</div>
+
+<div class="card spark">
+  <div class="tag">💡 设计亮点</div>
+  把"换模型只改一行"做成默认体验：<strong>ChatClient 是厂商无关的统一抽象</strong>，
+  Agent / 工具 / 工作流全部构建在它之上，于是<strong>可移植性</strong>从第一行代码就免费获得。
+</div>
+</div></section>
+<section class="print-lesson"><div class="wrap"><div class="lesson-head"><div class="lp">第一部分 · 宏观全景</div><h1><span class="ln">02 ·</span> Monorepo 全景</h1></div>
+<p class="lead">MAF 是一个 <strong>monorepo</strong>：一个仓库里同时放着 <strong>Python</strong> 和 <strong>.NET</strong>
+两套实现，外加文档、声明式 Agent 和 schema。理解了目录结构，你就有了一张<strong>源码导航地图</strong>。</p>
+
+<div class="card analogy">
+  <div class="tag">🏢 生活类比</div>
+  把仓库想成一座<strong>办公楼</strong>：<strong>core</strong> 是地基与承重墙（所有人都依赖），
+  各 <strong>provider 包</strong>是不同楼层的部门（OpenAI 部、Anthropic 部……），
+  <strong>lab</strong> 是顶楼的实验室（前沿但不稳定）。Python 楼和 .NET 楼并排而立，<strong>户型一致</strong>。
+</div>
+
+<h2>顶层结构</h2>
+<div class="layers">
+  <div class="layer l-core"><div class="lh"><span class="badge">PY/.NET</span><span class="name">python/ · dotnet/</span></div>
+    <div class="ld">两套实现并列，API 对齐。本教程聚焦 <span class="mono">python/</span>。</div></div>
+  <div class="layer l-main"><div class="lh"><span class="badge">DOCS</span><span class="name">docs/ · declarative-agents/ · schemas/</span></div>
+    <div class="ld">设计决策记录（ADR）、声明式 YAML Agent、JSON schema。</div></div>
+</div>
+
+<h2>Python 这边怎么分层</h2>
+<div class="layers">
+  <div class="layer l-core"><div class="lh"><span class="badge">CORE</span><span class="name">packages/core → agent_framework</span></div>
+    <div class="ld">核心抽象：<span class="mono">Agent</span> / <span class="mono">Message</span> / <span class="mono">tool</span> /
+      中间件 / <span class="mono">Workflows</span>，以及内置 OpenAI / Azure OpenAI 支持。</div></div>
+  <div class="layer l-part"><div class="lh"><span class="badge">PROVIDERS</span><span class="name">packages/{foundry, anthropic, ollama, …}</span></div>
+    <div class="ld">各厂商 / 集成包，在 core 之上扩展具体的 ChatClient 与连接器。</div></div>
+  <div class="layer l-app"><div class="lh"><span class="badge">LAB</span><span class="name">packages/lab</span></div>
+    <div class="ld">实验性功能：基准测试、强化学习、研究项目。</div></div>
+</div>
+
+<table class="t">
+  <tr><th>你想找</th><th>去哪里</th></tr>
+  <tr><td>核心类型与 Agent 实现</td><td class="mono">python/packages/core/agent_framework/</td></tr>
+  <tr><td>公共 API（<span class="mono">__all__</span>）</td><td class="mono">core/agent_framework/__init__.py</td></tr>
+  <tr><td>新手样例</td><td class="mono">python/samples/01-get-started/</td></tr>
+  <tr><td>.NET 对照实现</td><td class="mono">dotnet/src/Microsoft.Agents.AI*/</td></tr>
+</table>
+
+<div class="card detail">
+  <div class="tag">🔬 细节 · 懒加载</div>
+  provider 子模块（如 <span class="inline">agent_framework.azure</span>）用 <span class="inline">__getattr__</span>
+  做<strong>懒加载</strong>：只有真正 import 时才拉起对应依赖，让 core 保持轻量。
+</div>
+
+<div class="card key">
+  <div class="tag">✅ 关键要点</div>
+  <ul>
+    <li>一个仓库、两套对齐实现：<span class="mono">python/</span> 与 <span class="mono">dotnet/</span>。</li>
+    <li>Python：<strong>core 是地基</strong>，provider 包按需扩展，lab 装前沿。</li>
+    <li>读源码先看 <span class="mono">core/agent_framework/__init__.py</span> 的 <span class="mono">__all__</span>。</li>
+  </ul>
+</div>
+
+<div class="card spark">
+  <div class="tag">💡 设计亮点</div>
+  <strong>core 不依赖任何具体厂商</strong>：厂商代码全部下沉到独立 provider 包，
+  通过懒加载接入。于是核心 API 稳定，新增厂商不动地基。
+</div>
+</div></section>
+<section class="print-lesson"><div class="wrap"><div class="lesson-head"><div class="lp">第一部分 · 宏观全景</div><h1><span class="ln">03 ·</span> 一次 run() 的生命周期</h1></div>
+<p class="lead">你写的只是 <span class="inline">await agent.run("…")</span> 一行，但底下发生了一串事。
+看懂这条<strong>生命周期</strong>，后面所有"内部源码"课都会变得轻松。</p>
+
+<div class="card analogy">
+  <div class="tag">🍽️ 生活类比</div>
+  Agent 像一位<strong>餐厅服务员</strong>：你点单（输入）→ 他把你的话连同"店规"（instructions）整理成<strong>标准工单</strong>（消息）
+  → 递进后厨（ChatClient → LLM）→ 如果厨师说"需要先去仓库取货"（工具调用），服务员就去取（执行工具）再把结果回递
+  → 直到厨师出菜（最终回答），服务员端给你（<span class="mono">AgentResponse</span>）。
+</div>
+
+<h2>一次 run 的完整数据流</h2>
+<div class="vflow">
+  <div class="step"><div class="num">1</div><div class="sc"><h4>你的输入</h4>
+    <p>字符串或一组 <span class="mono">Message</span>，连同会话历史一起进来。</p></div></div>
+  <div class="step"><div class="num">2</div><div class="sc"><h4>Agent 组装</h4>
+    <p>把 <span class="mono">instructions</span>（系统提示）+ 历史 + 新输入 + 可用 <span class="mono">tools</span> 拼成一次请求。</p></div></div>
+  <div class="step"><div class="num">3</div><div class="sc"><h4>ChatClient 调用</h4>
+    <p>厂商无关接口把请求发给具体 LLM（Foundry / OpenAI / …），拿回 <span class="mono">ChatResponse</span>。</p></div></div>
+  <div class="step"><div class="num">4</div><div class="sc"><h4>要调工具吗？</h4>
+    <p>若响应里含 <span class="mono">function_call</span>，Agent <strong>执行对应函数</strong>，把
+      <span class="mono">function_result</span> 追加进消息，<strong>再回到第 3 步</strong>。</p></div></div>
+  <div class="step"><div class="num">5</div><div class="sc"><h4>收敛与返回</h4>
+    <p>当模型不再要工具，循环结束，得到 <span class="mono">AgentResponse</span>（流式则是一串 <span class="mono">AgentResponseUpdate</span>）。</p></div></div>
+</div>
+
+<div class="card macro">
+  <div class="tag">🌍 宏观理解</div>
+  这就是经典的 <strong>Agent 循环（think → act → observe）</strong>：模型"想"，框架替它"做"（调工具），
+  把"观察"喂回去，直到任务完成。你只调用一次 <span class="inline">run()</span>，循环在内部自动跑完。
+</div>
+
+<details class="accordion" open>
+  <summary><span class="badge-num">1</span> 多轮对话时历史从哪来？ <span class="hint">点击展开</span></summary>
+  <div class="acc-body">
+    <div class="qa">
+      <div class="q">🧪 示例</div>
+      <div class="a">把同一个 <strong>会话（session）</strong>传给连续的 run，历史会自动累积：
+<pre class="code"><span class="kw">from</span> agent_framework <span class="kw">import</span> Agent
+agent = Agent(client=client, instructions=<span class="st">"…"</span>)
+session = agent.create_session()
+<span class="kw">await</span> agent.run(<span class="st">"我叫小明"</span>, session=session)
+<span class="kw">await</span> agent.run(<span class="st">"我叫什么？"</span>, session=session)  <span class="cm"># 记得"小明"</span></pre>
+        <em>（会话与记忆见第 07 课，这里只需知道历史是"会话"携带的。）</em></div>
+    </div>
+  </div>
+</details>
+
+<div class="card key">
+  <div class="tag">✅ 关键要点</div>
+  <ul>
+    <li>一次 <span class="mono">run()</span> = 组装消息 → 调 LLM →（按需循环调工具）→ 返回 <span class="mono">AgentResponse</span>。</li>
+    <li>工具调用是<strong>循环</strong>，不是一次性：模型可以多次要工具。</li>
+    <li>流式版本逐块返回 <span class="mono">AgentResponseUpdate</span>，最终拼成完整响应。</li>
+  </ul>
+</div>
+
+<div class="card spark">
+  <div class="tag">💡 设计亮点</div>
+  <strong>循环被封装在框架里</strong>：调用方只看到"输入→输出"，而"想—做—再想"的复杂度被 Agent 吸收，
+  这正是它比裸调 LLM SDK 省心的根源。
+</div>
+</div></section>
+<section class="print-lesson"><div class="wrap"><div class="lesson-head"><div class="lp">第二部分 · 用户视角</div><h1><span class="ln">04 ·</span> 消息与内容</h1></div>
+<p class="lead">和模型对话，本质是来回传递一串<strong>消息</strong>。MAF 把消息做成<strong>结构化对象</strong>
+<span class="inline">Message</span>，而不是裸字典——类型更安全，还能携带工具调用、图片等多种内容。</p>
+
+<div class="card analogy">
+  <div class="tag">✉️ 生活类比</div>
+  一条 <span class="mono">Message</span> 像一个<strong>信封</strong>：信封上写着<strong>寄件人身份</strong>（<span class="mono">role</span>：
+  user / assistant / system / tool），信封里可以装<strong>多张内容卡片</strong>（<span class="mono">contents</span>：
+  一段文字、一张图、一次工具调用、一份工具结果……）。
+</div>
+
+<h2>三个核心类型</h2>
+<table class="t">
+  <tr><th>类型</th><th>作用</th><th>来自</th></tr>
+  <tr><td class="mono">Message</td><td>一条消息 = <span class="mono">role</span> + <span class="mono">contents</span></td><td class="mono">_types.py</td></tr>
+  <tr><td class="mono">Role</td><td>身份：<span class="mono">"system"/"user"/"assistant"/"tool"</span></td><td class="mono">_types.py</td></tr>
+  <tr><td class="mono">Content</td><td>统一内容类型，用工厂方法构造</td><td class="mono">_types.py</td></tr>
+</table>
+
+<h2>手拼 dict vs 结构化消息</h2>
+<div class="cols">
+  <div class="col"><h4>😣 裸字典</h4>
+<pre class="code">messages = [
+  {<span class="st">"role"</span>: <span class="st">"system"</span>, <span class="st">"content"</span>: <span class="st">"你是助手"</span>},
+  {<span class="st">"role"</span>: <span class="st">"user"</span>, <span class="st">"content"</span>: <span class="st">"你好"</span>},
+]
+<span class="cm"># key 容易拼错，工具调用要手搓</span></pre></div>
+  <div class="col"><h4>🙂 Message 对象</h4>
+<pre class="code"><span class="kw">from</span> agent_framework <span class="kw">import</span> Message
+messages = [
+  Message(<span class="st">"system"</span>, <span class="st">"你是助手"</span>),
+  Message(<span class="st">"user"</span>, <span class="st">"你好"</span>),
+]
+<span class="cm"># 类型安全，可带多种 Content</span></pre></div>
+</div>
+<p><span class="inline">Message</span> 的第二个参数 <span class="mono">contents</span> 接受字符串（自动转成文本内容）、
+<span class="mono">Content</span> 对象，或它们的列表。读文本用 <span class="inline">msg.text</span>。</p>
+
+<details class="accordion" open>
+  <summary><span class="badge-num">1</span> Content 能装哪些东西？ <span class="hint">点击展开</span></summary>
+  <div class="acc-body">
+    <div class="qa">
+      <div class="q">🧪 用工厂方法构造</div>
+      <div class="a"><span class="mono">Content</span> 是<strong>统一类型</strong>，用类方法创建不同种类：
+<pre class="code">Content.from_text(<span class="st">"一段文字"</span>)
+Content.from_data(data=..., media_type=<span class="st">"image/png"</span>)  <span class="cm"># 图片/二进制</span>
+Content.from_uri(uri=<span class="st">"https://…"</span>, media_type=<span class="st">"image/png"</span>)
+Content.from_function_call(...)      <span class="cm"># 模型要调工具</span>
+Content.from_function_result(...)    <span class="cm"># 工具执行结果</span></pre>
+        所以一条 <span class="mono">Message</span> 可以图文混排，也能承载工具调用 / 结果。</div>
+    </div>
+  </div>
+</details>
+
+<div class="card key">
+  <div class="tag">✅ 关键要点</div>
+  <ul>
+    <li>对话 = 一串 <span class="mono">Message</span>；每条 = <span class="mono">role</span> + <span class="mono">contents</span>。</li>
+    <li><span class="mono">Role</span> 有四种：system / user / assistant / tool。</li>
+    <li><span class="mono">Content</span> 是统一类型，用 <span class="mono">from_text/from_data/from_function_call…</span> 构造。</li>
+  </ul>
+</div>
+
+<div class="card spark">
+  <div class="tag">💡 设计亮点</div>
+  把"文本、图片、工具调用、工具结果"<strong>统一成一种 Content</strong>，靠 <span class="mono">type</span> 字段区分。
+  消息结构因此既简单又可扩展——新增一种内容不破坏老代码。
+</div>
+</div></section>
+<section class="print-lesson"><div class="wrap"><div class="lesson-head"><div class="lp">第二部分 · 用户视角</div><h1><span class="ln">05 ·</span> ChatClient 与创建 Agent</h1></div>
+<p class="lead"><strong>ChatClient</strong> 是"连到某个模型"的厂商无关接口；<strong>Agent</strong> 在它之上加了
+名字、系统指令、工具和循环。本课讲怎么从 ChatClient 造出 Agent，并用 <span class="inline">run</span> 跑起来。</p>
+
+<div class="card analogy">
+  <div class="tag">🎧 生活类比</div>
+  <strong>ChatClient</strong> 像<strong>对讲机</strong>：能和某个频道（模型）通话，但不带"人设"。
+  <strong>Agent</strong> 像拿着对讲机、并被交代了岗位职责（instructions）和工具的<strong>值班员</strong>——你对值班员说话，他负责完成任务。
+</div>
+
+<h2>两种创建方式</h2>
+<div class="cols">
+  <div class="col"><h4>方式 A：<span class="mono">Agent(client=…)</span></h4>
+<pre class="code"><span class="kw">from</span> agent_framework <span class="kw">import</span> Agent
+agent = Agent(
+  client=client,
+  name=<span class="st">"HelloAgent"</span>,
+  instructions=<span class="st">"You are friendly."</span>,
+)</pre></div>
+  <div class="col"><h4>方式 B：<span class="mono">client.as_agent(…)</span></h4>
+<pre class="code">agent = client.as_agent(
+  name=<span class="st">"HelloAgent"</span>,
+  instructions=<span class="st">"You are friendly."</span>,
+)
+<span class="cm"># 等价，更顺手</span></pre></div>
+</div>
+<p>两种都行；<span class="inline">as_agent</span> 读起来更顺。底下都是同一个 <span class="mono">Agent</span>。</p>
+
+<h2>跑起来：run 与流式</h2>
+<div class="codefile">
+  <div class="cf-head"><span class="dot"></span><span class="path">非流式 vs 流式</span></div>
+<pre><span class="cm"># 非流式：一次拿到完整回答</span>
+result = <span class="kw">await</span> agent.run(<span class="st">"What is the capital of France?"</span>)
+<span class="fn">print</span>(result)
+
+<span class="cm"># 流式：逐块拿到 token</span>
+<span class="kw">async for</span> chunk <span class="kw">in</span> agent.run(<span class="st">"Tell me a fun fact."</span>, stream=<span class="kw">True</span>):
+    <span class="kw">if</span> chunk.text:
+        <span class="fn">print</span>(chunk.text, end=<span class="st">""</span>, flush=<span class="kw">True</span>)</pre>
+</div>
+<p>同一个 <span class="inline">run()</span>：不传 <span class="mono">stream</span> 返回完整 <span class="mono">AgentResponse</span>；
+传 <span class="mono">stream=True</span> 返回一个异步迭代器，逐块给 <span class="mono">AgentResponseUpdate</span>。</p>
+
+<div class="card detail">
+  <div class="tag">🔬 换厂商</div>
+  把 <span class="inline">FoundryChatClient</span> 换成 <span class="inline">OpenAIChatClient</span>、
+  <span class="inline">AnthropicChatClient</span>、<span class="inline">OllamaChatClient</span>……Agent 那层<strong>一行都不用改</strong>。
+  各 client 来自对应 provider 包（见第 16 课）。
+</div>
+
+<div class="card key">
+  <div class="tag">✅ 关键要点</div>
+  <ul>
+    <li><strong>ChatClient = 连模型</strong>（厂商无关）；<strong>Agent = ChatClient + 人设 + 工具 + 循环</strong>。</li>
+    <li>创建：<span class="mono">Agent(client=…)</span> 或 <span class="mono">client.as_agent(…)</span>，二选一。</li>
+    <li><span class="mono">run()</span> 默认完整返回；<span class="mono">run(stream=True)</span> 逐块流式返回。</li>
+  </ul>
+</div>
+
+<div class="card spark">
+  <div class="tag">💡 设计亮点</div>
+  <strong>流式与非流式共用一个 <span class="mono">run()</span></strong>，靠一个 <span class="mono">stream</span> 开关切换返回形态。
+  调用心智统一，省掉两套 API。
+</div>
+</div></section>
+<section class="print-lesson"><div class="wrap"><div class="lesson-head"><div class="lp">第二部分 · 用户视角</div><h1><span class="ln">06 ·</span> 工具 Tools</h1></div>
+<p class="lead"><strong>工具（Tool）</strong>让 Agent 不只是"会说"，还能"会做"：查天气、读数据库、调 API。
+你写一个普通 Python 函数，用 <span class="inline">@tool</span> 一标，模型就能调用它。</p>
+
+<div class="card analogy">
+  <div class="tag">🧰 生活类比</div>
+  模型像个<strong>聪明但手短的大脑</strong>：它知道"该查天气了"，但自己摸不到温度计。
+  工具就是你递给它的<strong>一件件趁手家伙</strong>，并附上说明书（函数签名 + docstring），它照着说明书使用。
+</div>
+
+<h2>定义一个工具</h2>
+<div class="codefile">
+  <div class="cf-head"><span class="dot"></span><span class="path">samples/01-get-started/02_add_tools.py</span></div>
+<pre><span class="kw">from</span> typing <span class="kw">import</span> Annotated
+<span class="kw">from</span> agent_framework <span class="kw">import</span> Agent, tool
+<span class="kw">from</span> pydantic <span class="kw">import</span> Field
+
+<span class="nb">@tool</span>(approval_mode=<span class="st">"never_require"</span>)
+<span class="kw">def</span> <span class="fn">get_weather</span>(
+    location: Annotated[str, Field(description=<span class="st">"The location to get weather for."</span>)],
+) -> str:
+    <span class="st">&quot;&quot;&quot;Get the weather for a given location.&quot;&quot;&quot;</span>
+    <span class="kw">return</span> <span class="st">f"It's sunny in {location}."</span>
+
+agent = Agent(client=client, name=<span class="st">"WeatherAgent"</span>,
+    instructions=<span class="st">"Use get_weather to answer."</span>,
+    tools=[get_weather])
+
+result = <span class="kw">await</span> agent.run(<span class="st">"What's the weather in Seattle?"</span>)</pre>
+</div>
+
+<h2>三件事自动发生</h2>
+<div class="vflow">
+  <div class="step"><div class="num">1</div><div class="sc"><h4>生成 schema</h4>
+    <p>从函数签名 + <span class="mono">Annotated[..., Field(description=…)]</span> + docstring 自动生成 JSON Schema，交给模型。</p></div></div>
+  <div class="step"><div class="num">2</div><div class="sc"><h4>模型决定调用</h4>
+    <p>模型在回答里产出一个 <span class="mono">function_call</span>（函数名 + 参数）。</p></div></div>
+  <div class="step"><div class="num">3</div><div class="sc"><h4>框架执行并回灌</h4>
+    <p>Agent 调用你的函数，把 <span class="mono">function_result</span> 追加进对话，再让模型继续。</p></div></div>
+</div>
+
+<div class="card warn">
+  <div class="tag">⚠️ 审批模式</div>
+  <span class="inline">approval_mode="never_require"</span> 仅为示例图省事——<strong>生产中应使用
+  <span class="inline">"always_require"</span></strong>，在工具执行前要求人工确认（尤其是写操作 / 花钱的操作）。
+</div>
+
+<div class="card key">
+  <div class="tag">✅ 关键要点</div>
+  <ul>
+    <li><span class="mono">@tool</span> 把普通函数变成模型可调用的工具，schema 自动生成。</li>
+    <li>用 <span class="mono">Annotated[..., Field(description=…)]</span> 给参数写说明，docstring 写函数用途。</li>
+    <li>把工具放进 <span class="mono">Agent(tools=[…])</span>；执行 + 回灌由框架完成。</li>
+  </ul>
+</div>
+
+<div class="card spark">
+  <div class="tag">💡 设计亮点</div>
+  <strong>"函数即工具"</strong>：你不用手写 JSON Schema，类型注解和 docstring 就是契约。
+  代码与给模型的描述<strong>永远同步</strong>，因为它们本来就是同一份。
+</div>
+</div></section>
+<section class="print-lesson"><div class="wrap"><div class="lesson-head"><div class="lp">第二部分 · 用户视角</div><h1><span class="ln">07 ·</span> 会话与记忆</h1></div>
+<p class="lead">默认情况下，每次 <span class="inline">run()</span> 都是"失忆"的。要让 Agent <strong>记住上文</strong>，
+就把同一个 <strong>会话（<span class="mono">AgentSession</span>）</strong>传给连续的调用。更长期的记忆，则交给 <strong>ContextProvider</strong>。</p>
+
+<div class="card analogy">
+  <div class="tag">📒 生活类比</div>
+  <span class="mono">AgentSession</span> 像一本<strong>共享记事本</strong>：每轮对话都写进同一本，下一轮模型翻看它就"记得"。
+  <strong>ContextProvider</strong> 则像一位<strong>助理</strong>，在每次回答前把"相关的旧记忆 / 外部知识"悄悄塞进上下文。
+</div>
+
+<h2>多轮对话：带上会话</h2>
+<div class="codefile">
+  <div class="cf-head"><span class="dot"></span><span class="path">samples/01-get-started/03_multi_turn.py</span></div>
+<pre>session = agent.create_session()
+
+result = <span class="kw">await</span> agent.run(
+    <span class="st">"My name is Alice and I love hiking."</span>, session=session)
+
+result = <span class="kw">await</span> agent.run(
+    <span class="st">"What do you remember about me?"</span>, session=session)
+<span class="cm"># → 记得 Alice、喜欢徒步</span></pre>
+</div>
+<p>关键就一点：<strong>把同一个 <span class="mono">session</span> 透传给每次 <span class="mono">run()</span></strong>，历史便自动累积。
+不传 session，则每次都是全新对话。</p>
+
+<h2>更长期的记忆 / 外部知识</h2>
+<div class="card detail">
+  <div class="tag">🔬 ContextProvider</div>
+  会话只在"本轮对话"内累积。要跨会话记住用户偏好，或在回答前注入检索到的知识（RAG），用
+  <span class="inline">ContextProvider</span>：例如 <span class="inline">MemoryContextProvider</span> 把记忆存进可检索的库，
+  每次 run 前自动把相关条目拼进上下文。（记忆库 / 各存储后端见第 16 课与各 provider 包。）
+</div>
+
+<div class="card key">
+  <div class="tag">✅ 关键要点</div>
+  <ul>
+    <li>无状态是默认；<strong>用 <span class="mono">AgentSession</span> 携带多轮历史</strong>。</li>
+    <li><span class="mono">agent.create_session()</span> 建会话，<span class="mono">run(…, session=session)</span> 复用它。</li>
+    <li>跨会话 / 外部知识用 <span class="mono">ContextProvider</span>（如 <span class="mono">MemoryContextProvider</span>）。</li>
+  </ul>
+</div>
+
+<div class="card spark">
+  <div class="tag">💡 设计亮点</div>
+  把"短期对话历史"（Session）和"长期可检索记忆"（ContextProvider）<strong>分成两层</strong>：
+  前者简单透传，后者可插拔。需求小就只用 Session，需求大再加 Provider，复杂度按需付费。
+</div>
+</div></section>
+<section class="print-lesson"><div class="wrap"><div class="lesson-head"><div class="lp">第三部分 · 内部源码</div><h1><span class="ln">08 ·</span> Agent 内部</h1></div>
+<p class="lead">你用的 <span class="inline">Agent</span> 背后有两层：最底层是抽象基类
+<span class="inline">BaseAgent</span>，上面是具体类 <span class="inline">Agent</span>。
+了解这两层，才看得懂框架如何"驱动"一个 Agent 跑完整个循环。</p>
+
+<div class="card analogy">
+  <div class="tag">🏗️ 生活类比</div>
+  <span class="mono">BaseAgent</span> 像一份<strong>岗位说明书</strong>（"你要能接单、能跑、能交付"），
+  <span class="mono">Agent</span> 则是<strong>真人上岗</strong>——读说明书、准备工具箱、接单后反复跑腿，直到任务完成。
+</div>
+
+<h2>两层结构</h2>
+<div class="layers">
+  <div class="layer l-core"><div class="lh"><span class="badge">抽象</span><span class="name">BaseAgent</span></div>
+    <div class="ld">定义 <span class="mono">run()</span> 协议与扩展点（<span class="mono">_agents.py:314</span>）。
+    所有 Agent 必须实现这份"合同"。</div></div>
+  <div class="layer l-main"><div class="lh"><span class="badge">具体</span><span class="name">Agent</span></div>
+    <div class="ld">组装 instructions + 消息 + 工具 → 调 ChatClient → 工具循环 → 返回
+    <span class="mono">AgentResponse</span>（<span class="mono">_agents.py:1584</span>）。</div></div>
+</div>
+
+<h2>run() 内部做了什么</h2>
+<div class="vflow">
+  <div class="step"><div class="num">1</div><div class="sc"><h4>构建消息列表</h4>
+    <p>把 <span class="mono">instructions</span>（system）+ 会话历史 + 新输入拼起来。</p></div></div>
+  <div class="step"><div class="num">2</div><div class="sc"><h4>注入 ContextProvider</h4>
+    <p>把长期记忆 / 外部知识塞进上下文。</p></div></div>
+  <div class="step"><div class="num">3</div><div class="sc"><h4>调用 ChatClient</h4>
+    <p>把消息 + 工具 schema 发给 LLM，拿回 <span class="mono">ChatResponse</span>。</p></div></div>
+  <div class="step"><div class="num">4</div><div class="sc"><h4>工具循环</h4>
+    <p>若回复含 <span class="mono">function_call</span>，执行工具、追加结果、再回第 3 步。</p></div></div>
+  <div class="step"><div class="num">5</div><div class="sc"><h4>返回</h4>
+    <p>循环结束，包装成 <span class="mono">AgentResponse</span>（或逐块 <span class="mono">AgentResponseUpdate</span>）。</p></div></div>
+</div>
+
+<details class="accordion" open>
+  <summary><span class="badge-num">1</span> BaseAgent 定义了哪些接口？ <span class="hint">点击展开</span></summary>
+  <div class="acc-body">
+    <div class="qa">
+      <div class="q">🔬 核心协议</div>
+      <div class="a"><span class="mono">BaseAgent</span> 规定了 <span class="mono">run()</span>（非流式 + 流式共用）、
+        <span class="mono">create_session()</span>、<span class="mono">get_session()</span> 等。
+        子类只需关注"怎么组装消息、怎么调模型"——循环骨架已由基类搭好。</div>
+    </div>
+  </div>
+</details>
+
+<div class="card key">
+  <div class="tag">✅ 关键要点</div>
+  <ul>
+    <li><span class="mono">BaseAgent</span>（抽象）定义协议；<span class="mono">Agent</span>（具体）实现组装 + 循环。</li>
+    <li><span class="mono">run()</span> = 构建消息 → 注入上下文 → 调 ChatClient → 工具循环 → 返回。</li>
+    <li>返回类型：非流式 <span class="mono">AgentResponse</span>；流式 <span class="mono">AgentResponseUpdate</span>。</li>
+  </ul>
+</div>
+
+<div class="card spark">
+  <div class="tag">💡 设计亮点</div>
+  <strong>循环骨架由基类掌控</strong>，子类只插入"怎么调模型"这一块——经典的<strong>模板方法模式</strong>。
+  这意味着你可以自定义 Agent 行为而不破坏循环逻辑。
+</div>
+</div></section>
+<section class="print-lesson"><div class="wrap"><div class="lesson-head"><div class="lp">第三部分 · 内部源码</div><h1><span class="ln">09 ·</span> ChatClient 内部</h1></div>
+<p class="lead"><span class="inline">BaseChatClient</span> 是"和某个 LLM 通话"的<strong>厂商无关协议</strong>。
+你平时只碰 <span class="inline">get_response()</span>，厂商做的事全藏在 <span class="inline">_inner_get_response()</span> 里。</p>
+
+<div class="card analogy">
+  <div class="tag">📞 生活类比</div>
+  <span class="mono">BaseChatClient</span> 像一个<strong>电话交换台</strong>的标准面板——任何电话（模型）都能接上去。
+  <span class="mono">get_response()</span> 是你按的"拨号键"，<span class="mono">_inner_get_response()</span>
+  是交换台背后的<strong>接线逻辑</strong>，各厂商各不同。
+</div>
+
+<h2>调用链</h2>
+<div class="flow">
+  <div class="node"><div class="nt">Agent</div><div class="nd">组装消息</div></div>
+  <div class="arrow">→</div>
+  <div class="node hl"><div class="nt">get_response()</div><div class="nd">公共入口</div></div>
+  <div class="arrow">→</div>
+  <div class="node"><div class="nt">_inner_get_response()</div><div class="nd">厂商实现</div></div>
+  <div class="arrow">→</div>
+  <div class="node"><div class="nt">LLM API</div><div class="nd">真实网络调用</div></div>
+</div>
+
+<table class="t">
+  <tr><th>方法</th><th>谁调用</th><th>返回</th></tr>
+  <tr><td class="mono">get_response(messages, stream=False)</td><td>Agent / 你</td><td><span class="mono">ChatResponse</span> 或 <span class="mono">AsyncIterator[ChatResponseUpdate]</span></td></tr>
+  <tr><td class="mono">_inner_get_response(messages, stream, options)</td><td>基类内部</td><td>同上（由 provider 实现）</td></tr>
+</table>
+
+<details class="accordion" open>
+  <summary><span class="badge-num">1</span> 厂商怎么实现 _inner_get_response? <span class="hint">点击展开</span></summary>
+  <div class="acc-body">
+    <div class="qa">
+      <div class="q">🧪 以 FoundryChatClient 为例</div>
+      <div class="a">它继承 <span class="mono">BaseChatClient</span>，只覆写 <span class="mono">_inner_get_response</span>：
+        把 MAF 的 <span class="mono">Message</span> 列表转成 Foundry SDK 的格式、调 API、再把结果转回 <span class="mono">ChatResponse</span>。
+        如果 <span class="mono">stream=True</span>，则返回一个异步生成器。</div>
+    </div>
+  </div>
+</details>
+
+<div class="card key">
+  <div class="tag">✅ 关键要点</div>
+  <ul>
+    <li>你只用 <span class="mono">get_response()</span>；厂商只需实现 <span class="mono">_inner_get_response()</span>。</li>
+    <li><span class="mono">stream</span> 参数决定返回完整 <span class="mono">ChatResponse</span> 还是逐块 <span class="mono">ChatResponseUpdate</span>。</li>
+    <li><span class="mono">ChatOptions</span> 传递温度、max_tokens 等模型参数。</li>
+  </ul>
+</div>
+
+<div class="card spark">
+  <div class="tag">💡 设计亮点</div>
+  <strong>公共接口 vs 厂商扩展点</strong>一刀切开：<span class="mono">get_response</span> 做通用逻辑（重试、中间件触发），
+  <span class="mono">_inner_get_response</span> 只管"怎么和那家 API 通信"。新增厂商只需写一个子类。
+</div>
+</div></section>
+<section class="print-lesson"><div class="wrap"><div class="lesson-head"><div class="lp">第三部分 · 内部源码</div><h1><span class="ln">10 ·</span> 工具调用内部</h1></div>
+<p class="lead"><span class="inline">@tool</span> 在用户那一课看起来很"魔法"——这里拆开看它内部做了什么：
+从 Python 函数到 JSON Schema，再到模型来回调用的<strong>完整闭环</strong>。</p>
+
+<div class="card analogy">
+  <div class="tag">🔧 生活类比</div>
+  写一个工具 = 在工具架上<strong>挂了一把锤子</strong>：你写好锤子的使用说明（类型注解 + docstring），
+  框架自动打印成规范卡片（JSON Schema）贴在锤子旁边，模型读卡片决定"我要用这把"，框架帮它拿起来锤。
+</div>
+
+<h2>完整闭环</h2>
+<div class="vflow">
+  <div class="step"><div class="num">1</div><div class="sc"><h4>你写函数 + @tool</h4>
+    <p>框架用 <span class="mono">FunctionTool</span>（<span class="mono">_tools.py:240</span>）包装它。</p></div></div>
+  <div class="step"><div class="num">2</div><div class="sc"><h4>生成 JSON Schema</h4>
+    <p>从 <span class="mono">Annotated[..., Field(description=...)]</span> + 返回类型自动构建 schema。</p></div></div>
+  <div class="step"><div class="num">3</div><div class="sc"><h4>Schema 发给模型</h4>
+    <p>ChatClient 在请求里带上所有工具的 schema（<span class="mono">tools</span> 字段）。</p></div></div>
+  <div class="step"><div class="num">4</div><div class="sc"><h4>模型返回 function_call</h4>
+    <p>回复的 <span class="mono">Content</span> 里有一个 <span class="mono">function_call</span>（函数名 + JSON 参数）。</p></div></div>
+  <div class="step"><div class="num">5</div><div class="sc"><h4>框架反序列化 + 执行</h4>
+    <p>JSON 参数 → Python 对象 → 调用你的函数 → 拿到返回值。</p></div></div>
+  <div class="step"><div class="num">6</div><div class="sc"><h4>function_result 回灌</h4>
+    <p>返回值打包成 <span class="mono">function_result</span> Content，追加进消息，回到第 3 步让模型继续。</p></div></div>
+</div>
+
+<details class="accordion" open>
+  <summary><span class="badge-num">1</span> FunctionTool 里装了什么？ <span class="hint">点击展开</span></summary>
+  <div class="acc-body">
+    <div class="qa">
+      <div class="q">🔬 核心属性</div>
+      <div class="a"><span class="mono">FunctionTool</span> 持有：原始函数引用、生成的 JSON Schema、
+        <span class="mono">approval_mode</span>（调用前是否需要人工审批）、函数名、描述。
+        <span class="mono">@tool</span> 装饰器（<span class="mono">_tools.py:1145</span>）是构造 <span class="mono">FunctionTool</span> 的语法糖。</div>
+    </div>
+  </div>
+</details>
+
+<div class="card key">
+  <div class="tag">✅ 关键要点</div>
+  <ul>
+    <li><span class="mono">@tool</span> → <span class="mono">FunctionTool</span> → JSON Schema → 随请求发给模型。</li>
+    <li>模型回 <span class="mono">function_call</span> → 框架执行 → <span class="mono">function_result</span> 回灌 → 再让模型继续。</li>
+    <li>整个循环在 Agent 内部自动跑，调用方无感。</li>
+  </ul>
+</div>
+
+<div class="card spark">
+  <div class="tag">💡 设计亮点</div>
+  <strong>类型注解就是 schema</strong>——不存在"代码改了但忘记更新 schema"的问题，
+  因为它们在同一份源码里。这是"函数即工具"哲学的核心。
+</div>
+</div></section>
+<section class="print-lesson"><div class="wrap"><div class="lesson-head"><div class="lp">第三部分 · 内部源码</div><h1><span class="ln">11 ·</span> 中间件 Middleware</h1></div>
+<p class="lead">中间件让你<strong>不改 Agent / ChatClient 源码</strong>就能横切地加入日志、重试、审批等逻辑。
+MAF 有<strong>三层</strong>中间件，每层包裹不同粒度的操作。</p>
+
+<div class="card analogy">
+  <div class="tag">🧅 生活类比</div>
+  中间件像<strong>洋葱圈</strong>：请求从外到内穿过每一层，到达核心执行后，结果再从内到外穿出来。
+  每一层都可以在"进去前"和"出来后"做事（记日志、改参数、重试……）。
+</div>
+
+<h2>三层中间件</h2>
+<div class="layers">
+  <div class="layer l-app"><div class="lh"><span class="badge">AGENT</span><span class="name">AgentMiddleware</span></div>
+    <div class="ld">包裹<strong>整个 agent.run()</strong>——最外层。用 <span class="mono">AgentContext</span>。</div></div>
+  <div class="layer l-main"><div class="lh"><span class="badge">CHAT</span><span class="name">ChatMiddleware</span></div>
+    <div class="ld">包裹<strong>每次 LLM 调用</strong>。用 <span class="mono">ChatContext</span>。</div></div>
+  <div class="layer l-core"><div class="lh"><span class="badge">FUNC</span><span class="name">FunctionMiddleware</span></div>
+    <div class="ld">包裹<strong>每次工具执行</strong>。用 <span class="mono">FunctionInvocationContext</span>。</div></div>
+</div>
+
+<h2>统一签名</h2>
+<div class="codefile">
+  <div class="cf-head"><span class="dot"></span><span class="path">中间件模板</span></div>
+<pre><span class="kw">from</span> agent_framework <span class="kw">import</span> AgentMiddleware, AgentContext
+
+<span class="kw">class</span> <span class="fn">MyLoggingMiddleware</span>(AgentMiddleware):
+    <span class="kw">async def</span> <span class="fn">process</span>(self, context: AgentContext, call_next):
+        <span class="fn">print</span>(<span class="st">"before"</span>)
+        <span class="kw">await</span> call_next()   <span class="cm"># ← 无参！</span>
+        <span class="fn">print</span>(<span class="st">"after"</span>, context.result)</pre>
+</div>
+<p><strong>重点</strong>：<span class="inline">await call_next()</span> <strong>不传任何参数</strong>——它调用下一层或最终执行。
+执行结果挂在 <span class="mono">context.result</span> 上。</p>
+
+<details class="accordion" open>
+  <summary><span class="badge-num">1</span> 也可以用装饰器写法 <span class="hint">点击展开</span></summary>
+  <div class="acc-body">
+    <div class="qa">
+      <div class="q">🧪 函数式中间件</div>
+      <div class="a">不想写类？用装饰器：
+<pre class="code"><span class="kw">from</span> agent_framework <span class="kw">import</span> agent_middleware
+
+<span class="nb">@agent_middleware</span>
+<span class="kw">async def</span> <span class="fn">my_log</span>(context, call_next):
+    <span class="fn">print</span>(<span class="st">"before"</span>)
+    <span class="kw">await</span> call_next()
+    <span class="fn">print</span>(<span class="st">"after"</span>)</pre>
+        同样有 <span class="mono">@function_middleware</span> 和 <span class="mono">@chat_middleware</span>。</div>
+    </div>
+  </div>
+</details>
+
+<div class="card key">
+  <div class="tag">✅ 关键要点</div>
+  <ul>
+    <li>三层：<span class="mono">AgentMiddleware</span>（整个 run）→ <span class="mono">ChatMiddleware</span>（每次 LLM 调用）→ <span class="mono">FunctionMiddleware</span>（每次工具执行）。</li>
+    <li>统一签名 <span class="mono">process(self, context, call_next)</span>；<span class="mono">await call_next()</span> <strong>无参</strong>。</li>
+    <li>可用类写法，也可用 <span class="mono">@agent_middleware</span> 等装饰器。</li>
+  </ul>
+</div>
+
+<div class="card spark">
+  <div class="tag">💡 设计亮点</div>
+  <strong>三层粒度 × 洋葱模型</strong>：你可以只拦截"每次 LLM 调用"（ChatMiddleware）而不碰工具执行，
+  或只拦截工具执行而不碰 LLM——关注点彻底分离。
+</div>
+</div></section>
+<section class="print-lesson"><div class="wrap"><div class="lesson-head"><div class="lp">第三部分 · 内部源码</div><h1><span class="ln">12 ·</span> Workflows 工作流引擎</h1></div>
+<p class="lead"><strong>Workflows</strong> 是 MAF 的图执行引擎：把多个步骤（<span class="mono">Executor</span>）
+用<strong>边（Edge）</strong>连成有向图，由 <span class="mono">WorkflowBuilder</span> 构建、<span class="mono">Workflow.run()</span> 驱动。</p>
+
+<div class="card analogy">
+  <div class="tag">🗺️ 生活类比</div>
+  把 Workflow 想成<strong>地铁线路图</strong>：每个站（Executor）做一件事，
+  铁轨（Edge）决定下一站去哪。<span class="mono">WorkflowBuilder</span> 画图，<span class="mono">run()</span> 发车。
+</div>
+
+<h2>核心概念</h2>
+<table class="t">
+  <tr><th>概念</th><th>作用</th><th>源码</th></tr>
+  <tr><td class="mono">Executor</td><td>图中的一个节点，处理消息</td><td class="mono">_workflows/_executor.py</td></tr>
+  <tr><td class="mono">Edge</td><td>连接两个节点的有向边</td><td class="mono">_workflows/_edge.py</td></tr>
+  <tr><td class="mono">WorkflowBuilder</td><td>用 <span class="mono">add_edge/add_chain</span> 构建图</td><td class="mono">_workflows/_workflow_builder.py</td></tr>
+  <tr><td class="mono">WorkflowContext</td><td>节点内发消息/输出的句柄</td><td class="mono">_workflows/_workflow_context.py</td></tr>
+</table>
+
+<h2>最小示例</h2>
+<div class="codefile">
+  <div class="cf-head"><span class="dot"></span><span class="path">samples/01-get-started/07_first_graph_workflow.py</span></div>
+<pre><span class="kw">from</span> agent_framework <span class="kw">import</span> Executor, WorkflowBuilder, WorkflowContext, executor, handler
+
+<span class="kw">class</span> <span class="fn">UpperCase</span>(Executor):
+    <span class="nb">@handler</span>
+    <span class="kw">async def</span> <span class="fn">to_upper</span>(self, text: str, ctx: WorkflowContext[str]):
+        <span class="kw">await</span> ctx.send_message(text.upper())
+
+<span class="nb">@executor</span>(id=<span class="st">"reverse"</span>)
+<span class="kw">async def</span> <span class="fn">reverse</span>(text: str, ctx: WorkflowContext):
+    <span class="kw">await</span> ctx.yield_output(text[::-1])
+
+wf = WorkflowBuilder(start_executor=UpperCase(id=<span class="st">"upper"</span>)) \
+    .add_edge(UpperCase(id=<span class="st">"upper"</span>), reverse).build()
+events = <span class="kw">await</span> wf.run(<span class="st">"hello"</span>)  <span class="cm"># → "OLLEH"</span></pre>
+</div>
+
+<details class="accordion" open>
+  <summary><span class="badge-num">1</span> @handler vs @executor 有什么区别？ <span class="hint">点击展开</span></summary>
+  <div class="acc-body">
+    <div class="qa">
+      <div class="q">🔬 两种写法</div>
+      <div class="a"><span class="mono">@handler</span> 标记<strong>类方法</strong>（在 Executor 子类里），
+        <span class="mono">@executor</span> 标记<strong>独立函数</strong>（自动包成 FunctionExecutor）。
+        功能一样，选哪个看你喜不喜欢写类。</div>
+    </div>
+  </div>
+</details>
+
+<div class="card key">
+  <div class="tag">✅ 关键要点</div>
+  <ul>
+    <li>Workflow = <span class="mono">Executor</span>（节点）+ <span class="mono">Edge</span>（边）组成的有向图。</li>
+    <li><span class="mono">WorkflowBuilder</span> 用链式 API 构图；<span class="mono">.build()</span> 得到 <span class="mono">Workflow</span>。</li>
+    <li>节点通过 <span class="mono">ctx.send_message()</span> 传数据、<span class="mono">ctx.yield_output()</span> 输出最终结果。</li>
+  </ul>
+</div>
+
+<div class="card spark">
+  <div class="tag">💡 设计亮点</div>
+  <strong>消息驱动</strong>：节点之间传递的是"消息"而非函数调用返回值——
+  这意味着节点天然支持异步、fan-out/fan-in，且可在边上加条件/开关。
+</div>
+</div></section>
+<section class="print-lesson"><div class="wrap"><div class="lesson-head"><div class="lp">第三部分 · 内部源码</div><h1><span class="ln">13 ·</span> 编排模式</h1></div>
+<p class="lead">当你需要<strong>多个 Agent 协作</strong>，MAF 提供五种现成的编排模式——
+不用手写调度逻辑，选一个 Builder、传入参与者，<span class="inline">.build()</span> 就行。</p>
+
+<div class="card analogy">
+  <div class="tag">🎼 生活类比</div>
+  编排模式像<strong>乐团编制</strong>：Sequential 是依次独奏，Concurrent 是齐奏，
+  Handoff 是接力棒传递，Group Chat 是圆桌讨论，Magentic 是指挥家调度全局。
+</div>
+
+<h2>五种模式</h2>
+<table class="t">
+  <tr><th>模式</th><th>Builder</th><th>一句话</th></tr>
+  <tr><td><strong>Sequential</strong></td><td class="mono">SequentialBuilder</td><td>Agent A 做完 → Agent B 接着做</td></tr>
+  <tr><td><strong>Concurrent</strong></td><td class="mono">ConcurrentBuilder</td><td>Agent A 和 B 同时做，汇总结果</td></tr>
+  <tr><td><strong>Handoff</strong></td><td class="mono">HandoffBuilder</td><td>Agent A 主动把任务"交接"给 B</td></tr>
+  <tr><td><strong>Group Chat</strong></td><td class="mono">GroupChatBuilder</td><td>多个 Agent 在群聊中轮流发言</td></tr>
+  <tr><td><strong>Magentic</strong></td><td class="mono">MagenticBuilder</td><td>有一个"指挥官"分派子任务给各 Agent</td></tr>
+</table>
+
+<h2>最简用法</h2>
+<div class="codefile">
+  <div class="cf-head"><span class="dot"></span><span class="path">Sequential 示例</span></div>
+<pre><span class="kw">from</span> agent_framework.orchestrations <span class="kw">import</span> SequentialBuilder
+
+workflow = SequentialBuilder(participants=[writer, reviewer]).build()
+result = <span class="kw">await</span> workflow.run(<span class="st">"Write a poem about the sea"</span>)</pre>
+</div>
+
+<details class="accordion" open>
+  <summary><span class="badge-num">1</span> Handoff 和 Group Chat 有什么区别？ <span class="hint">点击展开</span></summary>
+  <div class="acc-body">
+    <div class="qa">
+      <div class="q">🔬 关键差异</div>
+      <div class="a"><strong>Handoff</strong>：当前 Agent 显式决定"我做不了，交给 X"，控制权<strong>单向传递</strong>。
+        <strong>Group Chat</strong>：一个 selector 函数（或模型）每轮选谁发言，所有 Agent <strong>看到完整群聊记录</strong>。
+        Handoff 更适合专家流转，Group Chat 更适合辩论 / 头脑风暴。</div>
+    </div>
+  </div>
+</details>
+
+<div class="card key">
+  <div class="tag">✅ 关键要点</div>
+  <ul>
+    <li>五种编排：Sequential / Concurrent / Handoff / Group Chat / Magentic。</li>
+    <li>全部来自 <span class="mono">agent_framework.orchestrations</span>，选 Builder → 传参与者 → <span class="mono">.build()</span>。</li>
+    <li>底层都是 Workflow 图——编排是高级糖。</li>
+  </ul>
+</div>
+
+<div class="card spark">
+  <div class="tag">💡 设计亮点</div>
+  <strong>编排模式 = 预置拓扑的 Workflow</strong>：你用 Builder 声明意图，框架帮你画出正确的图。
+  需要更复杂的拓扑？直接用 <span class="mono">WorkflowBuilder</span> 手画。
+</div>
+</div></section>
+<section class="print-lesson"><div class="wrap"><div class="lesson-head"><div class="lp">第三部分 · 内部源码</div><h1><span class="ln">14 ·</span> 流式与可观测性</h1></div>
+<p class="lead">当 Agent 或 Workflow 在跑时，你可以<strong>逐块看到输出</strong>（流式），
+也可以用 <strong>OpenTelemetry</strong> 追踪每一步的耗时、token 用量和错误。</p>
+
+<div class="card analogy">
+  <div class="tag">📡 生活类比</div>
+  流式像<strong>直播</strong>：观众实时看到画面（token）。
+  可观测性像<strong>监控大屏</strong>：运维看延迟、吞吐、异常告警。两者互补。
+</div>
+
+<h2>流式输出</h2>
+<div class="codefile">
+  <div class="cf-head"><span class="dot"></span><span class="path">streaming</span></div>
+<pre><span class="kw">async for</span> chunk <span class="kw">in</span> agent.run(<span class="st">"Tell me a joke"</span>, stream=<span class="kw">True</span>):
+    <span class="kw">if</span> chunk.text:
+        <span class="fn">print</span>(chunk.text, end=<span class="st">""</span>)</pre>
+</div>
+<p>每个 <span class="mono">chunk</span> 是一个 <span class="mono">AgentResponseUpdate</span>，
+包含 <span class="mono">.text</span>（增量文本）等字段。累积起来就是完整的 <span class="mono">AgentResponse</span>。</p>
+
+<h2>OpenTelemetry 集成</h2>
+<div class="flow">
+  <div class="node"><div class="nt">Agent run</div><div class="nd">span</div></div>
+  <div class="arrow">→</div>
+  <div class="node"><div class="nt">ChatClient call</div><div class="nd">子 span</div></div>
+  <div class="arrow">→</div>
+  <div class="node"><div class="nt">Tool exec</div><div class="nd">子 span</div></div>
+  <div class="arrow">→</div>
+  <div class="node hl"><div class="nt">导出</div><div class="nd">Jaeger / OTLP</div></div>
+</div>
+<p>MAF 内置 OTel 集成（<span class="mono">observability.py</span>）：Agent run、每次 LLM 调用、每次工具执行都自动产出 span，
+携带 token 计数、延迟、异常信息。只需配置 exporter 即可在 Jaeger / Grafana 中查看。</p>
+
+<details class="accordion" open>
+  <summary><span class="badge-num">1</span> 怎么启用 OTel？ <span class="hint">点击展开</span></summary>
+  <div class="acc-body">
+    <div class="qa">
+      <div class="q">🧪 最小配置</div>
+      <div class="a">参考 <span class="mono">samples/02-agents/observability/</span>：安装
+        <span class="mono">opentelemetry-sdk</span> + exporter，在代码最前面调用
+        <span class="mono">TracerProvider</span> 初始化。框架会自动把 span 附加到 agent/chat/tool 操作上。</div>
+    </div>
+  </div>
+</details>
+
+<div class="card key">
+  <div class="tag">✅ 关键要点</div>
+  <ul>
+    <li><span class="mono">run(stream=True)</span> 逐块返回 <span class="mono">AgentResponseUpdate</span>。</li>
+    <li>内置 OpenTelemetry：agent run / LLM 调用 / 工具执行自动产出 span。</li>
+    <li>配好 exporter 即可在 Jaeger / Grafana 等工具中查看追踪与指标。</li>
+  </ul>
+</div>
+
+<div class="card spark">
+  <div class="tag">💡 设计亮点</div>
+  <strong>可观测性是内置的</strong>，不是你自己加的——框架自动在关键操作上挂 span，
+  零额外代码就能看到"这次 run 调了几次模型、每次多少 token、工具花了多久"。
+</div>
+</div></section>
+<section class="print-lesson"><div class="wrap"><div class="lesson-head"><div class="lp">第四部分 · 进阶实战</div><h1><span class="ln">15 ·</span> 读源码 / 调试 / 测试 / 贡献</h1></div>
+<p class="lead">想读 MAF 的源码、跑测试、开调试、提 PR？本课带你搭好环境，打通整个开发者工作流。</p>
+
+<div class="card analogy">
+  <div class="tag">🛠️ 生活类比</div>
+  就像加入一个<strong>开源车间</strong>：先领工服（clone + 装依赖），
+  再认识工具台（poe 命令），然后试拧一个螺丝（跑测试），最后才上手改车。
+</div>
+
+<h2>环境搭建（3 步）</h2>
+<div class="vflow">
+  <div class="step"><div class="num">1</div><div class="sc"><h4>克隆仓库</h4>
+<pre class="code">git clone https://github.com/microsoft/agent-framework.git
+cd agent-framework/python</pre></div></div>
+  <div class="step"><div class="num">2</div><div class="sc"><h4>安装依赖</h4>
+<pre class="code">uv sync --all-packages --all-extras --dev --prerelease=if-necessary-or-explicit</pre>
+    <p>使用 <span class="mono">uv</span>（Rust 写的超快 Python 包管理器）。</p></div></div>
+  <div class="step"><div class="num">3</div><div class="sc"><h4>看有哪些命令</h4>
+<pre class="code">uv run poe          <span class="cm"># 列出所有可用任务</span>
+uv run poe test     <span class="cm"># 跑所有单元测试</span>
+uv run poe lint     <span class="cm"># Ruff lint</span>
+uv run poe format   <span class="cm"># Ruff format</span>
+uv run poe typecheck <span class="cm"># pyright 类型检查</span></pre></div></div>
+</div>
+
+<h2>关键文件导航</h2>
+<table class="t">
+  <tr><th>你要做的</th><th>去哪</th></tr>
+  <tr><td>看核心源码</td><td class="mono">packages/core/agent_framework/</td></tr>
+  <tr><td>跑/加测试</td><td class="mono">packages/core/tests/ 或 tests/</td></tr>
+  <tr><td>看/跑样例</td><td class="mono">samples/01-get-started/</td></tr>
+  <tr><td>调 DevUI</td><td class="mono">packages/devui/</td></tr>
+  <tr><td>读代码规范</td><td class="mono">CODING_STANDARD.md · AGENTS.md</td></tr>
+</table>
+
+<details class="accordion" open>
+  <summary><span class="badge-num">1</span> DevUI 是什么？ <span class="hint">点击展开</span></summary>
+  <div class="acc-body">
+    <div class="qa">
+      <div class="q">🧪 开发者调试界面</div>
+      <div class="a"><span class="mono">packages/devui</span> 提供一个<strong>交互式 Web UI</strong>，
+        可以在浏览器里试 Agent、看消息流、调试工作流——省掉写脚本反复 run 的麻烦。
+        启动方式见 <span class="mono">samples/02-agents/devui/</span>。</div>
+    </div>
+  </div>
+</details>
+
+<div class="card key">
+  <div class="tag">✅ 关键要点</div>
+  <ul>
+    <li>依赖管理用 <span class="mono">uv</span>；日常任务用 <span class="mono">uv run poe &lt;task&gt;</span>。</li>
+    <li>核心在 <span class="mono">packages/core</span>，测试在 <span class="mono">packages/core/tests</span>。</li>
+    <li>DevUI 提供浏览器调试界面，方便快速迭代。</li>
+  </ul>
+</div>
+
+<div class="card spark">
+  <div class="tag">💡 设计亮点</div>
+  <strong>一条命令装好一切</strong>：<span class="mono">uv sync --all-packages</span> 装整个 monorepo 的所有包，
+  包括 provider、lab、DevUI——你拿到的是完整的开发环境，不是阉割版。
+</div>
+</div></section>
+<section class="print-lesson"><div class="wrap"><div class="lesson-head"><div class="lp">第五部分 · 自己动手做 Agent</div><h1><span class="ln">16 ·</span> 接入各家模型</h1></div>
+<p class="lead">MAF 的 ChatClient 是厂商无关的——但你总要选一个具体厂商来<strong>接入模型</strong>。
+本课过一遍主要 provider 包，教你<strong>怎么从"import 到 run"走完全程</strong>。</p>
+
+<div class="card analogy">
+  <div class="tag">🔌 生活类比</div>
+  ChatClient 像<strong>万能插座</strong>；每个 provider 包是<strong>某国插头</strong>——
+  你选 Foundry、OpenAI 还是 Anthropic 的插头，接上万能插座就能充电。
+</div>
+
+<h2>主要 Provider</h2>
+<table class="t">
+  <tr><th>Provider</th><th>包名</th><th>ChatClient 类</th></tr>
+  <tr><td>Azure AI Foundry</td><td class="mono">agent-framework-foundry</td><td class="mono">FoundryChatClient</td></tr>
+  <tr><td>OpenAI / Azure OpenAI</td><td class="mono">agent-framework（内置）</td><td class="mono">OpenAIChatClient</td></tr>
+  <tr><td>Anthropic Claude</td><td class="mono">agent-framework-anthropic</td><td class="mono">AnthropicChatClient</td></tr>
+  <tr><td>Ollama（本地）</td><td class="mono">agent-framework-ollama</td><td class="mono">OllamaChatClient</td></tr>
+  <tr><td>AWS Bedrock</td><td class="mono">agent-framework-bedrock</td><td class="mono">BedrockChatClient</td></tr>
+</table>
+<p>全部用法一样：实例化 ChatClient → <span class="mono">client.as_agent(…)</span> → <span class="mono">agent.run(…)</span>。</p>
+
+<details class="accordion" open>
+  <summary><span class="badge-num">1</span> Foundry vs OpenAI 有什么区别？ <span class="hint">点击展开</span></summary>
+  <div class="acc-body">
+    <div class="qa">
+      <div class="q">🔬 关键差异</div>
+      <div class="a"><span class="mono">FoundryChatClient</span> 走 <strong>Azure AI Foundry 项目端点</strong>（统一管理模型、记忆、文件等）。
+        <span class="mono">OpenAIChatClient</span> 直连 <strong>OpenAI API 或 Azure OpenAI 端点</strong>。
+        如果你已有 Foundry 项目，推荐 Foundry；否则 OpenAI 最直接。</div>
+    </div>
+  </div>
+</details>
+
+<div class="card key">
+  <div class="tag">✅ 关键要点</div>
+  <ul>
+    <li>每个厂商一个 provider 包，提供一个 ChatClient 子类。</li>
+    <li>统一用法：实例化 → <span class="mono">as_agent()</span> → <span class="mono">run()</span>。</li>
+    <li>切换厂商只改 import 和实例化那两行。</li>
+  </ul>
+</div>
+
+<div class="card spark">
+  <div class="tag">💡 设计亮点</div>
+  <strong>新增厂商不碰核心</strong>：provider 是独立包，通过懒加载接入。
+  社区可以自己做新 provider 而不需要 fork 仓库。
+</div>
+</div></section>
+<section class="print-lesson"><div class="wrap"><div class="lesson-head"><div class="lp">第五部分 · 自己动手做 Agent</div><h1><span class="ln">17 ·</span> 声明式 Agent（YAML）</h1></div>
+<p class="lead">不想写代码？用 <strong>YAML</strong> 定义一个 Agent——名字、指令、工具、模型全写在配置文件里。</p>
+
+<div class="card analogy">
+  <div class="tag">📝 生活类比</div>
+  声明式 Agent 像<strong>简历</strong>：你把名字、技能、工作经验写好，HR（框架）照着简历帮你入职上岗。
+</div>
+
+<h2>一个 YAML 示例</h2>
+<div class="codefile">
+  <div class="cf-head"><span class="dot"></span><span class="path">my_agent.yaml</span></div>
+<pre>name: WeatherBot
+instructions: You help with weather queries.
+model: gpt-4o
+tools:
+  - get_weather</pre>
+</div>
+<p>框架的 <span class="mono">declarative</span> 包读这个 YAML，自动构造出 <span class="mono">Agent</span> 实例。
+适合快速原型和版本控制。</p>
+
+<details class="accordion" open>
+  <summary><span class="badge-num">1</span> 声明式能做到和代码一样吗？ <span class="hint">点击展开</span></summary>
+  <div class="acc-body">
+    <div class="qa">
+      <div class="q">🔬 能力边界</div>
+      <div class="a">简单 Agent（名字 + 指令 + 工具列表）完全可以；复杂的自定义中间件或动态逻辑仍需代码。
+        声明式和代码式可以<strong>混用</strong>——YAML 定义骨架，代码补充高级逻辑。</div>
+    </div>
+  </div>
+</details>
+
+<div class="card key">
+  <div class="tag">✅ 关键要点</div>
+  <ul>
+    <li>YAML 定义 Agent：<span class="mono">name</span> / <span class="mono">instructions</span> / <span class="mono">model</span> / <span class="mono">tools</span>。</li>
+    <li>用 <span class="mono">declarative</span> 包加载，自动构造 <span class="mono">Agent</span>。</li>
+    <li>适合快速原型、版本控制、非开发者协作。</li>
+  </ul>
+</div>
+
+<div class="card spark">
+  <div class="tag">💡 设计亮点</div>
+  <strong>"配置即 Agent"</strong>：改 YAML 就能调整行为，不用改代码、不用重编译。
+  这降低了非开发者参与 Agent 设计的门槛。
+</div>
+</div></section>
+<section class="print-lesson"><div class="wrap"><div class="lesson-head"><div class="lp">第五部分 · 自己动手做 Agent</div><h1><span class="ln">18 ·</span> 写自己的中间件</h1></div>
+<p class="lead">第 11 课讲了中间件<em>是什么</em>；本课教你<strong>写一个自己的</strong>——从零到能用。</p>
+
+<h2>实战：重试中间件</h2>
+<div class="codefile">
+  <div class="cf-head"><span class="dot"></span><span class="path">自定义 ChatMiddleware</span></div>
+<pre><span class="kw">from</span> agent_framework <span class="kw">import</span> ChatMiddleware, ChatContext
+
+<span class="kw">class</span> <span class="fn">RetryChatMiddleware</span>(ChatMiddleware):
+    <span class="kw">def</span> <span class="fn">__init__</span>(self, max_retries: int = <span class="nb">3</span>):
+        self.max_retries = max_retries
+
+    <span class="kw">async def</span> <span class="fn">process</span>(self, context: ChatContext, call_next):
+        <span class="kw">for</span> attempt <span class="kw">in</span> <span class="fn">range</span>(self.max_retries):
+            <span class="kw">try</span>:
+                <span class="kw">await</span> call_next()
+                <span class="kw">return</span>
+            <span class="kw">except</span> Exception:
+                <span class="kw">if</span> attempt == self.max_retries - <span class="nb">1</span>:
+                    <span class="kw">raise</span></pre>
+</div>
+<p>挂到 Agent 上：<span class="inline">Agent(client=client, chat_middleware=[RetryChatMiddleware(3)])</span>。</p>
+
+<details class="accordion" open>
+  <summary><span class="badge-num">1</span> 三层中间件分别怎么挂？ <span class="hint">点击展开</span></summary>
+  <div class="acc-body">
+    <div class="qa">
+      <div class="q">🧪 挂载方式</div>
+      <div class="a"><span class="mono">Agent(middleware=[…])</span> 挂 AgentMiddleware；
+        <span class="mono">Agent(chat_middleware=[…])</span> 挂 ChatMiddleware；
+        <span class="mono">Agent(function_middleware=[…])</span> 挂 FunctionMiddleware。
+        多个中间件按列表顺序从外到内排列。</div>
+    </div>
+  </div>
+</details>
+
+<div class="card key">
+  <div class="tag">✅ 关键要点</div>
+  <ul>
+    <li>继承 <span class="mono">*Middleware</span>，实现 <span class="mono">process(self, context, call_next)</span>。</li>
+    <li><span class="mono">await call_next()</span> 无参；结果在 <span class="mono">context.result</span>。</li>
+    <li>用 <span class="mono">Agent(middleware=…, chat_middleware=…, function_middleware=…)</span> 挂载。</li>
+  </ul>
+</div>
+
+<div class="card spark">
+  <div class="tag">💡 设计亮点</div>
+  中间件是<strong>组合式的</strong>：重试、日志、审批各自独立实现，按需拼装，互不干扰。
+</div>
+</div></section>
+<section class="print-lesson"><div class="wrap"><div class="lesson-head"><div class="lp">第五部分 · 自己动手做 Agent</div><h1><span class="ln">19 ·</span> 检查点 · 人在环 · 持久化</h1></div>
+<p class="lead">生产环境需要：<strong>跑到一半能存盘</strong>（检查点）、<strong>关键操作人工审批</strong>（人在环）、
+<strong>挂了能续跑</strong>（持久化）。MAF 把这三件事做成一等公民。</p>
+
+<div class="card analogy">
+  <div class="tag">💾 生活类比</div>
+  检查点像<strong>游戏存档</strong>：进度存下来，挂了从存档恢复。
+  人在环像<strong>审批流</strong>：到关键节点暂停，等人签字再继续。
+  DurableTask 像<strong>云存档</strong>：存档不在本地，搬到另一台机器也能续玩。
+</div>
+
+<h2>检查点（Checkpoint）</h2>
+<p>Workflow 在每个 superstep 边界自动存档。默认用 <span class="mono">InMemoryCheckpointStorage</span>；
+生产换成持久化存储（如 Redis、Cosmos）。崩溃后重启，从最近存档恢复。</p>
+
+<h2>人在环（HITL）</h2>
+<p>工具可设置 <span class="mono">approval_mode="always_require"</span>，执行前暂停等人确认。
+工作流层面也有 <span class="mono">request_info</span> 机制：节点暂停、发问、等回答再继续。</p>
+
+<details class="accordion" open>
+  <summary><span class="badge-num">1</span> DurableTask 是什么？ <span class="hint">点击展开</span></summary>
+  <div class="acc-body">
+    <div class="qa">
+      <div class="q">🔬 持久化执行</div>
+      <div class="a"><span class="mono">packages/durabletask</span> 把工作流跑在 <strong>Durable Task Framework</strong> 上：
+        状态持久化到外部存储，支持<strong>跨进程恢复</strong>和长时间等待（比如等人审批几小时）。
+        配合 Azure Functions 可做无服务器部署。</div>
+    </div>
+  </div>
+</details>
+
+<div class="card key">
+  <div class="tag">✅ 关键要点</div>
+  <ul>
+    <li><strong>检查点</strong>：Workflow superstep 自动存档，崩溃可恢复。</li>
+    <li><strong>人在环</strong>：工具 <span class="mono">approval_mode</span> + 工作流 <span class="mono">request_info</span>。</li>
+    <li><strong>持久化</strong>：DurableTask 包让状态存到外部，支持跨进程恢复。</li>
+  </ul>
+</div>
+
+<div class="card spark">
+  <div class="tag">💡 设计亮点</div>
+  <strong>生产能力不是插件，是框架的一部分</strong>：检查点、审批、持久化都在核心 API 里，
+  而不是你自己拼第三方库。
+</div>
+</div></section>
+<section class="print-lesson"><div class="wrap"><div class="lesson-head"><div class="lp">第五部分 · 自己动手做 Agent</div><h1><span class="ln">20 ·</span> 端到端实战：多 Agent 工作流</h1></div>
+<p class="lead">最后一课实战：把前面学的<strong>Agent + 工具 + 编排 + 检查点</strong>拼成一个
+<strong>多 Agent 工作流</strong>。</p>
+
+<h2>场景：写作 → 审稿</h2>
+<div class="vflow">
+  <div class="step"><div class="num">1</div><div class="sc"><h4>创建两个 Agent</h4>
+    <p><strong>Writer</strong>：根据提示写文章。<strong>Reviewer</strong>：审稿、提修改意见。</p></div></div>
+  <div class="step"><div class="num">2</div><div class="sc"><h4>用 SequentialBuilder 编排</h4>
+    <p>Writer 写完 → Reviewer 审稿，串行。</p></div></div>
+  <div class="step"><div class="num">3</div><div class="sc"><h4>跑起来</h4>
+    <p><span class="mono">workflow.run("Write about AI agents")</span>。</p></div></div>
+</div>
+
+<div class="codefile">
+  <div class="cf-head"><span class="dot"></span><span class="path">端到端示例骨架</span></div>
+<pre><span class="kw">from</span> agent_framework <span class="kw">import</span> Agent
+<span class="kw">from</span> agent_framework.orchestrations <span class="kw">import</span> SequentialBuilder
+
+writer = Agent(client=client, name=<span class="st">"Writer"</span>,
+    instructions=<span class="st">"Write a short article on the given topic."</span>)
+reviewer = Agent(client=client, name=<span class="st">"Reviewer"</span>,
+    instructions=<span class="st">"Review the article. Suggest improvements."</span>)
+
+workflow = SequentialBuilder(participants=[writer, reviewer]).build()
+result = <span class="kw">await</span> workflow.run(<span class="st">"Write about AI agents"</span>)</pre>
+</div>
+
+<details class="accordion" open>
+  <summary><span class="badge-num">1</span> 加上工具和检查点 <span class="hint">点击展开</span></summary>
+  <div class="acc-body">
+    <div class="qa">
+      <div class="q">🧪 扩展</div>
+      <div class="a">给 Writer 加 <span class="mono">tools=[web_search]</span> 让它查资料；
+        在 Reviewer 的工具里加 <span class="mono">approval_mode="always_require"</span> 的发布工具。
+        检查点在 Workflow superstep 边界自动保存——如果中间断了，重启从最后存档恢复。</div>
+    </div>
+  </div>
+</details>
+
+<div class="card key">
+  <div class="tag">✅ 关键要点</div>
+  <ul>
+    <li>多 Agent 工作流 = 几个 Agent + 一个 Builder + <span class="mono">.build().run()</span>。</li>
+    <li>工具、中间件、检查点、人在环——全部可以叠加进去。</li>
+    <li>从"hello agent"到"生产级多 Agent"，代码增量很小。</li>
+  </ul>
+</div>
+
+<div class="card spark">
+  <div class="tag">💡 设计亮点</div>
+  <strong>复杂度是增量的</strong>：单 Agent → 加工具 → 加编排 → 加检查点 → 加审批，每一步只增加几行代码。
+  这就是"从原型到生产"的体验。
+</div>
+</div></section>
+<section class="print-lesson"><div class="wrap"><div class="lesson-head"><div class="lp">第六部分 · 番外篇</div><h1><span class="ln">21 ·</span> 横向对比：AF vs 其他框架</h1></div>
+<p class="lead">Agent 框架不止 MAF 一个。本课横向对比四大框架，帮你建立<strong>全局坐标</strong>。</p>
+
+<h2>四框架对比</h2>
+<table class="t">
+  <tr><th></th><th>MAF</th><th>LangGraph</th><th>AutoGen</th><th>Semantic Kernel</th></tr>
+  <tr><td><strong>编排模型</strong></td><td>图（Workflow）+ 预置编排</td><td>图（StateGraph）</td><td>多 Agent 对话</td><td>Planner + 管道</td></tr>
+  <tr><td><strong>语言</strong></td><td>Python + .NET</td><td>Python (+ JS)</td><td>Python + .NET</td><td>Python + .NET + Java</td></tr>
+  <tr><td><strong>生产特性</strong></td><td>检查点 · HITL · OTel · DurableTask</td><td>检查点 · HITL · LangSmith</td><td>基础 logging</td><td>连接器 · 企业集成</td></tr>
+  <tr><td><strong>定位</strong></td><td>原型到生产，SK + AutoGen 统一继任</td><td>图控制流 + 可控 Agent</td><td>多 Agent 研究/探索</td><td>企业 AI 编排</td></tr>
+</table>
+
+<div class="card analogy">
+  <div class="tag">🗺️ 生活类比</div>
+  <strong>MAF</strong> 像<strong>全能 SUV</strong>（城市通勤到越野都行），<strong>LangGraph</strong> 像<strong>手动挡跑车</strong>（精确控制），
+  <strong>AutoGen</strong> 像<strong>实验越野车</strong>（探路利器），<strong>SK</strong> 像<strong>商务轿车</strong>（企业平稳）。
+</div>
+
+<details class="accordion" open>
+  <summary><span class="badge-num">1</span> 我该选哪个？ <span class="hint">点击展开</span></summary>
+  <div class="acc-body">
+    <div class="qa">
+      <div class="q">✅ 选择建议</div>
+      <div class="a">要<strong>生产级 + 双语言 + 全功能</strong>：MAF。
+        要<strong>最细粒度图控制</strong>：LangGraph。
+        要<strong>多 Agent 对话实验</strong>：AutoGen（或 MAF 的 MagenticBuilder，它就源自 AutoGen）。
+        已在<strong>微软企业生态</strong>里深度集成：SK 或 MAF（MAF 是 SK 的继任方向）。</div>
+    </div>
+  </div>
+</details>
+
+<div class="card key">
+  <div class="tag">✅ 关键要点</div>
+  <ul>
+    <li>MAF = SK + AutoGen 合并演进，面向"原型到生产"。</li>
+    <li>LangGraph 强在图控制流精度；AutoGen 强在多 Agent 对话探索。</li>
+    <li>选框架看你的核心需求：语言、生产特性、控制粒度。</li>
+  </ul>
+</div>
+
+<div class="card spark">
+  <div class="tag">💡 设计亮点</div>
+  MAF 把"图编排"和"多 Agent 对话"<strong>统一到同一个框架</strong>——你不用在 LangGraph 和 AutoGen 之间二选一。
+</div>
+</div></section>
+<section class="print-lesson"><div class="wrap"><div class="lesson-head"><div class="lp">第六部分 · 番外篇</div><h1><span class="ln">22 ·</span> 全栈坐标系 & 学习地图</h1></div>
+<p class="lead">最后一课，缩放镜头：把 MAF 放进<strong>AI 全栈</strong>的坐标系里——
+看看你现在在哪，隔壁层还有什么值得学。</p>
+
+<h2>AI 全栈分层</h2>
+<div class="layers">
+  <div class="layer l-app"><div class="lh"><span class="badge">L7</span><span class="name">应用层</span></div>
+    <div class="ld">你的产品 / UI / API 网关。</div></div>
+  <div class="layer l-part"><div class="lh"><span class="badge">L6</span><span class="name">Agent 编排</span></div>
+    <div class="ld"><strong>← 你在这里</strong>（MAF / LangGraph / AutoGen）。</div></div>
+  <div class="layer l-main"><div class="lh"><span class="badge">L5</span><span class="name">模型 API / 推理</span></div>
+    <div class="ld">OpenAI API · Azure AI · vLLM · llama.cpp · Ollama。</div></div>
+  <div class="layer l-core"><div class="lh"><span class="badge">L4</span><span class="name">向量检索 / RAG</span></div>
+    <div class="ld">Embeddings · pgvector · Qdrant · Azure AI Search。</div></div>
+</div>
+
+<h2>隔壁层学习地图</h2>
+<table class="t">
+  <tr><th>层</th><th>你可以学</th><th>入口</th></tr>
+  <tr><td>L5 推理</td><td>vLLM（高吞吐推理）· llama.cpp（CPU/边缘）· Ollama（本地一键跑）</td><td>各项目 GitHub</td></tr>
+  <tr><td>L4 向量检索</td><td>hnswlib（内存向量索引）· pgvector（PG 扩展）· Qdrant（云原生）</td><td>各项目文档</td></tr>
+  <tr><td>L7 应用</td><td>Chainlit / Streamlit（快速 UI）· FastAPI（API 网关）</td><td>各项目文档</td></tr>
+</table>
+
+<details class="accordion" open>
+  <summary><span class="badge-num">1</span> Agent 编排有哪几种流派？ <span class="hint">点击展开</span></summary>
+  <div class="acc-body">
+    <div class="qa">
+      <div class="q">🔬 五大流派</div>
+      <div class="a"><strong>1. 链/管道</strong>（LangChain LCEL）：函数组合。
+        <strong>2. 图</strong>（LangGraph / MAF Workflow）：有向图 + 状态。
+        <strong>3. 多 Agent 对话</strong>（AutoGen / MAF Group Chat）：Agent 间消息传递。
+        <strong>4. Planner</strong>（SK）：LLM 规划步骤后执行。
+        <strong>5. 声明式</strong>（MAF Declarative / Rivet）：配置驱动。</div>
+    </div>
+  </div>
+</details>
+
+<div class="card key">
+  <div class="tag">✅ 关键要点</div>
+  <ul>
+    <li>MAF 在全栈中位于 <strong>L6 Agent 编排层</strong>。</li>
+    <li>下一层（L5 推理 / L4 向量检索）是深入 AI 基础设施的方向。</li>
+    <li>上一层（L7 应用）是把 Agent 交给用户的方向。</li>
+  </ul>
+</div>
+
+<div class="card spark">
+  <div class="tag">💡 设计亮点</div>
+  <strong>编排层是"胶水层"</strong>——它连接模型、工具、存储和应用，
+  因此<strong>对上下层都有基本了解</strong>是成为 Agent 高手的关键。
+</div>
+</div></section>
+</body></html>

@@ -253,10 +253,127 @@ table.t td.mono, table.t td .mono { font-family: ui-monospace, monospace; font-s
     <div class="part"><span class="i18n" data-lang="zh">第三部分 · 内部源码</span><span class="i18n" data-lang="en">Part 3 · Internals</span></div>
     <h1><span class="i18n" data-lang="zh">流式与可观测性</span><span class="i18n" data-lang="en">Streaming & Observability</span></h1>
   </div>
-  <div class="i18n" data-lang="zh"><p class="lead">（占位）本课「流式与可观测性」内容将于后续任务补全。</p>
-<div class="card key"><div class="tag">✅ 关键要点</div>待补充。</div></div>
-<div class="i18n" data-lang="en"><p class="lead">(stub) Lesson "Streaming & Observability" — content coming in a later task.</p>
-<div class="card key"><div class="tag">✅ Key points</div>TBD.</div></div>
+  <div class="i18n" data-lang="zh">
+<p class="lead">当 Agent 或 Workflow 在跑时，你可以<strong>逐块看到输出</strong>（流式），
+也可以用 <strong>OpenTelemetry</strong> 追踪每一步的耗时、token 用量和错误。</p>
+
+<div class="card analogy">
+  <div class="tag">📡 生活类比</div>
+  流式像<strong>直播</strong>：观众实时看到画面（token）。
+  可观测性像<strong>监控大屏</strong>：运维看延迟、吞吐、异常告警。两者互补。
+</div>
+
+<h2>流式输出</h2>
+<div class="codefile">
+  <div class="cf-head"><span class="dot"></span><span class="path">streaming</span></div>
+<pre><span class="kw">async for</span> chunk <span class="kw">in</span> agent.run(<span class="st">"Tell me a joke"</span>, stream=<span class="kw">True</span>):
+    <span class="kw">if</span> chunk.text:
+        <span class="fn">print</span>(chunk.text, end=<span class="st">""</span>)</pre>
+</div>
+<p>每个 <span class="mono">chunk</span> 是一个 <span class="mono">AgentResponseUpdate</span>，
+包含 <span class="mono">.text</span>（增量文本）等字段。累积起来就是完整的 <span class="mono">AgentResponse</span>。</p>
+
+<h2>OpenTelemetry 集成</h2>
+<div class="flow">
+  <div class="node"><div class="nt">Agent run</div><div class="nd">span</div></div>
+  <div class="arrow">→</div>
+  <div class="node"><div class="nt">ChatClient call</div><div class="nd">子 span</div></div>
+  <div class="arrow">→</div>
+  <div class="node"><div class="nt">Tool exec</div><div class="nd">子 span</div></div>
+  <div class="arrow">→</div>
+  <div class="node hl"><div class="nt">导出</div><div class="nd">Jaeger / OTLP</div></div>
+</div>
+<p>MAF 内置 OTel 集成（<span class="mono">observability.py</span>）：Agent run、每次 LLM 调用、每次工具执行都自动产出 span，
+携带 token 计数、延迟、异常信息。只需配置 exporter 即可在 Jaeger / Grafana 中查看。</p>
+
+<details class="accordion">
+  <summary><span class="badge-num">1</span> 怎么启用 OTel？ <span class="hint">点击展开</span></summary>
+  <div class="acc-body">
+    <div class="qa">
+      <div class="q">🧪 最小配置</div>
+      <div class="a">参考 <span class="mono">samples/02-agents/observability/</span>：安装
+        <span class="mono">opentelemetry-sdk</span> + exporter，在代码最前面调用
+        <span class="mono">TracerProvider</span> 初始化。框架会自动把 span 附加到 agent/chat/tool 操作上。</div>
+    </div>
+  </div>
+</details>
+
+<div class="card key">
+  <div class="tag">✅ 关键要点</div>
+  <ul>
+    <li><span class="mono">run(stream=True)</span> 逐块返回 <span class="mono">AgentResponseUpdate</span>。</li>
+    <li>内置 OpenTelemetry：agent run / LLM 调用 / 工具执行自动产出 span。</li>
+    <li>配好 exporter 即可在 Jaeger / Grafana 等工具中查看追踪与指标。</li>
+  </ul>
+</div>
+
+<div class="card spark">
+  <div class="tag">💡 设计亮点</div>
+  <strong>可观测性是内置的</strong>，不是你自己加的——框架自动在关键操作上挂 span，
+  零额外代码就能看到"这次 run 调了几次模型、每次多少 token、工具花了多久"。
+</div>
+</div>
+<div class="i18n" data-lang="en">
+<p class="lead">While an Agent or Workflow runs, you can <strong>see output as it streams</strong> and use
+<strong>OpenTelemetry</strong> to trace every step's latency, token usage and errors.</p>
+
+<div class="card analogy">
+  <div class="tag">📡 Analogy</div>
+  Streaming is <strong>live TV</strong>: the audience sees frames (tokens) in real time.
+  Observability is the <strong>ops dashboard</strong>: SREs watch latency, throughput and alerts. Complementary.
+</div>
+
+<h2>Streaming output</h2>
+<div class="codefile">
+  <div class="cf-head"><span class="dot"></span><span class="path">streaming</span></div>
+<pre><span class="kw">async for</span> chunk <span class="kw">in</span> agent.run(<span class="st">"Tell me a joke"</span>, stream=<span class="kw">True</span>):
+    <span class="kw">if</span> chunk.text:
+        <span class="fn">print</span>(chunk.text, end=<span class="st">""</span>)</pre>
+</div>
+<p>Each <span class="mono">chunk</span> is an <span class="mono">AgentResponseUpdate</span> with a
+<span class="mono">.text</span> (incremental text) field. Accumulated, they form the full <span class="mono">AgentResponse</span>.</p>
+
+<h2>OpenTelemetry integration</h2>
+<div class="flow">
+  <div class="node"><div class="nt">Agent run</div><div class="nd">span</div></div>
+  <div class="arrow">→</div>
+  <div class="node"><div class="nt">ChatClient call</div><div class="nd">child span</div></div>
+  <div class="arrow">→</div>
+  <div class="node"><div class="nt">Tool exec</div><div class="nd">child span</div></div>
+  <div class="arrow">→</div>
+  <div class="node hl"><div class="nt">Export</div><div class="nd">Jaeger / OTLP</div></div>
+</div>
+<p>MAF has built-in OTel integration (<span class="mono">observability.py</span>): Agent runs, LLM calls and tool
+executions automatically emit spans with token counts, latency and error info. Just configure an exporter to view
+them in Jaeger / Grafana.</p>
+
+<details class="accordion">
+  <summary><span class="badge-num">1</span> How to enable OTel? <span class="hint">expand</span></summary>
+  <div class="acc-body">
+    <div class="qa">
+      <div class="q">🧪 Minimal setup</div>
+      <div class="a">See <span class="mono">samples/02-agents/observability/</span>: install
+        <span class="mono">opentelemetry-sdk</span> + an exporter, call <span class="mono">TracerProvider</span> init at
+        the top of your code. The framework auto-attaches spans to agent/chat/tool operations.</div>
+    </div>
+  </div>
+</details>
+
+<div class="card key">
+  <div class="tag">✅ Key points</div>
+  <ul>
+    <li><span class="mono">run(stream=True)</span> yields <span class="mono">AgentResponseUpdate</span> chunks.</li>
+    <li>Built-in OpenTelemetry: agent run / LLM call / tool exec auto-emit spans.</li>
+    <li>Configure an exporter to view traces and metrics in Jaeger / Grafana.</li>
+  </ul>
+</div>
+
+<div class="card spark">
+  <div class="tag">💡 Design highlight</div>
+  <strong>Observability is built in</strong>, not bolted on — the framework auto-attaches spans to key operations.
+  Zero extra code to see "how many model calls this run made, tokens per call, tool latency".
+</div>
+</div>
   <div class="footnav"><a class="prev" href="13-orchestration.html"><div class="dir"><span class="i18n" data-lang="zh">← 上一课</span><span class="i18n" data-lang="en">← Prev</span></div><div class="ttl"><span class="i18n" data-lang="zh">编排模式</span><span class="i18n" data-lang="en">Orchestration Patterns</span></div></a><a class="next" href="15-contributing.html"><div class="dir"><span class="i18n" data-lang="zh">下一课 →</span><span class="i18n" data-lang="en">Next →</span></div><div class="ttl"><span class="i18n" data-lang="zh">读源码 / 调试 / 测试 / 贡献</span><span class="i18n" data-lang="en">Read, Debug, Test, Contribute</span></div></a></div>
 </div>
 

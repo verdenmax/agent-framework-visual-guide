@@ -253,10 +253,112 @@ table.t td.mono, table.t td .mono { font-family: ui-monospace, monospace; font-s
     <div class="part"><span class="i18n" data-lang="zh">第六部分 · 番外篇</span><span class="i18n" data-lang="en">Part 6 · Bonus</span></div>
     <h1><span class="i18n" data-lang="zh">全栈坐标系 & 学习地图</span><span class="i18n" data-lang="en">Full-Stack Map & Learning Path</span></h1>
   </div>
-  <div class="i18n" data-lang="zh"><p class="lead">（占位）本课「全栈坐标系 & 学习地图」内容将于后续任务补全。</p>
-<div class="card key"><div class="tag">✅ 关键要点</div>待补充。</div></div>
-<div class="i18n" data-lang="en"><p class="lead">(stub) Lesson "Full-Stack Map & Learning Path" — content coming in a later task.</p>
-<div class="card key"><div class="tag">✅ Key points</div>TBD.</div></div>
+  <div class="i18n" data-lang="zh">
+<p class="lead">最后一课，缩放镜头：把 MAF 放进<strong>AI 全栈</strong>的坐标系里——
+看看你现在在哪，隔壁层还有什么值得学。</p>
+
+<h2>AI 全栈分层</h2>
+<div class="layers">
+  <div class="layer l-app"><div class="lh"><span class="badge">L7</span><span class="name">应用层</span></div>
+    <div class="ld">你的产品 / UI / API 网关。</div></div>
+  <div class="layer l-part"><div class="lh"><span class="badge">L6</span><span class="name">Agent 编排</span></div>
+    <div class="ld"><strong>← 你在这里</strong>（MAF / LangGraph / AutoGen）。</div></div>
+  <div class="layer l-main"><div class="lh"><span class="badge">L5</span><span class="name">模型 API / 推理</span></div>
+    <div class="ld">OpenAI API · Azure AI · vLLM · llama.cpp · Ollama。</div></div>
+  <div class="layer l-core"><div class="lh"><span class="badge">L4</span><span class="name">向量检索 / RAG</span></div>
+    <div class="ld">Embeddings · pgvector · Qdrant · Azure AI Search。</div></div>
+</div>
+
+<h2>隔壁层学习地图</h2>
+<table class="t">
+  <tr><th>层</th><th>你可以学</th><th>入口</th></tr>
+  <tr><td>L5 推理</td><td>vLLM（高吞吐推理）· llama.cpp（CPU/边缘）· Ollama（本地一键跑）</td><td>各项目 GitHub</td></tr>
+  <tr><td>L4 向量检索</td><td>hnswlib（内存向量索引）· pgvector（PG 扩展）· Qdrant（云原生）</td><td>各项目文档</td></tr>
+  <tr><td>L7 应用</td><td>Chainlit / Streamlit（快速 UI）· FastAPI（API 网关）</td><td>各项目文档</td></tr>
+</table>
+
+<details class="accordion">
+  <summary><span class="badge-num">1</span> Agent 编排有哪几种流派？ <span class="hint">点击展开</span></summary>
+  <div class="acc-body">
+    <div class="qa">
+      <div class="q">🔬 五大流派</div>
+      <div class="a"><strong>1. 链/管道</strong>（LangChain LCEL）：函数组合。
+        <strong>2. 图</strong>（LangGraph / MAF Workflow）：有向图 + 状态。
+        <strong>3. 多 Agent 对话</strong>（AutoGen / MAF Group Chat）：Agent 间消息传递。
+        <strong>4. Planner</strong>（SK）：LLM 规划步骤后执行。
+        <strong>5. 声明式</strong>（MAF Declarative / Rivet）：配置驱动。</div>
+    </div>
+  </div>
+</details>
+
+<div class="card key">
+  <div class="tag">✅ 关键要点</div>
+  <ul>
+    <li>MAF 在全栈中位于 <strong>L6 Agent 编排层</strong>。</li>
+    <li>下一层（L5 推理 / L4 向量检索）是深入 AI 基础设施的方向。</li>
+    <li>上一层（L7 应用）是把 Agent 交给用户的方向。</li>
+  </ul>
+</div>
+
+<div class="card spark">
+  <div class="tag">💡 设计亮点</div>
+  <strong>编排层是"胶水层"</strong>——它连接模型、工具、存储和应用，
+  因此<strong>对上下层都有基本了解</strong>是成为 Agent 高手的关键。
+</div>
+</div>
+<div class="i18n" data-lang="en">
+<p class="lead">Final lesson — zoom out: place MAF in the <strong>AI full-stack</strong> coordinate system and see
+what's worth learning next door.</p>
+
+<h2>AI full-stack layers</h2>
+<div class="layers">
+  <div class="layer l-app"><div class="lh"><span class="badge">L7</span><span class="name">Application</span></div>
+    <div class="ld">Your product / UI / API gateway.</div></div>
+  <div class="layer l-part"><div class="lh"><span class="badge">L6</span><span class="name">Agent Orchestration</span></div>
+    <div class="ld"><strong>← You are here</strong> (MAF / LangGraph / AutoGen).</div></div>
+  <div class="layer l-main"><div class="lh"><span class="badge">L5</span><span class="name">Model API / Inference</span></div>
+    <div class="ld">OpenAI API · Azure AI · vLLM · llama.cpp · Ollama.</div></div>
+  <div class="layer l-core"><div class="lh"><span class="badge">L4</span><span class="name">Vector Search / RAG</span></div>
+    <div class="ld">Embeddings · pgvector · Qdrant · Azure AI Search.</div></div>
+</div>
+
+<h2>Learning map for neighbouring layers</h2>
+<table class="t">
+  <tr><th>Layer</th><th>What to learn</th><th>Entry point</th></tr>
+  <tr><td>L5 Inference</td><td>vLLM (high-throughput) · llama.cpp (CPU/edge) · Ollama (local one-click)</td><td>project GitHub</td></tr>
+  <tr><td>L4 Vector search</td><td>hnswlib (in-memory index) · pgvector (PG extension) · Qdrant (cloud-native)</td><td>project docs</td></tr>
+  <tr><td>L7 Application</td><td>Chainlit / Streamlit (quick UI) · FastAPI (API gateway)</td><td>project docs</td></tr>
+</table>
+
+<details class="accordion">
+  <summary><span class="badge-num">1</span> What are the orchestration schools? <span class="hint">expand</span></summary>
+  <div class="acc-body">
+    <div class="qa">
+      <div class="q">🔬 Five schools</div>
+      <div class="a"><strong>1. Chain/pipeline</strong> (LangChain LCEL): function composition.
+        <strong>2. Graph</strong> (LangGraph / MAF Workflow): directed graph + state.
+        <strong>3. Multi-agent chat</strong> (AutoGen / MAF Group Chat): message passing between agents.
+        <strong>4. Planner</strong> (SK): LLM plans steps then executes.
+        <strong>5. Declarative</strong> (MAF Declarative / Rivet): config-driven.</div>
+    </div>
+  </div>
+</details>
+
+<div class="card key">
+  <div class="tag">✅ Key points</div>
+  <ul>
+    <li>MAF sits at <strong>L6 — the Agent Orchestration layer</strong>.</li>
+    <li>Next layer down (L5 inference / L4 vector search) deepens AI infrastructure.</li>
+    <li>Next layer up (L7 application) delivers agents to users.</li>
+  </ul>
+</div>
+
+<div class="card spark">
+  <div class="tag">💡 Design highlight</div>
+  <strong>The orchestration layer is the "glue layer"</strong> — it connects models, tools, storage and applications.
+  Knowing the layers above and below is key to becoming an Agent expert.
+</div>
+</div>
   <div class="footnav"><a class="prev" href="21-vs-others.html"><div class="dir"><span class="i18n" data-lang="zh">← 上一课</span><span class="i18n" data-lang="en">← Prev</span></div><div class="ttl"><span class="i18n" data-lang="zh">横向对比：AF vs 其他框架</span><span class="i18n" data-lang="en">AF vs Other Frameworks</span></div></a><a class="next" href="../index.html"><div class="dir"><span class="i18n" data-lang="zh">完成 →</span><span class="i18n" data-lang="en">Done →</span></div><div class="ttl"><span class="i18n" data-lang="zh">返回目录</span><span class="i18n" data-lang="en">Back to Contents</span></div></a></div>
 </div>
 

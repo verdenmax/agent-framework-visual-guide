@@ -253,10 +253,131 @@ table.t td.mono, table.t td .mono { font-family: ui-monospace, monospace; font-s
     <div class="part"><span class="i18n" data-lang="zh">第三部分 · 内部源码</span><span class="i18n" data-lang="en">Part 3 · Internals</span></div>
     <h1><span class="i18n" data-lang="zh">Agent 内部</span><span class="i18n" data-lang="en">Agent Internals</span></h1>
   </div>
-  <div class="i18n" data-lang="zh"><p class="lead">（占位）本课「Agent 内部」内容将于后续任务补全。</p>
-<div class="card key"><div class="tag">✅ 关键要点</div>待补充。</div></div>
-<div class="i18n" data-lang="en"><p class="lead">(stub) Lesson "Agent Internals" — content coming in a later task.</p>
-<div class="card key"><div class="tag">✅ Key points</div>TBD.</div></div>
+  <div class="i18n" data-lang="zh">
+<p class="lead">你用的 <span class="inline">Agent</span> 背后有两层：最底层是抽象基类
+<span class="inline">BaseAgent</span>，上面是具体类 <span class="inline">Agent</span>。
+了解这两层，才看得懂框架如何"驱动"一个 Agent 跑完整个循环。</p>
+
+<div class="card analogy">
+  <div class="tag">🏗️ 生活类比</div>
+  <span class="mono">BaseAgent</span> 像一份<strong>岗位说明书</strong>（"你要能接单、能跑、能交付"），
+  <span class="mono">Agent</span> 则是<strong>真人上岗</strong>——读说明书、准备工具箱、接单后反复跑腿，直到任务完成。
+</div>
+
+<h2>两层结构</h2>
+<div class="layers">
+  <div class="layer l-core"><div class="lh"><span class="badge">抽象</span><span class="name">BaseAgent</span></div>
+    <div class="ld">定义 <span class="mono">run()</span> 协议与扩展点（<span class="mono">_agents.py:314</span>）。
+    所有 Agent 必须实现这份"合同"。</div></div>
+  <div class="layer l-main"><div class="lh"><span class="badge">具体</span><span class="name">Agent</span></div>
+    <div class="ld">组装 instructions + 消息 + 工具 → 调 ChatClient → 工具循环 → 返回
+    <span class="mono">AgentResponse</span>（<span class="mono">_agents.py:1584</span>）。</div></div>
+</div>
+
+<h2>run() 内部做了什么</h2>
+<div class="vflow">
+  <div class="step"><div class="num">1</div><div class="sc"><h4>构建消息列表</h4>
+    <p>把 <span class="mono">instructions</span>（system）+ 会话历史 + 新输入拼起来。</p></div></div>
+  <div class="step"><div class="num">2</div><div class="sc"><h4>注入 ContextProvider</h4>
+    <p>把长期记忆 / 外部知识塞进上下文。</p></div></div>
+  <div class="step"><div class="num">3</div><div class="sc"><h4>调用 ChatClient</h4>
+    <p>把消息 + 工具 schema 发给 LLM，拿回 <span class="mono">ChatResponse</span>。</p></div></div>
+  <div class="step"><div class="num">4</div><div class="sc"><h4>工具循环</h4>
+    <p>若回复含 <span class="mono">function_call</span>，执行工具、追加结果、再回第 3 步。</p></div></div>
+  <div class="step"><div class="num">5</div><div class="sc"><h4>返回</h4>
+    <p>循环结束，包装成 <span class="mono">AgentResponse</span>（或逐块 <span class="mono">AgentResponseUpdate</span>）。</p></div></div>
+</div>
+
+<details class="accordion">
+  <summary><span class="badge-num">1</span> BaseAgent 定义了哪些接口？ <span class="hint">点击展开</span></summary>
+  <div class="acc-body">
+    <div class="qa">
+      <div class="q">🔬 核心协议</div>
+      <div class="a"><span class="mono">BaseAgent</span> 规定了 <span class="mono">run()</span>（非流式 + 流式共用）、
+        <span class="mono">create_session()</span>、<span class="mono">get_session()</span> 等。
+        子类只需关注"怎么组装消息、怎么调模型"——循环骨架已由基类搭好。</div>
+    </div>
+  </div>
+</details>
+
+<div class="card key">
+  <div class="tag">✅ 关键要点</div>
+  <ul>
+    <li><span class="mono">BaseAgent</span>（抽象）定义协议；<span class="mono">Agent</span>（具体）实现组装 + 循环。</li>
+    <li><span class="mono">run()</span> = 构建消息 → 注入上下文 → 调 ChatClient → 工具循环 → 返回。</li>
+    <li>返回类型：非流式 <span class="mono">AgentResponse</span>；流式 <span class="mono">AgentResponseUpdate</span>。</li>
+  </ul>
+</div>
+
+<div class="card spark">
+  <div class="tag">💡 设计亮点</div>
+  <strong>循环骨架由基类掌控</strong>，子类只插入"怎么调模型"这一块——经典的<strong>模板方法模式</strong>。
+  这意味着你可以自定义 Agent 行为而不破坏循环逻辑。
+</div>
+</div>
+<div class="i18n" data-lang="en">
+<p class="lead">The <span class="inline">Agent</span> you use has two layers: the abstract
+<span class="inline">BaseAgent</span> at the bottom, and the concrete <span class="inline">Agent</span> on top.
+Understand them and you'll see how the framework drives an agent through its full loop.</p>
+
+<div class="card analogy">
+  <div class="tag">🏗️ Analogy</div>
+  <span class="mono">BaseAgent</span> is a <strong>job description</strong> ("you must take orders, run errands,
+  deliver results"); <span class="mono">Agent</span> is the <strong>person on duty</strong> — reads the description,
+  packs the toolkit, takes orders and runs errands in a loop until the task is done.
+</div>
+
+<h2>Two layers</h2>
+<div class="layers">
+  <div class="layer l-core"><div class="lh"><span class="badge">Abstract</span><span class="name">BaseAgent</span></div>
+    <div class="ld">Defines the <span class="mono">run()</span> protocol and extension points (<span class="mono">_agents.py:314</span>).
+    Every Agent must fulfil this "contract".</div></div>
+  <div class="layer l-main"><div class="lh"><span class="badge">Concrete</span><span class="name">Agent</span></div>
+    <div class="ld">Assembles instructions + messages + tools → calls ChatClient → tool loop → returns
+    <span class="mono">AgentResponse</span> (<span class="mono">_agents.py:1584</span>).</div></div>
+</div>
+
+<h2>What run() does inside</h2>
+<div class="vflow">
+  <div class="step"><div class="num">1</div><div class="sc"><h4>Build message list</h4>
+    <p>Concatenate <span class="mono">instructions</span> (system) + session history + new input.</p></div></div>
+  <div class="step"><div class="num">2</div><div class="sc"><h4>Inject ContextProviders</h4>
+    <p>Splice long-term memory / external knowledge into the context.</p></div></div>
+  <div class="step"><div class="num">3</div><div class="sc"><h4>Call ChatClient</h4>
+    <p>Send messages + tool schemas to the LLM, get back a <span class="mono">ChatResponse</span>.</p></div></div>
+  <div class="step"><div class="num">4</div><div class="sc"><h4>Tool loop</h4>
+    <p>If the reply contains a <span class="mono">function_call</span>, execute the tool, append the result, loop to step 3.</p></div></div>
+  <div class="step"><div class="num">5</div><div class="sc"><h4>Return</h4>
+    <p>Loop ends; wrap into <span class="mono">AgentResponse</span> (or stream <span class="mono">AgentResponseUpdate</span> chunks).</p></div></div>
+</div>
+
+<details class="accordion">
+  <summary><span class="badge-num">1</span> What does BaseAgent define? <span class="hint">expand</span></summary>
+  <div class="acc-body">
+    <div class="qa">
+      <div class="q">🔬 Core protocol</div>
+      <div class="a"><span class="mono">BaseAgent</span> mandates <span class="mono">run()</span> (shared by streaming
+        and non-streaming), <span class="mono">create_session()</span>, <span class="mono">get_session()</span>, etc.
+        Subclasses only focus on "how to assemble messages and call the model" — the loop skeleton is already in the base.</div>
+    </div>
+  </div>
+</details>
+
+<div class="card key">
+  <div class="tag">✅ Key points</div>
+  <ul>
+    <li><span class="mono">BaseAgent</span> (abstract) defines the protocol; <span class="mono">Agent</span> (concrete) implements assembly + loop.</li>
+    <li><span class="mono">run()</span> = build messages → inject context → call ChatClient → tool loop → return.</li>
+    <li>Return types: non-streaming <span class="mono">AgentResponse</span>; streaming <span class="mono">AgentResponseUpdate</span>.</li>
+  </ul>
+</div>
+
+<div class="card spark">
+  <div class="tag">💡 Design highlight</div>
+  <strong>The loop skeleton is owned by the base class</strong>; subclasses only plug in "how to call the model"
+  — the classic <strong>Template Method pattern</strong>. You can customise Agent behavior without breaking the loop logic.
+</div>
+</div>
   <div class="footnav"><a class="prev" href="07-sessions-memory.html"><div class="dir"><span class="i18n" data-lang="zh">← 上一课</span><span class="i18n" data-lang="en">← Prev</span></div><div class="ttl"><span class="i18n" data-lang="zh">会话与记忆</span><span class="i18n" data-lang="en">Sessions & Memory</span></div></a><a class="next" href="09-chatclient-internals.html"><div class="dir"><span class="i18n" data-lang="zh">下一课 →</span><span class="i18n" data-lang="en">Next →</span></div><div class="ttl"><span class="i18n" data-lang="zh">ChatClient 内部</span><span class="i18n" data-lang="en">ChatClient Internals</span></div></a></div>
 </div>
 

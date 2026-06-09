@@ -253,10 +253,141 @@ table.t td.mono, table.t td .mono { font-family: ui-monospace, monospace; font-s
     <div class="part"><span class="i18n" data-lang="zh">第三部分 · 内部源码</span><span class="i18n" data-lang="en">Part 3 · Internals</span></div>
     <h1><span class="i18n" data-lang="zh">中间件 Middleware</span><span class="i18n" data-lang="en">Middleware</span></h1>
   </div>
-  <div class="i18n" data-lang="zh"><p class="lead">（占位）本课「中间件 Middleware」内容将于后续任务补全。</p>
-<div class="card key"><div class="tag">✅ 关键要点</div>待补充。</div></div>
-<div class="i18n" data-lang="en"><p class="lead">(stub) Lesson "Middleware" — content coming in a later task.</p>
-<div class="card key"><div class="tag">✅ Key points</div>TBD.</div></div>
+  <div class="i18n" data-lang="zh">
+<p class="lead">中间件让你<strong>不改 Agent / ChatClient 源码</strong>就能横切地加入日志、重试、审批等逻辑。
+MAF 有<strong>三层</strong>中间件，每层包裹不同粒度的操作。</p>
+
+<div class="card analogy">
+  <div class="tag">🧅 生活类比</div>
+  中间件像<strong>洋葱圈</strong>：请求从外到内穿过每一层，到达核心执行后，结果再从内到外穿出来。
+  每一层都可以在"进去前"和"出来后"做事（记日志、改参数、重试……）。
+</div>
+
+<h2>三层中间件</h2>
+<div class="layers">
+  <div class="layer l-app"><div class="lh"><span class="badge">AGENT</span><span class="name">AgentMiddleware</span></div>
+    <div class="ld">包裹<strong>整个 agent.run()</strong>——最外层。用 <span class="mono">AgentContext</span>。</div></div>
+  <div class="layer l-main"><div class="lh"><span class="badge">CHAT</span><span class="name">ChatMiddleware</span></div>
+    <div class="ld">包裹<strong>每次 LLM 调用</strong>。用 <span class="mono">ChatContext</span>。</div></div>
+  <div class="layer l-core"><div class="lh"><span class="badge">FUNC</span><span class="name">FunctionMiddleware</span></div>
+    <div class="ld">包裹<strong>每次工具执行</strong>。用 <span class="mono">FunctionInvocationContext</span>。</div></div>
+</div>
+
+<h2>统一签名</h2>
+<div class="codefile">
+  <div class="cf-head"><span class="dot"></span><span class="path">中间件模板</span></div>
+<pre><span class="kw">from</span> agent_framework <span class="kw">import</span> AgentMiddleware, AgentContext
+
+<span class="kw">class</span> <span class="fn">MyLoggingMiddleware</span>(AgentMiddleware):
+    <span class="kw">async def</span> <span class="fn">process</span>(self, context: AgentContext, call_next):
+        <span class="fn">print</span>(<span class="st">"before"</span>)
+        <span class="kw">await</span> call_next()   <span class="cm"># ← 无参！</span>
+        <span class="fn">print</span>(<span class="st">"after"</span>, context.result)</pre>
+</div>
+<p><strong>重点</strong>：<span class="inline">await call_next()</span> <strong>不传任何参数</strong>——它调用下一层或最终执行。
+执行结果挂在 <span class="mono">context.result</span> 上。</p>
+
+<details class="accordion">
+  <summary><span class="badge-num">1</span> 也可以用装饰器写法 <span class="hint">点击展开</span></summary>
+  <div class="acc-body">
+    <div class="qa">
+      <div class="q">🧪 函数式中间件</div>
+      <div class="a">不想写类？用装饰器：
+<pre class="code"><span class="kw">from</span> agent_framework <span class="kw">import</span> agent_middleware
+
+<span class="nb">@agent_middleware</span>
+<span class="kw">async def</span> <span class="fn">my_log</span>(context, call_next):
+    <span class="fn">print</span>(<span class="st">"before"</span>)
+    <span class="kw">await</span> call_next()
+    <span class="fn">print</span>(<span class="st">"after"</span>)</pre>
+        同样有 <span class="mono">@function_middleware</span> 和 <span class="mono">@chat_middleware</span>。</div>
+    </div>
+  </div>
+</details>
+
+<div class="card key">
+  <div class="tag">✅ 关键要点</div>
+  <ul>
+    <li>三层：<span class="mono">AgentMiddleware</span>（整个 run）→ <span class="mono">ChatMiddleware</span>（每次 LLM 调用）→ <span class="mono">FunctionMiddleware</span>（每次工具执行）。</li>
+    <li>统一签名 <span class="mono">process(self, context, call_next)</span>；<span class="mono">await call_next()</span> <strong>无参</strong>。</li>
+    <li>可用类写法，也可用 <span class="mono">@agent_middleware</span> 等装饰器。</li>
+  </ul>
+</div>
+
+<div class="card spark">
+  <div class="tag">💡 设计亮点</div>
+  <strong>三层粒度 × 洋葱模型</strong>：你可以只拦截"每次 LLM 调用"（ChatMiddleware）而不碰工具执行，
+  或只拦截工具执行而不碰 LLM——关注点彻底分离。
+</div>
+</div>
+<div class="i18n" data-lang="en">
+<p class="lead">Middleware lets you add logging, retries, approvals and more <strong>without touching Agent or
+ChatClient source</strong>. MAF has <strong>three layers</strong>, each wrapping a different granularity.</p>
+
+<div class="card analogy">
+  <div class="tag">🧅 Analogy</div>
+  Middleware is an <strong>onion</strong>: the request passes through each layer from outside in, reaches the core
+  execution, then the result passes back out. Each layer can act "on the way in" and "on the way out"
+  (log, modify params, retry…).
+</div>
+
+<h2>Three middleware layers</h2>
+<div class="layers">
+  <div class="layer l-app"><div class="lh"><span class="badge">AGENT</span><span class="name">AgentMiddleware</span></div>
+    <div class="ld">Wraps the <strong>entire agent.run()</strong> — the outermost layer. Uses <span class="mono">AgentContext</span>.</div></div>
+  <div class="layer l-main"><div class="lh"><span class="badge">CHAT</span><span class="name">ChatMiddleware</span></div>
+    <div class="ld">Wraps <strong>each LLM call</strong>. Uses <span class="mono">ChatContext</span>.</div></div>
+  <div class="layer l-core"><div class="lh"><span class="badge">FUNC</span><span class="name">FunctionMiddleware</span></div>
+    <div class="ld">Wraps <strong>each tool execution</strong>. Uses <span class="mono">FunctionInvocationContext</span>.</div></div>
+</div>
+
+<h2>Unified signature</h2>
+<div class="codefile">
+  <div class="cf-head"><span class="dot"></span><span class="path">middleware template</span></div>
+<pre><span class="kw">from</span> agent_framework <span class="kw">import</span> AgentMiddleware, AgentContext
+
+<span class="kw">class</span> <span class="fn">MyLoggingMiddleware</span>(AgentMiddleware):
+    <span class="kw">async def</span> <span class="fn">process</span>(self, context: AgentContext, call_next):
+        <span class="fn">print</span>(<span class="st">"before"</span>)
+        <span class="kw">await</span> call_next()   <span class="cm"># ← no arguments!</span>
+        <span class="fn">print</span>(<span class="st">"after"</span>, context.result)</pre>
+</div>
+<p><strong>Key</strong>: <span class="inline">await call_next()</span> takes <strong>no arguments</strong> — it invokes the
+next layer or the final execution. The result lives on <span class="mono">context.result</span>.</p>
+
+<details class="accordion">
+  <summary><span class="badge-num">1</span> Decorator shortcut <span class="hint">expand</span></summary>
+  <div class="acc-body">
+    <div class="qa">
+      <div class="q">🧪 Function-style middleware</div>
+      <div class="a">Don't want a class? Use a decorator:
+<pre class="code"><span class="kw">from</span> agent_framework <span class="kw">import</span> agent_middleware
+
+<span class="nb">@agent_middleware</span>
+<span class="kw">async def</span> <span class="fn">my_log</span>(context, call_next):
+    <span class="fn">print</span>(<span class="st">"before"</span>)
+    <span class="kw">await</span> call_next()
+    <span class="fn">print</span>(<span class="st">"after"</span>)</pre>
+        Similarly <span class="mono">@function_middleware</span> and <span class="mono">@chat_middleware</span>.</div>
+    </div>
+  </div>
+</details>
+
+<div class="card key">
+  <div class="tag">✅ Key points</div>
+  <ul>
+    <li>Three layers: <span class="mono">AgentMiddleware</span> (whole run) → <span class="mono">ChatMiddleware</span> (each LLM call) → <span class="mono">FunctionMiddleware</span> (each tool execution).</li>
+    <li>Unified signature <span class="mono">process(self, context, call_next)</span>; <span class="mono">await call_next()</span> takes <strong>no args</strong>.</li>
+    <li>Class-based or decorator-based: <span class="mono">@agent_middleware</span>, <span class="mono">@function_middleware</span>, <span class="mono">@chat_middleware</span>.</li>
+  </ul>
+</div>
+
+<div class="card spark">
+  <div class="tag">💡 Design highlight</div>
+  <strong>Three granularities × onion model</strong>: you can intercept "every LLM call" (ChatMiddleware) without
+  touching tool execution, or intercept tool execution without touching LLM — concerns are fully separated.
+</div>
+</div>
   <div class="footnav"><a class="prev" href="10-tool-internals.html"><div class="dir"><span class="i18n" data-lang="zh">← 上一课</span><span class="i18n" data-lang="en">← Prev</span></div><div class="ttl"><span class="i18n" data-lang="zh">工具调用内部</span><span class="i18n" data-lang="en">Tool-Calling Internals</span></div></a><a class="next" href="12-workflows.html"><div class="dir"><span class="i18n" data-lang="zh">下一课 →</span><span class="i18n" data-lang="en">Next →</span></div><div class="ttl"><span class="i18n" data-lang="zh">Workflows 工作流引擎</span><span class="i18n" data-lang="en">Workflows Engine</span></div></a></div>
 </div>
 

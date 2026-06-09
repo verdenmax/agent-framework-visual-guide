@@ -253,10 +253,102 @@ table.t td.mono, table.t td .mono { font-family: ui-monospace, monospace; font-s
     <div class="part"><span class="i18n" data-lang="zh">第五部分 · 自己动手做 Agent</span><span class="i18n" data-lang="en">Part 5 · Build Your Own</span></div>
     <h1><span class="i18n" data-lang="zh">接入各家模型</span><span class="i18n" data-lang="en">Model Providers</span></h1>
   </div>
-  <div class="i18n" data-lang="zh"><p class="lead">（占位）本课「接入各家模型」内容将于后续任务补全。</p>
-<div class="card key"><div class="tag">✅ 关键要点</div>待补充。</div></div>
-<div class="i18n" data-lang="en"><p class="lead">(stub) Lesson "Model Providers" — content coming in a later task.</p>
-<div class="card key"><div class="tag">✅ Key points</div>TBD.</div></div>
+  <div class="i18n" data-lang="zh">
+<p class="lead">MAF 的 ChatClient 是厂商无关的——但你总要选一个具体厂商来<strong>接入模型</strong>。
+本课过一遍主要 provider 包，教你<strong>怎么从"import 到 run"走完全程</strong>。</p>
+
+<div class="card analogy">
+  <div class="tag">🔌 生活类比</div>
+  ChatClient 像<strong>万能插座</strong>；每个 provider 包是<strong>某国插头</strong>——
+  你选 Foundry、OpenAI 还是 Anthropic 的插头，接上万能插座就能充电。
+</div>
+
+<h2>主要 Provider</h2>
+<table class="t">
+  <tr><th>Provider</th><th>包名</th><th>ChatClient 类</th></tr>
+  <tr><td>Azure AI Foundry</td><td class="mono">agent-framework-foundry</td><td class="mono">FoundryChatClient</td></tr>
+  <tr><td>OpenAI / Azure OpenAI</td><td class="mono">agent-framework（内置）</td><td class="mono">OpenAIChatClient</td></tr>
+  <tr><td>Anthropic Claude</td><td class="mono">agent-framework-anthropic</td><td class="mono">AnthropicChatClient</td></tr>
+  <tr><td>Ollama（本地）</td><td class="mono">agent-framework-ollama</td><td class="mono">OllamaChatClient</td></tr>
+  <tr><td>AWS Bedrock</td><td class="mono">agent-framework-bedrock</td><td class="mono">BedrockChatClient</td></tr>
+</table>
+<p>全部用法一样：实例化 ChatClient → <span class="mono">client.as_agent(…)</span> → <span class="mono">agent.run(…)</span>。</p>
+
+<details class="accordion">
+  <summary><span class="badge-num">1</span> Foundry vs OpenAI 有什么区别？ <span class="hint">点击展开</span></summary>
+  <div class="acc-body">
+    <div class="qa">
+      <div class="q">🔬 关键差异</div>
+      <div class="a"><span class="mono">FoundryChatClient</span> 走 <strong>Azure AI Foundry 项目端点</strong>（统一管理模型、记忆、文件等）。
+        <span class="mono">OpenAIChatClient</span> 直连 <strong>OpenAI API 或 Azure OpenAI 端点</strong>。
+        如果你已有 Foundry 项目，推荐 Foundry；否则 OpenAI 最直接。</div>
+    </div>
+  </div>
+</details>
+
+<div class="card key">
+  <div class="tag">✅ 关键要点</div>
+  <ul>
+    <li>每个厂商一个 provider 包，提供一个 ChatClient 子类。</li>
+    <li>统一用法：实例化 → <span class="mono">as_agent()</span> → <span class="mono">run()</span>。</li>
+    <li>切换厂商只改 import 和实例化那两行。</li>
+  </ul>
+</div>
+
+<div class="card spark">
+  <div class="tag">💡 设计亮点</div>
+  <strong>新增厂商不碰核心</strong>：provider 是独立包，通过懒加载接入。
+  社区可以自己做新 provider 而不需要 fork 仓库。
+</div>
+</div>
+<div class="i18n" data-lang="en">
+<p class="lead">MAF's ChatClient is vendor-agnostic — but you pick a concrete vendor to <strong>connect a model</strong>.
+This lesson surveys the main provider packages and shows the <strong>import-to-run path</strong>.</p>
+
+<div class="card analogy">
+  <div class="tag">🔌 Analogy</div>
+  ChatClient is a <strong>universal socket</strong>; each provider package is a <strong>country-specific plug</strong> —
+  pick the Foundry, OpenAI or Anthropic plug, snap it into the socket, and you're charging.
+</div>
+
+<h2>Key Providers</h2>
+<table class="t">
+  <tr><th>Provider</th><th>Package</th><th>ChatClient class</th></tr>
+  <tr><td>Azure AI Foundry</td><td class="mono">agent-framework-foundry</td><td class="mono">FoundryChatClient</td></tr>
+  <tr><td>OpenAI / Azure OpenAI</td><td class="mono">agent-framework (built-in)</td><td class="mono">OpenAIChatClient</td></tr>
+  <tr><td>Anthropic Claude</td><td class="mono">agent-framework-anthropic</td><td class="mono">AnthropicChatClient</td></tr>
+  <tr><td>Ollama (local)</td><td class="mono">agent-framework-ollama</td><td class="mono">OllamaChatClient</td></tr>
+  <tr><td>AWS Bedrock</td><td class="mono">agent-framework-bedrock</td><td class="mono">BedrockChatClient</td></tr>
+</table>
+<p>Same pattern for all: instantiate ChatClient → <span class="mono">client.as_agent(…)</span> → <span class="mono">agent.run(…)</span>.</p>
+
+<details class="accordion">
+  <summary><span class="badge-num">1</span> Foundry vs OpenAI? <span class="hint">expand</span></summary>
+  <div class="acc-body">
+    <div class="qa">
+      <div class="q">🔬 Key difference</div>
+      <div class="a"><span class="mono">FoundryChatClient</span> uses an <strong>Azure AI Foundry project endpoint</strong>
+        (unified model, memory, file management). <span class="mono">OpenAIChatClient</span> connects directly to the
+        <strong>OpenAI API or Azure OpenAI endpoint</strong>. If you have a Foundry project, use Foundry; otherwise OpenAI is simplest.</div>
+    </div>
+  </div>
+</details>
+
+<div class="card key">
+  <div class="tag">✅ Key points</div>
+  <ul>
+    <li>One provider package per vendor, each supplying a ChatClient subclass.</li>
+    <li>Unified pattern: instantiate → <span class="mono">as_agent()</span> → <span class="mono">run()</span>.</li>
+    <li>Switching vendors changes only the import and instantiation lines.</li>
+  </ul>
+</div>
+
+<div class="card spark">
+  <div class="tag">💡 Design highlight</div>
+  <strong>Adding a vendor never touches core</strong>: providers are separate packages, wired in via lazy loading.
+  The community can build new providers without forking the repo.
+</div>
+</div>
   <div class="footnav"><a class="prev" href="15-contributing.html"><div class="dir"><span class="i18n" data-lang="zh">← 上一课</span><span class="i18n" data-lang="en">← Prev</span></div><div class="ttl"><span class="i18n" data-lang="zh">读源码 / 调试 / 测试 / 贡献</span><span class="i18n" data-lang="en">Read, Debug, Test, Contribute</span></div></a><a class="next" href="17-declarative.html"><div class="dir"><span class="i18n" data-lang="zh">下一课 →</span><span class="i18n" data-lang="en">Next →</span></div><div class="ttl"><span class="i18n" data-lang="zh">声明式 Agent（YAML）</span><span class="i18n" data-lang="en">Declarative Agents (YAML)</span></div></a></div>
 </div>
 

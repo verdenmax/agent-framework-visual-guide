@@ -253,10 +253,118 @@ table.t td.mono, table.t td .mono { font-family: ui-monospace, monospace; font-s
     <div class="part"><span class="i18n" data-lang="zh">第三部分 · 内部源码</span><span class="i18n" data-lang="en">Part 3 · Internals</span></div>
     <h1><span class="i18n" data-lang="zh">ChatClient 内部</span><span class="i18n" data-lang="en">ChatClient Internals</span></h1>
   </div>
-  <div class="i18n" data-lang="zh"><p class="lead">（占位）本课「ChatClient 内部」内容将于后续任务补全。</p>
-<div class="card key"><div class="tag">✅ 关键要点</div>待补充。</div></div>
-<div class="i18n" data-lang="en"><p class="lead">(stub) Lesson "ChatClient Internals" — content coming in a later task.</p>
-<div class="card key"><div class="tag">✅ Key points</div>TBD.</div></div>
+  <div class="i18n" data-lang="zh">
+<p class="lead"><span class="inline">BaseChatClient</span> 是"和某个 LLM 通话"的<strong>厂商无关协议</strong>。
+你平时只碰 <span class="inline">get_response()</span>，厂商做的事全藏在 <span class="inline">_inner_get_response()</span> 里。</p>
+
+<div class="card analogy">
+  <div class="tag">📞 生活类比</div>
+  <span class="mono">BaseChatClient</span> 像一个<strong>电话交换台</strong>的标准面板——任何电话（模型）都能接上去。
+  <span class="mono">get_response()</span> 是你按的"拨号键"，<span class="mono">_inner_get_response()</span>
+  是交换台背后的<strong>接线逻辑</strong>，各厂商各不同。
+</div>
+
+<h2>调用链</h2>
+<div class="flow">
+  <div class="node"><div class="nt">Agent</div><div class="nd">组装消息</div></div>
+  <div class="arrow">→</div>
+  <div class="node hl"><div class="nt">get_response()</div><div class="nd">公共入口</div></div>
+  <div class="arrow">→</div>
+  <div class="node"><div class="nt">_inner_get_response()</div><div class="nd">厂商实现</div></div>
+  <div class="arrow">→</div>
+  <div class="node"><div class="nt">LLM API</div><div class="nd">真实网络调用</div></div>
+</div>
+
+<table class="t">
+  <tr><th>方法</th><th>谁调用</th><th>返回</th></tr>
+  <tr><td class="mono">get_response(messages, stream=False)</td><td>Agent / 你</td><td><span class="mono">ChatResponse</span> 或 <span class="mono">AsyncIterator[ChatResponseUpdate]</span></td></tr>
+  <tr><td class="mono">_inner_get_response(messages, stream, options)</td><td>基类内部</td><td>同上（由 provider 实现）</td></tr>
+</table>
+
+<details class="accordion">
+  <summary><span class="badge-num">1</span> 厂商怎么实现 _inner_get_response? <span class="hint">点击展开</span></summary>
+  <div class="acc-body">
+    <div class="qa">
+      <div class="q">🧪 以 FoundryChatClient 为例</div>
+      <div class="a">它继承 <span class="mono">BaseChatClient</span>，只覆写 <span class="mono">_inner_get_response</span>：
+        把 MAF 的 <span class="mono">Message</span> 列表转成 Foundry SDK 的格式、调 API、再把结果转回 <span class="mono">ChatResponse</span>。
+        如果 <span class="mono">stream=True</span>，则返回一个异步生成器。</div>
+    </div>
+  </div>
+</details>
+
+<div class="card key">
+  <div class="tag">✅ 关键要点</div>
+  <ul>
+    <li>你只用 <span class="mono">get_response()</span>；厂商只需实现 <span class="mono">_inner_get_response()</span>。</li>
+    <li><span class="mono">stream</span> 参数决定返回完整 <span class="mono">ChatResponse</span> 还是逐块 <span class="mono">ChatResponseUpdate</span>。</li>
+    <li><span class="mono">ChatOptions</span> 传递温度、max_tokens 等模型参数。</li>
+  </ul>
+</div>
+
+<div class="card spark">
+  <div class="tag">💡 设计亮点</div>
+  <strong>公共接口 vs 厂商扩展点</strong>一刀切开：<span class="mono">get_response</span> 做通用逻辑（重试、中间件触发），
+  <span class="mono">_inner_get_response</span> 只管"怎么和那家 API 通信"。新增厂商只需写一个子类。
+</div>
+</div>
+<div class="i18n" data-lang="en">
+<p class="lead"><span class="inline">BaseChatClient</span> is the <strong>vendor-agnostic protocol</strong> for talking
+to any LLM. You only touch <span class="inline">get_response()</span>; vendor-specific work is hidden inside
+<span class="inline">_inner_get_response()</span>.</p>
+
+<div class="card analogy">
+  <div class="tag">📞 Analogy</div>
+  <span class="mono">BaseChatClient</span> is a <strong>telephone switchboard</strong> — any phone (model) plugs in.
+  <span class="mono">get_response()</span> is the "dial" button you press; <span class="mono">_inner_get_response()</span>
+  is the <strong>wiring logic</strong> behind the panel, different for each vendor.
+</div>
+
+<h2>Call chain</h2>
+<div class="flow">
+  <div class="node"><div class="nt">Agent</div><div class="nd">assembles msgs</div></div>
+  <div class="arrow">→</div>
+  <div class="node hl"><div class="nt">get_response()</div><div class="nd">public entry</div></div>
+  <div class="arrow">→</div>
+  <div class="node"><div class="nt">_inner_get_response()</div><div class="nd">vendor impl</div></div>
+  <div class="arrow">→</div>
+  <div class="node"><div class="nt">LLM API</div><div class="nd">network call</div></div>
+</div>
+
+<table class="t">
+  <tr><th>Method</th><th>Called by</th><th>Returns</th></tr>
+  <tr><td class="mono">get_response(messages, stream=False)</td><td>Agent / you</td><td><span class="mono">ChatResponse</span> or <span class="mono">AsyncIterator[ChatResponseUpdate]</span></td></tr>
+  <tr><td class="mono">_inner_get_response(messages, stream, options)</td><td>base class</td><td>same (implemented by provider)</td></tr>
+</table>
+
+<details class="accordion">
+  <summary><span class="badge-num">1</span> How do providers implement _inner_get_response? <span class="hint">expand</span></summary>
+  <div class="acc-body">
+    <div class="qa">
+      <div class="q">🧪 FoundryChatClient example</div>
+      <div class="a">It extends <span class="mono">BaseChatClient</span> and only overrides <span class="mono">_inner_get_response</span>:
+        converts MAF <span class="mono">Message</span> objects to the Foundry SDK format, calls the API, converts the result
+        back to <span class="mono">ChatResponse</span>. When <span class="mono">stream=True</span>, it returns an async generator.</div>
+    </div>
+  </div>
+</details>
+
+<div class="card key">
+  <div class="tag">✅ Key points</div>
+  <ul>
+    <li>You use <span class="mono">get_response()</span>; vendors only implement <span class="mono">_inner_get_response()</span>.</li>
+    <li>The <span class="mono">stream</span> flag toggles between full <span class="mono">ChatResponse</span> and chunked <span class="mono">ChatResponseUpdate</span>.</li>
+    <li><span class="mono">ChatOptions</span> carries model parameters like temperature and max_tokens.</li>
+  </ul>
+</div>
+
+<div class="card spark">
+  <div class="tag">💡 Design highlight</div>
+  <strong>Public interface vs vendor extension point</strong> are split cleanly: <span class="mono">get_response</span>
+  handles shared logic (retries, middleware triggers); <span class="mono">_inner_get_response</span> only deals with
+  "how to talk to that API". Adding a vendor means writing one subclass.
+</div>
+</div>
   <div class="footnav"><a class="prev" href="08-agent-internals.html"><div class="dir"><span class="i18n" data-lang="zh">← 上一课</span><span class="i18n" data-lang="en">← Prev</span></div><div class="ttl"><span class="i18n" data-lang="zh">Agent 内部</span><span class="i18n" data-lang="en">Agent Internals</span></div></a><a class="next" href="10-tool-internals.html"><div class="dir"><span class="i18n" data-lang="zh">下一课 →</span><span class="i18n" data-lang="en">Next →</span></div><div class="ttl"><span class="i18n" data-lang="zh">工具调用内部</span><span class="i18n" data-lang="en">Tool-Calling Internals</span></div></a></div>
 </div>
 

@@ -253,10 +253,101 @@ table.t td.mono, table.t td .mono { font-family: ui-monospace, monospace; font-s
     <div class="part"><span class="i18n" data-lang="zh">第五部分 · 自己动手做 Agent</span><span class="i18n" data-lang="en">Part 5 · Build Your Own</span></div>
     <h1><span class="i18n" data-lang="zh">声明式 Agent（YAML）</span><span class="i18n" data-lang="en">Declarative Agents (YAML)</span></h1>
   </div>
-  <div class="i18n" data-lang="zh"><p class="lead">（占位）本课「声明式 Agent（YAML）」内容将于后续任务补全。</p>
-<div class="card key"><div class="tag">✅ 关键要点</div>待补充。</div></div>
-<div class="i18n" data-lang="en"><p class="lead">(stub) Lesson "Declarative Agents (YAML)" — content coming in a later task.</p>
-<div class="card key"><div class="tag">✅ Key points</div>TBD.</div></div>
+  <div class="i18n" data-lang="zh">
+<p class="lead">不想写代码？用 <strong>YAML</strong> 定义一个 Agent——名字、指令、工具、模型全写在配置文件里。</p>
+
+<div class="card analogy">
+  <div class="tag">📝 生活类比</div>
+  声明式 Agent 像<strong>简历</strong>：你把名字、技能、工作经验写好，HR（框架）照着简历帮你入职上岗。
+</div>
+
+<h2>一个 YAML 示例</h2>
+<div class="codefile">
+  <div class="cf-head"><span class="dot"></span><span class="path">my_agent.yaml</span></div>
+<pre>name: WeatherBot
+instructions: You help with weather queries.
+model: gpt-4o
+tools:
+  - get_weather</pre>
+</div>
+<p>框架的 <span class="mono">declarative</span> 包读这个 YAML，自动构造出 <span class="mono">Agent</span> 实例。
+适合快速原型和版本控制。</p>
+
+<details class="accordion">
+  <summary><span class="badge-num">1</span> 声明式能做到和代码一样吗？ <span class="hint">点击展开</span></summary>
+  <div class="acc-body">
+    <div class="qa">
+      <div class="q">🔬 能力边界</div>
+      <div class="a">简单 Agent（名字 + 指令 + 工具列表）完全可以；复杂的自定义中间件或动态逻辑仍需代码。
+        声明式和代码式可以<strong>混用</strong>——YAML 定义骨架，代码补充高级逻辑。</div>
+    </div>
+  </div>
+</details>
+
+<div class="card key">
+  <div class="tag">✅ 关键要点</div>
+  <ul>
+    <li>YAML 定义 Agent：<span class="mono">name</span> / <span class="mono">instructions</span> / <span class="mono">model</span> / <span class="mono">tools</span>。</li>
+    <li>用 <span class="mono">declarative</span> 包加载，自动构造 <span class="mono">Agent</span>。</li>
+    <li>适合快速原型、版本控制、非开发者协作。</li>
+  </ul>
+</div>
+
+<div class="card spark">
+  <div class="tag">💡 设计亮点</div>
+  <strong>"配置即 Agent"</strong>：改 YAML 就能调整行为，不用改代码、不用重编译。
+  这降低了非开发者参与 Agent 设计的门槛。
+</div>
+</div>
+<div class="i18n" data-lang="en">
+<p class="lead">Don't want to write code? Define an Agent in <strong>YAML</strong> — name, instructions, tools
+and model all in a config file.</p>
+
+<div class="card analogy">
+  <div class="tag">📝 Analogy</div>
+  A declarative Agent is like a <strong>résumé</strong>: you list name, skills and experience; HR (the framework)
+  reads it and onboards the person.
+</div>
+
+<h2>A YAML example</h2>
+<div class="codefile">
+  <div class="cf-head"><span class="dot"></span><span class="path">my_agent.yaml</span></div>
+<pre>name: WeatherBot
+instructions: You help with weather queries.
+model: gpt-4o
+tools:
+  - get_weather</pre>
+</div>
+<p>The <span class="mono">declarative</span> package reads this YAML and auto-constructs an <span class="mono">Agent</span>.
+Great for rapid prototyping and version control.</p>
+
+<details class="accordion">
+  <summary><span class="badge-num">1</span> Can declarative do everything code can? <span class="hint">expand</span></summary>
+  <div class="acc-body">
+    <div class="qa">
+      <div class="q">🔬 Capability boundary</div>
+      <div class="a">Simple agents (name + instructions + tool list) — absolutely. Complex custom middleware or dynamic
+        logic still needs code. Declarative and code <strong>can be mixed</strong> — YAML defines the skeleton,
+        code adds advanced logic.</div>
+    </div>
+  </div>
+</details>
+
+<div class="card key">
+  <div class="tag">✅ Key points</div>
+  <ul>
+    <li>YAML defines an Agent: <span class="mono">name</span> / <span class="mono">instructions</span> / <span class="mono">model</span> / <span class="mono">tools</span>.</li>
+    <li>Loaded by the <span class="mono">declarative</span> package; auto-constructs <span class="mono">Agent</span>.</li>
+    <li>Good for prototyping, version control, non-developer collaboration.</li>
+  </ul>
+</div>
+
+<div class="card spark">
+  <div class="tag">💡 Design highlight</div>
+  <strong>"Config is an Agent"</strong>: tweak YAML to change behavior, no code changes, no recompilation.
+  This lowers the barrier for non-developers to participate in Agent design.
+</div>
+</div>
   <div class="footnav"><a class="prev" href="16-providers.html"><div class="dir"><span class="i18n" data-lang="zh">← 上一课</span><span class="i18n" data-lang="en">← Prev</span></div><div class="ttl"><span class="i18n" data-lang="zh">接入各家模型</span><span class="i18n" data-lang="en">Model Providers</span></div></a><a class="next" href="18-custom-middleware.html"><div class="dir"><span class="i18n" data-lang="zh">下一课 →</span><span class="i18n" data-lang="en">Next →</span></div><div class="ttl"><span class="i18n" data-lang="zh">写自己的中间件</span><span class="i18n" data-lang="en">Writing Your Own Middleware</span></div></a></div>
 </div>
 

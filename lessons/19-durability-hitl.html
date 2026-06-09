@@ -253,10 +253,98 @@ table.t td.mono, table.t td .mono { font-family: ui-monospace, monospace; font-s
     <div class="part"><span class="i18n" data-lang="zh">第五部分 · 自己动手做 Agent</span><span class="i18n" data-lang="en">Part 5 · Build Your Own</span></div>
     <h1><span class="i18n" data-lang="zh">检查点 · 人在环 · 持久化</span><span class="i18n" data-lang="en">Checkpointing, HITL & Durability</span></h1>
   </div>
-  <div class="i18n" data-lang="zh"><p class="lead">（占位）本课「检查点 · 人在环 · 持久化」内容将于后续任务补全。</p>
-<div class="card key"><div class="tag">✅ 关键要点</div>待补充。</div></div>
-<div class="i18n" data-lang="en"><p class="lead">(stub) Lesson "Checkpointing, HITL & Durability" — content coming in a later task.</p>
-<div class="card key"><div class="tag">✅ Key points</div>TBD.</div></div>
+  <div class="i18n" data-lang="zh">
+<p class="lead">生产环境需要：<strong>跑到一半能存盘</strong>（检查点）、<strong>关键操作人工审批</strong>（人在环）、
+<strong>挂了能续跑</strong>（持久化）。MAF 把这三件事做成一等公民。</p>
+
+<div class="card analogy">
+  <div class="tag">💾 生活类比</div>
+  检查点像<strong>游戏存档</strong>：进度存下来，挂了从存档恢复。
+  人在环像<strong>审批流</strong>：到关键节点暂停，等人签字再继续。
+  DurableTask 像<strong>云存档</strong>：存档不在本地，搬到另一台机器也能续玩。
+</div>
+
+<h2>检查点（Checkpoint）</h2>
+<p>Workflow 在每个 superstep 边界自动存档。默认用 <span class="mono">InMemoryCheckpointStorage</span>；
+生产换成持久化存储（如 Redis、Cosmos）。崩溃后重启，从最近存档恢复。</p>
+
+<h2>人在环（HITL）</h2>
+<p>工具可设置 <span class="mono">approval_mode="always_require"</span>，执行前暂停等人确认。
+工作流层面也有 <span class="mono">request_info</span> 机制：节点暂停、发问、等回答再继续。</p>
+
+<details class="accordion">
+  <summary><span class="badge-num">1</span> DurableTask 是什么？ <span class="hint">点击展开</span></summary>
+  <div class="acc-body">
+    <div class="qa">
+      <div class="q">🔬 持久化执行</div>
+      <div class="a"><span class="mono">packages/durabletask</span> 把工作流跑在 <strong>Durable Task Framework</strong> 上：
+        状态持久化到外部存储，支持<strong>跨进程恢复</strong>和长时间等待（比如等人审批几小时）。
+        配合 Azure Functions 可做无服务器部署。</div>
+    </div>
+  </div>
+</details>
+
+<div class="card key">
+  <div class="tag">✅ 关键要点</div>
+  <ul>
+    <li><strong>检查点</strong>：Workflow superstep 自动存档，崩溃可恢复。</li>
+    <li><strong>人在环</strong>：工具 <span class="mono">approval_mode</span> + 工作流 <span class="mono">request_info</span>。</li>
+    <li><strong>持久化</strong>：DurableTask 包让状态存到外部，支持跨进程恢复。</li>
+  </ul>
+</div>
+
+<div class="card spark">
+  <div class="tag">💡 设计亮点</div>
+  <strong>生产能力不是插件，是框架的一部分</strong>：检查点、审批、持久化都在核心 API 里，
+  而不是你自己拼第三方库。
+</div>
+</div>
+<div class="i18n" data-lang="en">
+<p class="lead">Production needs: <strong>save progress mid-run</strong> (checkpoints), <strong>human approval at
+critical steps</strong> (HITL), <strong>resume after crashes</strong> (durability). MAF makes all three first-class.</p>
+
+<div class="card analogy">
+  <div class="tag">💾 Analogy</div>
+  Checkpoints are <strong>game saves</strong>: save progress, crash, reload from save.
+  HITL is an <strong>approval workflow</strong>: pause at a critical node, wait for a signature.
+  DurableTask is <strong>cloud saves</strong>: saves aren't local — move to another machine and keep playing.
+</div>
+
+<h2>Checkpoints</h2>
+<p>Workflows auto-save at each superstep boundary. Default: <span class="mono">InMemoryCheckpointStorage</span>;
+swap to persistent storage (Redis, Cosmos) for production. After a crash, restart and resume from the latest save.</p>
+
+<h2>Human-in-the-Loop (HITL)</h2>
+<p>Tools can set <span class="mono">approval_mode="always_require"</span> to pause for human confirmation.
+At the workflow level, <span class="mono">request_info</span> lets a node pause, ask a question, and wait for a reply.</p>
+
+<details class="accordion">
+  <summary><span class="badge-num">1</span> What is DurableTask? <span class="hint">expand</span></summary>
+  <div class="acc-body">
+    <div class="qa">
+      <div class="q">🔬 Durable execution</div>
+      <div class="a"><span class="mono">packages/durabletask</span> runs workflows on the <strong>Durable Task Framework</strong>:
+        state is persisted to external storage, supporting <strong>cross-process resume</strong> and long waits
+        (e.g. waiting hours for human approval). Pair with Azure Functions for serverless deployment.</div>
+    </div>
+  </div>
+</details>
+
+<div class="card key">
+  <div class="tag">✅ Key points</div>
+  <ul>
+    <li><strong>Checkpoints</strong>: auto-saved at Workflow supersteps; crash-recoverable.</li>
+    <li><strong>HITL</strong>: tool <span class="mono">approval_mode</span> + workflow <span class="mono">request_info</span>.</li>
+    <li><strong>Durability</strong>: DurableTask package persists state externally for cross-process resume.</li>
+  </ul>
+</div>
+
+<div class="card spark">
+  <div class="tag">💡 Design highlight</div>
+  <strong>Production features aren't plugins — they're part of the framework</strong>: checkpoints, approvals and
+  durability are in the core API, not third-party libraries you glue on yourself.
+</div>
+</div>
   <div class="footnav"><a class="prev" href="18-custom-middleware.html"><div class="dir"><span class="i18n" data-lang="zh">← 上一课</span><span class="i18n" data-lang="en">← Prev</span></div><div class="ttl"><span class="i18n" data-lang="zh">写自己的中间件</span><span class="i18n" data-lang="en">Writing Your Own Middleware</span></div></a><a class="next" href="20-capstone.html"><div class="dir"><span class="i18n" data-lang="zh">下一课 →</span><span class="i18n" data-lang="en">Next →</span></div><div class="ttl"><span class="i18n" data-lang="zh">端到端实战：多 Agent 工作流</span><span class="i18n" data-lang="en">Capstone: A Multi-Agent Workflow</span></div></a></div>
 </div>
 

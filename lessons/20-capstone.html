@@ -253,10 +253,116 @@ table.t td.mono, table.t td .mono { font-family: ui-monospace, monospace; font-s
     <div class="part"><span class="i18n" data-lang="zh">第五部分 · 自己动手做 Agent</span><span class="i18n" data-lang="en">Part 5 · Build Your Own</span></div>
     <h1><span class="i18n" data-lang="zh">端到端实战：多 Agent 工作流</span><span class="i18n" data-lang="en">Capstone: A Multi-Agent Workflow</span></h1>
   </div>
-  <div class="i18n" data-lang="zh"><p class="lead">（占位）本课「端到端实战：多 Agent 工作流」内容将于后续任务补全。</p>
-<div class="card key"><div class="tag">✅ 关键要点</div>待补充。</div></div>
-<div class="i18n" data-lang="en"><p class="lead">(stub) Lesson "Capstone: A Multi-Agent Workflow" — content coming in a later task.</p>
-<div class="card key"><div class="tag">✅ Key points</div>TBD.</div></div>
+  <div class="i18n" data-lang="zh">
+<p class="lead">最后一课实战：把前面学的<strong>Agent + 工具 + 编排 + 检查点</strong>拼成一个
+<strong>多 Agent 工作流</strong>。</p>
+
+<h2>场景：写作 → 审稿</h2>
+<div class="vflow">
+  <div class="step"><div class="num">1</div><div class="sc"><h4>创建两个 Agent</h4>
+    <p><strong>Writer</strong>：根据提示写文章。<strong>Reviewer</strong>：审稿、提修改意见。</p></div></div>
+  <div class="step"><div class="num">2</div><div class="sc"><h4>用 SequentialBuilder 编排</h4>
+    <p>Writer 写完 → Reviewer 审稿，串行。</p></div></div>
+  <div class="step"><div class="num">3</div><div class="sc"><h4>跑起来</h4>
+    <p><span class="mono">workflow.run("Write about AI agents")</span>。</p></div></div>
+</div>
+
+<div class="codefile">
+  <div class="cf-head"><span class="dot"></span><span class="path">端到端示例骨架</span></div>
+<pre><span class="kw">from</span> agent_framework <span class="kw">import</span> Agent
+<span class="kw">from</span> agent_framework.orchestrations <span class="kw">import</span> SequentialBuilder
+
+writer = Agent(client=client, name=<span class="st">"Writer"</span>,
+    instructions=<span class="st">"Write a short article on the given topic."</span>)
+reviewer = Agent(client=client, name=<span class="st">"Reviewer"</span>,
+    instructions=<span class="st">"Review the article. Suggest improvements."</span>)
+
+workflow = SequentialBuilder(participants=[writer, reviewer]).build()
+result = <span class="kw">await</span> workflow.run(<span class="st">"Write about AI agents"</span>)</pre>
+</div>
+
+<details class="accordion">
+  <summary><span class="badge-num">1</span> 加上工具和检查点 <span class="hint">点击展开</span></summary>
+  <div class="acc-body">
+    <div class="qa">
+      <div class="q">🧪 扩展</div>
+      <div class="a">给 Writer 加 <span class="mono">tools=[web_search]</span> 让它查资料；
+        在 Reviewer 的工具里加 <span class="mono">approval_mode="always_require"</span> 的发布工具。
+        检查点在 Workflow superstep 边界自动保存——如果中间断了，重启从最后存档恢复。</div>
+    </div>
+  </div>
+</details>
+
+<div class="card key">
+  <div class="tag">✅ 关键要点</div>
+  <ul>
+    <li>多 Agent 工作流 = 几个 Agent + 一个 Builder + <span class="mono">.build().run()</span>。</li>
+    <li>工具、中间件、检查点、人在环——全部可以叠加进去。</li>
+    <li>从"hello agent"到"生产级多 Agent"，代码增量很小。</li>
+  </ul>
+</div>
+
+<div class="card spark">
+  <div class="tag">💡 设计亮点</div>
+  <strong>复杂度是增量的</strong>：单 Agent → 加工具 → 加编排 → 加检查点 → 加审批，每一步只增加几行代码。
+  这就是"从原型到生产"的体验。
+</div>
+</div>
+<div class="i18n" data-lang="en">
+<p class="lead">Capstone: assemble <strong>Agent + tools + orchestration + checkpoints</strong> from earlier lessons
+into a <strong>multi-Agent workflow</strong>.</p>
+
+<h2>Scenario: write → review</h2>
+<div class="vflow">
+  <div class="step"><div class="num">1</div><div class="sc"><h4>Create two Agents</h4>
+    <p><strong>Writer</strong>: writes an article from a prompt. <strong>Reviewer</strong>: reviews it, suggests edits.</p></div></div>
+  <div class="step"><div class="num">2</div><div class="sc"><h4>Orchestrate with SequentialBuilder</h4>
+    <p>Writer finishes → Reviewer reviews, in sequence.</p></div></div>
+  <div class="step"><div class="num">3</div><div class="sc"><h4>Run it</h4>
+    <p><span class="mono">workflow.run("Write about AI agents")</span>.</p></div></div>
+</div>
+
+<div class="codefile">
+  <div class="cf-head"><span class="dot"></span><span class="path">end-to-end skeleton</span></div>
+<pre><span class="kw">from</span> agent_framework <span class="kw">import</span> Agent
+<span class="kw">from</span> agent_framework.orchestrations <span class="kw">import</span> SequentialBuilder
+
+writer = Agent(client=client, name=<span class="st">"Writer"</span>,
+    instructions=<span class="st">"Write a short article on the given topic."</span>)
+reviewer = Agent(client=client, name=<span class="st">"Reviewer"</span>,
+    instructions=<span class="st">"Review the article. Suggest improvements."</span>)
+
+workflow = SequentialBuilder(participants=[writer, reviewer]).build()
+result = <span class="kw">await</span> workflow.run(<span class="st">"Write about AI agents"</span>)</pre>
+</div>
+
+<details class="accordion">
+  <summary><span class="badge-num">1</span> Add tools and checkpoints <span class="hint">expand</span></summary>
+  <div class="acc-body">
+    <div class="qa">
+      <div class="q">🧪 Extensions</div>
+      <div class="a">Give Writer <span class="mono">tools=[web_search]</span> for research; add a publish tool with
+        <span class="mono">approval_mode="always_require"</span> to Reviewer. Checkpoints auto-save at Workflow superstep
+        boundaries — if interrupted, restart resumes from the latest save.</div>
+    </div>
+  </div>
+</details>
+
+<div class="card key">
+  <div class="tag">✅ Key points</div>
+  <ul>
+    <li>Multi-Agent workflow = a few Agents + one Builder + <span class="mono">.build().run()</span>.</li>
+    <li>Tools, middleware, checkpoints, HITL — all stackable.</li>
+    <li>From "hello agent" to "production multi-Agent" with minimal code increase.</li>
+  </ul>
+</div>
+
+<div class="card spark">
+  <div class="tag">💡 Design highlight</div>
+  <strong>Complexity is incremental</strong>: single Agent → add tools → add orchestration → add checkpoints → add
+  approvals, each step adds only a few lines. That's the "prototype to production" experience.
+</div>
+</div>
   <div class="footnav"><a class="prev" href="19-durability-hitl.html"><div class="dir"><span class="i18n" data-lang="zh">← 上一课</span><span class="i18n" data-lang="en">← Prev</span></div><div class="ttl"><span class="i18n" data-lang="zh">检查点 · 人在环 · 持久化</span><span class="i18n" data-lang="en">Checkpointing, HITL & Durability</span></div></a><a class="next" href="21-vs-others.html"><div class="dir"><span class="i18n" data-lang="zh">下一课 →</span><span class="i18n" data-lang="en">Next →</span></div><div class="ttl"><span class="i18n" data-lang="zh">横向对比：AF vs 其他框架</span><span class="i18n" data-lang="en">AF vs Other Frameworks</span></div></a></div>
 </div>
 

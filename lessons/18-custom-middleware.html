@@ -256,6 +256,12 @@ table.t td.mono, table.t td .mono { font-family: ui-monospace, monospace; font-s
   <div class="i18n" data-lang="zh">
 <p class="lead">第 11 课讲了中间件<em>是什么</em>；本课教你<strong>写一个自己的</strong>——从零到能用。</p>
 
+<div class="card analogy">
+  <div class="tag">🧱 生活类比</div>
+  写中间件像在流水线上<strong>加一道工序</strong>：你可以在产品进入下一站前做质检（日志），
+  在出站后贴标签（计费），或者发现次品时退回重做（重试）——不改流水线本身。
+</div>
+
 <h2>实战：重试中间件</h2>
 <div class="codefile">
   <div class="cf-head"><span class="dot"></span><span class="path">自定义 ChatMiddleware</span></div>
@@ -439,6 +445,13 @@ logger = logging.getLogger(__name__)
 <div class="i18n" data-lang="en">
 <p class="lead">Lesson 11 explained what middleware <em>is</em>; this lesson teaches you to
 <strong>write your own</strong> — from scratch to working.</p>
+
+<div class="card analogy">
+  <div class="tag">🧱 Analogy</div>
+  Writing middleware is like adding a <strong>station to an assembly line</strong>: you can inspect products
+  before the next station (logging), stamp labels after (billing), or send defects back for rework (retry)
+  — without modifying the line itself.
+</div>
 
 <h2>Hands-on: retry middleware</h2>
 <div class="codefile">

@@ -269,7 +269,7 @@ msg_back = Message.from_dict(d2)  <span class="cm"># 完全恢复</span></pre>
       <div class="q">✅ MAF 的做法与优点</div>
       <div class="a">MAF 提供<strong>统一抽象</strong>，但<strong>双向转换</strong>能力齐全：<ul>
         <li><span class="mono">BaseChatClient</span> 子类（如 <span class="mono">OpenAIChatClient</span>）内部自动把 <span class="mono">Message</span> 转成厂商格式，调完API再转回来。</li>
-        <li>如需直接转换：<span class="mono">from agent_framework.ai.openai import to_openai_messages, from_openai_messages</span>（见 <span class="mono">python/src/agent_framework/ai/openai/_convert.py</span>）。</li>
+        <li>如需直接转换：<span class="mono">from agent_framework.ai.openai import to_openai_messages, from_openai_messages</span>（见 <span class="mono">python/packages/core/agent_framework/openai/</span>）。</li>
         <li><strong>类型安全</strong>：IDE 自动补全 <span class="mono">Message(...)</span> / <span class="mono">Content.from_...</span>，编译期发现错误。</li>
         <li><strong>可测试</strong>：单元测试不依赖真实 LLM，mock <span class="mono">Message</span> 即可。</li>
       </ul></div>
@@ -571,7 +571,7 @@ msg_back = Message.from_dict(d2)  <span class="cm"># fully restored</span></pre>
       <div class="q">✅ How MAF does it</div>
       <div class="a">MAF provides <strong>unified abstraction</strong> with <strong>bidirectional conversion</strong>:<ul>
         <li><span class="mono">BaseChatClient</span> subclasses (like <span class="mono">OpenAIChatClient</span>) auto-convert <span class="mono">Message</span> to vendor format, call API, convert back.</li>
-        <li>For direct conversion: <span class="mono">from agent_framework.ai.openai import to_openai_messages, from_openai_messages</span> (see <span class="mono">python/src/agent_framework/ai/openai/_convert.py</span>).</li>
+        <li>For direct conversion: <span class="mono">from agent_framework.ai.openai import to_openai_messages, from_openai_messages</span> (see <span class="mono">python/packages/core/agent_framework/openai/</span>).</li>
         <li><strong>Type safety</strong>: IDE auto-completes <span class="mono">Message(...)</span> / <span class="mono">Content.from_...</span>, catches errors at edit time.</li>
         <li><strong>Testable</strong>: unit tests don't depend on real LLMs, just mock <span class="mono">Message</span>.</li>
       </ul></div>
@@ -688,7 +688,7 @@ agent_b = client.as_agent(
     </div>
     <div class="qa">
       <div class="q">✅ MAF 的做法与优点</div>
-      <div class="a"><span class="mono">as_agent</span> 是<strong>语法糖</strong>，内部调用 <span class="mono">Agent(client=self, ...)</span>（见 <span class="mono">python/src/agent_framework/ai/_chat_client.py</span> 的 <span class="mono">BaseChatClient.as_agent</span> 方法）。两种方式返回<strong>同一类型</strong>的对象，行为完全一致。用户可根据上下文选择：<ul>
+      <div class="a"><span class="mono">as_agent</span> 是<strong>语法糖</strong>，内部调用 <span class="mono">Agent(client=self, ...)</span>（见 <span class="mono">python/packages/core/agent_framework/_clients.py</span> 的 <span class="mono">BaseChatClient.as_agent</span> 方法）。两种方式返回<strong>同一类型</strong>的对象，行为完全一致。用户可根据上下文选择：<ul>
         <li>测试时 mock Agent：<span class="mono">Agent(client=mock_client, ...)</span></li>
         <li>配置多个 Agent：<span class="mono">agents = [client.as_agent(...) for cfg in configs]</span></li>
       </ul>
@@ -794,7 +794,7 @@ result = <span class="kw">await</span> agent.run(<span class="st">"我叫什么�
     </div>
     <div class="qa">
       <div class="q">✅ MAF 的做法与优点</div>
-      <div class="a">MAF 的流式返回 <span class="mono">AgentResponseUpdate</span> 对象（见 <span class="mono">python/src/agent_framework/_types.py</span>）：<ul>
+      <div class="a">MAF 的流式返回 <span class="mono">AgentResponseUpdate</span> 对象（见 <span class="mono">python/packages/core/agent_framework/_types.py</span>）：<ul>
         <li><strong>type</strong> 字段：<span class="mono">"text_delta"</span>（文本增量）/ <span class="mono">"tool_call"</span>（工具调用）/ <span class="mono">"final"</span>（结束）。</li>
         <li><strong>text</strong> 字段：本块新增的文本。</li>
         <li><strong>is_final</strong>：<span class="mono">True</span> 时是最后一块，<span class="mono">.response</span> 属性包含完整 <span class="mono">AgentResponse</span>。</li>
@@ -976,7 +976,7 @@ agent_b = client.as_agent(
     </div>
     <div class="qa">
       <div class="q">✅ How MAF does it</div>
-      <div class="a"><span class="mono">as_agent</span> is <strong>syntactic sugar</strong>, internally calling <span class="mono">Agent(client=self, ...)</span> (see <span class="mono">BaseChatClient.as_agent</span> in <span class="mono">python/src/agent_framework/ai/_chat_client.py</span>). Both patterns return the <strong>same type</strong>, behavior identical. Users can choose based on context:<ul>
+      <div class="a"><span class="mono">as_agent</span> is <strong>syntactic sugar</strong>, internally calling <span class="mono">Agent(client=self, ...)</span> (see <span class="mono">BaseChatClient.as_agent</span> in <span class="mono">python/packages/core/agent_framework/_clients.py</span>). Both patterns return the <strong>same type</strong>, behavior identical. Users can choose based on context:<ul>
         <li>Testing with mocks: <span class="mono">Agent(client=mock_client, ...)</span></li>
         <li>Configuring multiple Agents: <span class="mono">agents = [client.as_agent(...) for cfg in configs]</span></li>
       </ul>
@@ -1082,7 +1082,7 @@ result = <span class="kw">await</span> agent.run(<span class="st">"What's my nam
     </div>
     <div class="qa">
       <div class="q">✅ How MAF does it</div>
-      <div class="a">MAF streams <span class="mono">AgentResponseUpdate</span> objects (see <span class="mono">python/src/agent_framework/_types.py</span>):<ul>
+      <div class="a">MAF streams <span class="mono">AgentResponseUpdate</span> objects (see <span class="mono">python/packages/core/agent_framework/_types.py</span>):<ul>
         <li><strong>type</strong> field: <span class="mono">"text_delta"</span> (text increment) / <span class="mono">"tool_call"</span> (tool invocation) / <span class="mono">"final"</span> (end).</li>
         <li><strong>text</strong> field: new text in this chunk.</li>
         <li><strong>is_final</strong>: <span class="mono">True</span> for last chunk; <span class="mono">.response</span> property holds complete <span class="mono">AgentResponse</span>.</li>
@@ -1271,7 +1271,7 @@ result = <span class="kw">await</span> agent.run(<span class="st">"What's the we
     </div>
     <div class="qa">
       <div class="q">✅ MAF 的做法与优点</div>
-      <div class="a">MAF 用 <strong>Pydantic</strong> 自动生成 schema（见 <span class="mono">python/src/agent_framework/ai/_tool.py</span> 的 <span class="mono">ToolDefinition.from_function</span>）：<ul>
+      <div class="a">MAF 用 <strong>Pydantic</strong> 自动生成 schema（见 <span class="mono">python/packages/core/agent_framework/_tools.py</span> 的 <span class="mono">ToolDefinition.from_function</span>）：<ul>
         <li><strong>类型注解</strong> → <span class="mono">type</span> 字段（<span class="mono">str</span> → <span class="mono">"string"</span>，<span class="mono">int</span> → <span class="mono">"integer"</span>……）。</li>
         <li><strong>Field(description=...)</strong> → <span class="mono">description</span> 字段。</li>
         <li><strong>Field(..., ge=1, le=10)</strong> → <span class="mono">minimum</span>/<span class="mono">maximum</span> 约束。</li>
@@ -1308,7 +1308,7 @@ result = <span class="kw">await</span> agent.run(<span class="st">"What's the we
     <span class="st">&quot;&quot;&quot;Send an email (requires human approval).&quot;&quot;&quot;</span>
     ...  <span class="cm"># 框架会在执行前要求确认</span>
 
-<span class="nb">@tool</span>(approval_mode=<span class="st">"auto_if_low_risk"</span>)
+<span class="nb">@tool</span>(approval_mode=<span class="st">"always_require"</span>)
 <span class="kw">def</span> <span class="fn">create_ticket</span>(title: str, priority: str) -> str:
     <span class="st">&quot;&quot;&quot;Create a support ticket (low-priority auto, high requires approval).&quot;&quot;&quot;</span>
     ...  <span class="cm"># 可自定义风险评估逻辑</span></pre>
@@ -1325,12 +1325,11 @@ result = <span class="kw">await</span> agent.run(<span class="st">"What's the we
     </div>
     <div class="qa">
       <div class="q">✅ MAF 的做法与优点</div>
-      <div class="a">MAF 的 <span class="mono">approval_mode</span>（见 <span class="mono">python/src/agent_framework/ai/_tool.py</span>）：<ul>
+      <div class="a">MAF 的 <span class="mono">approval_mode</span>（见 <span class="mono">python/packages/core/agent_framework/_tools.py</span>）：<ul>
         <li><strong>"never_require"</strong>：无需确认，自动执行（默认）。</li>
         <li><strong>"always_require"</strong>：每次都弹出确认对话框 / 回调，用户批准后才执行。</li>
-        <li><strong>"auto_if_low_risk"</strong>（未来扩展）：根据参数内容动态决定（如金额 < $10 自动，>= $10 确认）。</li>
       </ul>
-      审批流程由 <span class="mono">ApprovalStrategy</span> 接口定义（见 <span class="mono">_approval.py</span>），可自定义（如接入 Slack 审批机器人、钉钉审批流）。框架在工具执行前自动拦截，无需在工具函数内写审批逻辑。</div>
+      审批流程由 <span class="mono">approval logic</span> 接口定义（见 <span class="mono">_tools.py</span>），可自定义（如接入 Slack 审批机器人、钉钉审批流）。框架在工具执行前自动拦截，无需在工具函数内写审批逻辑。</div>
     </div>
     <div class="qa">
       <div class="q">🔀 还有什么其他方案</div>
@@ -1381,7 +1380,7 @@ result = <span class="kw">await</span> agent.run(<span class="st">"What's the we
     </div>
     <div class="qa">
       <div class="q">✅ MAF 的做法与优点</div>
-      <div class="a">MAF 的 <span class="mono">@tool</span> <strong>同时支持同步和异步</strong>（见 <span class="mono">python/src/agent_framework/ai/_tool.py</span> 的 <span class="mono">ToolDefinition.invoke</span>）：<ul>
+      <div class="a">MAF 的 <span class="mono">@tool</span> <strong>同时支持同步和异步</strong>（见 <span class="mono">python/packages/core/agent_framework/_tools.py</span> 的 <span class="mono">ToolDefinition.invoke</span>）：<ul>
         <li><strong>同步工具</strong>：框架用 <span class="mono">asyncio.to_thread</span>（或 <span class="mono">run_in_executor</span>）在线程池执行，避免阻塞。</li>
         <li><strong>异步工具</strong>：框架直接 <span class="mono">await</span>，不阻塞事件循环。</li>
         <li><strong>自动检测</strong>：<span class="mono">inspect.iscoroutinefunction(...)</span> 判断是否异步。</li>
@@ -1450,7 +1449,7 @@ agent = Agent(
     </div>
     <div class="qa">
       <div class="q">✅ MAF 的做法与优点</div>
-      <div class="a">MAF 的工具循环（见 <span class="mono">python/src/agent_framework/_agent.py</span> 的 <span class="mono">_run_loop</span>）：<ul>
+      <div class="a">MAF 的工具循环（见 <span class="mono">python/packages/core/agent_framework/_agents.py</span> 的 <span class="mono">_run_non_streaming</span>）：<ul>
         <li><strong>传所有工具 schema</strong>：Agent 初始化时把所有工具的 JSON Schema 发给模型。</li>
         <li><strong>模型选择工具</strong>：模型根据用户问题决定调哪个（或哪几个）工具，输出 <span class="mono">function_call</span>。</li>
         <li><strong>框架路由执行</strong>：根据 <span class="mono">function_call.name</span> 找到对应 Python 函数，传参调用。</li>
@@ -1580,7 +1579,7 @@ result = <span class="kw">await</span> agent.run(<span class="st">"What's the we
     </div>
     <div class="qa">
       <div class="q">✅ How MAF does it</div>
-      <div class="a">MAF uses <strong>Pydantic</strong> to auto-generate schemas (see <span class="mono">ToolDefinition.from_function</span> in <span class="mono">python/src/agent_framework/ai/_tool.py</span>):<ul>
+      <div class="a">MAF uses <strong>Pydantic</strong> to auto-generate schemas (see <span class="mono">ToolDefinition.from_function</span> in <span class="mono">python/packages/core/agent_framework/_tools.py</span>):<ul>
         <li><strong>Type annotations</strong> → <span class="mono">type</span> field (<span class="mono">str</span> → <span class="mono">"string"</span>, <span class="mono">int</span> → <span class="mono">"integer"</span>…).</li>
         <li><strong>Field(description=...)</strong> → <span class="mono">description</span> field.</li>
         <li><strong>Field(..., ge=1, le=10)</strong> → <span class="mono">minimum</span>/<span class="mono">maximum</span> constraints.</li>
@@ -1617,7 +1616,7 @@ result = <span class="kw">await</span> agent.run(<span class="st">"What's the we
     <span class="st">&quot;&quot;&quot;Send an email (requires human approval).&quot;&quot;&quot;</span>
     ...  <span class="cm"># framework requests confirmation before execution</span>
 
-<span class="nb">@tool</span>(approval_mode=<span class="st">"auto_if_low_risk"</span>)
+<span class="nb">@tool</span>(approval_mode=<span class="st">"always_require"</span>)
 <span class="kw">def</span> <span class="fn">create_ticket</span>(title: str, priority: str) -> str:
     <span class="st">&quot;&quot;&quot;Create a ticket (low-priority auto, high requires approval).&quot;&quot;&quot;</span>
     ...  <span class="cm"># can customize risk assessment logic</span></pre>
@@ -1634,12 +1633,11 @@ result = <span class="kw">await</span> agent.run(<span class="st">"What's the we
     </div>
     <div class="qa">
       <div class="q">✅ How MAF does it</div>
-      <div class="a">MAF's <span class="mono">approval_mode</span> (see <span class="mono">python/src/agent_framework/ai/_tool.py</span>):<ul>
+      <div class="a">MAF's <span class="mono">approval_mode</span> (see <span class="mono">python/packages/core/agent_framework/_tools.py</span>):<ul>
         <li><strong>"never_require"</strong>: no confirmation, auto-execute (default).</li>
         <li><strong>"always_require"</strong>: pop confirmation dialog / callback every time, execute only after user approval.</li>
-        <li><strong>"auto_if_low_risk"</strong> (future extension): decide dynamically based on parameter content (e.g., amount < $10 auto, >= $10 confirm).</li>
       </ul>
-      Approval flow defined by <span class="mono">ApprovalStrategy</span> interface (see <span class="mono">_approval.py</span>), customizable (e.g., integrate Slack approval bot, DingTalk approval flow). Framework auto-intercepts before tool execution, no need to write approval logic inside tool functions.</div>
+      Approval flow defined by <span class="mono">approval logic</span> interface (see <span class="mono">_tools.py</span>), customizable (e.g., integrate Slack approval bot, DingTalk approval flow). Framework auto-intercepts before tool execution, no need to write approval logic inside tool functions.</div>
     </div>
     <div class="qa">
       <div class="q">🔀 Alternatives</div>
@@ -1690,7 +1688,7 @@ result = <span class="kw">await</span> agent.run(<span class="st">"What's the we
     </div>
     <div class="qa">
       <div class="q">✅ How MAF does it</div>
-      <div class="a">MAF's <span class="mono">@tool</span> <strong>supports both sync and async</strong> (see <span class="mono">ToolDefinition.invoke</span> in <span class="mono">python/src/agent_framework/ai/_tool.py</span>):<ul>
+      <div class="a">MAF's <span class="mono">@tool</span> <strong>supports both sync and async</strong> (see <span class="mono">ToolDefinition.invoke</span> in <span class="mono">python/packages/core/agent_framework/_tools.py</span>):<ul>
         <li><strong>Sync tools</strong>: framework uses <span class="mono">asyncio.to_thread</span> (or <span class="mono">run_in_executor</span>) to run in thread pool, avoiding blocking.</li>
         <li><strong>Async tools</strong>: framework directly <span class="mono">await</span>s, doesn't block event loop.</li>
         <li><strong>Auto-detection</strong>: <span class="mono">inspect.iscoroutinefunction(...)</span> determines if async.</li>
@@ -1759,7 +1757,7 @@ agent = Agent(
     </div>
     <div class="qa">
       <div class="q">✅ How MAF does it</div>
-      <div class="a">MAF's tool loop (see <span class="mono">_run_loop</span> in <span class="mono">python/src/agent_framework/_agent.py</span>):<ul>
+      <div class="a">MAF's tool loop (see <span class="mono">_run_non_streaming</span> in <span class="mono">python/packages/core/agent_framework/_agents.py</span>):<ul>
         <li><strong>Pass all tool schemas</strong>: on Agent init, all tools' JSON Schemas sent to model.</li>
         <li><strong>Model selects tools</strong>: model decides which tool(s) to call based on user question, outputs <span class="mono">function_call</span>.</li>
         <li><strong>Framework routes execution</strong>: based on <span class="mono">function_call.name</span>, finds corresponding Python function, calls with args.</li>
@@ -1862,7 +1860,7 @@ result2 = <span class="kw">await</span> agent.run(<span class="st">"我叫什么
     </div>
     <div class="qa">
       <div class="q">✅ MAF 的做法与优点</div>
-      <div class="a"><span class="mono">AgentSession</span>（见 <span class="mono">python/src/agent_framework/_session.py</span>）：<ul>
+      <div class="a"><span class="mono">AgentSession</span>（见 <span class="mono">python/packages/core/agent_framework/_sessions.py</span>）：<ul>
         <li><strong>显式创建</strong>：<span class="mono">agent.create_session()</span> 返回一个新会话对象。</li>
         <li><strong>透传</strong>：把同一个 <span class="mono">session</span> 对象传给每次 <span class="mono">run()</span>。</li>
         <li><strong>自动累积</strong>：每次 <span class="mono">run</span> 后，用户消息 + 模型回复（+ 工具调用/结果）自动追加进 <span class="mono">session.history</span>。</li>
@@ -1925,7 +1923,7 @@ session2 = agent.create_session()
     </div>
     <div class="qa">
       <div class="q">✅ MAF 的做法与优点</div>
-      <div class="a"><span class="mono">ContextProvider</span> 接口（见 <span class="mono">python/src/agent_framework/context/_provider.py</span>）：<ul>
+      <div class="a"><span class="mono">ContextProvider</span> 接口（见 <span class="mono">python/packages/core/agent_framework/</span>）：<ul>
         <li><strong>在每次 run 前调用</strong>：Agent 执行时，遍历 <span class="mono">context_providers</span> 列表，调用每个 provider 的 <span class="mono">provide_context(...)</span>。</li>
         <li><strong>返回消息 / 内容</strong>：provider 可返回 <span class="mono">Message</span> 列表（注入历史对话）、<span class="mono">Content</span> 列表（注入文档片段）、或修改 system prompt。</li>
         <li><strong>内置实现</strong>：<span class="mono">MemoryContextProvider</span>（向量检索记忆）、<span class="mono">InMemoryHistoryProvider</span>（跨会话历史）、<span class="mono">DocumentContextProvider</span>（文档 RAG）。</li>
@@ -1986,7 +1984,7 @@ session = agent.create_session(session_id=<span class="st">"user_123_conv_456"</
     </div>
     <div class="qa">
       <div class="q">✅ MAF 的做法与优点</div>
-      <div class="a"><span class="mono">SessionStore</span> 接口（见 <span class="mono">python/src/agent_framework/session/_store.py</span>）：<ul>
+      <div class="a"><span class="mono">SessionStore</span> 接口（见 <span class="mono">python/packages/core/agent_framework/</span>）：<ul>
         <li><strong>抽象接口</strong>：<span class="mono">save_session</span> / <span class="mono">load_session</span> / <span class="mono">delete_session</span>，Agent 只依赖接口。</li>
         <li><strong>多种实现</strong>：<ul>
           <li><span class="mono">InMemorySessionStore</span>：开发用，字典存储。</li>
@@ -2058,7 +2056,7 @@ session = agent.create_session()
     </div>
     <div class="qa">
       <div class="q">✅ MAF 的做法与优点</div>
-      <div class="a"><span class="mono">ContextWindowCompactionStrategy</span>（见 <span class="mono">python/src/agent_framework/context/_compaction.py</span>）：<ul>
+      <div class="a"><span class="mono">ContextWindowCompactionStrategy</span>（见 <span class="mono">python/packages/core/agent_framework/</span>）：<ul>
         <li><strong>滑动窗口</strong>：保留最近 N 条消息，删掉最老的（适合短期对话）。</li>
         <li><strong>摘要压缩</strong>：把老消息总结成一条 system 消息（<span class="st">"之前用户提到……"</span>），保留语义、减少 token。</li>
         <li><strong>混合策略</strong>：保留 system 消息（重要指令）+ 最近消息（当前上下文）+ 摘要中间消息。</li>
@@ -2163,7 +2161,7 @@ result2 = <span class="kw">await</span> agent.run(<span class="st">"What's my na
     </div>
     <div class="qa">
       <div class="q">✅ How MAF does it</div>
-      <div class="a"><span class="mono">AgentSession</span> (see <span class="mono">python/src/agent_framework/_session.py</span>):<ul>
+      <div class="a"><span class="mono">AgentSession</span> (see <span class="mono">python/packages/core/agent_framework/_sessions.py</span>):<ul>
         <li><strong>Explicit creation</strong>: <span class="mono">agent.create_session()</span> returns a new session object.</li>
         <li><strong>Pass-through</strong>: pass the same <span class="mono">session</span> object to each <span class="mono">run()</span>.</li>
         <li><strong>Auto-accumulation</strong>: after each <span class="mono">run</span>, user message + model reply (+ tool calls/results) auto-append to <span class="mono">session.history</span>.</li>
@@ -2226,7 +2224,7 @@ session2 = agent.create_session()
     </div>
     <div class="qa">
       <div class="q">✅ How MAF does it</div>
-      <div class="a"><span class="mono">ContextProvider</span> interface (see <span class="mono">python/src/agent_framework/context/_provider.py</span>):<ul>
+      <div class="a"><span class="mono">ContextProvider</span> interface (see <span class="mono">python/packages/core/agent_framework/</span>):<ul>
         <li><strong>Called before each run</strong>: Agent execution iterates through <span class="mono">context_providers</span> list, calls each provider's <span class="mono">provide_context(...)</span>.</li>
         <li><strong>Returns messages / content</strong>: provider can return <span class="mono">Message</span> lists (inject history), <span class="mono">Content</span> lists (inject doc snippets), or modify system prompt.</li>
         <li><strong>Built-in implementations</strong>: <span class="mono">MemoryContextProvider</span> (vector retrieval memory), <span class="mono">InMemoryHistoryProvider</span> (cross-session history), <span class="mono">DocumentContextProvider</span> (doc RAG).</li>
@@ -2287,7 +2285,7 @@ session = agent.create_session(session_id=<span class="st">"user_123_conv_456"</
     </div>
     <div class="qa">
       <div class="q">✅ How MAF does it</div>
-      <div class="a"><span class="mono">SessionStore</span> interface (see <span class="mono">python/src/agent_framework/session/_store.py</span>):<ul>
+      <div class="a"><span class="mono">SessionStore</span> interface (see <span class="mono">python/packages/core/agent_framework/</span>):<ul>
         <li><strong>Abstract interface</strong>: <span class="mono">save_session</span> / <span class="mono">load_session</span> / <span class="mono">delete_session</span>, Agent depends only on interface.</li>
         <li><strong>Multiple implementations</strong>:<ul>
           <li><span class="mono">InMemorySessionStore</span>: for dev, dict storage.</li>
@@ -2359,7 +2357,7 @@ session = agent.create_session()
     </div>
     <div class="qa">
       <div class="q">✅ How MAF does it</div>
-      <div class="a"><span class="mono">ContextWindowCompactionStrategy</span> (see <span class="mono">python/src/agent_framework/context/_compaction.py</span>):<ul>
+      <div class="a"><span class="mono">ContextWindowCompactionStrategy</span> (see <span class="mono">python/packages/core/agent_framework/</span>):<ul>
         <li><strong>Sliding window</strong>: keep recent N messages, delete oldest (good for short-term conversations).</li>
         <li><strong>Summarization</strong>: summarize old messages into one system message (<span class="st">"Previously user mentioned…"</span>), preserve semantics, reduce tokens.</li>
         <li><strong>Hybrid strategy</strong>: keep system messages (important instructions) + recent messages (current context) + summarize middle messages.</li>

@@ -798,6 +798,12 @@ Current limitation: complex routing logic in workflows is best expressed in code
 L18_ZH = r"""
 <p class="lead">第 11 课讲了中间件<em>是什么</em>；本课教你<strong>写一个自己的</strong>——从零到能用。</p>
 
+<div class="card analogy">
+  <div class="tag">🧱 生活类比</div>
+  写中间件像在流水线上<strong>加一道工序</strong>：你可以在产品进入下一站前做质检（日志），
+  在出站后贴标签（计费），或者发现次品时退回重做（重试）——不改流水线本身。
+</div>
+
 <h2>实战：重试中间件</h2>
 <div class="codefile">
   <div class="cf-head"><span class="dot"></span><span class="path">自定义 ChatMiddleware</span></div>
@@ -982,6 +988,13 @@ logger = logging.getLogger(__name__)
 L18_EN = r"""
 <p class="lead">Lesson 11 explained what middleware <em>is</em>; this lesson teaches you to
 <strong>write your own</strong> — from scratch to working.</p>
+
+<div class="card analogy">
+  <div class="tag">🧱 Analogy</div>
+  Writing middleware is like adding a <strong>station to an assembly line</strong>: you can inspect products
+  before the next station (logging), stamp labels after (billing), or send defects back for rework (retry)
+  — without modifying the line itself.
+</div>
 
 <h2>Hands-on: retry middleware</h2>
 <div class="codefile">
@@ -1511,6 +1524,12 @@ L20_ZH = r"""
 <p class="lead">最后一课实战：把前面学的<strong>Agent + 工具 + 编排 + 检查点</strong>拼成一个
 <strong>多 Agent 工作流</strong>。</p>
 
+<div class="card analogy">
+  <div class="tag">🧩 生活类比</div>
+  这节课像<strong>拼乐高</strong>：前面每课教你认识一种零件（Agent、工具、编排、检查点），
+  现在把它们拼成一辆完整的车——能跑、能转弯、能刹车。
+</div>
+
 <h2>场景：写作 → 审稿</h2>
 <div class="vflow">
   <div class="step"><div class="num">1</div><div class="sc"><h4>创建两个 Agent</h4>
@@ -1728,6 +1747,13 @@ logging.basicConfig(level=logging.INFO)</pre>
 L20_EN = r"""
 <p class="lead">Capstone: assemble <strong>Agent + tools + orchestration + checkpoints</strong> from earlier lessons
 into a <strong>multi-Agent workflow</strong>.</p>
+
+<div class="card analogy">
+  <div class="tag">🧩 Analogy</div>
+  This lesson is like <strong>building with LEGO</strong>: earlier lessons taught you each brick type
+  (Agent, tools, orchestration, checkpoints); now you snap them together into a complete car —
+  one that drives, turns and brakes.
+</div>
 
 <h2>Scenario: write → review</h2>
 <div class="vflow">

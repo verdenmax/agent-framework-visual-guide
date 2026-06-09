@@ -336,7 +336,7 @@ agent_b = client.as_agent(
     </div>
     <div class="qa">
       <div class="q">✅ MAF 的做法与优点</div>
-      <div class="a"><span class="mono">as_agent</span> 是<strong>语法糖</strong>，内部调用 <span class="mono">Agent(client=self, ...)</span>（见 <span class="mono">python/src/agent_framework/ai/_chat_client.py</span> 的 <span class="mono">BaseChatClient.as_agent</span> 方法）。两种方式返回<strong>同一类型</strong>的对象，行为完全一致。用户可根据上下文选择：<ul>
+      <div class="a"><span class="mono">as_agent</span> 是<strong>语法糖</strong>，内部调用 <span class="mono">Agent(client=self, ...)</span>（见 <span class="mono">python/packages/core/agent_framework/_clients.py</span> 的 <span class="mono">BaseChatClient.as_agent</span> 方法）。两种方式返回<strong>同一类型</strong>的对象，行为完全一致。用户可根据上下文选择：<ul>
         <li>测试时 mock Agent：<span class="mono">Agent(client=mock_client, ...)</span></li>
         <li>配置多个 Agent：<span class="mono">agents = [client.as_agent(...) for cfg in configs]</span></li>
       </ul>
@@ -442,7 +442,7 @@ result = <span class="kw">await</span> agent.run(<span class="st">"我叫什么�
     </div>
     <div class="qa">
       <div class="q">✅ MAF 的做法与优点</div>
-      <div class="a">MAF 的流式返回 <span class="mono">AgentResponseUpdate</span> 对象（见 <span class="mono">python/src/agent_framework/_types.py</span>）：<ul>
+      <div class="a">MAF 的流式返回 <span class="mono">AgentResponseUpdate</span> 对象（见 <span class="mono">python/packages/core/agent_framework/_types.py</span>）：<ul>
         <li><strong>type</strong> 字段：<span class="mono">"text_delta"</span>（文本增量）/ <span class="mono">"tool_call"</span>（工具调用）/ <span class="mono">"final"</span>（结束）。</li>
         <li><strong>text</strong> 字段：本块新增的文本。</li>
         <li><strong>is_final</strong>：<span class="mono">True</span> 时是最后一块，<span class="mono">.response</span> 属性包含完整 <span class="mono">AgentResponse</span>。</li>
@@ -623,7 +623,7 @@ agent_b = client.as_agent(
     </div>
     <div class="qa">
       <div class="q">✅ How MAF does it</div>
-      <div class="a"><span class="mono">as_agent</span> is <strong>syntactic sugar</strong>, internally calling <span class="mono">Agent(client=self, ...)</span> (see <span class="mono">BaseChatClient.as_agent</span> in <span class="mono">python/src/agent_framework/ai/_chat_client.py</span>). Both patterns return the <strong>same type</strong>, behavior identical. Users can choose based on context:<ul>
+      <div class="a"><span class="mono">as_agent</span> is <strong>syntactic sugar</strong>, internally calling <span class="mono">Agent(client=self, ...)</span> (see <span class="mono">BaseChatClient.as_agent</span> in <span class="mono">python/packages/core/agent_framework/_clients.py</span>). Both patterns return the <strong>same type</strong>, behavior identical. Users can choose based on context:<ul>
         <li>Testing with mocks: <span class="mono">Agent(client=mock_client, ...)</span></li>
         <li>Configuring multiple Agents: <span class="mono">agents = [client.as_agent(...) for cfg in configs]</span></li>
       </ul>
@@ -729,7 +729,7 @@ result = <span class="kw">await</span> agent.run(<span class="st">"What's my nam
     </div>
     <div class="qa">
       <div class="q">✅ How MAF does it</div>
-      <div class="a">MAF streams <span class="mono">AgentResponseUpdate</span> objects (see <span class="mono">python/src/agent_framework/_types.py</span>):<ul>
+      <div class="a">MAF streams <span class="mono">AgentResponseUpdate</span> objects (see <span class="mono">python/packages/core/agent_framework/_types.py</span>):<ul>
         <li><strong>type</strong> field: <span class="mono">"text_delta"</span> (text increment) / <span class="mono">"tool_call"</span> (tool invocation) / <span class="mono">"final"</span> (end).</li>
         <li><strong>text</strong> field: new text in this chunk.</li>
         <li><strong>is_final</strong>: <span class="mono">True</span> for last chunk; <span class="mono">.response</span> property holds complete <span class="mono">AgentResponse</span>.</li>

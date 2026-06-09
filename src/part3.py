@@ -1312,8 +1312,9 @@ L12_ZH = r"""
 <span class="kw">async def</span> <span class="fn">reverse</span>(text: str, ctx: WorkflowContext):
     <span class="kw">await</span> ctx.yield_output(text[::-1])
 
-wf = WorkflowBuilder(start_executor=UpperCase(id=<span class="st">"upper"</span>)) \
-    .add_edge(UpperCase(id=<span class="st">"upper"</span>), reverse).build()
+upper = UpperCase(id=<span class="st">"upper"</span>)
+wf = WorkflowBuilder(start_executor=upper) \
+    .add_edge(upper, reverse).build()
 events = <span class="kw">await</span> wf.run(<span class="st">"hello"</span>)  <span class="cm"># → "OLLEH"</span></pre>
 </div>
 
@@ -1463,8 +1464,9 @@ into a directed graph with <strong>Edges</strong>, built by <span class="mono">W
 <span class="kw">async def</span> <span class="fn">reverse</span>(text: str, ctx: WorkflowContext):
     <span class="kw">await</span> ctx.yield_output(text[::-1])
 
-wf = WorkflowBuilder(start_executor=UpperCase(id=<span class="st">"upper"</span>)) \
-    .add_edge(UpperCase(id=<span class="st">"upper"</span>), reverse).build()
+upper = UpperCase(id=<span class="st">"upper"</span>)
+wf = WorkflowBuilder(start_executor=upper) \
+    .add_edge(upper, reverse).build()
 events = <span class="kw">await</span> wf.run(<span class="st">"hello"</span>)  <span class="cm"># → "OLLEH"</span></pre>
 </div>
 

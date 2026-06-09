@@ -394,6 +394,12 @@ L22_ZH = r"""
 <p class="lead">最后一课，缩放镜头：把 MAF 放进<strong>AI 全栈</strong>的坐标系里——
 看看你现在在哪，隔壁层还有什么值得学。</p>
 
+<div class="card analogy">
+  <div class="tag">🔭 生活类比</div>
+  你一直在<strong>一栋楼的某层（L6 编排层）</strong>装修。现在坐电梯上下看看：楼下是发动机房（推理层），
+  楼上是大堂（应用层）。了解整栋楼的布局，才知道去哪里接水管、接电线。
+</div>
+
 <h2>AI 全栈分层</h2>
 <div class="layers">
   <div class="layer l-app"><div class="lh"><span class="badge">L7</span><span class="name">应用层</span></div>
@@ -591,6 +597,13 @@ app = FastAPI()
 L22_EN = r"""
 <p class="lead">Final lesson — zoom out: place MAF in the <strong>AI full-stack</strong> coordinate system and see
 what's worth learning next door.</p>
+
+<div class="card analogy">
+  <div class="tag">🔭 Analogy</div>
+  You've been <strong>remodelling one floor (L6, orchestration)</strong> of a building. Now ride the elevator
+  up and down: the basement is the engine room (inference), the lobby is the front desk (application).
+  Understanding the whole building tells you where to connect the plumbing and wiring.
+</div>
 
 <h2>AI full-stack layers</h2>
 <div class="layers">

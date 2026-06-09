@@ -318,7 +318,7 @@ result2 = <span class="kw">await</span> agent.run(<span class="st">"我叫什么
     </div>
     <div class="qa">
       <div class="q">✅ MAF 的做法与优点</div>
-      <div class="a"><span class="mono">AgentSession</span>（见 <span class="mono">python/src/agent_framework/_session.py</span>）：<ul>
+      <div class="a"><span class="mono">AgentSession</span>（见 <span class="mono">python/packages/core/agent_framework/_sessions.py</span>）：<ul>
         <li><strong>显式创建</strong>：<span class="mono">agent.create_session()</span> 返回一个新会话对象。</li>
         <li><strong>透传</strong>：把同一个 <span class="mono">session</span> 对象传给每次 <span class="mono">run()</span>。</li>
         <li><strong>自动累积</strong>：每次 <span class="mono">run</span> 后，用户消息 + 模型回复（+ 工具调用/结果）自动追加进 <span class="mono">session.history</span>。</li>
@@ -381,7 +381,7 @@ session2 = agent.create_session()
     </div>
     <div class="qa">
       <div class="q">✅ MAF 的做法与优点</div>
-      <div class="a"><span class="mono">ContextProvider</span> 接口（见 <span class="mono">python/src/agent_framework/context/_provider.py</span>）：<ul>
+      <div class="a"><span class="mono">ContextProvider</span> 接口（见 <span class="mono">python/packages/core/agent_framework/</span>）：<ul>
         <li><strong>在每次 run 前调用</strong>：Agent 执行时，遍历 <span class="mono">context_providers</span> 列表，调用每个 provider 的 <span class="mono">provide_context(...)</span>。</li>
         <li><strong>返回消息 / 内容</strong>：provider 可返回 <span class="mono">Message</span> 列表（注入历史对话）、<span class="mono">Content</span> 列表（注入文档片段）、或修改 system prompt。</li>
         <li><strong>内置实现</strong>：<span class="mono">MemoryContextProvider</span>（向量检索记忆）、<span class="mono">InMemoryHistoryProvider</span>（跨会话历史）、<span class="mono">DocumentContextProvider</span>（文档 RAG）。</li>
@@ -442,7 +442,7 @@ session = agent.create_session(session_id=<span class="st">"user_123_conv_456"</
     </div>
     <div class="qa">
       <div class="q">✅ MAF 的做法与优点</div>
-      <div class="a"><span class="mono">SessionStore</span> 接口（见 <span class="mono">python/src/agent_framework/session/_store.py</span>）：<ul>
+      <div class="a"><span class="mono">SessionStore</span> 接口（见 <span class="mono">python/packages/core/agent_framework/</span>）：<ul>
         <li><strong>抽象接口</strong>：<span class="mono">save_session</span> / <span class="mono">load_session</span> / <span class="mono">delete_session</span>，Agent 只依赖接口。</li>
         <li><strong>多种实现</strong>：<ul>
           <li><span class="mono">InMemorySessionStore</span>：开发用，字典存储。</li>
@@ -514,7 +514,7 @@ session = agent.create_session()
     </div>
     <div class="qa">
       <div class="q">✅ MAF 的做法与优点</div>
-      <div class="a"><span class="mono">ContextWindowCompactionStrategy</span>（见 <span class="mono">python/src/agent_framework/context/_compaction.py</span>）：<ul>
+      <div class="a"><span class="mono">ContextWindowCompactionStrategy</span>（见 <span class="mono">python/packages/core/agent_framework/</span>）：<ul>
         <li><strong>滑动窗口</strong>：保留最近 N 条消息，删掉最老的（适合短期对话）。</li>
         <li><strong>摘要压缩</strong>：把老消息总结成一条 system 消息（<span class="st">"之前用户提到……"</span>），保留语义、减少 token。</li>
         <li><strong>混合策略</strong>：保留 system 消息（重要指令）+ 最近消息（当前上下文）+ 摘要中间消息。</li>
@@ -618,7 +618,7 @@ result2 = <span class="kw">await</span> agent.run(<span class="st">"What's my na
     </div>
     <div class="qa">
       <div class="q">✅ How MAF does it</div>
-      <div class="a"><span class="mono">AgentSession</span> (see <span class="mono">python/src/agent_framework/_session.py</span>):<ul>
+      <div class="a"><span class="mono">AgentSession</span> (see <span class="mono">python/packages/core/agent_framework/_sessions.py</span>):<ul>
         <li><strong>Explicit creation</strong>: <span class="mono">agent.create_session()</span> returns a new session object.</li>
         <li><strong>Pass-through</strong>: pass the same <span class="mono">session</span> object to each <span class="mono">run()</span>.</li>
         <li><strong>Auto-accumulation</strong>: after each <span class="mono">run</span>, user message + model reply (+ tool calls/results) auto-append to <span class="mono">session.history</span>.</li>
@@ -681,7 +681,7 @@ session2 = agent.create_session()
     </div>
     <div class="qa">
       <div class="q">✅ How MAF does it</div>
-      <div class="a"><span class="mono">ContextProvider</span> interface (see <span class="mono">python/src/agent_framework/context/_provider.py</span>):<ul>
+      <div class="a"><span class="mono">ContextProvider</span> interface (see <span class="mono">python/packages/core/agent_framework/</span>):<ul>
         <li><strong>Called before each run</strong>: Agent execution iterates through <span class="mono">context_providers</span> list, calls each provider's <span class="mono">provide_context(...)</span>.</li>
         <li><strong>Returns messages / content</strong>: provider can return <span class="mono">Message</span> lists (inject history), <span class="mono">Content</span> lists (inject doc snippets), or modify system prompt.</li>
         <li><strong>Built-in implementations</strong>: <span class="mono">MemoryContextProvider</span> (vector retrieval memory), <span class="mono">InMemoryHistoryProvider</span> (cross-session history), <span class="mono">DocumentContextProvider</span> (doc RAG).</li>
@@ -742,7 +742,7 @@ session = agent.create_session(session_id=<span class="st">"user_123_conv_456"</
     </div>
     <div class="qa">
       <div class="q">✅ How MAF does it</div>
-      <div class="a"><span class="mono">SessionStore</span> interface (see <span class="mono">python/src/agent_framework/session/_store.py</span>):<ul>
+      <div class="a"><span class="mono">SessionStore</span> interface (see <span class="mono">python/packages/core/agent_framework/</span>):<ul>
         <li><strong>Abstract interface</strong>: <span class="mono">save_session</span> / <span class="mono">load_session</span> / <span class="mono">delete_session</span>, Agent depends only on interface.</li>
         <li><strong>Multiple implementations</strong>:<ul>
           <li><span class="mono">InMemorySessionStore</span>: for dev, dict storage.</li>
@@ -814,7 +814,7 @@ session = agent.create_session()
     </div>
     <div class="qa">
       <div class="q">✅ How MAF does it</div>
-      <div class="a"><span class="mono">ContextWindowCompactionStrategy</span> (see <span class="mono">python/src/agent_framework/context/_compaction.py</span>):<ul>
+      <div class="a"><span class="mono">ContextWindowCompactionStrategy</span> (see <span class="mono">python/packages/core/agent_framework/</span>):<ul>
         <li><strong>Sliding window</strong>: keep recent N messages, delete oldest (good for short-term conversations).</li>
         <li><strong>Summarization</strong>: summarize old messages into one system message (<span class="st">"Previously user mentioned…"</span>), preserve semantics, reduce tokens.</li>
         <li><strong>Hybrid strategy</strong>: keep system messages (important instructions) + recent messages (current context) + summarize middle messages.</li>

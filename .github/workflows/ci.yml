@@ -18,13 +18,15 @@ jobs:
 
       - name: Rebuild site from src
         working-directory: src
-        run: python build.py
+        run: |
+          python build.py
+          python build_print.py
 
       - name: Fail if committed HTML is stale vs src
         run: |
-          if ! git diff --quiet -- index.html lessons/; then
-            echo "::error::Generated HTML is out of date. Run 'cd src && python build.py' and commit the result."
-            git --no-pager diff --stat -- index.html lessons/
+          if ! git diff --quiet -- index.html lessons/ print.zh.html print.en.html; then
+            echo "::error::Generated HTML is out of date. Run 'cd src && python build.py && python build_print.py' and commit the result."
+            git --no-pager diff --stat -- index.html lessons/ print.zh.html print.en.html
             exit 1
           fi
           echo "Committed HTML matches src ✓"

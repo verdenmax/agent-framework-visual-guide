@@ -379,19 +379,69 @@ raw = RawAgent(name=<span class="st">&quot;bare&quot;</span>, client=client)</pr
   </div>
 </details>
 
+<details class="accordion">
+  <summary><span class="badge-num">6</span> 🔍 真实源码：run() 的核心实现 <span class="hint">点击展开详解</span></summary>
+  <div class="acc-body">
+    <div class="qa">
+      <div class="q">🧪 来自 _agents.py 的真实代码</div>
+      <div class="a">以下是 <span class="mono">RawAgent.run()</span> 的核心分支（<span class="mono">_agents.py:952</span>），精简后：
+<pre class="code"><span class="cm"># _agents.py — RawAgent.run() 核心（简化版）</span>
+
+<span class="kw">async def</span> _prepare_run_context():
+    <span class="kw">return await</span> self._prepare_run_context(
+        messages=messages, session=session,
+        tools=tools, options=options, ...)
+
+<span class="kw">if not</span> stream:
+    <span class="kw">async def</span> <span class="fn">_run_non_streaming</span>():
+        ctx = <span class="kw">await</span> _prepare_run_context()
+        response = <span class="kw">await</span> self._call_chat_client(ctx, stream=<span class="kw">False</span>)
+        <span class="kw">return await</span> self._parse_non_streaming_response(ctx, response)
+    <span class="kw">return</span> _run_non_streaming()
+
+<span class="cm"># stream=True 分支</span>
+<span class="kw">async def</span> <span class="fn">_run_streaming</span>():
+    ctx = <span class="kw">await</span> _prepare_run_context()
+    stream_response = self._call_chat_client(ctx, stream=<span class="kw">True</span>)
+    <span class="kw">return</span> self._parse_streaming_response(ctx, stream_response)</pre>
+      </div>
+    </div>
+    <div class="qa">
+      <div class="q">❓ 为什么看这段代码有价值</div>
+      <div class="a">三步清晰可见：<strong>①准备上下文 → ②调 ChatClient → ③解析响应</strong>。
+        流式和非流式共用同一个 <span class="mono">_prepare_run_context</span>，区别只在第②③步。
+        工具循环藏在 <span class="mono">_parse_non_streaming_response</span> 里——它会检查 function_call，执行工具，再回调 <span class="mono">_call_chat_client</span>。</div>
+    </div>
+    <div class="qa">
+      <div class="q">✅ _call_chat_client 做了什么</div>
+      <div class="a">它直接调用 <span class="mono">self.client.get_response(messages=..., stream=..., options=...)</span>——
+        把准备好的消息、工具 schema、ChatOptions 透传给 ChatClient。
+        <strong>这就是 Agent 和 ChatClient 的交界面</strong>：Agent 负责"组装"，ChatClient 负责"通信"。</div>
+    </div>
+    <div class="qa">
+      <div class="q">🔀 你可以在哪些点介入</div>
+      <div class="a">覆写 <span class="mono">_call_chat_client()</span>：自定义"怎么调模型"。
+        覆写 <span class="mono">_prepare_run_context()</span>：自定义"怎么组装消息"。
+        加中间件：不改源码也能拦截。
+        三个扩展点，粒度从大到小。</div>
+    </div>
+  </div>
+</details>
+
 <div class="card key">
   <div class="tag">✅ 关键要点</div>
   <ul>
     <li><span class="mono">BaseAgent</span>（抽象）定义协议；<span class="mono">Agent</span>（具体）实现组装 + 循环。</li>
     <li><span class="mono">run()</span> = 构建消息 → 注入上下文 → 调 ChatClient → 工具循环 → 返回。</li>
     <li>返回类型：非流式 <span class="mono">AgentResponse</span>；流式 <span class="mono">AgentResponseUpdate</span>。</li>
+    <li>真实代码三步：<span class="mono">_prepare_run_context → _call_chat_client → _parse_response</span>。</li>
   </ul>
 </div>
 
 <div class="card spark">
   <div class="tag">💡 设计亮点</div>
   <strong>循环骨架由基类掌控</strong>，子类只插入"怎么调模型"这一块——经典的<strong>模板方法模式</strong>。
-  这意味着你可以自定义 Agent 行为而不破坏循环逻辑。
+  三个扩展点（<span class="mono">_prepare_run_context / _call_chat_client / _parse_response</span>）让你在不同粒度介入。
 </div>
 </div>
 <div class="i18n" data-lang="en">
@@ -522,19 +572,69 @@ raw = RawAgent(name=<span class="st">&quot;bare&quot;</span>, client=client)</pr
   </div>
 </details>
 
+<details class="accordion">
+  <summary><span class="badge-num">6</span> 🔍 Real source: the run() implementation <span class="hint">expand</span></summary>
+  <div class="acc-body">
+    <div class="qa">
+      <div class="q">🧪 From _agents.py</div>
+      <div class="a">The core of <span class="mono">RawAgent.run()</span> (<span class="mono">_agents.py:952</span>), simplified:
+<pre class="code"><span class="cm"># _agents.py — RawAgent.run() core (simplified)</span>
+
+<span class="kw">async def</span> _prepare_run_context():
+    <span class="kw">return await</span> self._prepare_run_context(
+        messages=messages, session=session,
+        tools=tools, options=options, ...)
+
+<span class="kw">if not</span> stream:
+    <span class="kw">async def</span> <span class="fn">_run_non_streaming</span>():
+        ctx = <span class="kw">await</span> _prepare_run_context()
+        response = <span class="kw">await</span> self._call_chat_client(ctx, stream=<span class="kw">False</span>)
+        <span class="kw">return await</span> self._parse_non_streaming_response(ctx, response)
+    <span class="kw">return</span> _run_non_streaming()
+
+<span class="cm"># stream=True branch</span>
+<span class="kw">async def</span> <span class="fn">_run_streaming</span>():
+    ctx = <span class="kw">await</span> _prepare_run_context()
+    stream_response = self._call_chat_client(ctx, stream=<span class="kw">True</span>)
+    <span class="kw">return</span> self._parse_streaming_response(ctx, stream_response)</pre>
+      </div>
+    </div>
+    <div class="qa">
+      <div class="q">❓ Why this code matters</div>
+      <div class="a">Three steps are clearly visible: <strong>①prepare context → ②call ChatClient → ③parse response</strong>.
+        Streaming and non-streaming share the same <span class="mono">_prepare_run_context</span>; they differ only in steps ②③.
+        The tool loop hides inside <span class="mono">_parse_non_streaming_response</span> — it checks for function_call, executes tools, and calls back into <span class="mono">_call_chat_client</span>.</div>
+    </div>
+    <div class="qa">
+      <div class="q">✅ What _call_chat_client does</div>
+      <div class="a">It directly calls <span class="mono">self.client.get_response(messages=..., stream=..., options=...)</span> —
+        forwarding assembled messages, tool schemas and ChatOptions to the ChatClient.
+        <strong>This is the boundary between Agent and ChatClient</strong>: Agent owns "assembly", ChatClient owns "communication".</div>
+    </div>
+    <div class="qa">
+      <div class="q">🔀 Extension points</div>
+      <div class="a">Override <span class="mono">_call_chat_client()</span>: customise "how to call the model".
+        Override <span class="mono">_prepare_run_context()</span>: customise "how to assemble messages".
+        Add middleware: intercept without touching source.
+        Three extension points, from coarsest to finest grain.</div>
+    </div>
+  </div>
+</details>
+
 <div class="card key">
   <div class="tag">✅ Key points</div>
   <ul>
     <li><span class="mono">BaseAgent</span> (abstract) defines the protocol; <span class="mono">Agent</span> (concrete) implements assembly + loop.</li>
     <li><span class="mono">run()</span> = build messages → inject context → call ChatClient → tool loop → return.</li>
     <li>Return types: non-streaming <span class="mono">AgentResponse</span>; streaming <span class="mono">AgentResponseUpdate</span>.</li>
+    <li>Real code: <span class="mono">_prepare_run_context → _call_chat_client → _parse_response</span>.</li>
   </ul>
 </div>
 
 <div class="card spark">
   <div class="tag">💡 Design highlight</div>
   <strong>The loop skeleton is owned by the base class</strong>; subclasses only plug in "how to call the model"
-  — the classic <strong>Template Method pattern</strong>. You can customise Agent behavior without breaking the loop logic.
+  — the classic <strong>Template Method pattern</strong>. Three extension points (<span class="mono">_prepare_run_context / _call_chat_client / _parse_response</span>) let you intervene at different granularities.
 </div>
 </div>
   <div class="footnav"><a class="prev" href="07-sessions-memory.html"><div class="dir"><span class="i18n" data-lang="zh">← 上一课</span><span class="i18n" data-lang="en">← Prev</span></div><div class="ttl"><span class="i18n" data-lang="zh">会话与记忆</span><span class="i18n" data-lang="en">Sessions & Memory</span></div></a><a class="next" href="09-chatclient-internals.html"><div class="dir"><span class="i18n" data-lang="zh">下一课 →</span><span class="i18n" data-lang="en">Next →</span></div><div class="ttl"><span class="i18n" data-lang="zh">ChatClient 内部</span><span class="i18n" data-lang="en">ChatClient Internals</span></div></a></div>

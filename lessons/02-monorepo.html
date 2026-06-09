@@ -308,7 +308,7 @@ table.t td.mono, table.t td .mono { font-family: ui-monospace, monospace; font-s
 ├── _clients.py       <span class="cm"># ChatClient 抽象基类 + 内置 OpenAI 实现</span>
 ├── _tools.py         <span class="cm"># @ai_function 装饰器、AIFunction、ToolProtocol</span>
 ├── _middleware.py    <span class="cm"># 中间件管道：trace / retry / 自定义</span>
-├── _types.py         <span class="cm"># ChatMessage / Role / Contents 联合类型</span>
+├── _types.py         <span class="cm"># Message / Role / Contents 联合类型</span>
 ├── _workflows/       <span class="cm"># 图式编排：节点、边、共享状态、检查点</span>
 ├── observability/    <span class="cm"># OpenTelemetry trace / cost / token 指标</span>
 └── __init__.py       <span class="cm"># 公共 API，决定 from agent_framework import 什么</span></pre></div>
@@ -322,7 +322,7 @@ table.t td.mono, table.t td .mono { font-family: ui-monospace, monospace; font-s
     <div class="qa">
       <div class="q">✅ MAF 的做法与优点</div>
       <div class="a">所有抽象统一从 <span class="mono">agent_framework</span> 导出（<span class="mono">Agent</span>、
-        <span class="mono">ChatMessage</span>、<span class="mono">ai_function</span>、
+        <span class="mono">Message</span>、<span class="mono">ai_function</span>、
         <span class="mono">WorkflowBuilder</span>……）；文件命名以 <span class="mono">_</span> 前缀表示"内部"，
         通过 <span class="mono">__init__.py</span> 的 <span class="mono">__all__</span> 再暴露——
         重构内部不影响用户代码。</div>
@@ -439,7 +439,7 @@ agent = Agent(
   <tr><td class="mono">agent_framework</td><td class="mono">Microsoft.Agents.AI</td><td>核心包</td></tr>
   <tr><td class="mono">Agent</td><td class="mono">ChatClientAgent</td><td>Agent 实体（带循环）</td></tr>
   <tr><td class="mono">ChatClient</td><td class="mono">IChatClient</td><td>厂商无关客户端</td></tr>
-  <tr><td class="mono">ChatMessage / Role</td><td class="mono">ChatMessage / ChatRole</td><td>类型化消息</td></tr>
+  <tr><td class="mono">Message / Role</td><td class="mono">Message / ChatRole</td><td>类型化消息</td></tr>
   <tr><td class="mono">@ai_function</td><td class="mono">[Description] + AIFunctionFactory</td><td>把函数转成工具</td></tr>
   <tr><td class="mono">_workflows/</td><td class="mono">Microsoft.Agents.AI.Workflows</td><td>图式编排</td></tr>
   <tr><td class="mono">observability/</td><td class="mono">Microsoft.Extensions.AI.Telemetry</td><td>OTel 集成</td></tr>
@@ -537,7 +537,7 @@ have a <strong>source-navigation map</strong>.</p>
 ├── _clients.py       <span class="cm"># ChatClient ABC + built-in OpenAI impl</span>
 ├── _tools.py         <span class="cm"># @ai_function, AIFunction, ToolProtocol</span>
 ├── _middleware.py    <span class="cm"># middleware pipeline: trace / retry / custom</span>
-├── _types.py         <span class="cm"># ChatMessage / Role / Contents union</span>
+├── _types.py         <span class="cm"># Message / Role / Contents union</span>
 ├── _workflows/       <span class="cm"># graph orchestration: nodes, edges, state, checkpoints</span>
 ├── observability/    <span class="cm"># OpenTelemetry traces / cost / token metrics</span>
 └── __init__.py       <span class="cm"># public API — what `from agent_framework import` exposes</span></pre></div>
@@ -552,7 +552,7 @@ have a <strong>source-navigation map</strong>.</p>
     <div class="qa">
       <div class="q">✅ How MAF does it</div>
       <div class="a">All abstractions are re-exported from <span class="mono">agent_framework</span>
-        (<span class="mono">Agent</span>, <span class="mono">ChatMessage</span>, <span class="mono">ai_function</span>,
+        (<span class="mono">Agent</span>, <span class="mono">Message</span>, <span class="mono">ai_function</span>,
         <span class="mono">WorkflowBuilder</span>…); files prefixed with <span class="mono">_</span> are internal and
         surfaced via <span class="mono">__all__</span> in <span class="mono">__init__.py</span> — internal refactors
         never break user code.</div>
@@ -669,7 +669,7 @@ agent = Agent(
   <tr><td class="mono">agent_framework</td><td class="mono">Microsoft.Agents.AI</td><td>core package</td></tr>
   <tr><td class="mono">Agent</td><td class="mono">ChatClientAgent</td><td>agent entity (with loop)</td></tr>
   <tr><td class="mono">ChatClient</td><td class="mono">IChatClient</td><td>vendor-agnostic client</td></tr>
-  <tr><td class="mono">ChatMessage / Role</td><td class="mono">ChatMessage / ChatRole</td><td>typed messages</td></tr>
+  <tr><td class="mono">Message / Role</td><td class="mono">Message / ChatRole</td><td>typed messages</td></tr>
   <tr><td class="mono">@ai_function</td><td class="mono">[Description] + AIFunctionFactory</td><td>turn function into tool</td></tr>
   <tr><td class="mono">_workflows/</td><td class="mono">Microsoft.Agents.AI.Workflows</td><td>graph orchestration</td></tr>
   <tr><td class="mono">observability/</td><td class="mono">Microsoft.Extensions.AI.Telemetry</td><td>OTel integration</td></tr>

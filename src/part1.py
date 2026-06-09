@@ -136,10 +136,10 @@ messages = [
 ]
 
 <span class="cm"># MAF——类型受控，IDE 自动补全</span>
-<span class="kw">from</span> agent_framework <span class="kw">import</span> ChatMessage, Role, TextContent
+<span class="kw">from</span> agent_framework <span class="kw">import</span> Message
 messages = [
-  ChatMessage(role=Role.SYSTEM, contents=[TextContent(text=<span class="st">"你是助手"</span>)]),
-  ChatMessage(role=Role.USER,   contents=[TextContent(text=<span class="st">"你好"</span>)]),
+  Message(<span class="st">"system"</span>, <span class="st">"你是助手"</span>),
+  Message(<span class="st">"user"</span>, <span class="st">"你好"</span>),
 ]</pre></div>
     </div>
     <div class="qa">
@@ -151,9 +151,9 @@ messages = [
     <div class="qa">
       <div class="q">✅ MAF 的做法与优点</div>
       <div class="a">见 <span class="mono">agent_framework/_types.py</span>：<span class="mono">Role</span> 是枚举
-        （<span class="mono">system / user / assistant / tool</span>），<span class="mono">ChatMessage</span>
+        （<span class="mono">system / user / assistant / tool</span>），<span class="mono">Message</span>
         持有 <span class="mono">contents: list[Contents]</span>，<span class="mono">Contents</span> 是
-        <span class="mono">TextContent | DataContent | FunctionCallContent | FunctionResultContent | …</span> 的联合类型。
+        <span class="mono">Content</span> 统一类型，用 <span class="mono">Content.from_text()</span> 等工厂方法构造。
         好处：① 静态检查 + 补全；② 多模态 / 工具结果自然容纳；③ Workflow 跨进程序列化零成本。</div>
     </div>
     <div class="qa">
@@ -413,10 +413,10 @@ messages = [
 ]
 
 <span class="cm"># MAF — type-safe, IDE completes everything</span>
-<span class="kw">from</span> agent_framework <span class="kw">import</span> ChatMessage, Role, TextContent
+<span class="kw">from</span> agent_framework <span class="kw">import</span> Message
 messages = [
-  ChatMessage(role=Role.SYSTEM, contents=[TextContent(text=<span class="st">"You are helpful"</span>)]),
-  ChatMessage(role=Role.USER,   contents=[TextContent(text=<span class="st">"hi"</span>)]),
+  Message(<span class="st">"system"</span>, <span class="st">"You are helpful"</span>),
+  Message(<span class="st">"user"</span>, <span class="st">"hi"</span>),
 ]</pre></div>
     </div>
     <div class="qa">
@@ -428,9 +428,9 @@ messages = [
     <div class="qa">
       <div class="q">✅ How MAF does it</div>
       <div class="a">See <span class="mono">agent_framework/_types.py</span>: <span class="mono">Role</span> is an enum
-        (<span class="mono">system / user / assistant / tool</span>), <span class="mono">ChatMessage</span> holds
+        (<span class="mono">system / user / assistant / tool</span>), <span class="mono">Message</span> holds
         <span class="mono">contents: list[Contents]</span>, and <span class="mono">Contents</span> is the union of
-        <span class="mono">TextContent | DataContent | FunctionCallContent | FunctionResultContent | …</span>.
+        <span class="mono">Content</span> — a unified type built via factory methods like <span class="mono">Content.from_text()</span>.
         Wins: ① static checking + completion; ② multimodal &amp; tool results fit naturally;
         ③ free serialization for Workflow cross-process transport.</div>
     </div>
@@ -608,7 +608,7 @@ L02_ZH = r"""
 ├── _clients.py       <span class="cm"># ChatClient 抽象基类 + 内置 OpenAI 实现</span>
 ├── _tools.py         <span class="cm"># @ai_function 装饰器、AIFunction、ToolProtocol</span>
 ├── _middleware.py    <span class="cm"># 中间件管道：trace / retry / 自定义</span>
-├── _types.py         <span class="cm"># ChatMessage / Role / Contents 联合类型</span>
+├── _types.py         <span class="cm"># Message / Role / Contents 联合类型</span>
 ├── _workflows/       <span class="cm"># 图式编排：节点、边、共享状态、检查点</span>
 ├── observability/    <span class="cm"># OpenTelemetry trace / cost / token 指标</span>
 └── __init__.py       <span class="cm"># 公共 API，决定 from agent_framework import 什么</span></pre></div>
@@ -622,7 +622,7 @@ L02_ZH = r"""
     <div class="qa">
       <div class="q">✅ MAF 的做法与优点</div>
       <div class="a">所有抽象统一从 <span class="mono">agent_framework</span> 导出（<span class="mono">Agent</span>、
-        <span class="mono">ChatMessage</span>、<span class="mono">ai_function</span>、
+        <span class="mono">Message</span>、<span class="mono">ai_function</span>、
         <span class="mono">WorkflowBuilder</span>……）；文件命名以 <span class="mono">_</span> 前缀表示"内部"，
         通过 <span class="mono">__init__.py</span> 的 <span class="mono">__all__</span> 再暴露——
         重构内部不影响用户代码。</div>
@@ -739,7 +739,7 @@ agent = Agent(
   <tr><td class="mono">agent_framework</td><td class="mono">Microsoft.Agents.AI</td><td>核心包</td></tr>
   <tr><td class="mono">Agent</td><td class="mono">ChatClientAgent</td><td>Agent 实体（带循环）</td></tr>
   <tr><td class="mono">ChatClient</td><td class="mono">IChatClient</td><td>厂商无关客户端</td></tr>
-  <tr><td class="mono">ChatMessage / Role</td><td class="mono">ChatMessage / ChatRole</td><td>类型化消息</td></tr>
+  <tr><td class="mono">Message / Role</td><td class="mono">Message / ChatRole</td><td>类型化消息</td></tr>
   <tr><td class="mono">@ai_function</td><td class="mono">[Description] + AIFunctionFactory</td><td>把函数转成工具</td></tr>
   <tr><td class="mono">_workflows/</td><td class="mono">Microsoft.Agents.AI.Workflows</td><td>图式编排</td></tr>
   <tr><td class="mono">observability/</td><td class="mono">Microsoft.Extensions.AI.Telemetry</td><td>OTel 集成</td></tr>
@@ -838,7 +838,7 @@ have a <strong>source-navigation map</strong>.</p>
 ├── _clients.py       <span class="cm"># ChatClient ABC + built-in OpenAI impl</span>
 ├── _tools.py         <span class="cm"># @ai_function, AIFunction, ToolProtocol</span>
 ├── _middleware.py    <span class="cm"># middleware pipeline: trace / retry / custom</span>
-├── _types.py         <span class="cm"># ChatMessage / Role / Contents union</span>
+├── _types.py         <span class="cm"># Message / Role / Contents union</span>
 ├── _workflows/       <span class="cm"># graph orchestration: nodes, edges, state, checkpoints</span>
 ├── observability/    <span class="cm"># OpenTelemetry traces / cost / token metrics</span>
 └── __init__.py       <span class="cm"># public API — what `from agent_framework import` exposes</span></pre></div>
@@ -853,7 +853,7 @@ have a <strong>source-navigation map</strong>.</p>
     <div class="qa">
       <div class="q">✅ How MAF does it</div>
       <div class="a">All abstractions are re-exported from <span class="mono">agent_framework</span>
-        (<span class="mono">Agent</span>, <span class="mono">ChatMessage</span>, <span class="mono">ai_function</span>,
+        (<span class="mono">Agent</span>, <span class="mono">Message</span>, <span class="mono">ai_function</span>,
         <span class="mono">WorkflowBuilder</span>…); files prefixed with <span class="mono">_</span> are internal and
         surfaced via <span class="mono">__all__</span> in <span class="mono">__init__.py</span> — internal refactors
         never break user code.</div>
@@ -970,7 +970,7 @@ agent = Agent(
   <tr><td class="mono">agent_framework</td><td class="mono">Microsoft.Agents.AI</td><td>core package</td></tr>
   <tr><td class="mono">Agent</td><td class="mono">ChatClientAgent</td><td>agent entity (with loop)</td></tr>
   <tr><td class="mono">ChatClient</td><td class="mono">IChatClient</td><td>vendor-agnostic client</td></tr>
-  <tr><td class="mono">ChatMessage / Role</td><td class="mono">ChatMessage / ChatRole</td><td>typed messages</td></tr>
+  <tr><td class="mono">Message / Role</td><td class="mono">Message / ChatRole</td><td>typed messages</td></tr>
   <tr><td class="mono">@ai_function</td><td class="mono">[Description] + AIFunctionFactory</td><td>turn function into tool</td></tr>
   <tr><td class="mono">_workflows/</td><td class="mono">Microsoft.Agents.AI.Workflows</td><td>graph orchestration</td></tr>
   <tr><td class="mono">observability/</td><td class="mono">Microsoft.Extensions.AI.Telemetry</td><td>OTel integration</td></tr>

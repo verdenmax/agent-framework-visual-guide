@@ -448,10 +448,10 @@ messages = [
 ]
 
 <span class="cm"># MAF——类型受控，IDE 自动补全</span>
-<span class="kw">from</span> agent_framework <span class="kw">import</span> ChatMessage, Role, TextContent
+<span class="kw">from</span> agent_framework <span class="kw">import</span> Message
 messages = [
-  ChatMessage(role=Role.SYSTEM, contents=[TextContent(text=<span class="st">"你是助手"</span>)]),
-  ChatMessage(role=Role.USER,   contents=[TextContent(text=<span class="st">"你好"</span>)]),
+  Message(<span class="st">"system"</span>, <span class="st">"你是助手"</span>),
+  Message(<span class="st">"user"</span>, <span class="st">"你好"</span>),
 ]</pre></div>
     </div>
     <div class="qa">
@@ -463,9 +463,9 @@ messages = [
     <div class="qa">
       <div class="q">✅ MAF 的做法与优点</div>
       <div class="a">见 <span class="mono">agent_framework/_types.py</span>：<span class="mono">Role</span> 是枚举
-        （<span class="mono">system / user / assistant / tool</span>），<span class="mono">ChatMessage</span>
+        （<span class="mono">system / user / assistant / tool</span>），<span class="mono">Message</span>
         持有 <span class="mono">contents: list[Contents]</span>，<span class="mono">Contents</span> 是
-        <span class="mono">TextContent | DataContent | FunctionCallContent | FunctionResultContent | …</span> 的联合类型。
+        <span class="mono">Content</span> 统一类型，用 <span class="mono">Content.from_text()</span> 等工厂方法构造。
         好处：① 静态检查 + 补全；② 多模态 / 工具结果自然容纳；③ Workflow 跨进程序列化零成本。</div>
     </div>
     <div class="qa">
@@ -639,7 +639,7 @@ result = <span class="kw">await</span> agent.run(<span class="st">"先查上海�
 ├── _clients.py       <span class="cm"># ChatClient 抽象基类 + 内置 OpenAI 实现</span>
 ├── _tools.py         <span class="cm"># @ai_function 装饰器、AIFunction、ToolProtocol</span>
 ├── _middleware.py    <span class="cm"># 中间件管道：trace / retry / 自定义</span>
-├── _types.py         <span class="cm"># ChatMessage / Role / Contents 联合类型</span>
+├── _types.py         <span class="cm"># Message / Role / Contents 联合类型</span>
 ├── _workflows/       <span class="cm"># 图式编排：节点、边、共享状态、检查点</span>
 ├── observability/    <span class="cm"># OpenTelemetry trace / cost / token 指标</span>
 └── __init__.py       <span class="cm"># 公共 API，决定 from agent_framework import 什么</span></pre></div>
@@ -653,7 +653,7 @@ result = <span class="kw">await</span> agent.run(<span class="st">"先查上海�
     <div class="qa">
       <div class="q">✅ MAF 的做法与优点</div>
       <div class="a">所有抽象统一从 <span class="mono">agent_framework</span> 导出（<span class="mono">Agent</span>、
-        <span class="mono">ChatMessage</span>、<span class="mono">ai_function</span>、
+        <span class="mono">Message</span>、<span class="mono">ai_function</span>、
         <span class="mono">WorkflowBuilder</span>……）；文件命名以 <span class="mono">_</span> 前缀表示"内部"，
         通过 <span class="mono">__init__.py</span> 的 <span class="mono">__all__</span> 再暴露——
         重构内部不影响用户代码。</div>
@@ -770,7 +770,7 @@ agent = Agent(
   <tr><td class="mono">agent_framework</td><td class="mono">Microsoft.Agents.AI</td><td>核心包</td></tr>
   <tr><td class="mono">Agent</td><td class="mono">ChatClientAgent</td><td>Agent 实体（带循环）</td></tr>
   <tr><td class="mono">ChatClient</td><td class="mono">IChatClient</td><td>厂商无关客户端</td></tr>
-  <tr><td class="mono">ChatMessage / Role</td><td class="mono">ChatMessage / ChatRole</td><td>类型化消息</td></tr>
+  <tr><td class="mono">Message / Role</td><td class="mono">Message / ChatRole</td><td>类型化消息</td></tr>
   <tr><td class="mono">@ai_function</td><td class="mono">[Description] + AIFunctionFactory</td><td>把函数转成工具</td></tr>
   <tr><td class="mono">_workflows/</td><td class="mono">Microsoft.Agents.AI.Workflows</td><td>图式编排</td></tr>
   <tr><td class="mono">observability/</td><td class="mono">Microsoft.Extensions.AI.Telemetry</td><td>OTel 集成</td></tr>
@@ -2348,19 +2348,69 @@ raw = RawAgent(name=<span class="st">&quot;bare&quot;</span>, client=client)</pr
   </div>
 </details>
 
+<details class="accordion" open>
+  <summary><span class="badge-num">6</span> 🔍 真实源码：run() 的核心实现 <span class="hint">点击展开详解</span></summary>
+  <div class="acc-body">
+    <div class="qa">
+      <div class="q">🧪 来自 _agents.py 的真实代码</div>
+      <div class="a">以下是 <span class="mono">RawAgent.run()</span> 的核心分支（<span class="mono">_agents.py:952</span>），精简后：
+<pre class="code"><span class="cm"># _agents.py — RawAgent.run() 核心（简化版）</span>
+
+<span class="kw">async def</span> _prepare_run_context():
+    <span class="kw">return await</span> self._prepare_run_context(
+        messages=messages, session=session,
+        tools=tools, options=options, ...)
+
+<span class="kw">if not</span> stream:
+    <span class="kw">async def</span> <span class="fn">_run_non_streaming</span>():
+        ctx = <span class="kw">await</span> _prepare_run_context()
+        response = <span class="kw">await</span> self._call_chat_client(ctx, stream=<span class="kw">False</span>)
+        <span class="kw">return await</span> self._parse_non_streaming_response(ctx, response)
+    <span class="kw">return</span> _run_non_streaming()
+
+<span class="cm"># stream=True 分支</span>
+<span class="kw">async def</span> <span class="fn">_run_streaming</span>():
+    ctx = <span class="kw">await</span> _prepare_run_context()
+    stream_response = self._call_chat_client(ctx, stream=<span class="kw">True</span>)
+    <span class="kw">return</span> self._parse_streaming_response(ctx, stream_response)</pre>
+      </div>
+    </div>
+    <div class="qa">
+      <div class="q">❓ 为什么看这段代码有价值</div>
+      <div class="a">三步清晰可见：<strong>①准备上下文 → ②调 ChatClient → ③解析响应</strong>。
+        流式和非流式共用同一个 <span class="mono">_prepare_run_context</span>，区别只在第②③步。
+        工具循环藏在 <span class="mono">_parse_non_streaming_response</span> 里——它会检查 function_call，执行工具，再回调 <span class="mono">_call_chat_client</span>。</div>
+    </div>
+    <div class="qa">
+      <div class="q">✅ _call_chat_client 做了什么</div>
+      <div class="a">它直接调用 <span class="mono">self.client.get_response(messages=..., stream=..., options=...)</span>——
+        把准备好的消息、工具 schema、ChatOptions 透传给 ChatClient。
+        <strong>这就是 Agent 和 ChatClient 的交界面</strong>：Agent 负责"组装"，ChatClient 负责"通信"。</div>
+    </div>
+    <div class="qa">
+      <div class="q">🔀 你可以在哪些点介入</div>
+      <div class="a">覆写 <span class="mono">_call_chat_client()</span>：自定义"怎么调模型"。
+        覆写 <span class="mono">_prepare_run_context()</span>：自定义"怎么组装消息"。
+        加中间件：不改源码也能拦截。
+        三个扩展点，粒度从大到小。</div>
+    </div>
+  </div>
+</details>
+
 <div class="card key">
   <div class="tag">✅ 关键要点</div>
   <ul>
     <li><span class="mono">BaseAgent</span>（抽象）定义协议；<span class="mono">Agent</span>（具体）实现组装 + 循环。</li>
     <li><span class="mono">run()</span> = 构建消息 → 注入上下文 → 调 ChatClient → 工具循环 → 返回。</li>
     <li>返回类型：非流式 <span class="mono">AgentResponse</span>；流式 <span class="mono">AgentResponseUpdate</span>。</li>
+    <li>真实代码三步：<span class="mono">_prepare_run_context → _call_chat_client → _parse_response</span>。</li>
   </ul>
 </div>
 
 <div class="card spark">
   <div class="tag">💡 设计亮点</div>
   <strong>循环骨架由基类掌控</strong>，子类只插入"怎么调模型"这一块——经典的<strong>模板方法模式</strong>。
-  这意味着你可以自定义 Agent 行为而不破坏循环逻辑。
+  三个扩展点（<span class="mono">_prepare_run_context / _call_chat_client / _parse_response</span>）让你在不同粒度介入。
 </div>
 </div></section>
 <section class="print-lesson"><div class="wrap"><div class="lesson-head"><div class="lp">第三部分 · 内部源码</div><h1><span class="ln">09 ·</span> ChatClient 内部</h1></div>

@@ -388,10 +388,10 @@ messages = [
 ]
 
 <span class="cm"># MAF——类型受控，IDE 自动补全</span>
-<span class="kw">from</span> agent_framework <span class="kw">import</span> ChatMessage, Role, TextContent
+<span class="kw">from</span> agent_framework <span class="kw">import</span> Message
 messages = [
-  ChatMessage(role=Role.SYSTEM, contents=[TextContent(text=<span class="st">"你是助手"</span>)]),
-  ChatMessage(role=Role.USER,   contents=[TextContent(text=<span class="st">"你好"</span>)]),
+  Message(<span class="st">"system"</span>, <span class="st">"你是助手"</span>),
+  Message(<span class="st">"user"</span>, <span class="st">"你好"</span>),
 ]</pre></div>
     </div>
     <div class="qa">
@@ -403,9 +403,9 @@ messages = [
     <div class="qa">
       <div class="q">✅ MAF 的做法与优点</div>
       <div class="a">见 <span class="mono">agent_framework/_types.py</span>：<span class="mono">Role</span> 是枚举
-        （<span class="mono">system / user / assistant / tool</span>），<span class="mono">ChatMessage</span>
+        （<span class="mono">system / user / assistant / tool</span>），<span class="mono">Message</span>
         持有 <span class="mono">contents: list[Contents]</span>，<span class="mono">Contents</span> 是
-        <span class="mono">TextContent | DataContent | FunctionCallContent | FunctionResultContent | …</span> 的联合类型。
+        <span class="mono">Content</span> 统一类型，用 <span class="mono">Content.from_text()</span> 等工厂方法构造。
         好处：① 静态检查 + 补全；② 多模态 / 工具结果自然容纳；③ Workflow 跨进程序列化零成本。</div>
     </div>
     <div class="qa">
@@ -664,10 +664,10 @@ messages = [
 ]
 
 <span class="cm"># MAF — type-safe, IDE completes everything</span>
-<span class="kw">from</span> agent_framework <span class="kw">import</span> ChatMessage, Role, TextContent
+<span class="kw">from</span> agent_framework <span class="kw">import</span> Message
 messages = [
-  ChatMessage(role=Role.SYSTEM, contents=[TextContent(text=<span class="st">"You are helpful"</span>)]),
-  ChatMessage(role=Role.USER,   contents=[TextContent(text=<span class="st">"hi"</span>)]),
+  Message(<span class="st">"system"</span>, <span class="st">"You are helpful"</span>),
+  Message(<span class="st">"user"</span>, <span class="st">"hi"</span>),
 ]</pre></div>
     </div>
     <div class="qa">
@@ -679,9 +679,9 @@ messages = [
     <div class="qa">
       <div class="q">✅ How MAF does it</div>
       <div class="a">See <span class="mono">agent_framework/_types.py</span>: <span class="mono">Role</span> is an enum
-        (<span class="mono">system / user / assistant / tool</span>), <span class="mono">ChatMessage</span> holds
+        (<span class="mono">system / user / assistant / tool</span>), <span class="mono">Message</span> holds
         <span class="mono">contents: list[Contents]</span>, and <span class="mono">Contents</span> is the union of
-        <span class="mono">TextContent | DataContent | FunctionCallContent | FunctionResultContent | …</span>.
+        <span class="mono">Content</span> — a unified type built via factory methods like <span class="mono">Content.from_text()</span>.
         Wins: ① static checking + completion; ② multimodal &amp; tool results fit naturally;
         ③ free serialization for Workflow cross-process transport.</div>
     </div>

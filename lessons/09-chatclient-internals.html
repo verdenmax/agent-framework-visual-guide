@@ -282,14 +282,110 @@ table.t td.mono, table.t td .mono { font-family: ui-monospace, monospace; font-s
 </table>
 
 <details class="accordion">
-  <summary><span class="badge-num">1</span> 厂商怎么实现 _inner_get_response? <span class="hint">点击展开</span></summary>
+  <summary><span class="badge-num">1</span> 厂商怎么实现 _inner_get_response? <span class="hint">点击展开详解</span></summary>
   <div class="acc-body">
-    <div class="qa">
-      <div class="q">🧪 以 FoundryChatClient 为例</div>
-      <div class="a">它继承 <span class="mono">BaseChatClient</span>，只覆写 <span class="mono">_inner_get_response</span>：
-        把 MAF 的 <span class="mono">Message</span> 列表转成 Foundry SDK 的格式、调 API、再把结果转回 <span class="mono">ChatResponse</span>。
-        如果 <span class="mono">stream=True</span>，则返回一个异步生成器。</div>
-    </div>
+    <div class="qa"><div class="q">🧪 示例</div><div class="a">以 FoundryChatClient 为例：它继承 <span class="mono">BaseChatClient</span>，只覆写
+      <span class="mono">_inner_get_response</span>——把 MAF 的 <span class="mono">Message</span> 列表转成 Foundry SDK 格式、
+      调 API、再把结果转回 <span class="mono">ChatResponse</span>。若 <span class="mono">stream=True</span>，返回异步生成器。</div></div>
+    <div class="qa"><div class="q">❓ 为什么这件事必要</div><div class="a">不同 LLM 厂商的 API 格式完全不同。如果让调用方自己适配，
+      换一个模型就要改一堆代码。统一封装在 <span class="mono">_inner_get_response</span> 里，上层代码零改动。</div></div>
+    <div class="qa"><div class="q">✅ MAF 的做法与优点</div><div class="a">子类只需实现一个抽象方法，签名固定：
+      <span class="mono">_inner_get_response(*, messages, stream, options, **kwargs)</span>。
+      基类负责通用逻辑（重试、中间件、compaction），子类只管"怎么和那家 API 通信"。</div></div>
+    <div class="qa"><div class="q">🔀 还有什么其他方案</div><div class="a">LiteLLM 用一个巨大的 if/elif 分发到各厂商；
+      LangChain 每个厂商写一整套类。MAF 的"一个抽象方法"方案最简洁——新增厂商只需一个类 + 一个方法。</div></div>
+  </div>
+</details>
+
+<details class="accordion">
+  <summary><span class="badge-num">2</span> get_response 的完整签名 <span class="hint">点击展开详解</span></summary>
+  <div class="acc-body">
+    <div class="qa"><div class="q">🧪 示例</div><div class="a"><span class="mono">get_response()</span>（<span class="mono">_clients.py:482</span>）完整签名：
+<pre class="code">get_response(
+  messages: Sequence[Message],
+  *, <span class="cm"># 以下全是关键字参数</span>
+  stream: bool = False,
+  options: ChatOptions | None = None,
+  compaction_strategy: CompactionStrategy | None,
+  tokenizer: TokenizerProtocol | None,
+  function_invocation_kwargs: Mapping | None,
+  client_kwargs: Mapping | None,
+)</pre>
+      返回 <span class="mono">ChatResponse</span>（非流式）或 <span class="mono">ResponseStream[ChatResponseUpdate, ChatResponse]</span>（流式）。</div></div>
+    <div class="qa"><div class="q">❓ 为什么这件事必要</div><div class="a">知道所有参数才能精细控制：<span class="mono">compaction_strategy</span> 决定消息过长时如何压缩，
+      <span class="mono">client_kwargs</span> 可透传厂商特有参数，<span class="mono">function_invocation_kwargs</span> 转发给工具调用。</div></div>
+    <div class="qa"><div class="q">✅ MAF 的做法与优点</div><div class="a">只有 <span class="mono">messages</span> 是位置参数，其余全是 <strong>keyword-only</strong>，
+      避免参数顺序错误。<span class="mono">stream</span> 用布尔切换返回类型，无需两个方法。</div></div>
+    <div class="qa"><div class="q">🔀 还有什么其他方案</div><div class="a">OpenAI SDK 用 <span class="mono">create()</span> 加大量 kwargs；
+      Anthropic 用 <span class="mono">messages.create()</span>。MAF 统一为一个入口 + keyword 参数，更易发现、更难用错。</div></div>
+  </div>
+</details>
+
+<details class="accordion">
+  <summary><span class="badge-num">3</span> ChatResponse 的内部结构 <span class="hint">点击展开详解</span></summary>
+  <div class="acc-body">
+    <div class="qa"><div class="q">🧪 示例</div><div class="a"><span class="mono">ChatResponse</span>（<span class="mono">_types.py:2122</span>）核心字段：
+<pre class="code">resp.messages       <span class="cm"># list[Message] — 模型回复的消息</span>
+resp.text           <span class="cm"># 所有消息文本拼合（只读属性）</span>
+resp.model          <span class="cm"># 实际使用的模型名</span>
+resp.usage_details  <span class="cm"># UsageDetails（prompt_tokens, completion_tokens）</span>
+resp.finish_reason  <span class="cm"># &quot;stop&quot; / &quot;tool_calls&quot; / &quot;length&quot;</span>
+resp.value          <span class="cm"># 泛型结构化输出</span>
+resp.conversation_id  <span class="cm"># 会话状态标识</span></pre></div></div>
+    <div class="qa"><div class="q">❓ 为什么这件事必要</div><div class="a"><span class="mono">ChatResponse</span> 是 Agent 内部循环的"原子交换单位"——
+      每次 LLM 调用返回一个 <span class="mono">ChatResponse</span>，Agent 检查 <span class="mono">finish_reason</span> 决定是继续工具循环还是结束。</div></div>
+    <div class="qa"><div class="q">✅ MAF 的做法与优点</div><div class="a"><span class="mono">.text</span> 自动拼合，省去手动遍历 messages。
+      <span class="mono">.value</span> 支持泛型，<span class="mono">ChatResponse[MyModel]</span> 的 <span class="mono">.value</span> 直接是 <span class="mono">MyModel</span> 实例。
+      <span class="mono">.raw_representation</span> 保留原始响应，便于调试。</div></div>
+    <div class="qa"><div class="q">🔀 还有什么其他方案</div><div class="a">有的框架只返回字符串；有的返回 dict。
+      MAF 的强类型 dataclass 提供自动补全和类型检查，在 IDE 里开发体验远优于 dict。</div></div>
+  </div>
+</details>
+
+<details class="accordion">
+  <summary><span class="badge-num">4</span> 自己写一个 ChatClient <span class="hint">点击展开详解</span></summary>
+  <div class="acc-body">
+    <div class="qa"><div class="q">🧪 示例</div><div class="a">最小自定义 <span class="mono">BaseChatClient</span> 子类骨架：
+<pre class="code"><span class="kw">class</span> <span class="fn">MyChatClient</span>(BaseChatClient):
+    <span class="kw">async def</span> <span class="fn">_inner_get_response</span>(
+        self, *, messages, stream, options, **kwargs
+    ):
+        <span class="cm"># 1. 把 MAF Message 转成你的 API 格式</span>
+        <span class="cm"># 2. 调用你的 LLM API</span>
+        <span class="cm"># 3. 把结果转回 ChatResponse</span>
+        <span class="kw">return</span> ChatResponse(messages=[...], model=<span class="st">&quot;my-model&quot;</span>)</pre></div></div>
+    <div class="qa"><div class="q">❓ 为什么这件事必要</div><div class="a">如果你要接入一个 MAF 还没有官方 provider 的模型（私有部署、小众厂商），
+      就需要自己写。只需实现 <strong>一个方法</strong>，门槛极低。</div></div>
+    <div class="qa"><div class="q">✅ MAF 的做法与优点</div><div class="a">基类 <span class="mono">BaseChatClient</span>（<span class="mono">_clients.py:217</span>）
+      已处理中间件触发、compaction、选项验证。你只写"和 API 通信"这一块，其他全部复用。</div></div>
+    <div class="qa"><div class="q">🔀 还有什么其他方案</div><div class="a">可以用 Adapter 模式包裹现有 SDK（更多胶水代码），
+      或者直接在 Agent 层换掉调用逻辑（不复用基类功能）。MAF 的"子类 + 一个方法"最简洁且复用最多。</div></div>
+  </div>
+</details>
+
+<details class="accordion">
+  <summary><span class="badge-num">5</span> ChatOptions 详解 <span class="hint">点击展开详解</span></summary>
+  <div class="acc-body">
+    <div class="qa"><div class="q">🧪 示例</div><div class="a"><span class="mono">ChatOptions</span>（<span class="mono">_types.py:3346</span>）常用字段：
+<pre class="code">options = ChatOptions(
+  model=<span class="st">&quot;gpt-4o&quot;</span>,
+  temperature=0.7,
+  max_tokens=2048,
+  top_p=0.9,
+  stop=[<span class="st">&quot;\n\n&quot;</span>],
+  tool_choice=<span class="st">&quot;auto&quot;</span>,
+  response_format=MyModel,  <span class="cm"># 结构化输出</span>
+)</pre>
+      还有 <span class="mono">frequency_penalty</span>、<span class="mono">presence_penalty</span>、<span class="mono">seed</span>、
+      <span class="mono">logit_bias</span>、<span class="mono">metadata</span>、<span class="mono">instructions</span> 等。</div></div>
+    <div class="qa"><div class="q">❓ 为什么这件事必要</div><div class="a">不同任务需要不同参数：创意写作要高 temperature，代码生成要低 temperature + <span class="mono">stop</span> 序列。
+      <span class="mono">ChatOptions</span> 是"一个对象传递所有模型参数"的标准方式。</div></div>
+    <div class="qa"><div class="q">✅ MAF 的做法与优点</div><div class="a"><span class="mono">ChatOptions</span> 是 <span class="mono">TypedDict</span>，
+      所以你在 IDE 里能看到所有合法字段 + 自动补全。它和 <span class="mono">get_response(options=...)</span> 无缝对接，
+      且 <span class="mono">tool_choice</span> 支持 <span class="mono">&quot;auto&quot;</span> / <span class="mono">&quot;required&quot;</span> / <span class="mono">&quot;none&quot;</span>，精确控制工具调用行为。</div></div>
+    <div class="qa"><div class="q">🔀 还有什么其他方案</div><div class="a">直接传 <span class="mono">**kwargs</span>（无类型提示）；
+      或每个参数做 <span class="mono">get_response()</span> 的独立参数（签名爆炸）。
+      <span class="mono">TypedDict</span> 在灵活性和类型安全之间找到了最佳平衡。</div></div>
   </div>
 </details>
 
@@ -340,12 +436,108 @@ to any LLM. You only touch <span class="inline">get_response()</span>; vendor-sp
 <details class="accordion">
   <summary><span class="badge-num">1</span> How do providers implement _inner_get_response? <span class="hint">expand</span></summary>
   <div class="acc-body">
-    <div class="qa">
-      <div class="q">🧪 FoundryChatClient example</div>
-      <div class="a">It extends <span class="mono">BaseChatClient</span> and only overrides <span class="mono">_inner_get_response</span>:
-        converts MAF <span class="mono">Message</span> objects to the Foundry SDK format, calls the API, converts the result
-        back to <span class="mono">ChatResponse</span>. When <span class="mono">stream=True</span>, it returns an async generator.</div>
-    </div>
+    <div class="qa"><div class="q">🧪 Example</div><div class="a">FoundryChatClient extends <span class="mono">BaseChatClient</span> and only overrides
+      <span class="mono">_inner_get_response</span>: converts MAF <span class="mono">Message</span> objects to the Foundry SDK format,
+      calls the API, converts back to <span class="mono">ChatResponse</span>. When <span class="mono">stream=True</span>, returns an async generator.</div></div>
+    <div class="qa"><div class="q">❓ Why this matters</div><div class="a">Different LLM vendors have completely different API formats. If callers had to adapt themselves,
+      switching models would require rewriting code. Encapsulating in <span class="mono">_inner_get_response</span> means zero changes upstream.</div></div>
+    <div class="qa"><div class="q">✅ How MAF does it</div><div class="a">Subclasses implement one abstract method with a fixed signature:
+      <span class="mono">_inner_get_response(*, messages, stream, options, **kwargs)</span>.
+      The base class handles retries, middleware, and compaction — subclasses only deal with "how to talk to that API".</div></div>
+    <div class="qa"><div class="q">🔀 Alternatives</div><div class="a">LiteLLM uses a giant if/elif dispatching to each vendor;
+      LangChain has a full class hierarchy per vendor. MAF's "one abstract method" approach is the simplest — one class + one method per vendor.</div></div>
+  </div>
+</details>
+
+<details class="accordion">
+  <summary><span class="badge-num">2</span> get_response full signature <span class="hint">expand</span></summary>
+  <div class="acc-body">
+    <div class="qa"><div class="q">🧪 Example</div><div class="a"><span class="mono">get_response()</span> (<span class="mono">_clients.py:482</span>) full signature:
+<pre class="code">get_response(
+  messages: Sequence[Message],
+  *, <span class="cm"># everything below is keyword-only</span>
+  stream: bool = False,
+  options: ChatOptions | None = None,
+  compaction_strategy: CompactionStrategy | None,
+  tokenizer: TokenizerProtocol | None,
+  function_invocation_kwargs: Mapping | None,
+  client_kwargs: Mapping | None,
+)</pre>
+      Returns <span class="mono">ChatResponse</span> (non-streaming) or <span class="mono">ResponseStream[ChatResponseUpdate, ChatResponse]</span> (streaming).</div></div>
+    <div class="qa"><div class="q">❓ Why this matters</div><div class="a">Knowing all parameters enables fine-grained control: <span class="mono">compaction_strategy</span> decides how to compress
+      when messages are too long, <span class="mono">client_kwargs</span> passes vendor-specific params, <span class="mono">function_invocation_kwargs</span> forwards to tool invocation.</div></div>
+    <div class="qa"><div class="q">✅ How MAF does it</div><div class="a">Only <span class="mono">messages</span> is positional; the rest are <strong>keyword-only</strong>,
+      preventing argument-order mistakes. <span class="mono">stream</span> toggles the return type via one bool — no need for two methods.</div></div>
+    <div class="qa"><div class="q">🔀 Alternatives</div><div class="a">OpenAI SDK uses <span class="mono">create()</span> with many kwargs;
+      Anthropic uses <span class="mono">messages.create()</span>. MAF unifies into one entry point + keyword params — easier to discover, harder to misuse.</div></div>
+  </div>
+</details>
+
+<details class="accordion">
+  <summary><span class="badge-num">3</span> ChatResponse internals <span class="hint">expand</span></summary>
+  <div class="acc-body">
+    <div class="qa"><div class="q">🧪 Example</div><div class="a"><span class="mono">ChatResponse</span> (<span class="mono">_types.py:2122</span>) core fields:
+<pre class="code">resp.messages       <span class="cm"># list[Message] — model reply messages</span>
+resp.text           <span class="cm"># combined message text (read-only property)</span>
+resp.model          <span class="cm"># actual model name used</span>
+resp.usage_details  <span class="cm"># UsageDetails (prompt_tokens, completion_tokens)</span>
+resp.finish_reason  <span class="cm"># &quot;stop&quot; / &quot;tool_calls&quot; / &quot;length&quot;</span>
+resp.value          <span class="cm"># generic structured output</span>
+resp.conversation_id  <span class="cm"># conversation state identifier</span></pre></div></div>
+    <div class="qa"><div class="q">❓ Why this matters</div><div class="a"><span class="mono">ChatResponse</span> is the "atomic exchange unit" inside the Agent loop —
+      each LLM call returns one, and the Agent checks <span class="mono">finish_reason</span> to decide whether to continue the tool loop or stop.</div></div>
+    <div class="qa"><div class="q">✅ How MAF does it</div><div class="a"><span class="mono">.text</span> auto-joins messages, saving manual iteration.
+      <span class="mono">.value</span> supports generics — <span class="mono">ChatResponse[MyModel]</span>'s <span class="mono">.value</span> is directly a <span class="mono">MyModel</span> instance.
+      <span class="mono">.raw_representation</span> preserves the raw response for debugging.</div></div>
+    <div class="qa"><div class="q">🔀 Alternatives</div><div class="a">Some frameworks return plain strings; others return dicts.
+      MAF's strongly-typed dataclass provides autocompletion and type checking — a far better IDE experience than dict.</div></div>
+  </div>
+</details>
+
+<details class="accordion">
+  <summary><span class="badge-num">4</span> Writing your own ChatClient <span class="hint">expand</span></summary>
+  <div class="acc-body">
+    <div class="qa"><div class="q">🧪 Example</div><div class="a">Minimal custom <span class="mono">BaseChatClient</span> subclass skeleton:
+<pre class="code"><span class="kw">class</span> <span class="fn">MyChatClient</span>(BaseChatClient):
+    <span class="kw">async def</span> <span class="fn">_inner_get_response</span>(
+        self, *, messages, stream, options, **kwargs
+    ):
+        <span class="cm"># 1. Convert MAF Messages to your API format</span>
+        <span class="cm"># 2. Call your LLM API</span>
+        <span class="cm"># 3. Convert result back to ChatResponse</span>
+        <span class="kw">return</span> ChatResponse(messages=[...], model=<span class="st">&quot;my-model&quot;</span>)</pre></div></div>
+    <div class="qa"><div class="q">❓ Why this matters</div><div class="a">If you need to connect a model that MAF doesn't have an official provider for
+      (private deployment, niche vendor), you write your own. Only <strong>one method</strong> to implement — very low barrier.</div></div>
+    <div class="qa"><div class="q">✅ How MAF does it</div><div class="a">The base class <span class="mono">BaseChatClient</span> (<span class="mono">_clients.py:217</span>)
+      already handles middleware triggers, compaction, and option validation. You only write the "talk to API" part; everything else is reused.</div></div>
+    <div class="qa"><div class="q">🔀 Alternatives</div><div class="a">Adapter pattern wrapping an existing SDK (more glue code),
+      or replacing the call logic at the Agent level (loses base-class features). MAF's "subclass + one method" is the simplest with maximum reuse.</div></div>
+  </div>
+</details>
+
+<details class="accordion">
+  <summary><span class="badge-num">5</span> ChatOptions explained <span class="hint">expand</span></summary>
+  <div class="acc-body">
+    <div class="qa"><div class="q">🧪 Example</div><div class="a"><span class="mono">ChatOptions</span> (<span class="mono">_types.py:3346</span>) common fields:
+<pre class="code">options = ChatOptions(
+  model=<span class="st">&quot;gpt-4o&quot;</span>,
+  temperature=0.7,
+  max_tokens=2048,
+  top_p=0.9,
+  stop=[<span class="st">&quot;\n\n&quot;</span>],
+  tool_choice=<span class="st">&quot;auto&quot;</span>,
+  response_format=MyModel,  <span class="cm"># structured output</span>
+)</pre>
+      Also: <span class="mono">frequency_penalty</span>, <span class="mono">presence_penalty</span>, <span class="mono">seed</span>,
+      <span class="mono">logit_bias</span>, <span class="mono">metadata</span>, <span class="mono">instructions</span>, etc.</div></div>
+    <div class="qa"><div class="q">❓ Why this matters</div><div class="a">Different tasks need different params: creative writing needs high temperature, code generation needs
+      low temperature + <span class="mono">stop</span> sequences. <span class="mono">ChatOptions</span> is the standard way to pass all model parameters as one object.</div></div>
+    <div class="qa"><div class="q">✅ How MAF does it</div><div class="a"><span class="mono">ChatOptions</span> is a <span class="mono">TypedDict</span>,
+      so your IDE shows all valid fields + autocompletion. It integrates seamlessly with <span class="mono">get_response(options=...)</span>,
+      and <span class="mono">tool_choice</span> supports <span class="mono">&quot;auto&quot;</span> / <span class="mono">&quot;required&quot;</span> / <span class="mono">&quot;none&quot;</span> for precise tool-call control.</div></div>
+    <div class="qa"><div class="q">🔀 Alternatives</div><div class="a">Pass raw <span class="mono">**kwargs</span> (no type hints);
+      or make each param a separate <span class="mono">get_response()</span> argument (signature explosion).
+      <span class="mono">TypedDict</span> strikes the best balance between flexibility and type safety.</div></div>
   </div>
 </details>
 

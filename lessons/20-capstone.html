@@ -282,13 +282,175 @@ result = <span class="kw">await</span> workflow.run(<span class="st">"Write abou
 </div>
 
 <details class="accordion">
-  <summary><span class="badge-num">1</span> 加上工具和检查点 <span class="hint">点击展开</span></summary>
+  <summary><span class="badge-num">1</span> 完整代码骨架（扩展版） <span class="hint">点击展开详解</span></summary>
   <div class="acc-body">
     <div class="qa">
-      <div class="q">🧪 扩展</div>
-      <div class="a">给 Writer 加 <span class="mono">tools=[web_search]</span> 让它查资料；
-        在 Reviewer 的工具里加 <span class="mono">approval_mode="always_require"</span> 的发布工具。
-        检查点在 Workflow superstep 边界自动保存——如果中间断了，重启从最后存档恢复。</div>
+      <div class="q">🧪 示例</div>
+      <div class="a">完整的 25-30 行可工作示例：
+<pre class="code"><span class="kw">from</span> agent_framework <span class="kw">import</span> Agent, tool, OpenAIChatClient
+<span class="kw">from</span> agent_framework.orchestrations <span class="kw">import</span> SequentialBuilder
+<span class="kw">from</span> agent_framework <span class="kw">import</span> InMemoryCheckpointStorage
+
+<span class="cm"># 工具</span>
+<span class="nb">@tool</span>
+<span class="kw">def</span> <span class="fn">web_search</span>(query: str) -> str:
+    <span class="st">&quot;&quot;&quot;搜索网络&quot;&quot;&quot;</span>
+    <span class="kw">return</span> f<span class="st">&quot;Results for {query}&quot;</span>
+
+<span class="cm"># 中间件</span>
+<span class="kw">class</span> <span class="fn">LoggingMiddleware</span>(ChatMiddleware):
+    <span class="kw">async def</span> <span class="fn">process</span>(self, context, call_next):
+        logger.info(f<span class="st">&quot;Input: {context.messages}&quot;</span>)
+        <span class="kw">await</span> call_next()
+        logger.info(f<span class="st">&quot;Output: {context.result}&quot;</span>)
+
+<span class="cm"># Agents</span>
+client = OpenAIChatClient(model=<span class="st">&quot;gpt-4o&quot;</span>)
+writer = client.as_agent(name=<span class="st">&quot;Writer&quot;</span>,
+    instructions=<span class="st">&quot;Write articles&quot;</span>,
+    tools=[web_search],
+    chat_middleware=[LoggingMiddleware()])
+
+reviewer = client.as_agent(name=<span class="st">&quot;Reviewer&quot;</span>,
+    instructions=<span class="st">&quot;Review and improve&quot;</span>)
+
+<span class="cm"># 工作流</span>
+storage = InMemoryCheckpointStorage()
+workflow = SequentialBuilder(
+    participants=[writer, reviewer],
+    checkpoint_storage=storage
+).build()
+
+result = <span class="kw">await</span> workflow.run(<span class="st">&quot;Write about MAF&quot;</span>)</pre>
+所有组件整合：Agent、工具、中间件、检查点、编排。
+      </div>
+    </div>
+    <div class="qa">
+      <div class="q">❓ 为什么这件事必要</div>
+      <div class="a">看到所有组件一起工作能巩固理解。可复制粘贴的代码是最好的学习工具。</div>
+    </div>
+    <div class="qa">
+      <div class="q">✅ MAF 的做法与优点</div>
+      <div class="a">MAF 的可组合性意味着每个组件（Agent、工具、中间件、检查点、编排）都能干净地组合在一起。</div>
+    </div>
+    <div class="qa">
+      <div class="q">🔀 还有什么其他方案</div>
+      <div class="a">样板代码繁重的框架需要 100+ 行才能实现相同功能。MAF 保持在 30 行以内。</div>
+    </div>
+  </div>
+</details>
+
+<details class="accordion">
+  <summary><span class="badge-num">2</span> 加入 Concurrent 变体 <span class="hint">点击展开详解</span></summary>
+  <div class="acc-body">
+    <div class="qa">
+      <div class="q">🧪 示例</div>
+      <div class="a">用 Sequential 替换为：Writer + FactChecker 并行运行，然后 Reviewer 串行运行：
+<pre class="code"><span class="kw">from</span> agent_framework.orchestrations <span class="kw">import</span> (
+    SequentialBuilder, ConcurrentBuilder
+)
+
+<span class="cm"># 阶段 1：并行</span>
+concurrent_stage = ConcurrentBuilder(
+    participants=[writer, fact_checker]
+).build()
+
+<span class="cm"># 阶段 2：串行（等待并行阶段完成）</span>
+workflow = SequentialBuilder(
+    participants=[concurrent_stage, reviewer]
+).build()
+
+result = <span class="kw">await</span> workflow.run(<span class="st">&quot;Write about AI&quot;</span>)</pre>
+Builder 可组合：混合并行和串行阶段。
+      </div>
+    </div>
+    <div class="qa">
+      <div class="q">❓ 为什么这件事必要</div>
+      <div class="a">串行工作流在步骤独立时很慢。并行执行减少实际时间。</div>
+    </div>
+    <div class="qa">
+      <div class="q">✅ MAF 的做法与优点</div>
+      <div class="a">MAF 的 ConcurrentBuilder + SequentialBuilder 自然组合。自由混合并行和串行阶段。</div>
+    </div>
+    <div class="qa">
+      <div class="q">🔀 还有什么其他方案</div>
+      <div class="a">手动 asyncio.gather()、线程池。MAF 的 builder 自动处理扇出/扇入。</div>
+    </div>
+  </div>
+</details>
+
+<details class="accordion">
+  <summary><span class="badge-num">3</span> 加入人在环 <span class="hint">点击展开详解</span></summary>
+  <div class="acc-body">
+    <div class="qa">
+      <div class="q">🧪 示例</div>
+      <div class="a">给 Reviewer 添加 <span class="mono">publish</span> 工具，带 <span class="mono">approval_mode="always_require"</span>：
+<pre class="code"><span class="nb">@tool</span>(approval_mode=<span class="st">&quot;always_require&quot;</span>)
+<span class="kw">def</span> <span class="fn">publish</span>(content: str):
+    <span class="st">&quot;&quot;&quot;发布文章（需要审批）&quot;&quot;&quot;</span>
+    <span class="cm"># 实际发布逻辑</span>
+    <span class="kw">return</span> f<span class="st">&quot;Published: {content[:50]}...&quot;</span>
+
+reviewer = client.as_agent(
+    name=<span class="st">&quot;Reviewer&quot;</span>,
+    instructions=<span class="st">&quot;Review and publish if good&quot;</span>,
+    tools=[publish]  <span class="cm"># 发布前必须人工审批</span>
+)</pre>
+在文章发布前，必须有人批准。框架处理暂停、通知和恢复。
+      </div>
+    </div>
+    <div class="qa">
+      <div class="q">❓ 为什么这件事必要</div>
+      <div class="a">自动发布而不审查有风险。发布步骤的 HITL 防止不良内容上线。</div>
+    </div>
+    <div class="qa">
+      <div class="q">✅ MAF 的做法与优点</div>
+      <div class="a">工具定义上的一个参数（<span class="mono">approval_mode</span>）。框架处理暂停、通知和恢复。</div>
+    </div>
+    <div class="qa">
+      <div class="q">🔀 还有什么其他方案</div>
+      <div class="a">自定义 webhook 审批、外部审核 API。MAF 的方法是声明式且内置的。</div>
+    </div>
+  </div>
+</details>
+
+<details class="accordion">
+  <summary><span class="badge-num">4</span> 生产化清单 <span class="hint">点击展开详解</span></summary>
+  <div class="acc-body">
+    <div class="qa">
+      <div class="q">🧪 示例</div>
+      <div class="a">生产就绪检查清单：
+<pre class="code"><span class="cm"># ✓ 添加 OpenTelemetry 追踪</span>
+<span class="kw">from</span> agent_framework.telemetry <span class="kw">import</span> setup_otel
+setup_otel(service_name=<span class="st">&quot;my-agent&quot;</span>)
+
+<span class="cm"># ✓ 切换到持久化存储</span>
+<span class="kw">from</span> agent_framework_redis <span class="kw">import</span> RedisCheckpointStorage
+storage = RedisCheckpointStorage(conn_string)
+
+<span class="cm"># ✓ 添加错误处理中间件</span>
+middleware=[ErrorHandlingMiddleware(), RetryMiddleware()]
+
+<span class="cm"># ✓ 设置 token 预算</span>
+agent = client.as_agent(..., max_tokens=<span class="nb">10000</span>)
+
+<span class="cm"># ✓ 添加速率限制</span>
+<span class="cm"># ✓ 配置日志级别</span>
+logging.basicConfig(level=logging.INFO)</pre>
+从演示到生产的差距清单。
+      </div>
+    </div>
+    <div class="qa">
+      <div class="q">❓ 为什么这件事必要</div>
+      <div class="a">演示代码 ≠ 生产代码。知道差距可防止中断和成本超支。</div>
+    </div>
+    <div class="qa">
+      <div class="q">✅ MAF 的做法与优点</div>
+      <div class="a">MAF 提供所有生产构建块：OTel 集成、持久化存储包、重试/日志/计费中间件。无需第三方胶水。</div>
+    </div>
+    <div class="qa">
+      <div class="q">🔀 还有什么其他方案</div>
+      <div class="a">平台特定解决方案（Azure Monitor、Datadog）。MAF 是云无关的；OTel 导出到任何后端。</div>
     </div>
   </div>
 </details>
@@ -337,13 +499,175 @@ result = <span class="kw">await</span> workflow.run(<span class="st">"Write abou
 </div>
 
 <details class="accordion">
-  <summary><span class="badge-num">1</span> Add tools and checkpoints <span class="hint">expand</span></summary>
+  <summary><span class="badge-num">1</span> Extended code skeleton <span class="hint">expand</span></summary>
   <div class="acc-body">
     <div class="qa">
-      <div class="q">🧪 Extensions</div>
-      <div class="a">Give Writer <span class="mono">tools=[web_search]</span> for research; add a publish tool with
-        <span class="mono">approval_mode="always_require"</span> to Reviewer. Checkpoints auto-save at Workflow superstep
-        boundaries — if interrupted, restart resumes from the latest save.</div>
+      <div class="q">🧪 Example</div>
+      <div class="a">Full working example in ~25-30 lines:
+<pre class="code"><span class="kw">from</span> agent_framework <span class="kw">import</span> Agent, tool, OpenAIChatClient
+<span class="kw">from</span> agent_framework.orchestrations <span class="kw">import</span> SequentialBuilder
+<span class="kw">from</span> agent_framework <span class="kw">import</span> InMemoryCheckpointStorage
+
+<span class="cm"># Tool</span>
+<span class="nb">@tool</span>
+<span class="kw">def</span> <span class="fn">web_search</span>(query: str) -> str:
+    <span class="st">&quot;&quot;&quot;Search the web&quot;&quot;&quot;</span>
+    <span class="kw">return</span> f<span class="st">&quot;Results for {query}&quot;</span>
+
+<span class="cm"># Middleware</span>
+<span class="kw">class</span> <span class="fn">LoggingMiddleware</span>(ChatMiddleware):
+    <span class="kw">async def</span> <span class="fn">process</span>(self, context, call_next):
+        logger.info(f<span class="st">&quot;Input: {context.messages}&quot;</span>)
+        <span class="kw">await</span> call_next()
+        logger.info(f<span class="st">&quot;Output: {context.result}&quot;</span>)
+
+<span class="cm"># Agents</span>
+client = OpenAIChatClient(model=<span class="st">&quot;gpt-4o&quot;</span>)
+writer = client.as_agent(name=<span class="st">&quot;Writer&quot;</span>,
+    instructions=<span class="st">&quot;Write articles&quot;</span>,
+    tools=[web_search],
+    chat_middleware=[LoggingMiddleware()])
+
+reviewer = client.as_agent(name=<span class="st">&quot;Reviewer&quot;</span>,
+    instructions=<span class="st">&quot;Review and improve&quot;</span>)
+
+<span class="cm"># Workflow</span>
+storage = InMemoryCheckpointStorage()
+workflow = SequentialBuilder(
+    participants=[writer, reviewer],
+    checkpoint_storage=storage
+).build()
+
+result = <span class="kw">await</span> workflow.run(<span class="st">&quot;Write about MAF&quot;</span>)</pre>
+All pieces together: agent, tool, middleware, checkpoint, orchestration.
+      </div>
+    </div>
+    <div class="qa">
+      <div class="q">❓ Why this matters</div>
+      <div class="a">Seeing all pieces together cements understanding. Copy-paste-able code is the best learning tool.</div>
+    </div>
+    <div class="qa">
+      <div class="q">✅ How MAF does it</div>
+      <div class="a">MAF's composability means each piece (agent, tool, middleware, checkpoint, orchestration) snaps together cleanly.</div>
+    </div>
+    <div class="qa">
+      <div class="q">🔀 Alternatives</div>
+      <div class="a">Boilerplate-heavy frameworks need 100+ lines for the same. MAF keeps it under 30.</div>
+    </div>
+  </div>
+</details>
+
+<details class="accordion">
+  <summary><span class="badge-num">2</span> Adding concurrency <span class="hint">expand</span></summary>
+  <div class="acc-body">
+    <div class="qa">
+      <div class="q">🧪 Example</div>
+      <div class="a">Replace Sequential with: Writer + FactChecker run in parallel, then Reviewer runs serially:
+<pre class="code"><span class="kw">from</span> agent_framework.orchestrations <span class="kw">import</span> (
+    SequentialBuilder, ConcurrentBuilder
+)
+
+<span class="cm"># Stage 1: concurrent</span>
+concurrent_stage = ConcurrentBuilder(
+    participants=[writer, fact_checker]
+).build()
+
+<span class="cm"># Stage 2: sequential (waits for concurrent stage)</span>
+workflow = SequentialBuilder(
+    participants=[concurrent_stage, reviewer]
+).build()
+
+result = <span class="kw">await</span> workflow.run(<span class="st">&quot;Write about AI&quot;</span>)</pre>
+Builders compose: mix parallel and sequential stages.
+      </div>
+    </div>
+    <div class="qa">
+      <div class="q">❓ Why this matters</div>
+      <div class="a">Sequential workflows are slow when steps are independent. Parallel execution cuts wall-clock time.</div>
+    </div>
+    <div class="qa">
+      <div class="q">✅ How MAF does it</div>
+      <div class="a">MAF's ConcurrentBuilder + SequentialBuilder compose naturally. Mix parallel and sequential stages freely.</div>
+    </div>
+    <div class="qa">
+      <div class="q">🔀 Alternatives</div>
+      <div class="a">Manual asyncio.gather(), thread pools. MAF's builders handle fan-out/fan-in automatically.</div>
+    </div>
+  </div>
+</details>
+
+<details class="accordion">
+  <summary><span class="badge-num">3</span> Adding HITL <span class="hint">expand</span></summary>
+  <div class="acc-body">
+    <div class="qa">
+      <div class="q">🧪 Example</div>
+      <div class="a">Add a <span class="mono">publish</span> tool to Reviewer with <span class="mono">approval_mode="always_require"</span>:
+<pre class="code"><span class="nb">@tool</span>(approval_mode=<span class="st">&quot;always_require&quot;</span>)
+<span class="kw">def</span> <span class="fn">publish</span>(content: str):
+    <span class="st">&quot;&quot;&quot;Publish article (requires approval)&quot;&quot;&quot;</span>
+    <span class="cm"># actual publish logic</span>
+    <span class="kw">return</span> f<span class="st">&quot;Published: {content[:50]}...&quot;</span>
+
+reviewer = client.as_agent(
+    name=<span class="st">&quot;Reviewer&quot;</span>,
+    instructions=<span class="st">&quot;Review and publish if good&quot;</span>,
+    tools=[publish]  <span class="cm"># must be human-approved before publish</span>
+)</pre>
+Before the article is published, a human must approve. Framework handles pausing, notifying, and resuming.
+      </div>
+    </div>
+    <div class="qa">
+      <div class="q">❓ Why this matters</div>
+      <div class="a">Auto-publishing without review is risky. HITL at the publish step prevents bad content from going live.</div>
+    </div>
+    <div class="qa">
+      <div class="q">✅ How MAF does it</div>
+      <div class="a">One parameter (<span class="mono">approval_mode</span>) on the tool definition. The framework handles pausing, notifying, and resuming.</div>
+    </div>
+    <div class="qa">
+      <div class="q">🔀 Alternatives</div>
+      <div class="a">Custom webhook approval, external moderation API. MAF's approach is declarative and built-in.</div>
+    </div>
+  </div>
+</details>
+
+<details class="accordion">
+  <summary><span class="badge-num">4</span> Production checklist <span class="hint">expand</span></summary>
+  <div class="acc-body">
+    <div class="qa">
+      <div class="q">🧪 Example</div>
+      <div class="a">Production-ready checklist:
+<pre class="code"><span class="cm"># ✓ Add OpenTelemetry tracing</span>
+<span class="kw">from</span> agent_framework.telemetry <span class="kw">import</span> setup_otel
+setup_otel(service_name=<span class="st">&quot;my-agent&quot;</span>)
+
+<span class="cm"># ✓ Switch to persistent storage</span>
+<span class="kw">from</span> agent_framework_redis <span class="kw">import</span> RedisCheckpointStorage
+storage = RedisCheckpointStorage(conn_string)
+
+<span class="cm"># ✓ Add error handling middleware</span>
+middleware=[ErrorHandlingMiddleware(), RetryMiddleware()]
+
+<span class="cm"># ✓ Set token budgets</span>
+agent = client.as_agent(..., max_tokens=<span class="nb">10000</span>)
+
+<span class="cm"># ✓ Add rate limiting</span>
+<span class="cm"># ✓ Configure logging</span>
+logging.basicConfig(level=logging.INFO)</pre>
+Checklist of gaps from demo to production.
+      </div>
+    </div>
+    <div class="qa">
+      <div class="q">❓ Why this matters</div>
+      <div class="a">Demo code ≠ production code. Knowing the gaps prevents outages and cost overruns.</div>
+    </div>
+    <div class="qa">
+      <div class="q">✅ How MAF does it</div>
+      <div class="a">MAF provides all production building blocks: OTel integration, persistent storage packages, middleware for retries/logging/billing. No third-party glue needed.</div>
+    </div>
+    <div class="qa">
+      <div class="q">🔀 Alternatives</div>
+      <div class="a">Platform-specific solutions (Azure Monitor, Datadog). MAF is cloud-agnostic; OTel exports to any backend.</div>
     </div>
   </div>
 </details>

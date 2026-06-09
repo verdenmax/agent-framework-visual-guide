@@ -23,13 +23,184 @@ L16_ZH = r"""
 <p>全部用法一样：实例化 ChatClient → <span class="mono">client.as_agent(…)</span> → <span class="mono">agent.run(…)</span>。</p>
 
 <details class="accordion">
-  <summary><span class="badge-num">1</span> Foundry vs OpenAI 有什么区别？ <span class="hint">点击展开</span></summary>
+  <summary><span class="badge-num">1</span> FoundryChatClient 配置 <span class="hint">点击展开详解</span></summary>
   <div class="acc-body">
     <div class="qa">
-      <div class="q">🔬 关键差异</div>
-      <div class="a"><span class="mono">FoundryChatClient</span> 走 <strong>Azure AI Foundry 项目端点</strong>（统一管理模型、记忆、文件等）。
-        <span class="mono">OpenAIChatClient</span> 直连 <strong>OpenAI API 或 Azure OpenAI 端点</strong>。
-        如果你已有 Foundry 项目，推荐 Foundry；否则 OpenAI 最直接。</div>
+      <div class="q">🧪 示例</div>
+      <div class="a">完整配置代码：
+<pre class="code"><span class="kw">from</span> agent_framework_foundry <span class="kw">import</span> FoundryChatClient
+<span class="kw">from</span> azure.identity <span class="kw">import</span> DefaultAzureCredential
+<span class="kw">import</span> os
+
+client = FoundryChatClient(
+    project_endpoint=os.environ[<span class="st">"AZURE_AI_FOUNDRY_PROJECT_ENDPOINT"</span>],
+    model=<span class="st">"gpt-4o"</span>,
+    credential=DefaultAzureCredential()
+)</pre>
+      </div>
+    </div>
+    <div class="qa">
+      <div class="q">❓ 为什么这件事必要</div>
+      <div class="a">Azure AI Foundry 统一管理模型、记忆、文件存储于一个端点下。企业客户通常已有 Foundry 项目，这让他们能直接复用现有基础设施和安全配置。</div>
+    </div>
+    <div class="qa">
+      <div class="q">✅ MAF 的做法与优点</div>
+      <div class="a"><span class="mono">FoundryChatClient</span> 只需三个参数：<span class="mono">project_endpoint</span>、<span class="mono">model</span>、<span class="mono">credential</span>。一次 import，三行配置，完成。底层走 Foundry 的统一 API。</div>
+    </div>
+    <div class="qa">
+      <div class="q">🔀 还有什么其他方案</div>
+      <div class="a">直接调用 Foundry REST API，或用 Azure SDK。MAF 的优势是把这些封装成 ChatClient 接口，切换厂商时不用改 Agent 代码。</div>
+    </div>
+  </div>
+</details>
+
+<details class="accordion">
+  <summary><span class="badge-num">2</span> OpenAIChatClient 配置 <span class="hint">点击展开详解</span></summary>
+  <div class="acc-body">
+    <div class="qa">
+      <div class="q">🧪 示例</div>
+      <div class="a">OpenAI 或 Azure OpenAI 均可：
+<pre class="code"><span class="kw">from</span> agent_framework <span class="kw">import</span> OpenAIChatClient
+
+<span class="cm"># OpenAI</span>
+client = OpenAIChatClient(
+    model=<span class="st">"gpt-4o"</span>,
+    api_key=os.environ[<span class="st">"OPENAI_API_KEY"</span>]
+)
+
+<span class="cm"># Azure OpenAI</span>
+client = OpenAIChatClient(
+    model=<span class="st">"gpt-4o"</span>,
+    base_url=<span class="st">"https://your-resource.openai.azure.com/"</span>,
+    api_key=os.environ[<span class="st">"AZURE_OPENAI_KEY"</span>]
+)</pre>
+      </div>
+    </div>
+    <div class="qa">
+      <div class="q">❓ 为什么这件事必要</div>
+      <div class="a">OpenAI 是最常见的起点。Azure OpenAI 则增加企业级安全（VNet、托管身份等）。许多团队从 OpenAI 开始原型，之后迁移到 Azure OpenAI。</div>
+    </div>
+    <div class="qa">
+      <div class="q">✅ MAF 的做法与优点</div>
+      <div class="a">内置于核心包（无需额外安装）。通过 <span class="mono">base_url</span> 参数同时支持 OpenAI 和 Azure OpenAI。接口完全相同。</div>
+    </div>
+    <div class="qa">
+      <div class="q">🔀 还有什么其他方案</div>
+      <div class="a">直接用 <span class="mono">openai</span> SDK，或用 LiteLLM 代理。MAF 的优势是与其他厂商统一接口，切换时不用重写 Agent 逻辑。</div>
+    </div>
+  </div>
+</details>
+
+<details class="accordion">
+  <summary><span class="badge-num">3</span> AnthropicChatClient 配置 <span class="hint">点击展开详解</span></summary>
+  <div class="acc-body">
+    <div class="qa">
+      <div class="q">🧪 示例</div>
+      <div class="a">先安装包，再配置：
+<pre class="code"><span class="cm"># 安装</span>
+pip install agent-framework-anthropic
+
+<span class="cm"># 使用</span>
+<span class="kw">from</span> agent_framework_anthropic <span class="kw">import</span> AnthropicChatClient
+
+client = AnthropicChatClient(
+    model=<span class="st">"claude-sonnet-4-5"</span>,
+    api_key=os.environ[<span class="st">"ANTHROPIC_API_KEY"</span>]
+)
+<span class="cm"># 也可用 claude-haiku-3-5 等其他模型</span></pre>
+      </div>
+    </div>
+    <div class="qa">
+      <div class="q">❓ 为什么这件事必要</div>
+      <div class="a">Claude 模型在长上下文和仔细推理方面表现优异。许多团队需要厂商多样性来降低风险、比较质量或应对某一厂商的限制。</div>
+    </div>
+    <div class="qa">
+      <div class="q">✅ MAF 的做法与优点</div>
+      <div class="a">独立包保持核心轻量。同样的 <span class="mono">as_agent()</span> → <span class="mono">run()</span> 模式。Agent 代码与 OpenAI 版本完全一样。</div>
+    </div>
+    <div class="qa">
+      <div class="q">🔀 还有什么其他方案</div>
+      <div class="a">直接用 <span class="mono">anthropic</span> SDK，或用 AWS Bedrock（也支持 Claude）。MAF 统一了接口，让切换变成一行代码的事。</div>
+    </div>
+  </div>
+</details>
+
+<details class="accordion">
+  <summary><span class="badge-num">4</span> OllamaChatClient 配置 <span class="hint">点击展开详解</span></summary>
+  <div class="acc-body">
+    <div class="qa">
+      <div class="q">🧪 示例</div>
+      <div class="a">本地运行 Ollama，无需 API key：
+<pre class="code"><span class="cm"># 1. 安装 Ollama（本地）并拉取模型</span>
+ollama pull llama3.1
+
+<span class="cm"># 2. Python 代码</span>
+<span class="kw">from</span> agent_framework_ollama <span class="kw">import</span> OllamaChatClient
+
+client = OllamaChatClient(
+    model=<span class="st">"llama3.1"</span>,
+    endpoint=<span class="st">"http://localhost:11434"</span>  <span class="cm"># 默认值</span>
+)</pre>
+      </div>
+    </div>
+    <div class="qa">
+      <div class="q">❓ 为什么这件事必要</div>
+      <div class="a">本地模型 = 零 API 成本、数据不离开本地。适合开发、隐私敏感场景、或无法访问云端 API 的环境。</div>
+    </div>
+    <div class="qa">
+      <div class="q">✅ MAF 的做法与优点</div>
+      <div class="a">MAF 对本地模型和云端模型一视同仁。同样的 Agent 代码可以在 Ollama 或 GPT-4o 上运行，只需切换 client 实例。</div>
+    </div>
+    <div class="qa">
+      <div class="q">🔀 还有什么其他方案</div>
+      <div class="a">vLLM、llama.cpp 服务器、LocalAI。Ollama 是最简单的开发选项，但 MAF 的抽象意味着你也可以写其他本地后端的 ChatClient。</div>
+    </div>
+  </div>
+</details>
+
+<details class="accordion">
+  <summary><span class="badge-num">5</span> 切换厂商的实际演示 <span class="hint">点击展开详解</span></summary>
+  <div class="acc-body">
+    <div class="qa">
+      <div class="q">🧪 示例</div>
+      <div class="a">同一个 Agent 定义，只换 client 一行：
+<pre class="code"><span class="cm"># 变体 1：OpenAI</span>
+client = OpenAIChatClient(model=<span class="st">"gpt-4o"</span>, api_key=...)
+agent = client.as_agent(
+    name=<span class="st">"Assistant"</span>,
+    instructions=<span class="st">"You are helpful."</span>,
+    tools=[web_search]
+)
+
+<span class="cm"># 变体 2：Anthropic</span>
+client = AnthropicChatClient(model=<span class="st">"claude-sonnet-4-5"</span>, api_key=...)
+agent = client.as_agent(
+    name=<span class="st">"Assistant"</span>,
+    instructions=<span class="st">"You are helpful."</span>,
+    tools=[web_search]
+)
+
+<span class="cm"># 变体 3：Ollama</span>
+client = OllamaChatClient(model=<span class="st">"llama3.1"</span>)
+agent = client.as_agent(
+    name=<span class="st">"Assistant"</span>,
+    instructions=<span class="st">"You are helpful."</span>,
+    tools=[web_search]
+)</pre>
+<span class="cm"># Agent 定义（name、instructions、tools、middleware）完全相同！</span>
+      </div>
+    </div>
+    <div class="qa">
+      <div class="q">❓ 为什么这件事必要</div>
+      <div class="a">厂商锁定成本高昂。能用一行代码切换是竞争优势：价格变动时切换、某厂商限流时切换、对比质量时切换。</div>
+    </div>
+    <div class="qa">
+      <div class="q">✅ MAF 的做法与优点</div>
+      <div class="a">MAF 的 <span class="mono">ChatClient</span> 抽象意味着 Agent 逻辑 100% 厂商无关。只有 client 实例化那一行需要改。工具、中间件、编排全部不变。</div>
+    </div>
+    <div class="qa">
+      <div class="q">🔀 还有什么其他方案</div>
+      <div class="a">LiteLLM 代理（增加网络跳转），LangChain 的 ChatModel（类似思路但更重）。MAF 是最干净的抽象。</div>
     </div>
   </div>
 </details>
@@ -72,13 +243,184 @@ This lesson surveys the main provider packages and shows the <strong>import-to-r
 <p>Same pattern for all: instantiate ChatClient → <span class="mono">client.as_agent(…)</span> → <span class="mono">agent.run(…)</span>.</p>
 
 <details class="accordion">
-  <summary><span class="badge-num">1</span> Foundry vs OpenAI? <span class="hint">expand</span></summary>
+  <summary><span class="badge-num">1</span> FoundryChatClient configuration <span class="hint">expand</span></summary>
   <div class="acc-body">
     <div class="qa">
-      <div class="q">🔬 Key difference</div>
-      <div class="a"><span class="mono">FoundryChatClient</span> uses an <strong>Azure AI Foundry project endpoint</strong>
-        (unified model, memory, file management). <span class="mono">OpenAIChatClient</span> connects directly to the
-        <strong>OpenAI API or Azure OpenAI endpoint</strong>. If you have a Foundry project, use Foundry; otherwise OpenAI is simplest.</div>
+      <div class="q">🧪 Example</div>
+      <div class="a">Full setup code:
+<pre class="code"><span class="kw">from</span> agent_framework_foundry <span class="kw">import</span> FoundryChatClient
+<span class="kw">from</span> azure.identity <span class="kw">import</span> DefaultAzureCredential
+<span class="kw">import</span> os
+
+client = FoundryChatClient(
+    project_endpoint=os.environ[<span class="st">&quot;AZURE_AI_FOUNDRY_PROJECT_ENDPOINT&quot;</span>],
+    model=<span class="st">&quot;gpt-4o&quot;</span>,
+    credential=DefaultAzureCredential()
+)</pre>
+      </div>
+    </div>
+    <div class="qa">
+      <div class="q">❓ Why this matters</div>
+      <div class="a">Azure AI Foundry unifies model management, memory, and file storage under one endpoint. Enterprise customers already have Foundry projects, so they can reuse existing infrastructure and security configurations.</div>
+    </div>
+    <div class="qa">
+      <div class="q">✅ How MAF does it</div>
+      <div class="a"><span class="mono">FoundryChatClient</span> takes three parameters: <span class="mono">project_endpoint</span>, <span class="mono">model</span>, <span class="mono">credential</span>. One import, three params, done.</div>
+    </div>
+    <div class="qa">
+      <div class="q">🔀 Alternatives</div>
+      <div class="a">Direct REST calls to Foundry API, or Azure SDK directly. MAF wraps it into the ChatClient interface so you can swap providers.</div>
+    </div>
+  </div>
+</details>
+
+<details class="accordion">
+  <summary><span class="badge-num">2</span> OpenAIChatClient configuration <span class="hint">expand</span></summary>
+  <div class="acc-body">
+    <div class="qa">
+      <div class="q">🧪 Example</div>
+      <div class="a">Works with both OpenAI and Azure OpenAI:
+<pre class="code"><span class="kw">from</span> agent_framework <span class="kw">import</span> OpenAIChatClient
+
+<span class="cm"># OpenAI</span>
+client = OpenAIChatClient(
+    model=<span class="st">&quot;gpt-4o&quot;</span>,
+    api_key=os.environ[<span class="st">&quot;OPENAI_API_KEY&quot;</span>]
+)
+
+<span class="cm"># Azure OpenAI</span>
+client = OpenAIChatClient(
+    model=<span class="st">&quot;gpt-4o&quot;</span>,
+    base_url=<span class="st">&quot;https://your-resource.openai.azure.com/&quot;</span>,
+    api_key=os.environ[<span class="st">&quot;AZURE_OPENAI_KEY&quot;</span>]
+)</pre>
+      </div>
+    </div>
+    <div class="qa">
+      <div class="q">❓ Why this matters</div>
+      <div class="a">OpenAI is the most common starting point. Azure OpenAI adds enterprise security (VNet, managed identity). Many teams prototype with OpenAI, then migrate to Azure OpenAI.</div>
+    </div>
+    <div class="qa">
+      <div class="q">✅ How MAF does it</div>
+      <div class="a">Built into core package (no extra install). Works with both OpenAI and Azure OpenAI via <span class="mono">base_url</span>. Identical interface.</div>
+    </div>
+    <div class="qa">
+      <div class="q">🔀 Alternatives</div>
+      <div class="a"><span class="mono">openai</span> SDK directly, LiteLLM. MAF's advantage: same interface as all other providers.</div>
+    </div>
+  </div>
+</details>
+
+<details class="accordion">
+  <summary><span class="badge-num">3</span> AnthropicChatClient configuration <span class="hint">expand</span></summary>
+  <div class="acc-body">
+    <div class="qa">
+      <div class="q">🧪 Example</div>
+      <div class="a">Install package, then configure:
+<pre class="code"><span class="cm"># Install</span>
+pip install agent-framework-anthropic
+
+<span class="cm"># Use</span>
+<span class="kw">from</span> agent_framework_anthropic <span class="kw">import</span> AnthropicChatClient
+
+client = AnthropicChatClient(
+    model=<span class="st">&quot;claude-sonnet-4-5&quot;</span>,
+    api_key=os.environ[<span class="st">&quot;ANTHROPIC_API_KEY&quot;</span>]
+)
+<span class="cm"># Also: claude-haiku-3-5, etc.</span></pre>
+      </div>
+    </div>
+    <div class="qa">
+      <div class="q">❓ Why this matters</div>
+      <div class="a">Claude models excel at long context and careful reasoning. Many teams want provider diversity to reduce risk, compare quality, or work around limits from one vendor.</div>
+    </div>
+    <div class="qa">
+      <div class="q">✅ How MAF does it</div>
+      <div class="a">Separate package keeps core lightweight. Same <span class="mono">as_agent()</span> → <span class="mono">run()</span> pattern. Agent code identical to OpenAI version.</div>
+    </div>
+    <div class="qa">
+      <div class="q">🔀 Alternatives</div>
+      <div class="a"><span class="mono">anthropic</span> SDK directly, AWS Bedrock (which also supports Claude). MAF unifies the interface.</div>
+    </div>
+  </div>
+</details>
+
+<details class="accordion">
+  <summary><span class="badge-num">4</span> OllamaChatClient configuration <span class="hint">expand</span></summary>
+  <div class="acc-body">
+    <div class="qa">
+      <div class="q">🧪 Example</div>
+      <div class="a">Run Ollama locally, no API key needed:
+<pre class="code"><span class="cm"># 1. Install Ollama (locally) and pull model</span>
+ollama pull llama3.1
+
+<span class="cm"># 2. Python code</span>
+<span class="kw">from</span> agent_framework_ollama <span class="kw">import</span> OllamaChatClient
+
+client = OllamaChatClient(
+    model=<span class="st">&quot;llama3.1&quot;</span>,
+    endpoint=<span class="st">&quot;http://localhost:11434&quot;</span>  <span class="cm"># default</span>
+)</pre>
+      </div>
+    </div>
+    <div class="qa">
+      <div class="q">❓ Why this matters</div>
+      <div class="a">Local models = no API costs, no data leaving your machine. Great for development and privacy-sensitive use cases.</div>
+    </div>
+    <div class="qa">
+      <div class="q">✅ How MAF does it</div>
+      <div class="a">MAF treats local models identically to cloud ones. Same agent code works with Ollama or GPT-4o, just swap the client.</div>
+    </div>
+    <div class="qa">
+      <div class="q">🔀 Alternatives</div>
+      <div class="a">vLLM, llama.cpp server, LocalAI. Ollama is simplest for development, but MAF's abstraction means you can write other local backend ChatClients.</div>
+    </div>
+  </div>
+</details>
+
+<details class="accordion">
+  <summary><span class="badge-num">5</span> Switching providers demo <span class="hint">expand</span></summary>
+  <div class="acc-body">
+    <div class="qa">
+      <div class="q">🧪 Example</div>
+      <div class="a">Same Agent definition, only swap the client line:
+<pre class="code"><span class="cm"># Variant 1: OpenAI</span>
+client = OpenAIChatClient(model=<span class="st">&quot;gpt-4o&quot;</span>, api_key=...)
+agent = client.as_agent(
+    name=<span class="st">&quot;Assistant&quot;</span>,
+    instructions=<span class="st">&quot;You are helpful.&quot;</span>,
+    tools=[web_search]
+)
+
+<span class="cm"># Variant 2: Anthropic</span>
+client = AnthropicChatClient(model=<span class="st">&quot;claude-sonnet-4-5&quot;</span>, api_key=...)
+agent = client.as_agent(
+    name=<span class="st">&quot;Assistant&quot;</span>,
+    instructions=<span class="st">&quot;You are helpful.&quot;</span>,
+    tools=[web_search]
+)
+
+<span class="cm"># Variant 3: Ollama</span>
+client = OllamaChatClient(model=<span class="st">&quot;llama3.1&quot;</span>)
+agent = client.as_agent(
+    name=<span class="st">&quot;Assistant&quot;</span>,
+    instructions=<span class="st">&quot;You are helpful.&quot;</span>,
+    tools=[web_search]
+)</pre>
+<span class="cm"># Agent definition (name, instructions, tools, middleware) identical!</span>
+      </div>
+    </div>
+    <div class="qa">
+      <div class="q">❓ Why this matters</div>
+      <div class="a">Vendor lock-in is expensive. Being able to switch with one line change is a competitive advantage: switch when prices change, when one vendor rate-limits you, or to compare quality.</div>
+    </div>
+    <div class="qa">
+      <div class="q">✅ How MAF does it</div>
+      <div class="a">MAF's <span class="mono">ChatClient</span> abstraction means agent logic is 100% provider-independent. Only the client instantiation changes. Tools, middleware, orchestration all stay the same.</div>
+    </div>
+    <div class="qa">
+      <div class="q">🔀 Alternatives</div>
+      <div class="a">LiteLLM proxy (adds a network hop), LangChain's ChatModel (similar idea but heavier). MAF is the cleanest abstraction.</div>
     </div>
   </div>
 </details>
@@ -121,12 +463,140 @@ tools:
 适合快速原型和版本控制。</p>
 
 <details class="accordion">
-  <summary><span class="badge-num">1</span> 声明式能做到和代码一样吗？ <span class="hint">点击展开</span></summary>
+  <summary><span class="badge-num">1</span> 完整 YAML schema <span class="hint">点击展开详解</span></summary>
   <div class="acc-body">
     <div class="qa">
-      <div class="q">🔬 能力边界</div>
-      <div class="a">简单 Agent（名字 + 指令 + 工具列表）完全可以；复杂的自定义中间件或动态逻辑仍需代码。
-        声明式和代码式可以<strong>混用</strong>——YAML 定义骨架，代码补充高级逻辑。</div>
+      <div class="q">🧪 示例</div>
+      <div class="a">支持的所有字段：
+<pre class="code">name: MyAgent
+instructions: You are a helpful assistant.
+model: gpt-4o
+description: Optional agent description
+
+tools:
+  - tool_name_1
+  - tool_name_2
+
+middleware:
+  - LoggingMiddleware
+  - RetryMiddleware
+
+context_providers:
+  - provider_name</pre>
+每个字段说明：<span class="mono">name</span>（Agent 名称）、<span class="mono">instructions</span>（系统提示）、<span class="mono">model</span>（模型名）、<span class="mono">tools</span>（工具列表）、<span class="mono">middleware</span>（中间件列表）、<span class="mono">context_providers</span>（上下文提供者）、<span class="mono">description</span>（可选描述）。
+      </div>
+    </div>
+    <div class="qa">
+      <div class="q">❓ 为什么这件事必要</div>
+      <div class="a">不知道完整 schema，用户会猜测字段名，浪费时间调试 YAML 拼写错误。明确的 schema 让配置可预测。</div>
+    </div>
+    <div class="qa">
+      <div class="q">✅ MAF 的做法与优点</div>
+      <div class="a">MAF 的 declarative 包会验证 YAML 是否符合已知 schema。未知字段会抛出清晰的错误，而不是悄悄失败。</div>
+    </div>
+    <div class="qa">
+      <div class="q">🔀 还有什么其他方案</div>
+      <div class="a">JSON Schema 验证，Pydantic 模型配置。YAML 对人类友好，且在版本控制中 diff 友好。</div>
+    </div>
+  </div>
+</details>
+
+<details class="accordion">
+  <summary><span class="badge-num">2</span> 加载代码 <span class="hint">点击展开详解</span></summary>
+  <div class="acc-body">
+    <div class="qa">
+      <div class="q">🧪 示例</div>
+      <div class="a">从 YAML 加载到运行：
+<pre class="code"><span class="kw">from</span> agent_framework.declarative <span class="kw">import</span> load_agent
+
+agent = load_agent(<span class="st">"my_agent.yaml"</span>)
+result = <span class="kw">await</span> agent.run(<span class="st">"Hello"</span>)</pre>
+仅 3 行代码。<span class="mono">load_agent</span> 读取 YAML → 构造完整配置的 Agent 实例。
+      </div>
+    </div>
+    <div class="qa">
+      <div class="q">❓ 为什么这件事必要</div>
+      <div class="a">如果加载复杂，声明式就失去吸引力。应该和"加载 → 运行"一样简单。</div>
+    </div>
+    <div class="qa">
+      <div class="q">✅ MAF 的做法与优点</div>
+      <div class="a">MAF 让它成为一行代码：加载 YAML，得到完整配置的 Agent。declarative 包处理工具解析、模型连接等所有细节。</div>
+    </div>
+    <div class="qa">
+      <div class="q">🔀 还有什么其他方案</div>
+      <div class="a">Hydra（Facebook）、OmegaConf。MAF 的方法是为 Agent 量身定制的，而不是通用配置。</div>
+    </div>
+  </div>
+</details>
+
+<details class="accordion">
+  <summary><span class="badge-num">3</span> YAML + 代码混合 <span class="hint">点击展开详解</span></summary>
+  <div class="acc-body">
+    <div class="qa">
+      <div class="q">🧪 示例</div>
+      <div class="a">YAML 定义框架，代码添加自定义工具：
+<pre class="code"><span class="cm"># 1. 在 Python 中定义工具</span>
+<span class="kw">from</span> agent_framework <span class="kw">import</span> tool
+
+<span class="nb">@tool</span>
+<span class="kw">def</span> <span class="fn">my_custom_tool</span>(query: str) -> str:
+    <span class="st">&quot;&quot;&quot;My custom logic&quot;&quot;&quot;</span>
+    <span class="kw">return</span> f<span class="st">&quot;Result for {query}&quot;</span>
+
+<span class="cm"># 2. YAML 引用工具名称</span>
+<span class="cm"># my_agent.yaml:</span>
+<span class="cm">#   tools:</span>
+<span class="cm">#     - my_custom_tool</span>
+
+<span class="cm"># 3. 加载时工具自动连接</span>
+agent = load_agent(<span class="st">"my_agent.yaml"</span>)</pre>
+工作流：在 Python 中定义工具 → 在 YAML 中按名称引用 → 加载。
+      </div>
+    </div>
+    <div class="qa">
+      <div class="q">❓ 为什么这件事必要</div>
+      <div class="a">真正的 Agent 需要无法在 YAML 中表达的自定义逻辑。混合模式让非开发人员拥有配置，开发人员拥有逻辑。</div>
+    </div>
+    <div class="qa">
+      <div class="q">✅ MAF 的做法与优点</div>
+      <div class="a">MAF 的工具注册表意味着 YAML 可以按名称引用 Python 函数。两全其美。</div>
+    </div>
+    <div class="qa">
+      <div class="q">🔀 还有什么其他方案</div>
+      <div class="a">全代码（失去非开发人员可访问性），全 YAML 带嵌入代码（安全风险）。混合是最佳平衡点。</div>
+    </div>
+  </div>
+</details>
+
+<details class="accordion">
+  <summary><span class="badge-num">4</span> 声明式工作流 <span class="hint">点击展开详解</span></summary>
+  <div class="acc-body">
+    <div class="qa">
+      <div class="q">🧪 示例</div>
+      <div class="a">工作流（SequentialBuilder、ConcurrentBuilder）能否在 YAML 中定义？
+<pre class="code"><span class="cm"># 当前：单个 Agent 的声明式支持很好</span>
+<span class="cm"># 工作流通常需要代码来处理复杂的路由逻辑</span>
+
+<span class="cm"># 可能的未来 YAML（如果支持）：</span>
+workflow:
+  participants:
+    - writer_agent
+    - reviewer_agent
+  orchestration: sequential</pre>
+当前限制：工作流的复杂路由逻辑最好用代码表达。
+      </div>
+    </div>
+    <div class="qa">
+      <div class="q">❓ 为什么这件事必要</div>
+      <div class="a">如果单个 Agent 可以声明式，团队也会想要声明式工作流。这是自然的下一步。</div>
+    </div>
+    <div class="qa">
+      <div class="q">✅ MAF 的做法与优点</div>
+      <div class="a">MAF 的声明式支持正在发展。目前最适合单个 Agent；工作流通常需要代码来处理复杂路由逻辑。这是一个活跃的开发领域。</div>
+    </div>
+    <div class="qa">
+      <div class="q">🔀 还有什么其他方案</div>
+      <div class="a">Temporal 工作流定义、AWS Step Functions（JSON）。声明式工作流是一个活跃的研究领域。</div>
     </div>
   </div>
 </details>
@@ -170,13 +640,140 @@ tools:
 Great for rapid prototyping and version control.</p>
 
 <details class="accordion">
-  <summary><span class="badge-num">1</span> Can declarative do everything code can? <span class="hint">expand</span></summary>
+  <summary><span class="badge-num">1</span> Complete YAML schema <span class="hint">expand</span></summary>
   <div class="acc-body">
     <div class="qa">
-      <div class="q">🔬 Capability boundary</div>
-      <div class="a">Simple agents (name + instructions + tool list) — absolutely. Complex custom middleware or dynamic
-        logic still needs code. Declarative and code <strong>can be mixed</strong> — YAML defines the skeleton,
-        code adds advanced logic.</div>
+      <div class="q">🧪 Example</div>
+      <div class="a">All supported fields:
+<pre class="code">name: MyAgent
+instructions: You are a helpful assistant.
+model: gpt-4o
+description: Optional agent description
+
+tools:
+  - tool_name_1
+  - tool_name_2
+
+middleware:
+  - LoggingMiddleware
+  - RetryMiddleware
+
+context_providers:
+  - provider_name</pre>
+Each field explained: <span class="mono">name</span> (agent name), <span class="mono">instructions</span> (system prompt), <span class="mono">model</span> (model name), <span class="mono">tools</span> (tool list), <span class="mono">middleware</span> (middleware list), <span class="mono">context_providers</span> (context providers), <span class="mono">description</span> (optional description).
+      </div>
+    </div>
+    <div class="qa">
+      <div class="q">❓ Why this matters</div>
+      <div class="a">Without knowing the full schema, users guess at field names and waste time debugging YAML typos. An explicit schema makes configuration predictable.</div>
+    </div>
+    <div class="qa">
+      <div class="q">✅ How MAF does it</div>
+      <div class="a">MAF's declarative package validates the YAML against a known schema. Unknown fields raise clear errors instead of silently failing.</div>
+    </div>
+    <div class="qa">
+      <div class="q">🔀 Alternatives</div>
+      <div class="a">JSON Schema validation, Pydantic models for config. YAML is human-friendly and diff-friendly for version control.</div>
+    </div>
+  </div>
+</details>
+
+<details class="accordion">
+  <summary><span class="badge-num">2</span> Loading code <span class="hint">expand</span></summary>
+  <div class="acc-body">
+    <div class="qa">
+      <div class="q">🧪 Example</div>
+      <div class="a">Load from YAML to running:
+<pre class="code"><span class="kw">from</span> agent_framework.declarative <span class="kw">import</span> load_agent
+
+agent = load_agent(<span class="st">&quot;my_agent.yaml&quot;</span>)
+result = <span class="kw">await</span> agent.run(<span class="st">&quot;Hello&quot;</span>)</pre>
+Just 3 lines. <span class="mono">load_agent</span> reads YAML → gets fully configured Agent instance.
+      </div>
+    </div>
+    <div class="qa">
+      <div class="q">❓ Why this matters</div>
+      <div class="a">If loading is complex, declarative loses its appeal. It should be as easy as &quot;load → run&quot;.</div>
+    </div>
+    <div class="qa">
+      <div class="q">✅ How MAF does it</div>
+      <div class="a">MAF makes it a one-liner: load YAML, get a fully configured Agent. The declarative package handles tool resolution, model wiring, etc.</div>
+    </div>
+    <div class="qa">
+      <div class="q">🔀 Alternatives</div>
+      <div class="a">Hydra (Facebook), OmegaConf. MAF's approach is purpose-built for agents, not generic config.</div>
+    </div>
+  </div>
+</details>
+
+<details class="accordion">
+  <summary><span class="badge-num">3</span> YAML + code hybrid <span class="hint">expand</span></summary>
+  <div class="acc-body">
+    <div class="qa">
+      <div class="q">🧪 Example</div>
+      <div class="a">YAML defines skeleton, code adds custom tools:
+<pre class="code"><span class="cm"># 1. Define tool in Python</span>
+<span class="kw">from</span> agent_framework <span class="kw">import</span> tool
+
+<span class="nb">@tool</span>
+<span class="kw">def</span> <span class="fn">my_custom_tool</span>(query: str) -> str:
+    <span class="st">&quot;&quot;&quot;My custom logic&quot;&quot;&quot;</span>
+    <span class="kw">return</span> f<span class="st">&quot;Result for {query}&quot;</span>
+
+<span class="cm"># 2. YAML references tool by name</span>
+<span class="cm"># my_agent.yaml:</span>
+<span class="cm">#   tools:</span>
+<span class="cm">#     - my_custom_tool</span>
+
+<span class="cm"># 3. Load, tools wire automatically</span>
+agent = load_agent(<span class="st">&quot;my_agent.yaml&quot;</span>)</pre>
+Workflow: define tool in Python → reference by name in YAML → load.
+      </div>
+    </div>
+    <div class="qa">
+      <div class="q">❓ Why this matters</div>
+      <div class="a">Real agents need custom logic that can't be expressed in YAML. Hybrid lets non-devs own the config while devs own the logic.</div>
+    </div>
+    <div class="qa">
+      <div class="q">✅ How MAF does it</div>
+      <div class="a">MAF's tool registry means YAML can reference Python functions by name. Best of both worlds.</div>
+    </div>
+    <div class="qa">
+      <div class="q">🔀 Alternatives</div>
+      <div class="a">Full code (loses non-dev accessibility), full YAML with embedded code (security risk). Hybrid is the sweet spot.</div>
+    </div>
+  </div>
+</details>
+
+<details class="accordion">
+  <summary><span class="badge-num">4</span> Declarative workflows <span class="hint">expand</span></summary>
+  <div class="acc-body">
+    <div class="qa">
+      <div class="q">🧪 Example</div>
+      <div class="a">Can workflows (SequentialBuilder, ConcurrentBuilder) be defined in YAML?
+<pre class="code"><span class="cm"># Currently: declarative support is good for single agents</span>
+<span class="cm"># Workflows typically need code for complex routing logic</span>
+
+<span class="cm"># Possible future YAML (if supported):</span>
+workflow:
+  participants:
+    - writer_agent
+    - reviewer_agent
+  orchestration: sequential</pre>
+Current limitation: complex routing logic in workflows is best expressed in code.
+      </div>
+    </div>
+    <div class="qa">
+      <div class="q">❓ Why this matters</div>
+      <div class="a">If single agents can be declarative, teams will want declarative workflows too. It's the natural next step.</div>
+    </div>
+    <div class="qa">
+      <div class="q">✅ How MAF does it</div>
+      <div class="a">MAF's declarative support is evolving. Currently best for single agents; workflows typically need code for complex routing logic. This is an active area of development.</div>
+    </div>
+    <div class="qa">
+      <div class="q">🔀 Alternatives</div>
+      <div class="a">Temporal workflow definitions, AWS Step Functions (JSON). Declarative workflows are an active area of development.</div>
     </div>
   </div>
 </details>
@@ -222,14 +819,147 @@ L18_ZH = r"""
 <p>挂到 Agent 上：<span class="inline">Agent(client=client, chat_middleware=[RetryChatMiddleware(3)])</span>。</p>
 
 <details class="accordion">
-  <summary><span class="badge-num">1</span> 三层中间件分别怎么挂？ <span class="hint">点击展开</span></summary>
+  <summary><span class="badge-num">1</span> 完整的日志中间件 <span class="hint">点击展开详解</span></summary>
   <div class="acc-body">
     <div class="qa">
-      <div class="q">🧪 挂载方式</div>
-      <div class="a"><span class="mono">Agent(middleware=[…])</span> 挂 AgentMiddleware；
-        <span class="mono">Agent(chat_middleware=[…])</span> 挂 ChatMiddleware；
-        <span class="mono">Agent(function_middleware=[…])</span> 挂 FunctionMiddleware。
-        多个中间件按列表顺序从外到内排列。</div>
+      <div class="q">🧪 示例</div>
+      <div class="a">完整代码，带计时：
+<pre class="code"><span class="kw">import</span> logging
+<span class="kw">import</span> time
+<span class="kw">from</span> agent_framework <span class="kw">import</span> ChatMiddleware, ChatContext
+
+logger = logging.getLogger(__name__)
+
+<span class="kw">class</span> <span class="fn">LoggingChatMiddleware</span>(ChatMiddleware):
+    <span class="kw">async def</span> <span class="fn">process</span>(self, context: ChatContext, call_next):
+        logger.info(f<span class="st">&quot;Input: {context.messages}&quot;</span>)
+        start = time.monotonic()
+        
+        <span class="kw">await</span> call_next()
+        
+        duration = time.monotonic() - start
+        logger.info(f<span class="st">&quot;Output: {context.result}&quot;</span>)
+        logger.info(f<span class="st">&quot;Duration: {duration:.2f}s&quot;</span>)</pre>
+约 15 行完整日志中间件。<span class="mono">call_next()</span> 前记输入，之后记输出和耗时。
+      </div>
+    </div>
+    <div class="qa">
+      <div class="q">❓ 为什么这件事必要</div>
+      <div class="a">日志是第一常见中间件。没有它，调试生产 Agent 就是盲飞。看不到输入输出和耗时，无法定位问题。</div>
+    </div>
+    <div class="qa">
+      <div class="q">✅ MAF 的做法与优点</div>
+      <div class="a">MAF 的中间件模式让日志变得简单：用 before/after 逻辑包装 <span class="mono">call_next()</span>。访问 <span class="mono">context.messages</span> 获取输入，<span class="mono">context.result</span> 获取输出。</div>
+    </div>
+    <div class="qa">
+      <div class="q">🔀 还有什么其他方案</div>
+      <div class="a">基于装饰器的日志、OpenTelemetry 自动埋点。中间件是显式的且可组合的。</div>
+    </div>
+  </div>
+</details>
+
+<details class="accordion">
+  <summary><span class="badge-num">2</span> 审批中间件 <span class="hint">点击展开详解</span></summary>
+  <div class="acc-body">
+    <div class="qa">
+      <div class="q">🧪 示例</div>
+      <div class="a"><span class="mono">ApprovalMiddleware</span> 在 <span class="mono">call_next()</span> 前检查条件：
+<pre class="code"><span class="kw">class</span> <span class="fn">ApprovalMiddleware</span>(ChatMiddleware):
+    <span class="kw">async def</span> <span class="fn">process</span>(self, context: ChatContext, call_next):
+        user_input = context.messages[-<span class="nb">1</span>].content
+        
+        <span class="kw">if</span> <span class="st">&quot;publish&quot;</span> <span class="kw">in</span> user_input <span class="kw">or</span> <span class="st">&quot;delete&quot;</span> <span class="kw">in</span> user_input:
+            <span class="cm"># 暂停，等待人工确认（与 HITL 机制集成）</span>
+            approved = <span class="kw">await</span> request_human_approval(user_input)
+            <span class="kw">if not</span> approved:
+                <span class="kw">raise</span> Exception(<span class="st">&quot;Action not approved&quot;</span>)
+        
+        <span class="kw">await</span> call_next()</pre>
+消息包含"publish"或"delete"时暂停，等人签字后再继续。
+      </div>
+    </div>
+    <div class="qa">
+      <div class="q">❓ 为什么这件事必要</div>
+      <div class="a">自主 Agent 需要护栏。某些操作（发布、删除、付款）应该需要人工批准。没有审批，风险不可控。</div>
+    </div>
+    <div class="qa">
+      <div class="q">✅ MAF 的做法与优点</div>
+      <div class="a">MAF 中间件可以拦截任何调用。结合 <span class="mono">request_info</span> 进行异步人工输入，创建完整的审批流程。</div>
+    </div>
+    <div class="qa">
+      <div class="q">🔀 还有什么其他方案</div>
+      <div class="a">独立审批服务、基于 webhook 的审批。中间件保持在进程内且可组合。</div>
+    </div>
+  </div>
+</details>
+
+<details class="accordion">
+  <summary><span class="badge-num">3</span> Token 计费中间件 <span class="hint">点击展开详解</span></summary>
+  <div class="acc-body">
+    <div class="qa">
+      <div class="q">🧪 示例</div>
+      <div class="a">在 <span class="mono">await call_next()</span> 后读取用量：
+<pre class="code"><span class="kw">class</span> <span class="fn">BillingMiddleware</span>(ChatMiddleware):
+    <span class="kw">def</span> <span class="fn">__init__</span>(self):
+        self.total_cost = <span class="nb">0.0</span>
+    
+    <span class="kw">async def</span> <span class="fn">process</span>(self, context: ChatContext, call_next):
+        <span class="kw">await</span> call_next()
+        
+        usage = context.result.usage
+        <span class="cm"># 假设价格：输入 $0.01/1k，输出 $0.03/1k</span>
+        cost = (usage.input_tokens * <span class="nb">0.01</span> + 
+                usage.output_tokens * <span class="nb">0.03</span>) / <span class="nb">1000</span>
+        self.total_cost += cost
+        logger.info(f<span class="st">&quot;Cost: ${cost:.4f}, Total: ${self.total_cost:.4f}&quot;</span>)</pre>
+约 12 行实时成本追踪。读取 <span class="mono">context.result.usage</span>，计算成本，累加。
+      </div>
+    </div>
+    <div class="qa">
+      <div class="q">❓ 为什么这件事必要</div>
+      <div class="a">LLM 成本可能爆炸。按请求成本追踪启用预算、告警和按用户计费。没有它，账单成谜。</div>
+    </div>
+    <div class="qa">
+      <div class="q">✅ MAF 的做法与优点</div>
+      <div class="a">MAF 在每次调用后的 <span class="mono">context.result.usage</span> 上暴露 token 用量。中间件可以读取它而不修改响应。</div>
+    </div>
+    <div class="qa">
+      <div class="q">🔀 还有什么其他方案</div>
+      <div class="a">厂商控制台计费、外部代理（如 Helicone）。中间件提供实时、进程内追踪。</div>
+    </div>
+  </div>
+</details>
+
+<details class="accordion">
+  <summary><span class="badge-num">4</span> 中间件的错误处理 <span class="hint">点击展开详解</span></summary>
+  <div class="acc-body">
+    <div class="qa">
+      <div class="q">🧪 示例</div>
+      <div class="a">在 <span class="mono">await call_next()</span> 周围加 <span class="mono">try/except</span>：
+<pre class="code"><span class="kw">class</span> <span class="fn">ErrorHandlingMiddleware</span>(ChatMiddleware):
+    <span class="kw">async def</span> <span class="fn">process</span>(self, context: ChatContext, call_next):
+        <span class="kw">try</span>:
+            <span class="kw">await</span> call_next()
+        <span class="kw">except</span> Exception <span class="kw">as</span> e:
+            logger.error(f<span class="st">&quot;Call failed: {e}&quot;</span>)
+            <span class="cm"># 可选：重试逻辑</span>
+            <span class="cm"># 可选：返回后备响应</span>
+            <span class="cm"># 或重新抛出</span>
+            <span class="kw">raise</span></pre>
+失败时：记录错误、可选重试、可选后备响应。模式：捕获异常，记录后重新抛出。
+      </div>
+    </div>
+    <div class="qa">
+      <div class="q">❓ 为什么这件事必要</div>
+      <div class="a">LLM 调用会失败（速率限制、超时、错误响应）。没有错误处理中间件，失败会让整个 Agent 崩溃。</div>
+    </div>
+    <div class="qa">
+      <div class="q">✅ MAF 的做法与优点</div>
+      <div class="a">MAF 的管道自然传播异常。中间件可以在任何层捕获、记录、重试或转换错误。</div>
+    </div>
+    <div class="qa">
+      <div class="q">🔀 还有什么其他方案</div>
+      <div class="a">熔断器库（tenacity）、全局错误处理器。中间件是按层的且可组合的。</div>
     </div>
   </div>
 </details>
@@ -274,14 +1004,147 @@ L18_EN = r"""
 <p>Attach to an Agent: <span class="inline">Agent(client=client, chat_middleware=[RetryChatMiddleware(3)])</span>.</p>
 
 <details class="accordion">
-  <summary><span class="badge-num">1</span> How to attach each layer? <span class="hint">expand</span></summary>
+  <summary><span class="badge-num">1</span> Complete logging middleware <span class="hint">expand</span></summary>
   <div class="acc-body">
     <div class="qa">
-      <div class="q">🧪 Attachment</div>
-      <div class="a"><span class="mono">Agent(middleware=[…])</span> for AgentMiddleware;
-        <span class="mono">Agent(chat_middleware=[…])</span> for ChatMiddleware;
-        <span class="mono">Agent(function_middleware=[…])</span> for FunctionMiddleware.
-        Multiple middlewares are ordered outside-in by list position.</div>
+      <div class="q">🧪 Example</div>
+      <div class="a">Full code with timing:
+<pre class="code"><span class="kw">import</span> logging
+<span class="kw">import</span> time
+<span class="kw">from</span> agent_framework <span class="kw">import</span> ChatMiddleware, ChatContext
+
+logger = logging.getLogger(__name__)
+
+<span class="kw">class</span> <span class="fn">LoggingChatMiddleware</span>(ChatMiddleware):
+    <span class="kw">async def</span> <span class="fn">process</span>(self, context: ChatContext, call_next):
+        logger.info(f<span class="st">&quot;Input: {context.messages}&quot;</span>)
+        start = time.monotonic()
+        
+        <span class="kw">await</span> call_next()
+        
+        duration = time.monotonic() - start
+        logger.info(f<span class="st">&quot;Output: {context.result}&quot;</span>)
+        logger.info(f<span class="st">&quot;Duration: {duration:.2f}s&quot;</span>)</pre>
+~15 lines for complete logging middleware. Log input before <span class="mono">call_next()</span>, output and duration after.
+      </div>
+    </div>
+    <div class="qa">
+      <div class="q">❓ Why this matters</div>
+      <div class="a">Logging is the #1 most common middleware. Without it, debugging production agents is blind. Can't see inputs, outputs, or timing means can't diagnose issues.</div>
+    </div>
+    <div class="qa">
+      <div class="q">✅ How MAF does it</div>
+      <div class="a">MAF's middleware pattern makes logging trivial: wrap <span class="mono">call_next()</span> with before/after logic. Access <span class="mono">context.messages</span> for input, <span class="mono">context.result</span> for output.</div>
+    </div>
+    <div class="qa">
+      <div class="q">🔀 Alternatives</div>
+      <div class="a">Decorator-based logging, OTel auto-instrumentation. Middleware is explicit and composable.</div>
+    </div>
+  </div>
+</details>
+
+<details class="accordion">
+  <summary><span class="badge-num">2</span> Approval middleware <span class="hint">expand</span></summary>
+  <div class="acc-body">
+    <div class="qa">
+      <div class="q">🧪 Example</div>
+      <div class="a"><span class="mono">ApprovalMiddleware</span> checks condition before <span class="mono">call_next()</span>:
+<pre class="code"><span class="kw">class</span> <span class="fn">ApprovalMiddleware</span>(ChatMiddleware):
+    <span class="kw">async def</span> <span class="fn">process</span>(self, context: ChatContext, call_next):
+        user_input = context.messages[-<span class="nb">1</span>].content
+        
+        <span class="kw">if</span> <span class="st">&quot;publish&quot;</span> <span class="kw">in</span> user_input <span class="kw">or</span> <span class="st">&quot;delete&quot;</span> <span class="kw">in</span> user_input:
+            <span class="cm"># Pause, wait for human confirmation (integrate with HITL)</span>
+            approved = <span class="kw">await</span> request_human_approval(user_input)
+            <span class="kw">if not</span> approved:
+                <span class="kw">raise</span> Exception(<span class="st">&quot;Action not approved&quot;</span>)
+        
+        <span class="kw">await</span> call_next()</pre>
+If message contains &quot;publish&quot; or &quot;delete&quot;, pause and wait for human signature before continuing.
+      </div>
+    </div>
+    <div class="qa">
+      <div class="q">❓ Why this matters</div>
+      <div class="a">Autonomous agents need guardrails. Certain actions (publish, delete, pay) should require human approval. Without approval, risk is uncontrolled.</div>
+    </div>
+    <div class="qa">
+      <div class="q">✅ How MAF does it</div>
+      <div class="a">MAF middleware can intercept any call. Combined with <span class="mono">request_info</span> for async human input, it creates a complete approval flow.</div>
+    </div>
+    <div class="qa">
+      <div class="q">🔀 Alternatives</div>
+      <div class="a">Separate approval service, webhook-based approval. Middleware keeps it in-process and composable.</div>
+    </div>
+  </div>
+</details>
+
+<details class="accordion">
+  <summary><span class="badge-num">3</span> Token billing middleware <span class="hint">expand</span></summary>
+  <div class="acc-body">
+    <div class="qa">
+      <div class="q">🧪 Example</div>
+      <div class="a">After <span class="mono">await call_next()</span>, read usage:
+<pre class="code"><span class="kw">class</span> <span class="fn">BillingMiddleware</span>(ChatMiddleware):
+    <span class="kw">def</span> <span class="fn">__init__</span>(self):
+        self.total_cost = <span class="nb">0.0</span>
+    
+    <span class="kw">async def</span> <span class="fn">process</span>(self, context: ChatContext, call_next):
+        <span class="kw">await</span> call_next()
+        
+        usage = context.result.usage
+        <span class="cm"># Assume prices: input $0.01/1k, output $0.03/1k</span>
+        cost = (usage.input_tokens * <span class="nb">0.01</span> + 
+                usage.output_tokens * <span class="nb">0.03</span>) / <span class="nb">1000</span>
+        self.total_cost += cost
+        logger.info(f<span class="st">&quot;Cost: ${cost:.4f}, Total: ${self.total_cost:.4f}&quot;</span>)</pre>
+~12 lines for real-time cost tracking. Read <span class="mono">context.result.usage</span>, calculate cost, accumulate.
+      </div>
+    </div>
+    <div class="qa">
+      <div class="q">❓ Why this matters</div>
+      <div class="a">LLM costs can explode. Per-request cost tracking enables budgets, alerts, and per-user billing. Without it, bills are a mystery.</div>
+    </div>
+    <div class="qa">
+      <div class="q">✅ How MAF does it</div>
+      <div class="a">MAF exposes token usage on <span class="mono">context.result.usage</span> after each call. Middleware can read it without modifying the response.</div>
+    </div>
+    <div class="qa">
+      <div class="q">🔀 Alternatives</div>
+      <div class="a">Provider dashboard billing, external proxy (e.g., Helicone). Middleware gives real-time, in-process tracking.</div>
+    </div>
+  </div>
+</details>
+
+<details class="accordion">
+  <summary><span class="badge-num">4</span> Middleware error handling <span class="hint">expand</span></summary>
+  <div class="acc-body">
+    <div class="qa">
+      <div class="q">🧪 Example</div>
+      <div class="a"><span class="mono">try/except</span> around <span class="mono">await call_next()</span>:
+<pre class="code"><span class="kw">class</span> <span class="fn">ErrorHandlingMiddleware</span>(ChatMiddleware):
+    <span class="kw">async def</span> <span class="fn">process</span>(self, context: ChatContext, call_next):
+        <span class="kw">try</span>:
+            <span class="kw">await</span> call_next()
+        <span class="kw">except</span> Exception <span class="kw">as</span> e:
+            logger.error(f<span class="st">&quot;Call failed: {e}&quot;</span>)
+            <span class="cm"># Optional: retry logic</span>
+            <span class="cm"># Optional: return fallback response</span>
+            <span class="cm"># Or re-raise</span>
+            <span class="kw">raise</span></pre>
+On failure: log error, optionally retry, optionally return fallback. Pattern: catch exception, log, then re-raise.
+      </div>
+    </div>
+    <div class="qa">
+      <div class="q">❓ Why this matters</div>
+      <div class="a">LLM calls fail (rate limits, timeouts, bad responses). Without error handling middleware, failures crash the entire agent.</div>
+    </div>
+    <div class="qa">
+      <div class="q">✅ How MAF does it</div>
+      <div class="a">MAF's pipeline propagates exceptions naturally. Middleware can catch, log, retry, or transform errors at any layer.</div>
+    </div>
+    <div class="qa">
+      <div class="q">🔀 Alternatives</div>
+      <div class="a">Circuit breaker libraries (tenacity), global error handlers. Middleware is per-layer and composable.</div>
     </div>
   </div>
 </details>
@@ -323,13 +1186,136 @@ L19_ZH = r"""
 工作流层面也有 <span class="mono">request_info</span> 机制：节点暂停、发问、等回答再继续。</p>
 
 <details class="accordion">
-  <summary><span class="badge-num">1</span> DurableTask 是什么？ <span class="hint">点击展开</span></summary>
+  <summary><span class="badge-num">1</span> InMemoryCheckpointStorage 示例 <span class="hint">点击展开详解</span></summary>
   <div class="acc-body">
     <div class="qa">
-      <div class="q">🔬 持久化执行</div>
-      <div class="a"><span class="mono">packages/durabletask</span> 把工作流跑在 <strong>Durable Task Framework</strong> 上：
-        状态持久化到外部存储，支持<strong>跨进程恢复</strong>和长时间等待（比如等人审批几小时）。
-        配合 Azure Functions 可做无服务器部署。</div>
+      <div class="q">🧪 示例</div>
+      <div class="a">设置代码：
+<pre class="code"><span class="kw">from</span> agent_framework <span class="kw">import</span> InMemoryCheckpointStorage
+<span class="kw">from</span> agent_framework.orchestrations <span class="kw">import</span> SequentialBuilder
+
+storage = InMemoryCheckpointStorage()
+workflow = SequentialBuilder(
+    participants=[agent1, agent2],
+    checkpoint_storage=storage
+).build()</pre>
+保存内容：Agent 状态、消息历史、当前步骤。适合开发，不适合生产。
+      </div>
+    </div>
+    <div class="qa">
+      <div class="q">❓ 为什么这件事必要</div>
+      <div class="a">没有检查点，10 步工作流在第 5 步崩溃意味着从第 1 步重新开始。浪费时间和 LLM token。</div>
+    </div>
+    <div class="qa">
+      <div class="q">✅ MAF 的做法与优点</div>
+      <div class="a">MAF 在 superstep 边界自动保存。<span class="mono">InMemoryCheckpointStorage</span> 零配置，适合开发。</div>
+    </div>
+    <div class="qa">
+      <div class="q">🔀 还有什么其他方案</div>
+      <div class="a">手动状态序列化、数据库快照。MAF 的检查点 API 是自动且透明的。</div>
+    </div>
+  </div>
+</details>
+
+<details class="accordion">
+  <summary><span class="badge-num">2</span> 人在环完整流程 <span class="hint">点击展开详解</span></summary>
+  <div class="acc-body">
+    <div class="qa">
+      <div class="q">🧪 示例</div>
+      <div class="a"><span class="mono">request_info</span> 机制：
+<pre class="code"><span class="cm"># 工作流层面：节点暂停等待人工输入</span>
+answer = <span class="kw">await</span> request_info(<span class="st">&quot;Should I proceed?&quot;</span>)
+<span class="kw">if</span> answer == <span class="st">&quot;yes&quot;</span>:
+    <span class="cm"># 继续</span>
+    ...
+
+<span class="cm"># 工具层面：审批模式</span>
+<span class="nb">@tool</span>(approval_mode=<span class="st">&quot;always_require&quot;</span>)
+<span class="kw">def</span> <span class="fn">publish_article</span>(content: str):
+    <span class="st">&quot;&quot;&quot;Publish article (requires approval)&quot;&quot;&quot;</span>
+    ...</pre>
+两个层级：工具级（<span class="mono">approval_mode</span>）和工作流级（<span class="mono">request_info</span>）。都会暂停执行并等待人工输入。
+      </div>
+    </div>
+    <div class="qa">
+      <div class="q">❓ 为什么这件事必要</div>
+      <div class="a">完全自主的 Agent 对于高风险任务很危险。HITL 在关键决策点增加安全网。</div>
+    </div>
+    <div class="qa">
+      <div class="q">✅ MAF 的做法与优点</div>
+      <div class="a">MAF 在两个层级支持 HITL：工具级（approval_mode）和工作流级（request_info）。两者都会暂停执行并等待人工输入。</div>
+    </div>
+    <div class="qa">
+      <div class="q">🔀 还有什么其他方案</div>
+      <div class="a">外部审批队列（Slack 机器人、电子邮件）、基于轮询的检查。MAF 的 HITL 内置于执行模型中。</div>
+    </div>
+  </div>
+</details>
+
+<details class="accordion">
+  <summary><span class="badge-num">3</span> DurableTask 配置 <span class="hint">点击展开详解</span></summary>
+  <div class="acc-body">
+    <div class="qa">
+      <div class="q">🧪 示例</div>
+      <div class="a">安装和设置：
+<pre class="code">pip install agent-framework-durabletask
+
+<span class="cm"># 与 Azure Functions 集成</span>
+<span class="cm"># 查看 packages/durabletask 了解配置详情</span></pre>
+持久性保证：状态在进程重启后存活，支持长时间等待（数小时/数天）。
+      </div>
+    </div>
+    <div class="qa">
+      <div class="q">❓ 为什么这件事必要</div>
+      <div class="a">内存检查点随进程消亡。生产需要在重启、部署和基础设施故障后存活的状态。</div>
+    </div>
+    <div class="qa">
+      <div class="q">✅ MAF 的做法与优点</div>
+      <div class="a">MAF 的 DurableTask 包利用久经考验的 Durable Task Framework。与 Azure Functions 配对实现无服务器、自动扩展部署。</div>
+    </div>
+    <div class="qa">
+      <div class="q">🔀 还有什么其他方案</div>
+      <div class="a">Temporal、AWS Step Functions、Prefect。DurableTask 与 Azure 生态系统原生集成。</div>
+    </div>
+  </div>
+</details>
+
+<details class="accordion">
+  <summary><span class="badge-num">4</span> Redis/Cosmos 持久化存储 <span class="hint">点击展开详解</span></summary>
+  <div class="acc-body">
+    <div class="qa">
+      <div class="q">🧪 示例</div>
+      <div class="a">从 <span class="mono">InMemoryCheckpointStorage</span> 切换到 Redis 或 Cosmos：
+<pre class="code"><span class="cm"># 安装包</span>
+pip install agent-framework-redis
+<span class="cm"># 或</span>
+pip install agent-framework-azure-cosmos
+
+<span class="cm"># 改一行配置</span>
+<span class="kw">from</span> agent_framework_redis <span class="kw">import</span> RedisCheckpointStorage
+storage = RedisCheckpointStorage(
+    connection_string=<span class="st">&quot;redis://...&quot;</span>
+)
+
+<span class="cm"># 工作流构建保持不变</span>
+workflow = SequentialBuilder(
+    participants=[agent1, agent2],
+    checkpoint_storage=storage
+).build()</pre>
+切换后端只改一行。所有检查点 API 保持不变。
+      </div>
+    </div>
+    <div class="qa">
+      <div class="q">❓ 为什么这件事必要</div>
+      <div class="a">内存存储快但易失。Redis 提供速度 + 持久性；Cosmos 提供全球分布 + 强一致性。</div>
+    </div>
+    <div class="qa">
+      <div class="q">✅ MAF 的做法与优点</div>
+      <div class="a">MAF 的存储抽象意味着切换后端只需改一行。所有检查点 API 保持不变。</div>
+    </div>
+    <div class="qa">
+      <div class="q">🔀 还有什么其他方案</div>
+      <div class="a">PostgreSQL、DynamoDB、S3。MAF 提供 Redis 和 Cosmos 包；社区可以添加其他。</div>
     </div>
   </div>
 </details>
@@ -370,13 +1356,136 @@ swap to persistent storage (Redis, Cosmos) for production. After a crash, restar
 At the workflow level, <span class="mono">request_info</span> lets a node pause, ask a question, and wait for a reply.</p>
 
 <details class="accordion">
-  <summary><span class="badge-num">1</span> What is DurableTask? <span class="hint">expand</span></summary>
+  <summary><span class="badge-num">1</span> InMemoryCheckpointStorage example <span class="hint">expand</span></summary>
   <div class="acc-body">
     <div class="qa">
-      <div class="q">🔬 Durable execution</div>
-      <div class="a"><span class="mono">packages/durabletask</span> runs workflows on the <strong>Durable Task Framework</strong>:
-        state is persisted to external storage, supporting <strong>cross-process resume</strong> and long waits
-        (e.g. waiting hours for human approval). Pair with Azure Functions for serverless deployment.</div>
+      <div class="q">🧪 Example</div>
+      <div class="a">Setup code:
+<pre class="code"><span class="kw">from</span> agent_framework <span class="kw">import</span> InMemoryCheckpointStorage
+<span class="kw">from</span> agent_framework.orchestrations <span class="kw">import</span> SequentialBuilder
+
+storage = InMemoryCheckpointStorage()
+workflow = SequentialBuilder(
+    participants=[agent1, agent2],
+    checkpoint_storage=storage
+).build()</pre>
+What gets saved: agent state, message history, current step. Good for development, not for production.
+      </div>
+    </div>
+    <div class="qa">
+      <div class="q">❓ Why this matters</div>
+      <div class="a">Without checkpoints, a crash in step 5 of a 10-step workflow means restarting from step 1. Wasted time and LLM tokens.</div>
+    </div>
+    <div class="qa">
+      <div class="q">✅ How MAF does it</div>
+      <div class="a">MAF auto-saves at superstep boundaries. <span class="mono">InMemoryCheckpointStorage</span> is zero-config for development.</div>
+    </div>
+    <div class="qa">
+      <div class="q">🔀 Alternatives</div>
+      <div class="a">Manual state serialization, database snapshots. MAF's checkpoint API is automatic and transparent.</div>
+    </div>
+  </div>
+</details>
+
+<details class="accordion">
+  <summary><span class="badge-num">2</span> Complete HITL flow <span class="hint">expand</span></summary>
+  <div class="acc-body">
+    <div class="qa">
+      <div class="q">🧪 Example</div>
+      <div class="a"><span class="mono">request_info</span> mechanism:
+<pre class="code"><span class="cm"># Workflow level: node pauses, waits for human input</span>
+answer = <span class="kw">await</span> request_info(<span class="st">&quot;Should I proceed?&quot;</span>)
+<span class="kw">if</span> answer == <span class="st">&quot;yes&quot;</span>:
+    <span class="cm"># continue</span>
+    ...
+
+<span class="cm"># Tool level: approval mode</span>
+<span class="nb">@tool</span>(approval_mode=<span class="st">&quot;always_require&quot;</span>)
+<span class="kw">def</span> <span class="fn">publish_article</span>(content: str):
+    <span class="st">&quot;&quot;&quot;Publish article (requires approval)&quot;&quot;&quot;</span>
+    ...</pre>
+Two levels: tool-level (<span class="mono">approval_mode</span>) and workflow-level (<span class="mono">request_info</span>). Both pause execution and wait for human input.
+      </div>
+    </div>
+    <div class="qa">
+      <div class="q">❓ Why this matters</div>
+      <div class="a">Fully autonomous agents are dangerous for high-stakes tasks. HITL adds a safety net at critical decision points.</div>
+    </div>
+    <div class="qa">
+      <div class="q">✅ How MAF does it</div>
+      <div class="a">MAF supports HITL at two levels: tool-level (approval_mode) and workflow-level (request_info). Both pause execution and wait for human input.</div>
+    </div>
+    <div class="qa">
+      <div class="q">🔀 Alternatives</div>
+      <div class="a">External approval queues (Slack bots, email), polling-based checks. MAF's HITL is built into the execution model.</div>
+    </div>
+  </div>
+</details>
+
+<details class="accordion">
+  <summary><span class="badge-num">3</span> DurableTask configuration <span class="hint">expand</span></summary>
+  <div class="acc-body">
+    <div class="qa">
+      <div class="q">🧪 Example</div>
+      <div class="a">Install and setup:
+<pre class="code">pip install agent-framework-durabletask
+
+<span class="cm"># Integration with Azure Functions</span>
+<span class="cm"># See packages/durabletask for configuration details</span></pre>
+Durability guarantees: state survives process restarts, supports long waits (hours/days).
+      </div>
+    </div>
+    <div class="qa">
+      <div class="q">❓ Why this matters</div>
+      <div class="a">In-memory checkpoints die with the process. Production needs state that survives restarts, deployments, and infrastructure failures.</div>
+    </div>
+    <div class="qa">
+      <div class="q">✅ How MAF does it</div>
+      <div class="a">MAF's DurableTask package leverages the battle-tested Durable Task Framework. Pair with Azure Functions for serverless, auto-scaling deployment.</div>
+    </div>
+    <div class="qa">
+      <div class="q">🔀 Alternatives</div>
+      <div class="a">Temporal, AWS Step Functions, Prefect. DurableTask integrates natively with Azure ecosystem.</div>
+    </div>
+  </div>
+</details>
+
+<details class="accordion">
+  <summary><span class="badge-num">4</span> Redis/Cosmos persistent storage <span class="hint">expand</span></summary>
+  <div class="acc-body">
+    <div class="qa">
+      <div class="q">🧪 Example</div>
+      <div class="a">Switch from <span class="mono">InMemoryCheckpointStorage</span> to Redis or Cosmos:
+<pre class="code"><span class="cm"># Install package</span>
+pip install agent-framework-redis
+<span class="cm"># or</span>
+pip install agent-framework-azure-cosmos
+
+<span class="cm"># Change one line of config</span>
+<span class="kw">from</span> agent_framework_redis <span class="kw">import</span> RedisCheckpointStorage
+storage = RedisCheckpointStorage(
+    connection_string=<span class="st">&quot;redis://...&quot;</span>
+)
+
+<span class="cm"># Workflow build stays the same</span>
+workflow = SequentialBuilder(
+    participants=[agent1, agent2],
+    checkpoint_storage=storage
+).build()</pre>
+Switching backends is a one-line change. All checkpoint APIs stay the same.
+      </div>
+    </div>
+    <div class="qa">
+      <div class="q">❓ Why this matters</div>
+      <div class="a">In-memory storage is fast but volatile. Redis gives speed + persistence; Cosmos gives global distribution + strong consistency.</div>
+    </div>
+    <div class="qa">
+      <div class="q">✅ How MAF does it</div>
+      <div class="a">MAF's storage abstraction means switching backends is a one-line change. All checkpoint APIs stay the same.</div>
+    </div>
+    <div class="qa">
+      <div class="q">🔀 Alternatives</div>
+      <div class="a">PostgreSQL, DynamoDB, S3. MAF ships Redis and Cosmos packages; community can add others.</div>
     </div>
   </div>
 </details>
@@ -427,13 +1536,175 @@ result = <span class="kw">await</span> workflow.run(<span class="st">"Write abou
 </div>
 
 <details class="accordion">
-  <summary><span class="badge-num">1</span> 加上工具和检查点 <span class="hint">点击展开</span></summary>
+  <summary><span class="badge-num">1</span> 完整代码骨架（扩展版） <span class="hint">点击展开详解</span></summary>
   <div class="acc-body">
     <div class="qa">
-      <div class="q">🧪 扩展</div>
-      <div class="a">给 Writer 加 <span class="mono">tools=[web_search]</span> 让它查资料；
-        在 Reviewer 的工具里加 <span class="mono">approval_mode="always_require"</span> 的发布工具。
-        检查点在 Workflow superstep 边界自动保存——如果中间断了，重启从最后存档恢复。</div>
+      <div class="q">🧪 示例</div>
+      <div class="a">完整的 25-30 行可工作示例：
+<pre class="code"><span class="kw">from</span> agent_framework <span class="kw">import</span> Agent, tool, OpenAIChatClient
+<span class="kw">from</span> agent_framework.orchestrations <span class="kw">import</span> SequentialBuilder
+<span class="kw">from</span> agent_framework <span class="kw">import</span> InMemoryCheckpointStorage
+
+<span class="cm"># 工具</span>
+<span class="nb">@tool</span>
+<span class="kw">def</span> <span class="fn">web_search</span>(query: str) -> str:
+    <span class="st">&quot;&quot;&quot;搜索网络&quot;&quot;&quot;</span>
+    <span class="kw">return</span> f<span class="st">&quot;Results for {query}&quot;</span>
+
+<span class="cm"># 中间件</span>
+<span class="kw">class</span> <span class="fn">LoggingMiddleware</span>(ChatMiddleware):
+    <span class="kw">async def</span> <span class="fn">process</span>(self, context, call_next):
+        logger.info(f<span class="st">&quot;Input: {context.messages}&quot;</span>)
+        <span class="kw">await</span> call_next()
+        logger.info(f<span class="st">&quot;Output: {context.result}&quot;</span>)
+
+<span class="cm"># Agents</span>
+client = OpenAIChatClient(model=<span class="st">&quot;gpt-4o&quot;</span>)
+writer = client.as_agent(name=<span class="st">&quot;Writer&quot;</span>,
+    instructions=<span class="st">&quot;Write articles&quot;</span>,
+    tools=[web_search],
+    chat_middleware=[LoggingMiddleware()])
+
+reviewer = client.as_agent(name=<span class="st">&quot;Reviewer&quot;</span>,
+    instructions=<span class="st">&quot;Review and improve&quot;</span>)
+
+<span class="cm"># 工作流</span>
+storage = InMemoryCheckpointStorage()
+workflow = SequentialBuilder(
+    participants=[writer, reviewer],
+    checkpoint_storage=storage
+).build()
+
+result = <span class="kw">await</span> workflow.run(<span class="st">&quot;Write about MAF&quot;</span>)</pre>
+所有组件整合：Agent、工具、中间件、检查点、编排。
+      </div>
+    </div>
+    <div class="qa">
+      <div class="q">❓ 为什么这件事必要</div>
+      <div class="a">看到所有组件一起工作能巩固理解。可复制粘贴的代码是最好的学习工具。</div>
+    </div>
+    <div class="qa">
+      <div class="q">✅ MAF 的做法与优点</div>
+      <div class="a">MAF 的可组合性意味着每个组件（Agent、工具、中间件、检查点、编排）都能干净地组合在一起。</div>
+    </div>
+    <div class="qa">
+      <div class="q">🔀 还有什么其他方案</div>
+      <div class="a">样板代码繁重的框架需要 100+ 行才能实现相同功能。MAF 保持在 30 行以内。</div>
+    </div>
+  </div>
+</details>
+
+<details class="accordion">
+  <summary><span class="badge-num">2</span> 加入 Concurrent 变体 <span class="hint">点击展开详解</span></summary>
+  <div class="acc-body">
+    <div class="qa">
+      <div class="q">🧪 示例</div>
+      <div class="a">用 Sequential 替换为：Writer + FactChecker 并行运行，然后 Reviewer 串行运行：
+<pre class="code"><span class="kw">from</span> agent_framework.orchestrations <span class="kw">import</span> (
+    SequentialBuilder, ConcurrentBuilder
+)
+
+<span class="cm"># 阶段 1：并行</span>
+concurrent_stage = ConcurrentBuilder(
+    participants=[writer, fact_checker]
+).build()
+
+<span class="cm"># 阶段 2：串行（等待并行阶段完成）</span>
+workflow = SequentialBuilder(
+    participants=[concurrent_stage, reviewer]
+).build()
+
+result = <span class="kw">await</span> workflow.run(<span class="st">&quot;Write about AI&quot;</span>)</pre>
+Builder 可组合：混合并行和串行阶段。
+      </div>
+    </div>
+    <div class="qa">
+      <div class="q">❓ 为什么这件事必要</div>
+      <div class="a">串行工作流在步骤独立时很慢。并行执行减少实际时间。</div>
+    </div>
+    <div class="qa">
+      <div class="q">✅ MAF 的做法与优点</div>
+      <div class="a">MAF 的 ConcurrentBuilder + SequentialBuilder 自然组合。自由混合并行和串行阶段。</div>
+    </div>
+    <div class="qa">
+      <div class="q">🔀 还有什么其他方案</div>
+      <div class="a">手动 asyncio.gather()、线程池。MAF 的 builder 自动处理扇出/扇入。</div>
+    </div>
+  </div>
+</details>
+
+<details class="accordion">
+  <summary><span class="badge-num">3</span> 加入人在环 <span class="hint">点击展开详解</span></summary>
+  <div class="acc-body">
+    <div class="qa">
+      <div class="q">🧪 示例</div>
+      <div class="a">给 Reviewer 添加 <span class="mono">publish</span> 工具，带 <span class="mono">approval_mode="always_require"</span>：
+<pre class="code"><span class="nb">@tool</span>(approval_mode=<span class="st">&quot;always_require&quot;</span>)
+<span class="kw">def</span> <span class="fn">publish</span>(content: str):
+    <span class="st">&quot;&quot;&quot;发布文章（需要审批）&quot;&quot;&quot;</span>
+    <span class="cm"># 实际发布逻辑</span>
+    <span class="kw">return</span> f<span class="st">&quot;Published: {content[:50]}...&quot;</span>
+
+reviewer = client.as_agent(
+    name=<span class="st">&quot;Reviewer&quot;</span>,
+    instructions=<span class="st">&quot;Review and publish if good&quot;</span>,
+    tools=[publish]  <span class="cm"># 发布前必须人工审批</span>
+)</pre>
+在文章发布前，必须有人批准。框架处理暂停、通知和恢复。
+      </div>
+    </div>
+    <div class="qa">
+      <div class="q">❓ 为什么这件事必要</div>
+      <div class="a">自动发布而不审查有风险。发布步骤的 HITL 防止不良内容上线。</div>
+    </div>
+    <div class="qa">
+      <div class="q">✅ MAF 的做法与优点</div>
+      <div class="a">工具定义上的一个参数（<span class="mono">approval_mode</span>）。框架处理暂停、通知和恢复。</div>
+    </div>
+    <div class="qa">
+      <div class="q">🔀 还有什么其他方案</div>
+      <div class="a">自定义 webhook 审批、外部审核 API。MAF 的方法是声明式且内置的。</div>
+    </div>
+  </div>
+</details>
+
+<details class="accordion">
+  <summary><span class="badge-num">4</span> 生产化清单 <span class="hint">点击展开详解</span></summary>
+  <div class="acc-body">
+    <div class="qa">
+      <div class="q">🧪 示例</div>
+      <div class="a">生产就绪检查清单：
+<pre class="code"><span class="cm"># ✓ 添加 OpenTelemetry 追踪</span>
+<span class="kw">from</span> agent_framework.telemetry <span class="kw">import</span> setup_otel
+setup_otel(service_name=<span class="st">&quot;my-agent&quot;</span>)
+
+<span class="cm"># ✓ 切换到持久化存储</span>
+<span class="kw">from</span> agent_framework_redis <span class="kw">import</span> RedisCheckpointStorage
+storage = RedisCheckpointStorage(conn_string)
+
+<span class="cm"># ✓ 添加错误处理中间件</span>
+middleware=[ErrorHandlingMiddleware(), RetryMiddleware()]
+
+<span class="cm"># ✓ 设置 token 预算</span>
+agent = client.as_agent(..., max_tokens=<span class="nb">10000</span>)
+
+<span class="cm"># ✓ 添加速率限制</span>
+<span class="cm"># ✓ 配置日志级别</span>
+logging.basicConfig(level=logging.INFO)</pre>
+从演示到生产的差距清单。
+      </div>
+    </div>
+    <div class="qa">
+      <div class="q">❓ 为什么这件事必要</div>
+      <div class="a">演示代码 ≠ 生产代码。知道差距可防止中断和成本超支。</div>
+    </div>
+    <div class="qa">
+      <div class="q">✅ MAF 的做法与优点</div>
+      <div class="a">MAF 提供所有生产构建块：OTel 集成、持久化存储包、重试/日志/计费中间件。无需第三方胶水。</div>
+    </div>
+    <div class="qa">
+      <div class="q">🔀 还有什么其他方案</div>
+      <div class="a">平台特定解决方案（Azure Monitor、Datadog）。MAF 是云无关的；OTel 导出到任何后端。</div>
     </div>
   </div>
 </details>
@@ -483,13 +1754,175 @@ result = <span class="kw">await</span> workflow.run(<span class="st">"Write abou
 </div>
 
 <details class="accordion">
-  <summary><span class="badge-num">1</span> Add tools and checkpoints <span class="hint">expand</span></summary>
+  <summary><span class="badge-num">1</span> Extended code skeleton <span class="hint">expand</span></summary>
   <div class="acc-body">
     <div class="qa">
-      <div class="q">🧪 Extensions</div>
-      <div class="a">Give Writer <span class="mono">tools=[web_search]</span> for research; add a publish tool with
-        <span class="mono">approval_mode="always_require"</span> to Reviewer. Checkpoints auto-save at Workflow superstep
-        boundaries — if interrupted, restart resumes from the latest save.</div>
+      <div class="q">🧪 Example</div>
+      <div class="a">Full working example in ~25-30 lines:
+<pre class="code"><span class="kw">from</span> agent_framework <span class="kw">import</span> Agent, tool, OpenAIChatClient
+<span class="kw">from</span> agent_framework.orchestrations <span class="kw">import</span> SequentialBuilder
+<span class="kw">from</span> agent_framework <span class="kw">import</span> InMemoryCheckpointStorage
+
+<span class="cm"># Tool</span>
+<span class="nb">@tool</span>
+<span class="kw">def</span> <span class="fn">web_search</span>(query: str) -> str:
+    <span class="st">&quot;&quot;&quot;Search the web&quot;&quot;&quot;</span>
+    <span class="kw">return</span> f<span class="st">&quot;Results for {query}&quot;</span>
+
+<span class="cm"># Middleware</span>
+<span class="kw">class</span> <span class="fn">LoggingMiddleware</span>(ChatMiddleware):
+    <span class="kw">async def</span> <span class="fn">process</span>(self, context, call_next):
+        logger.info(f<span class="st">&quot;Input: {context.messages}&quot;</span>)
+        <span class="kw">await</span> call_next()
+        logger.info(f<span class="st">&quot;Output: {context.result}&quot;</span>)
+
+<span class="cm"># Agents</span>
+client = OpenAIChatClient(model=<span class="st">&quot;gpt-4o&quot;</span>)
+writer = client.as_agent(name=<span class="st">&quot;Writer&quot;</span>,
+    instructions=<span class="st">&quot;Write articles&quot;</span>,
+    tools=[web_search],
+    chat_middleware=[LoggingMiddleware()])
+
+reviewer = client.as_agent(name=<span class="st">&quot;Reviewer&quot;</span>,
+    instructions=<span class="st">&quot;Review and improve&quot;</span>)
+
+<span class="cm"># Workflow</span>
+storage = InMemoryCheckpointStorage()
+workflow = SequentialBuilder(
+    participants=[writer, reviewer],
+    checkpoint_storage=storage
+).build()
+
+result = <span class="kw">await</span> workflow.run(<span class="st">&quot;Write about MAF&quot;</span>)</pre>
+All pieces together: agent, tool, middleware, checkpoint, orchestration.
+      </div>
+    </div>
+    <div class="qa">
+      <div class="q">❓ Why this matters</div>
+      <div class="a">Seeing all pieces together cements understanding. Copy-paste-able code is the best learning tool.</div>
+    </div>
+    <div class="qa">
+      <div class="q">✅ How MAF does it</div>
+      <div class="a">MAF's composability means each piece (agent, tool, middleware, checkpoint, orchestration) snaps together cleanly.</div>
+    </div>
+    <div class="qa">
+      <div class="q">🔀 Alternatives</div>
+      <div class="a">Boilerplate-heavy frameworks need 100+ lines for the same. MAF keeps it under 30.</div>
+    </div>
+  </div>
+</details>
+
+<details class="accordion">
+  <summary><span class="badge-num">2</span> Adding concurrency <span class="hint">expand</span></summary>
+  <div class="acc-body">
+    <div class="qa">
+      <div class="q">🧪 Example</div>
+      <div class="a">Replace Sequential with: Writer + FactChecker run in parallel, then Reviewer runs serially:
+<pre class="code"><span class="kw">from</span> agent_framework.orchestrations <span class="kw">import</span> (
+    SequentialBuilder, ConcurrentBuilder
+)
+
+<span class="cm"># Stage 1: concurrent</span>
+concurrent_stage = ConcurrentBuilder(
+    participants=[writer, fact_checker]
+).build()
+
+<span class="cm"># Stage 2: sequential (waits for concurrent stage)</span>
+workflow = SequentialBuilder(
+    participants=[concurrent_stage, reviewer]
+).build()
+
+result = <span class="kw">await</span> workflow.run(<span class="st">&quot;Write about AI&quot;</span>)</pre>
+Builders compose: mix parallel and sequential stages.
+      </div>
+    </div>
+    <div class="qa">
+      <div class="q">❓ Why this matters</div>
+      <div class="a">Sequential workflows are slow when steps are independent. Parallel execution cuts wall-clock time.</div>
+    </div>
+    <div class="qa">
+      <div class="q">✅ How MAF does it</div>
+      <div class="a">MAF's ConcurrentBuilder + SequentialBuilder compose naturally. Mix parallel and sequential stages freely.</div>
+    </div>
+    <div class="qa">
+      <div class="q">🔀 Alternatives</div>
+      <div class="a">Manual asyncio.gather(), thread pools. MAF's builders handle fan-out/fan-in automatically.</div>
+    </div>
+  </div>
+</details>
+
+<details class="accordion">
+  <summary><span class="badge-num">3</span> Adding HITL <span class="hint">expand</span></summary>
+  <div class="acc-body">
+    <div class="qa">
+      <div class="q">🧪 Example</div>
+      <div class="a">Add a <span class="mono">publish</span> tool to Reviewer with <span class="mono">approval_mode="always_require"</span>:
+<pre class="code"><span class="nb">@tool</span>(approval_mode=<span class="st">&quot;always_require&quot;</span>)
+<span class="kw">def</span> <span class="fn">publish</span>(content: str):
+    <span class="st">&quot;&quot;&quot;Publish article (requires approval)&quot;&quot;&quot;</span>
+    <span class="cm"># actual publish logic</span>
+    <span class="kw">return</span> f<span class="st">&quot;Published: {content[:50]}...&quot;</span>
+
+reviewer = client.as_agent(
+    name=<span class="st">&quot;Reviewer&quot;</span>,
+    instructions=<span class="st">&quot;Review and publish if good&quot;</span>,
+    tools=[publish]  <span class="cm"># must be human-approved before publish</span>
+)</pre>
+Before the article is published, a human must approve. Framework handles pausing, notifying, and resuming.
+      </div>
+    </div>
+    <div class="qa">
+      <div class="q">❓ Why this matters</div>
+      <div class="a">Auto-publishing without review is risky. HITL at the publish step prevents bad content from going live.</div>
+    </div>
+    <div class="qa">
+      <div class="q">✅ How MAF does it</div>
+      <div class="a">One parameter (<span class="mono">approval_mode</span>) on the tool definition. The framework handles pausing, notifying, and resuming.</div>
+    </div>
+    <div class="qa">
+      <div class="q">🔀 Alternatives</div>
+      <div class="a">Custom webhook approval, external moderation API. MAF's approach is declarative and built-in.</div>
+    </div>
+  </div>
+</details>
+
+<details class="accordion">
+  <summary><span class="badge-num">4</span> Production checklist <span class="hint">expand</span></summary>
+  <div class="acc-body">
+    <div class="qa">
+      <div class="q">🧪 Example</div>
+      <div class="a">Production-ready checklist:
+<pre class="code"><span class="cm"># ✓ Add OpenTelemetry tracing</span>
+<span class="kw">from</span> agent_framework.telemetry <span class="kw">import</span> setup_otel
+setup_otel(service_name=<span class="st">&quot;my-agent&quot;</span>)
+
+<span class="cm"># ✓ Switch to persistent storage</span>
+<span class="kw">from</span> agent_framework_redis <span class="kw">import</span> RedisCheckpointStorage
+storage = RedisCheckpointStorage(conn_string)
+
+<span class="cm"># ✓ Add error handling middleware</span>
+middleware=[ErrorHandlingMiddleware(), RetryMiddleware()]
+
+<span class="cm"># ✓ Set token budgets</span>
+agent = client.as_agent(..., max_tokens=<span class="nb">10000</span>)
+
+<span class="cm"># ✓ Add rate limiting</span>
+<span class="cm"># ✓ Configure logging</span>
+logging.basicConfig(level=logging.INFO)</pre>
+Checklist of gaps from demo to production.
+      </div>
+    </div>
+    <div class="qa">
+      <div class="q">❓ Why this matters</div>
+      <div class="a">Demo code ≠ production code. Knowing the gaps prevents outages and cost overruns.</div>
+    </div>
+    <div class="qa">
+      <div class="q">✅ How MAF does it</div>
+      <div class="a">MAF provides all production building blocks: OTel integration, persistent storage packages, middleware for retries/logging/billing. No third-party glue needed.</div>
+    </div>
+    <div class="qa">
+      <div class="q">🔀 Alternatives</div>
+      <div class="a">Platform-specific solutions (Azure Monitor, Datadog). MAF is cloud-agnostic; OTel exports to any backend.</div>
     </div>
   </div>
 </details>

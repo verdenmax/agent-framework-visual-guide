@@ -292,10 +292,10 @@ messages = [
 <span class="mono">Content</span> 对象，或它们的列表。读文本用 <span class="inline">msg.text</span>。</p>
 
 <details class="accordion">
-  <summary><span class="badge-num">1</span> Content 能装哪些东西？ <span class="hint">点击展开</span></summary>
+  <summary><span class="badge-num">1</span> Content 能装哪些东西？ <span class="hint">点击展开详解</span></summary>
   <div class="acc-body">
     <div class="qa">
-      <div class="q">🧪 用工厂方法构造</div>
+      <div class="q">🧪 示例</div>
       <div class="a"><span class="mono">Content</span> 是<strong>统一类型</strong>，用类方法创建不同种类：
 <pre class="code">Content.from_text(<span class="st">"一段文字"</span>)
 Content.from_data(data=..., media_type=<span class="st">"image/png"</span>)  <span class="cm"># 图片/二进制</span>
@@ -303,6 +303,237 @@ Content.from_uri(uri=<span class="st">"https://…"</span>, media_type=<span cla
 Content.from_function_call(...)      <span class="cm"># 模型要调工具</span>
 Content.from_function_result(...)    <span class="cm"># 工具执行结果</span></pre>
         所以一条 <span class="mono">Message</span> 可以图文混排，也能承载工具调用 / 结果。</div>
+    </div>
+    <div class="qa">
+      <div class="q">❓ 为什么这件事必要</div>
+      <div class="a">LLM 能力已超出"纯文本问答"：GPT-4o、Claude支持图像输入，模型可请求调用工具并接收结果。如果每种内容用不同字段（<span class="mono">text</span>、<span class="mono">image_url</span>、<span class="mono">tool_calls</span>……），消息结构变复杂、不可扩展。统一成 <span class="mono">Content</span> 列表后，代码只关心<strong>"一条消息有多个内容块"</strong>，不必为每种类型特殊处理。</div>
+    </div>
+    <div class="qa">
+      <div class="q">✅ MAF 的做法与优点</div>
+      <div class="a">MAF 用<strong>判别联合（discriminated union）</strong>：每个 <span class="mono">Content</span> 都有 <span class="mono">type</span> 字段（<span class="mono">"text"</span>/<span class="mono">"data"</span>/<span class="mono">"uri"</span>/<span class="mono">"function_call"</span>/<span class="mono">"function_result"</span>），框架按 type 路由。新增内容类型（如视频、音频）只需加一个新 type，老消息仍能正常处理。类型安全由 Pydantic 保证，IDE 有完整提示。</div>
+    </div>
+    <div class="qa">
+      <div class="q">🔀 还有什么其他方案</div>
+      <div class="a"><ul>
+        <li><strong>OpenAI SDK</strong>：text 放 <span class="mono">content</span> 字段，图像放 <span class="mono">content</span> 列表，工具调用放 <span class="mono">tool_calls</span> 字段——三种形态不一致，解析时需要分支判断。</li>
+        <li><strong>Anthropic</strong>：采用 <span class="mono">content</span> 数组 + <span class="mono">type</span> 区分，与 MAF 类似，但每个厂商格式不同。</li>
+        <li>MAF 把各家统一成一套，跨厂商代码零修改。</li>
+      </ul></div>
+    </div>
+  </div>
+</details>
+
+<details class="accordion">
+  <summary><span class="badge-num">2</span> Message 的构造方式 <span class="hint">点击展开详解</span></summary>
+  <div class="acc-body">
+    <div class="qa">
+      <div class="q">🧪 示例</div>
+      <div class="a">
+<pre class="code"><span class="cm"># 纯文本（字符串自动包装）</span>
+msg = Message(<span class="st">"user"</span>, <span class="st">"你好"</span>)
+
+<span class="cm"># 单个 Content 对象</span>
+msg = Message(<span class="st">"user"</span>, Content.from_text(<span class="st">"你好"</span>))
+
+<span class="cm"># 多个 Content：图文混排</span>
+msg = Message(<span class="st">"user"</span>, [
+    Content.from_text(<span class="st">"这张图是什么？"</span>),
+    Content.from_uri(uri=<span class="st">"https://example.com/img.png"</span>, media_type=<span class="st">"image/png"</span>)
+])
+
+<span class="cm"># 读取文本快捷方式</span>
+text = msg.text  <span class="cm"># 自动从 contents 中提取文本</span></pre>
+      </div>
+    </div>
+    <div class="qa">
+      <div class="q">❓ 为什么这件事必要</div>
+      <div class="a">多模态对话越来越常见：用户发一张图 + 一段问题；模型回复文本 + 图表；工具调用与工具结果也要和文本混排在同一条消息里。如果 <span class="mono">Message</span> 只能装一个字符串，需要拆成多条消息或手拼复杂结构。允许<strong>异构内容列表</strong>后，一条消息能自然表达"文字 + 图 + 工具调用"。</div>
+    </div>
+    <div class="qa">
+      <div class="q">✅ MAF 的做法与优点</div>
+      <div class="a"><span class="mono">Message</span> 的 <span class="mono">contents</span> 参数接受：<ul>
+        <li><strong>字符串</strong>：自动转 <span class="mono">Content.from_text(...)</span></li>
+        <li><strong>单个 Content</strong>：原样包装成列表</li>
+        <li><strong>Content 列表</strong>：直接存储</li>
+      </ul>
+      同时提供 <span class="mono">.text</span> 属性，自动拼接所有文本内容（多个 text content时用空格连接）。用户可按需简单或复杂使用，心智模型统一。</div>
+    </div>
+    <div class="qa">
+      <div class="q">🔀 还有什么其他方案</div>
+      <div class="a"><ul>
+        <li><strong>OpenAI</strong>：文本消息 vs 多内容消息用不同格式（<span class="mono">{role, content: "str"}</span> vs <span class="mono">{role, content: [{type, ...}]}</span>），工具调用另加 <span class="mono">tool_calls</span> 数组。框架需判断格式再解析。</li>
+        <li><strong>LangChain</strong>：<span class="mono">HumanMessage</span>/<span class="mono">AIMessage</span> 各自不同构造函数。</li>
+        <li>MAF <strong>统一构造函数</strong>，类型安全 + IDE提示 + 多模态开箱即用。</li>
+      </ul></div>
+    </div>
+  </div>
+</details>
+
+<details class="accordion">
+  <summary><span class="badge-num">3</span> 工具调用如何融入消息流 <span class="hint">点击展开详解</span></summary>
+  <div class="acc-body">
+    <div class="qa">
+      <div class="q">🧪 示例</div>
+      <div class="a">
+<pre class="code"><span class="cm"># 模型输出：assistant 消息带 function_call</span>
+msg_call = Message(<span class="st">"assistant"</span>, [
+    Content.from_function_call(
+        name=<span class="st">"get_weather"</span>,
+        arguments={<span class="st">"location"</span>: <span class="st">"Seattle"</span>},
+        call_id=<span class="st">"call_abc123"</span>
+    )
+])
+
+<span class="cm"># 框架回灌：role="tool" 消息带 function_result</span>
+msg_result = Message(<span class="st">"tool"</span>, [
+    Content.from_function_result(
+        name=<span class="st">"get_weather"</span>,
+        result=<span class="st">"Sunny, 72°F"</span>,
+        call_id=<span class="st">"call_abc123"</span>
+    )
+])
+<span class="cm"># 这两条追加进对话历史，模型继续生成最终答案</span></pre>
+      </div>
+    </div>
+    <div class="qa">
+      <div class="q">❓ 为什么这件事必要</div>
+      <div class="a">工具调用是多轮交互：<ol>
+        <li>模型决定"需要工具"，输出 function_call</li>
+        <li>框架执行工具，拿到结果</li>
+        <li>框架把结果追加进对话，模型读取后产出最终答案</li>
+      </ol>
+      如果工具调用/结果不是标准消息，就需要单独管道。把它们纳入 <span class="mono">Message</span> 后，<strong>整个对话就是一条消息链</strong>，无需特殊逻辑。</div>
+    </div>
+    <div class="qa">
+      <div class="q">✅ MAF 的做法与优点</div>
+      <div class="a"><span class="mono">Content.from_function_call</span> 和 <span class="mono">.from_function_result</span> 是两种特殊内容类型，完全融入消息体系：<ul>
+        <li><strong>类型统一</strong>：工具调用 = assistant 消息 + function_call content；工具结果 = tool 消息 + function_result content。</li>
+        <li><strong>序列化一致</strong>：历史回放、日志、调试时，工具调用和普通消息用相同JSON结构。</li>
+        <li><strong>可扩展</strong>：未来加"并行工具调用"只需在一条消息的 contents 里放多个 function_call。</li>
+      </ul></div>
+    </div>
+    <div class="qa">
+      <div class="q">🔀 还有什么其他方案</div>
+      <div class="a"><ul>
+        <li><strong>OpenAI</strong>：assistant 消息加 <span class="mono">tool_calls</span> 数组，tool 消息用 <span class="mono">role="tool" + tool_call_id</span>。需两套字段。</li>
+        <li><strong>Anthropic</strong>：<span class="mono">content</span> 数组里放 <span class="mono">tool_use</span> / <span class="mono">tool_result</span> 块，和 MAF思路接近，但每家格式不同。</li>
+        <li>MAF 抹平差异：开发者用统一API，框架负责转换各厂商格式。</li>
+      </ul></div>
+    </div>
+  </div>
+</details>
+
+<details class="accordion">
+  <summary><span class="badge-num">4</span> 序列化与反序列化 <span class="hint">点击展开详解</span></summary>
+  <div class="acc-body">
+    <div class="qa">
+      <div class="q">🧪 示例</div>
+      <div class="a">
+<pre class="code"><span class="cm"># 消息 → 字典（可JSON序列化）</span>
+msg = Message(<span class="st">"user"</span>, <span class="st">"Hello"</span>)
+d = msg.to_dict()
+<span class="cm"># → {"role": "user", "contents": [{"type": "text", "text": "Hello"}]}</span>
+
+<span class="cm"># 字典 → 消息（从JSON恢复）</span>
+msg_restored = Message.from_dict(d)
+<span class="kw">assert</span> msg_restored.role == <span class="st">"user"</span>
+<span class="kw">assert</span> msg_restored.text == <span class="st">"Hello"</span>
+
+<span class="cm"># 工具调用也能完整序列化</span>
+msg_with_tool = Message(<span class="st">"assistant"</span>, [
+    Content.from_function_call(name=<span class="st">"foo"</span>, arguments={<span class="st">"x"</span>: 1})
+])
+d2 = msg_with_tool.to_dict()
+msg_back = Message.from_dict(d2)  <span class="cm"># 完全恢复</span></pre>
+      </div>
+    </div>
+    <div class="qa">
+      <div class="q">❓ 为什么这件事必要</div>
+      <div class="a">实际应用需要：<ul>
+        <li><strong>持久化</strong>：把对话历史存到数据库（Redis、Cosmos、PostgreSQL）。</li>
+        <li><strong>回放调试</strong>：记录生产环境的消息流，本地重现问题。</li>
+        <li><strong>审计日志</strong>：合规要求保存所有对话（含工具调用）。</li>
+        <li><strong>跨服务传递</strong>：微服务间传递消息上下文。</li>
+      </ul>
+      如果不能无损序列化，工具调用、图像等复杂内容会丢失信息。</div>
+    </div>
+    <div class="qa">
+      <div class="q">✅ MAF 的做法与优点</div>
+      <div class="a"><span class="mono">Message.to_dict()</span> / <span class="mono">from_dict(...)</span> 是<strong>完全可逆</strong>的：<ul>
+        <li>所有 <span class="mono">Content</span> 类型（text/data/uri/function_call/function_result）都能无损序列化。</li>
+        <li>返回的字典是<strong>纯 JSON</strong>，可直接存储、传输、日志。</li>
+        <li>Pydantic 模型自动处理类型验证，反序列化时类型错误会抛异常。</li>
+        <li>第三方持久化库（如 <span class="mono">redis</span>、<span class="mono">azure-cosmos</span>）可直接存字典。</li>
+      </ul></div>
+    </div>
+    <div class="qa">
+      <div class="q">🔀 还有什么其他方案</div>
+      <div class="a"><ul>
+        <li><strong>OpenAI SDK</strong>：原生消息已是字典，但格式每版本可能变，没有类型保证。</li>
+        <li><strong>LangChain</strong>：<span class="mono">Message.dict()</span> 返回嵌套结构，字段名不稳定，需自己处理。</li>
+        <li><strong>手工JSON</strong>：完全自定义，但schema演进时容易破坏兼容性。</li>
+        <li>MAF <strong>schema有版本管理</strong>，升级框架时老数据能自动迁移（见 <span class="mono">_types.py</span> 的兼容层）。</li>
+      </ul></div>
+    </div>
+  </div>
+</details>
+
+<details class="accordion">
+  <summary><span class="badge-num">5</span> 和 OpenAI dict 格式的对比 <span class="hint">点击展开详解</span></summary>
+  <div class="acc-body">
+    <div class="qa">
+      <div class="q">🧪 示例</div>
+      <div class="a">
+<table class="t">
+<tr><th>场景</th><th>OpenAI 原生格式</th><th>MAF 格式</th></tr>
+<tr><td>纯文本</td><td><pre class="code">{<span class="st">"role"</span>: <span class="st">"user"</span>,
+ <span class="st">"content"</span>: <span class="st">"hi"</span>}</pre></td><td><pre class="code">Message(<span class="st">"user"</span>, <span class="st">"hi"</span>)</pre></td></tr>
+<tr><td>工具调用</td><td><pre class="code">{<span class="st">"role"</span>: <span class="st">"assistant"</span>,
+ <span class="st">"tool_calls"</span>: [{
+   <span class="st">"type"</span>: <span class="st">"function"</span>,
+   <span class="st">"function"</span>: {<span class="st">"name"</span>: <span class="st">"get_weather"</span>, ...}
+ }]}</pre></td><td><pre class="code">Message(<span class="st">"assistant"</span>, [
+  Content.from_function_call(
+    name=<span class="st">"get_weather"</span>, ...
+  )
+])</pre></td></tr>
+<tr><td>工具结果</td><td><pre class="code">{<span class="st">"role"</span>: <span class="st">"tool"</span>,
+ <span class="st">"content"</span>: <span class="st">"result"</span>,
+ <span class="st">"tool_call_id"</span>: <span class="st">"x"</span>}</pre></td><td><pre class="code">Message(<span class="st">"tool"</span>, [
+  Content.from_function_result(
+    result=<span class="st">"result"</span>, call_id=<span class="st">"x"</span>
+  )
+])</pre></td></tr>
+</table>
+      </div>
+    </div>
+    <div class="qa">
+      <div class="q">❓ 为什么这件事必要</div>
+      <div class="a">直接用 OpenAI dict 的问题：<ul>
+        <li><strong>厂商锁定</strong>：切换到 Anthropic/Ollama/Azure 需大量改动。</li>
+        <li><strong>字段分散</strong>：<span class="mono">content</span> / <span class="mono">tool_calls</span> / <span class="mono">tool_call_id</span> 分散在不同层级，解析复杂。</li>
+        <li><strong>无类型安全</strong>：拼写错误运行时才报错。</li>
+        <li><strong>格式不统一</strong>：纯文本 vs 图像 vs 工具调用用不同结构。</li>
+      </ul>
+      抽象层让你<strong>写一次，到处运行</strong>。</div>
+    </div>
+    <div class="qa">
+      <div class="q">✅ MAF 的做法与优点</div>
+      <div class="a">MAF 提供<strong>统一抽象</strong>，但<strong>双向转换</strong>能力齐全：<ul>
+        <li><span class="mono">BaseChatClient</span> 子类（如 <span class="mono">OpenAIChatClient</span>）内部自动把 <span class="mono">Message</span> 转成厂商格式，调完API再转回来。</li>
+        <li>如需直接转换：<span class="mono">from agent_framework.ai.openai import to_openai_messages, from_openai_messages</span>（见 <span class="mono">python/src/agent_framework/ai/openai/_convert.py</span>）。</li>
+        <li><strong>类型安全</strong>：IDE 自动补全 <span class="mono">Message(...)</span> / <span class="mono">Content.from_...</span>，编译期发现错误。</li>
+        <li><strong>可测试</strong>：单元测试不依赖真实 LLM，mock <span class="mono">Message</span> 即可。</li>
+      </ul></div>
+    </div>
+    <div class="qa">
+      <div class="q">🔀 还有什么其他方案</div>
+      <div class="a"><ul>
+        <li><strong>直接用 SDK dict</strong>：零抽象，换厂商需全盘重构。</li>
+        <li><strong>LangChain MessageType</strong>：提供抽象，但<span class="mono">HumanMessage</span>/<span class="mono">AIMessage</span>/<span class="mono">ToolMessage</span> 分类过细，增加心智负担。</li>
+        <li><strong>LlamaIndex ChatMessage</strong>：简单统一，但功能有限，多模态/工具调用支持弱。</li>
+        <li>MAF <strong>恰到好处</strong>：一个 <span class="mono">Message</span> + 五种 <span class="mono">Content</span>，涵盖所有场景，各厂商无缝切换。</li>
+      </ul></div>
     </div>
   </div>
 </details>
@@ -362,10 +593,10 @@ messages = [
 a <span class="mono">Content</span> object, or a list of them. Read the text via <span class="inline">msg.text</span>.</p>
 
 <details class="accordion">
-  <summary><span class="badge-num">1</span> What can a Content hold? <span class="hint">expand</span></summary>
+  <summary><span class="badge-num">1</span> What can a Content hold? <span class="hint">click to expand</span></summary>
   <div class="acc-body">
     <div class="qa">
-      <div class="q">🧪 Built with factory methods</div>
+      <div class="q">🧪 Example</div>
       <div class="a"><span class="mono">Content</span> is a <strong>unified type</strong>; class methods create each kind:
 <pre class="code">Content.from_text(<span class="st">"some text"</span>)
 Content.from_data(data=..., media_type=<span class="st">"image/png"</span>)  <span class="cm"># image/binary</span>
@@ -373,6 +604,237 @@ Content.from_uri(uri=<span class="st">"https://…"</span>, media_type=<span cla
 Content.from_function_call(...)      <span class="cm"># model wants a tool</span>
 Content.from_function_result(...)    <span class="cm"># tool execution result</span></pre>
         So one <span class="mono">Message</span> can mix text and images, and carry tool calls / results.</div>
+    </div>
+    <div class="qa">
+      <div class="q">❓ Why this matters</div>
+      <div class="a">LLM capabilities go beyond "pure text Q&A": GPT-4o and Claude support image inputs, models can request tool calls and receive results. If each content kind uses separate fields (<span class="mono">text</span>, <span class="mono">image_url</span>, <span class="mono">tool_calls</span>…), the message shape becomes complex and non-extensible. Unifying into a <span class="mono">Content</span> list means code only cares about <strong>"a message has multiple content blocks"</strong>, with no special-casing per type.</div>
+    </div>
+    <div class="qa">
+      <div class="q">✅ How MAF does it</div>
+      <div class="a">MAF uses a <strong>discriminated union</strong>: every <span class="mono">Content</span> has a <span class="mono">type</span> field (<span class="mono">"text"</span>/<span class="mono">"data"</span>/<span class="mono">"uri"</span>/<span class="mono">"function_call"</span>/<span class="mono">"function_result"</span>); the framework routes by type. Adding a new content kind (video, audio) only requires a new type; old messages still parse. Pydantic ensures type safety, IDEs provide full hints.</div>
+    </div>
+    <div class="qa">
+      <div class="q">🔀 Alternatives</div>
+      <div class="a"><ul>
+        <li><strong>OpenAI SDK</strong>: text in <span class="mono">content</span> field, images in <span class="mono">content</span> array, tool calls in <span class="mono">tool_calls</span> field — three inconsistent shapes requiring branching logic.</li>
+        <li><strong>Anthropic</strong>: uses <span class="mono">content</span> array + <span class="mono">type</span> discrimination similar to MAF, but each vendor differs.</li>
+        <li>MAF unifies them all into one format, zero code changes across vendors.</li>
+      </ul></div>
+    </div>
+  </div>
+</details>
+
+<details class="accordion">
+  <summary><span class="badge-num">2</span> Constructing Messages <span class="hint">click to expand</span></summary>
+  <div class="acc-body">
+    <div class="qa">
+      <div class="q">🧪 Example</div>
+      <div class="a">
+<pre class="code"><span class="cm"># Plain text (string auto-wrapped)</span>
+msg = Message(<span class="st">"user"</span>, <span class="st">"hello"</span>)
+
+<span class="cm"># Single Content object</span>
+msg = Message(<span class="st">"user"</span>, Content.from_text(<span class="st">"hello"</span>))
+
+<span class="cm"># Multiple Content: mixed text + image</span>
+msg = Message(<span class="st">"user"</span>, [
+    Content.from_text(<span class="st">"What's in this image?"</span>),
+    Content.from_uri(uri=<span class="st">"https://example.com/img.png"</span>, media_type=<span class="st">"image/png"</span>)
+])
+
+<span class="cm"># Text shortcut</span>
+text = msg.text  <span class="cm"># auto-extracts text from contents</span></pre>
+      </div>
+    </div>
+    <div class="qa">
+      <div class="q">❓ Why this matters</div>
+      <div class="a">Multimodal conversations are increasingly common: a user sends an image + a question; the model replies with text + a chart; tool calls and results must coexist with text in the same message. If <span class="mono">Message</span> only holds a string, you'd need multiple messages or complex manual structures. Allowing a <strong>heterogeneous content list</strong> lets one message naturally express "text + image + tool call".</div>
+    </div>
+    <div class="qa">
+      <div class="q">✅ How MAF does it</div>
+      <div class="a"><span class="mono">Message</span>'s <span class="mono">contents</span> parameter accepts:<ul>
+        <li><strong>String</strong>: auto-converts to <span class="mono">Content.from_text(...)</span></li>
+        <li><strong>Single Content</strong>: wrapped into a list</li>
+        <li><strong>Content list</strong>: stored directly</li>
+      </ul>
+      Also provides <span class="mono">.text</span> property that auto-concatenates all text contents (joins multiple text blocks with spaces). Users can use simple or complex forms as needed; mental model stays unified.</div>
+    </div>
+    <div class="qa">
+      <div class="q">🔀 Alternatives</div>
+      <div class="a"><ul>
+        <li><strong>OpenAI</strong>: text messages vs multi-content messages use different formats (<span class="mono">{role, content: "str"}</span> vs <span class="mono">{role, content: [{type, ...}]}</span>), tool calls add a <span class="mono">tool_calls</span> array. Framework must detect format before parsing.</li>
+        <li><strong>LangChain</strong>: <span class="mono">HumanMessage</span>/<span class="mono">AIMessage</span> have different constructors.</li>
+        <li>MAF <strong>unified constructor</strong>: type-safe + IDE hints + multimodal out-of-the-box.</li>
+      </ul></div>
+    </div>
+  </div>
+</details>
+
+<details class="accordion">
+  <summary><span class="badge-num">3</span> Tool calls as message flow <span class="hint">click to expand</span></summary>
+  <div class="acc-body">
+    <div class="qa">
+      <div class="q">🧪 Example</div>
+      <div class="a">
+<pre class="code"><span class="cm"># Model output: assistant message with function_call</span>
+msg_call = Message(<span class="st">"assistant"</span>, [
+    Content.from_function_call(
+        name=<span class="st">"get_weather"</span>,
+        arguments={<span class="st">"location"</span>: <span class="st">"Seattle"</span>},
+        call_id=<span class="st">"call_abc123"</span>
+    )
+])
+
+<span class="cm"># Framework feedback: role="tool" message with function_result</span>
+msg_result = Message(<span class="st">"tool"</span>, [
+    Content.from_function_result(
+        name=<span class="st">"get_weather"</span>,
+        result=<span class="st">"Sunny, 72°F"</span>,
+        call_id=<span class="st">"call_abc123"</span>
+    )
+])
+<span class="cm"># These two append to history; model continues with final answer</span></pre>
+      </div>
+    </div>
+    <div class="qa">
+      <div class="q">❓ Why this matters</div>
+      <div class="a">Tool calls are multi-turn interactions:<ol>
+        <li>Model decides "need tool", outputs function_call</li>
+        <li>Framework executes tool, gets result</li>
+        <li>Framework appends result to conversation; model reads and produces final answer</li>
+      </ol>
+      If tool calls/results aren't standard messages, you need a separate pipeline. Embedding them in <span class="mono">Message</span> makes <strong>the entire conversation a message chain</strong>, no special logic required.</div>
+    </div>
+    <div class="qa">
+      <div class="q">✅ How MAF does it</div>
+      <div class="a"><span class="mono">Content.from_function_call</span> and <span class="mono">.from_function_result</span> are two special content types fully integrated into the message system:<ul>
+        <li><strong>Type unification</strong>: tool call = assistant message + function_call content; tool result = tool message + function_result content.</li>
+        <li><strong>Consistent serialization</strong>: history replay, logs, debugging all use the same JSON structure for tool calls and regular messages.</li>
+        <li><strong>Extensible</strong>: future "parallel tool calls" just needs multiple function_call contents in one message.</li>
+      </ul></div>
+    </div>
+    <div class="qa">
+      <div class="q">🔀 Alternatives</div>
+      <div class="a"><ul>
+        <li><strong>OpenAI</strong>: assistant message adds <span class="mono">tool_calls</span> array; tool message uses <span class="mono">role="tool" + tool_call_id</span>. Two field sets.</li>
+        <li><strong>Anthropic</strong>: <span class="mono">content</span> array holds <span class="mono">tool_use</span>/<span class="mono">tool_result</span> blocks, similar to MAF but each vendor differs.</li>
+        <li>MAF abstracts the differences: developers use one API, framework handles vendor conversion.</li>
+      </ul></div>
+    </div>
+  </div>
+</details>
+
+<details class="accordion">
+  <summary><span class="badge-num">4</span> Serialization <span class="hint">click to expand</span></summary>
+  <div class="acc-body">
+    <div class="qa">
+      <div class="q">🧪 Example</div>
+      <div class="a">
+<pre class="code"><span class="cm"># Message → dict (JSON-serializable)</span>
+msg = Message(<span class="st">"user"</span>, <span class="st">"Hello"</span>)
+d = msg.to_dict()
+<span class="cm"># → {"role": "user", "contents": [{"type": "text", "text": "Hello"}]}</span>
+
+<span class="cm"># dict → Message (restore from JSON)</span>
+msg_restored = Message.from_dict(d)
+<span class="kw">assert</span> msg_restored.role == <span class="st">"user"</span>
+<span class="kw">assert</span> msg_restored.text == <span class="st">"Hello"</span>
+
+<span class="cm"># Tool calls also fully serialize</span>
+msg_with_tool = Message(<span class="st">"assistant"</span>, [
+    Content.from_function_call(name=<span class="st">"foo"</span>, arguments={<span class="st">"x"</span>: 1})
+])
+d2 = msg_with_tool.to_dict()
+msg_back = Message.from_dict(d2)  <span class="cm"># fully restored</span></pre>
+      </div>
+    </div>
+    <div class="qa">
+      <div class="q">❓ Why this matters</div>
+      <div class="a">Real applications need:<ul>
+        <li><strong>Persistence</strong>: store conversation history in databases (Redis, Cosmos, PostgreSQL).</li>
+        <li><strong>Replay debugging</strong>: capture production message flows, reproduce locally.</li>
+        <li><strong>Audit logs</strong>: compliance requires saving all conversations (including tool calls).</li>
+        <li><strong>Cross-service passing</strong>: microservices pass message context.</li>
+      </ul>
+      Without lossless serialization, tool calls, images and other complex content lose information.</div>
+    </div>
+    <div class="qa">
+      <div class="q">✅ How MAF does it</div>
+      <div class="a"><span class="mono">Message.to_dict()</span> / <span class="mono">from_dict(...)</span> are <strong>fully reversible</strong>:<ul>
+        <li>All <span class="mono">Content</span> types (text/data/uri/function_call/function_result) serialize losslessly.</li>
+        <li>Returned dict is <strong>pure JSON</strong>, can be directly stored, transmitted, logged.</li>
+        <li>Pydantic models auto-handle type validation; deserialization raises on type errors.</li>
+        <li>Third-party persistence libs (like <span class="mono">redis</span>, <span class="mono">azure-cosmos</span>) can directly store dicts.</li>
+      </ul></div>
+    </div>
+    <div class="qa">
+      <div class="q">🔀 Alternatives</div>
+      <div class="a"><ul>
+        <li><strong>OpenAI SDK</strong>: native messages are already dicts, but format may change per version, no type guarantees.</li>
+        <li><strong>LangChain</strong>: <span class="mono">Message.dict()</span> returns nested structures, field names unstable, requires manual handling.</li>
+        <li><strong>Manual JSON</strong>: fully custom, but schema evolution easily breaks compatibility.</li>
+        <li>MAF <strong>versioned schema</strong>: framework upgrades auto-migrate old data (see compatibility layer in <span class="mono">_types.py</span>).</li>
+      </ul></div>
+    </div>
+  </div>
+</details>
+
+<details class="accordion">
+  <summary><span class="badge-num">5</span> Comparison with OpenAI format <span class="hint">click to expand</span></summary>
+  <div class="acc-body">
+    <div class="qa">
+      <div class="q">🧪 Example</div>
+      <div class="a">
+<table class="t">
+<tr><th>Scenario</th><th>OpenAI native format</th><th>MAF format</th></tr>
+<tr><td>Plain text</td><td><pre class="code">{<span class="st">"role"</span>: <span class="st">"user"</span>,
+ <span class="st">"content"</span>: <span class="st">"hi"</span>}</pre></td><td><pre class="code">Message(<span class="st">"user"</span>, <span class="st">"hi"</span>)</pre></td></tr>
+<tr><td>Tool call</td><td><pre class="code">{<span class="st">"role"</span>: <span class="st">"assistant"</span>,
+ <span class="st">"tool_calls"</span>: [{
+   <span class="st">"type"</span>: <span class="st">"function"</span>,
+   <span class="st">"function"</span>: {<span class="st">"name"</span>: <span class="st">"get_weather"</span>, ...}
+ }]}</pre></td><td><pre class="code">Message(<span class="st">"assistant"</span>, [
+  Content.from_function_call(
+    name=<span class="st">"get_weather"</span>, ...
+  )
+])</pre></td></tr>
+<tr><td>Tool result</td><td><pre class="code">{<span class="st">"role"</span>: <span class="st">"tool"</span>,
+ <span class="st">"content"</span>: <span class="st">"result"</span>,
+ <span class="st">"tool_call_id"</span>: <span class="st">"x"</span>}</pre></td><td><pre class="code">Message(<span class="st">"tool"</span>, [
+  Content.from_function_result(
+    result=<span class="st">"result"</span>, call_id=<span class="st">"x"</span>
+  )
+])</pre></td></tr>
+</table>
+      </div>
+    </div>
+    <div class="qa">
+      <div class="q">❓ Why this matters</div>
+      <div class="a">Problems with using OpenAI dicts directly:<ul>
+        <li><strong>Vendor lock-in</strong>: switching to Anthropic/Ollama/Azure requires extensive changes.</li>
+        <li><strong>Scattered fields</strong>: <span class="mono">content</span> / <span class="mono">tool_calls</span> / <span class="mono">tool_call_id</span> at different nesting levels, complex parsing.</li>
+        <li><strong>No type safety</strong>: typos only caught at runtime.</li>
+        <li><strong>Inconsistent format</strong>: plain text vs image vs tool call use different structures.</li>
+      </ul>
+      An abstraction layer lets you <strong>write once, run anywhere</strong>.</div>
+    </div>
+    <div class="qa">
+      <div class="q">✅ How MAF does it</div>
+      <div class="a">MAF provides <strong>unified abstraction</strong> with <strong>bidirectional conversion</strong>:<ul>
+        <li><span class="mono">BaseChatClient</span> subclasses (like <span class="mono">OpenAIChatClient</span>) auto-convert <span class="mono">Message</span> to vendor format, call API, convert back.</li>
+        <li>For direct conversion: <span class="mono">from agent_framework.ai.openai import to_openai_messages, from_openai_messages</span> (see <span class="mono">python/src/agent_framework/ai/openai/_convert.py</span>).</li>
+        <li><strong>Type safety</strong>: IDE auto-completes <span class="mono">Message(...)</span> / <span class="mono">Content.from_...</span>, catches errors at edit time.</li>
+        <li><strong>Testable</strong>: unit tests don't depend on real LLMs, just mock <span class="mono">Message</span>.</li>
+      </ul></div>
+    </div>
+    <div class="qa">
+      <div class="q">🔀 Alternatives</div>
+      <div class="a"><ul>
+        <li><strong>Use SDK dicts directly</strong>: zero abstraction, but vendor switch requires complete rewrite.</li>
+        <li><strong>LangChain MessageType</strong>: provides abstraction, but <span class="mono">HumanMessage</span>/<span class="mono">AIMessage</span>/<span class="mono">ToolMessage</span> classification too granular, increases mental load.</li>
+        <li><strong>LlamaIndex ChatMessage</strong>: simple and unified, but limited functionality, weak multimodal/tool support.</li>
+        <li>MAF <strong>just right</strong>: one <span class="mono">Message</span> + five <span class="mono">Content</span> types covers all scenarios, seamless vendor switching.</li>
+      </ul></div>
     </div>
   </div>
 </details>

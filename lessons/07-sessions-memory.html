@@ -286,6 +286,255 @@ result = <span class="kw">await</span> agent.run(
   每次 run 前自动把相关条目拼进上下文。（记忆库 / 各存储后端见第 16 课与各 provider 包。）
 </div>
 
+<details class="accordion">
+  <summary><span class="badge-num">1</span> create_session vs 不传 session <span class="hint">点击展开详解</span></summary>
+  <div class="acc-body">
+    <div class="qa">
+      <div class="q">🧪 示例</div>
+      <div class="a">
+<pre class="code"><span class="cm"># 不传 session：每次都是新对话（失忆）</span>
+result1 = <span class="kw">await</span> agent.run(<span class="st">"我叫 Alice"</span>)
+result2 = <span class="kw">await</span> agent.run(<span class="st">"我叫什么？"</span>)
+<span class="cm"># → 模型不知道，之前的"Alice"已丢失</span>
+
+<span class="cm"># 传 session：记住上下文</span>
+session = agent.create_session()
+result1 = <span class="kw">await</span> agent.run(<span class="st">"我叫 Alice"</span>, session=session)
+result2 = <span class="kw">await</span> agent.run(<span class="st">"我叫什么？"</span>, session=session)
+<span class="cm"># → 模型回答"Alice"</span>
+
+<span class="cm"># 查看会话历史</span>
+<span class="fn">print</span>(session.history)  <span class="cm"># [Message("user", "我叫 Alice"), Message("assistant", ...), ...]</span></pre>
+      </div>
+    </div>
+    <div class="qa">
+      <div class="q">❓ 为什么这件事必要</div>
+      <div class="a">许多 AI 应用需要<strong>上下文连续性</strong>：<ul>
+        <li><strong>对话式 UI</strong>：用户问"天气怎样？" → "明天呢？" → "后天呢？"，每句都依赖前文。</li>
+        <li><strong>任务流</strong>：用户说"帮我订酒店" → 模型问"哪个城市？" → "西雅图" → "几号入住？"，需保持状态。</li>
+        <li><strong>个性化</strong>：用户说"我喜欢素食"，后续对话记得这点。</li>
+      </ul>
+      如果默认<strong>有状态</strong>（隐式全局 session），会导致：不同用户的对话串了、测试时难以隔离、并发请求互相干扰。MAF 选择<strong>无状态为默认</strong>，需要状态时显式传 <span class="mono">session</span>。</div>
+    </div>
+    <div class="qa">
+      <div class="q">✅ MAF 的做法与优点</div>
+      <div class="a"><span class="mono">AgentSession</span>（见 <span class="mono">python/src/agent_framework/_session.py</span>）：<ul>
+        <li><strong>显式创建</strong>：<span class="mono">agent.create_session()</span> 返回一个新会话对象。</li>
+        <li><strong>透传</strong>：把同一个 <span class="mono">session</span> 对象传给每次 <span class="mono">run()</span>。</li>
+        <li><strong>自动累积</strong>：每次 <span class="mono">run</span> 后，用户消息 + 模型回复（+ 工具调用/结果）自动追加进 <span class="mono">session.history</span>。</li>
+        <li><strong>无副作用</strong>：不传 <span class="mono">session</span> 时，<span class="mono">run</span> 不改任何全局状态，完全无状态。</li>
+      </ul>
+      这种设计让<strong>并发安全</strong>（多个用户各自的 session 互不干扰）、<strong>可测试</strong>（每个测试用例独立 session）、<strong>易理解</strong>（有没有记忆一目了然）。</div>
+    </div>
+    <div class="qa">
+      <div class="q">🔀 还有什么其他方案</div>
+      <div class="a"><ul>
+        <li><strong>OpenAI Assistants API</strong>：用 <span class="mono">thread_id</span> 标识会话，服务端管理历史。优点是无需客户端存储，缺点是无法本地调试、换厂商需重构。</li>
+        <li><strong>LangChain Memory</strong>：用 <span class="mono">ConversationBufferMemory</span> 等类，需手动挂到 <span class="mono">Chain</span>。容易忘记清空，导致历史累积过长。</li>
+        <li><strong>隐式全局 session</strong>：框架内部维护 session 字典（user_id → history），简化 API 但并发不安全、难测试。</li>
+        <li>MAF <strong>显式 session 对象</strong>：清晰、安全、可控。</li>
+      </ul></div>
+    </div>
+  </div>
+</details>
+
+<details class="accordion">
+  <summary><span class="badge-num">2</span> ContextProvider 的工作流 <span class="hint">点击展开详解</span></summary>
+  <div class="acc-body">
+    <div class="qa">
+      <div class="q">🧪 示例</div>
+      <div class="a">
+<pre class="code"><span class="kw">from</span> agent_framework <span class="kw">import</span> Agent, MemoryContextProvider
+
+<span class="cm"># 创建一个记忆提供者：在每次 run 前注入相关记忆</span>
+memory_provider = MemoryContextProvider(
+    memory_store=...,  <span class="cm"># 向量数据库 / Redis / 其他存储</span>
+    relevance_threshold=0.7
+)
+
+agent = Agent(
+    client=client,
+    name=<span class="st">"Assistant"</span>,
+    context_providers=[memory_provider],  <span class="cm"># 挂载</span>
+)
+
+<span class="cm"># 用户首次说"我喜欢爬山"</span>
+session = agent.create_session()
+<span class="kw">await</span> agent.run(<span class="st">"我喜欢爬山"</span>, session=session)
+<span class="cm"># → MemoryContextProvider 把"用户喜欢爬山"存入记忆库</span>
+
+<span class="cm"># 几天后，新会话</span>
+session2 = agent.create_session()
+<span class="kw">await</span> agent.run(<span class="st">"推荐周末活动"</span>, session=session2)
+<span class="cm"># → MemoryContextProvider 检索到"喜欢爬山"，注入上下文</span>
+<span class="cm"># → 模型回答时会考虑这条记忆</span></pre>
+      </div>
+    </div>
+    <div class="qa">
+      <div class="q">❓ 为什么这件事必要</div>
+      <div class="a"><span class="mono">AgentSession</span> 只在<strong>单次对话</strong>内记忆，对话结束后历史就没了。真实应用需要<strong>跨会话记忆</strong>：<ul>
+        <li><strong>用户偏好</strong>：用户说"我对海鲜过敏"，所有后续会话都要记得。</li>
+        <li><strong>RAG（检索增强生成）</strong>：用户问"公司休假政策？"，从文档库检索相关段落，注入上下文。</li>
+        <li><strong>个性化</strong>：根据用户历史交互（问过什么、喜欢什么）调整回答风格。</li>
+      </ul>
+      把这些逻辑硬编码在 <span class="mono">instructions</span> 或手动拼进每条消息，既繁琐又不可扩展。需要<strong>可插拔的上下文注入机制</strong>。</div>
+    </div>
+    <div class="qa">
+      <div class="q">✅ MAF 的做法与优点</div>
+      <div class="a"><span class="mono">ContextProvider</span> 接口（见 <span class="mono">python/src/agent_framework/context/_provider.py</span>）：<ul>
+        <li><strong>在每次 run 前调用</strong>：Agent 执行时，遍历 <span class="mono">context_providers</span> 列表，调用每个 provider 的 <span class="mono">provide_context(...)</span>。</li>
+        <li><strong>返回消息 / 内容</strong>：provider 可返回 <span class="mono">Message</span> 列表（注入历史对话）、<span class="mono">Content</span> 列表（注入文档片段）、或修改 system prompt。</li>
+        <li><strong>内置实现</strong>：<span class="mono">MemoryContextProvider</span>（向量检索记忆）、<span class="mono">InMemoryHistoryProvider</span>（跨会话历史）、<span class="mono">DocumentContextProvider</span>（文档 RAG）。</li>
+        <li><strong>可组合</strong>：多个 provider 按顺序执行，可同时用记忆 + 文档检索 + 用户偏好。</li>
+      </ul>
+      这种设计让上下文逻辑<strong>解耦</strong>，Agent 不关心"记忆从哪来"，只管"有这些上下文"。</div>
+    </div>
+    <div class="qa">
+      <div class="q">🔀 还有什么其他方案</div>
+      <div class="a"><ul>
+        <li><strong>LangChain Memory</strong>：<span class="mono">ConversationBufferMemory</span>、<span class="mono">ConversationSummaryMemory</span> 等，但和 Chain 耦合，不易切换存储后端。</li>
+        <li><strong>LlamaIndex chat memory</strong>：专注向量检索，但不支持其他类型上下文（如用户偏好、文档片段）。</li>
+        <li><strong>手动拼接</strong>：在 <span class="mono">run</span> 前手动查询记忆库、拼进消息列表，重复代码多、易出错。</li>
+        <li>MAF <strong>接口抽象 + 内置实现</strong>：开箱即用的 provider，也可自定义（如接入企业知识图谱）。</li>
+      </ul></div>
+    </div>
+  </div>
+</details>
+
+<details class="accordion">
+  <summary><span class="badge-num">3</span> 会话存储后端 <span class="hint">点击展开详解</span></summary>
+  <div class="acc-body">
+    <div class="qa">
+      <div class="q">🧪 示例</div>
+      <div class="a">
+<pre class="code"><span class="cm"># 开发环境：内存存储（进程重启后丢失）</span>
+<span class="kw">from</span> agent_framework.session <span class="kw">import</span> InMemorySessionStore
+session_store = InMemorySessionStore()
+
+<span class="cm"># 生产环境：Redis 存储（持久化 + 分布式）</span>
+<span class="kw">from</span> agent_framework.session.redis <span class="kw">import</span> RedisSessionStore
+session_store = RedisSessionStore(redis_url=<span class="st">"redis://localhost:6379"</span>)
+
+<span class="cm"># Azure：Cosmos DB 存储</span>
+<span class="kw">from</span> agent_framework.session.cosmos <span class="kw">import</span> CosmosSessionStore
+session_store = CosmosSessionStore(
+    endpoint=<span class="st">"https://..."</span>,
+    key=<span class="st">"..."</span>,
+    database=<span class="st">"agents"</span>,
+    container=<span class="st">"sessions"</span>
+)
+
+<span class="cm"># Agent 使用存储</span>
+agent = Agent(client=client, session_store=session_store)
+session = agent.create_session(session_id=<span class="st">"user_123_conv_456"</span>)
+<span class="cm"># 历史自动存到后端，下次加载时恢复</span></pre>
+      </div>
+    </div>
+    <div class="qa">
+      <div class="q">❓ 为什么这件事必要</div>
+      <div class="a">不同环境对存储的需求不同：<ul>
+        <li><strong>开发 / 测试</strong>：内存存储即可，快速、无需配置。</li>
+        <li><strong>单机生产</strong>：文件存储（SQLite、JSON），简单持久化。</li>
+        <li><strong>分布式生产</strong>：Redis / Cosmos / DynamoDB，多实例共享状态、高可用。</li>
+        <li><strong>合规 / 审计</strong>：需存进企业数据库（PostgreSQL / MongoDB），便于查询、归档。</li>
+      </ul>
+      如果存储逻辑和 Agent 耦合（硬编码用 Redis），切换环境需改代码、难以测试。需要<strong>抽象存储接口</strong>。</div>
+    </div>
+    <div class="qa">
+      <div class="q">✅ MAF 的做法与优点</div>
+      <div class="a"><span class="mono">SessionStore</span> 接口（见 <span class="mono">python/src/agent_framework/session/_store.py</span>）：<ul>
+        <li><strong>抽象接口</strong>：<span class="mono">save_session</span> / <span class="mono">load_session</span> / <span class="mono">delete_session</span>，Agent 只依赖接口。</li>
+        <li><strong>多种实现</strong>：<ul>
+          <li><span class="mono">InMemorySessionStore</span>：开发用，字典存储。</li>
+          <li><span class="mono">RedisSessionStore</span>：生产用，Redis 哈希存储（<span class="mono">HSET sessions:{id} history ...</span>）。</li>
+          <li><span class="mono">CosmosSessionStore</span>：Azure 用户，Cosmos DB 文档存储。</li>
+          <li><span class="mono">FileSessionStore</span>：单机，JSON 文件存储。</li>
+        </ul></li>
+        <li><strong>序列化自动</strong>：<span class="mono">Message.to_dict()</span> 转 JSON，存进后端；加载时 <span class="mono">from_dict</span> 恢复。</li>
+        <li><strong>可扩展</strong>：自定义后端（如接入 PostgreSQL、MongoDB）只需实现 <span class="mono">SessionStore</span> 接口。</li>
+      </ul></div>
+    </div>
+    <div class="qa">
+      <div class="q">🔀 还有什么其他方案</div>
+      <div class="a"><ul>
+        <li><strong>LangChain</strong>：<span class="mono">RedisChatMessageHistory</span>、<span class="mono">FileChatMessageHistory</span> 等，但和 Memory 类耦合，切换存储需改 Memory 初始化。</li>
+        <li><strong>OpenAI Assistants</strong>：服务端管理，开发者无法选择存储后端、无法本地调试。</li>
+        <li><strong>手动序列化</strong>：自己写 <span class="mono">json.dump(history, file)</span>，重复代码多、容易出错（忘记处理工具调用等复杂内容）。</li>
+        <li>MAF <strong>接口 + 多实现</strong>：开发用内存、生产切 Redis，只改一行配置。</li>
+      </ul></div>
+    </div>
+  </div>
+</details>
+
+<details class="accordion">
+  <summary><span class="badge-num">4</span> context window 压缩 <span class="hint">点击展开详解</span></summary>
+  <div class="acc-body">
+    <div class="qa">
+      <div class="q">🧪 示例</div>
+      <div class="a">
+<pre class="code"><span class="kw">from</span> agent_framework.context <span class="kw">import</span> ContextWindowCompactionStrategy
+
+<span class="cm"># 策略 A：滑动窗口（保留最近 N 条消息）</span>
+strategy = ContextWindowCompactionStrategy.sliding_window(max_messages=20)
+
+<span class="cm"># 策略 B：摘要压缩（老消息总结成一条）</span>
+strategy = ContextWindowCompactionStrategy.summarize(
+    max_tokens=4000,
+    summary_model=<span class="st">"gpt-4o-mini"</span>
+)
+
+<span class="cm"># 策略 C：混合（保留系统消息 + 最近消息 + 摘要）</span>
+strategy = ContextWindowCompactionStrategy.hybrid(
+    keep_system=<span class="kw">True</span>,
+    keep_recent=10,
+    summarize_older=<span class="kw">True</span>
+)
+
+agent = Agent(
+    client=client,
+    context_window_strategy=strategy
+)
+
+<span class="cm"># 对话超过 20 轮时，自动触发压缩</span>
+session = agent.create_session()
+<span class="kw">for</span> i <span class="kw">in</span> <span class="fn">range</span>(30):
+    <span class="kw">await</span> agent.run(<span class="st">f"第 {i} 条消息"</span>, session=session)
+    <span class="cm"># → 第 21 条时，策略生效：删掉最老的或生成摘要</span></pre>
+      </div>
+    </div>
+    <div class="qa">
+      <div class="q">❓ 为什么这件事必要</div>
+      <div class="a">对话历史会<strong>无限增长</strong>，问题：<ul>
+        <li><strong>token 限制</strong>：模型有 context window 上限（如 GPT-4 128k tokens），超过就报错或截断。</li>
+        <li><strong>成本</strong>：输入 token 也计费，历史越长、每次调用越贵。</li>
+        <li><strong>延迟</strong>：发送和处理更多 token 增加延迟。</li>
+        <li><strong>相关性衰减</strong>：50 轮前的对话可能和当前问题无关，但仍占用 context。</li>
+      </ul>
+      需要<strong>自动压缩策略</strong>：在不丢失关键信息的前提下，控制 context 大小。</div>
+    </div>
+    <div class="qa">
+      <div class="q">✅ MAF 的做法与优点</div>
+      <div class="a"><span class="mono">ContextWindowCompactionStrategy</span>（见 <span class="mono">python/src/agent_framework/context/_compaction.py</span>）：<ul>
+        <li><strong>滑动窗口</strong>：保留最近 N 条消息，删掉最老的（适合短期对话）。</li>
+        <li><strong>摘要压缩</strong>：把老消息总结成一条 system 消息（<span class="st">"之前用户提到……"</span>），保留语义、减少 token。</li>
+        <li><strong>混合策略</strong>：保留 system 消息（重要指令）+ 最近消息（当前上下文）+ 摘要中间消息。</li>
+        <li><strong>自动触发</strong>：Agent 在 <span class="mono">run</span> 前检查历史长度，超过阈值时调用策略压缩。</li>
+        <li><strong>可配置</strong>：<span class="mono">max_tokens</span>、<span class="mono">max_messages</span>、<span class="mono">summary_model</span> 都可调。</li>
+      </ul>
+      开发者无需手动管理 context，框架自动优化。</div>
+    </div>
+    <div class="qa">
+      <div class="q">🔀 还有什么其他方案</div>
+      <div class="a"><ul>
+        <li><strong>LangChain ConversationSummaryMemory</strong>：每次对话后调 LLM 生成摘要，但开销大、时机不灵活。</li>
+        <li><strong>手动截断</strong>：<span class="mono">messages[-10:]</span> 只取最后 10 条，简单但丢失早期重要信息。</li>
+        <li><strong>向量检索</strong>：把历史存进向量库，每次检索相关片段，但需额外基础设施。</li>
+        <li>MAF <strong>多策略可选</strong>：简单场景用滑动窗口，复杂场景用摘要，还可组合 ContextProvider 做向量检索。</li>
+      </ul></div>
+    </div>
+  </div>
+</details>
+
 <div class="card key">
   <div class="tag">✅ 关键要点</div>
   <ul>
@@ -336,6 +585,255 @@ history accumulates. Omit the session and each call starts fresh.</p>
   <span class="inline">MemoryContextProvider</span> stores memories in a searchable store and splices relevant entries
   into context before each run. (Memory stores / backends: Lesson 16 and the provider packages.)
 </div>
+
+<details class="accordion">
+  <summary><span class="badge-num">1</span> With vs without session <span class="hint">click to expand</span></summary>
+  <div class="acc-body">
+    <div class="qa">
+      <div class="q">🧪 Example</div>
+      <div class="a">
+<pre class="code"><span class="cm"># Without session: each call is a new conversation (amnesiac)</span>
+result1 = <span class="kw">await</span> agent.run(<span class="st">"I'm Alice"</span>)
+result2 = <span class="kw">await</span> agent.run(<span class="st">"What's my name?"</span>)
+<span class="cm"># → Model doesn't know; previous "Alice" is lost</span>
+
+<span class="cm"># With session: remembers context</span>
+session = agent.create_session()
+result1 = <span class="kw">await</span> agent.run(<span class="st">"I'm Alice"</span>, session=session)
+result2 = <span class="kw">await</span> agent.run(<span class="st">"What's my name?"</span>, session=session)
+<span class="cm"># → Model answers "Alice"</span>
+
+<span class="cm"># View session history</span>
+<span class="fn">print</span>(session.history)  <span class="cm"># [Message("user", "I'm Alice"), Message("assistant", ...), ...]</span></pre>
+      </div>
+    </div>
+    <div class="qa">
+      <div class="q">❓ Why this matters</div>
+      <div class="a">Many AI apps need <strong>context continuity</strong>:<ul>
+        <li><strong>Conversational UI</strong>: user asks "What's the weather?" → "Tomorrow?" → "Day after?", each relies on prior turns.</li>
+        <li><strong>Task flows</strong>: user says "Book me a hotel" → model asks "Which city?" → "Seattle" → "Check-in date?", needs to maintain state.</li>
+        <li><strong>Personalization</strong>: user says "I'm vegetarian", later conversations remember this.</li>
+      </ul>
+      If default is <strong>stateful</strong> (implicit global session), you get: different users' conversations mixed, tests hard to isolate, concurrent requests interfere. MAF chooses <strong>stateless as default</strong>, explicit <span class="mono">session</span> when needed.</div>
+    </div>
+    <div class="qa">
+      <div class="q">✅ How MAF does it</div>
+      <div class="a"><span class="mono">AgentSession</span> (see <span class="mono">python/src/agent_framework/_session.py</span>):<ul>
+        <li><strong>Explicit creation</strong>: <span class="mono">agent.create_session()</span> returns a new session object.</li>
+        <li><strong>Pass-through</strong>: pass the same <span class="mono">session</span> object to each <span class="mono">run()</span>.</li>
+        <li><strong>Auto-accumulation</strong>: after each <span class="mono">run</span>, user message + model reply (+ tool calls/results) auto-append to <span class="mono">session.history</span>.</li>
+        <li><strong>No side effects</strong>: without <span class="mono">session</span>, <span class="mono">run</span> mutates no global state, fully stateless.</li>
+      </ul>
+      This design ensures <strong>concurrent safety</strong> (each user's session doesn't interfere), <strong>testability</strong> (each test has independent session), <strong>understandability</strong> (memory or not is obvious).</div>
+    </div>
+    <div class="qa">
+      <div class="q">🔀 Alternatives</div>
+      <div class="a"><ul>
+        <li><strong>OpenAI Assistants API</strong>: uses <span class="mono">thread_id</span> to identify sessions, server-managed history. Pros: no client storage. Cons: can't debug locally, vendor switch requires refactor.</li>
+        <li><strong>LangChain Memory</strong>: uses <span class="mono">ConversationBufferMemory</span> classes, must manually attach to <span class="mono">Chain</span>. Easy to forget to clear, causing history bloat.</li>
+        <li><strong>Implicit global session</strong>: framework internally maintains session dict (user_id → history), simplifies API but concurrency-unsafe, hard to test.</li>
+        <li>MAF <strong>explicit session object</strong>: clear, safe, controllable.</li>
+      </ul></div>
+    </div>
+  </div>
+</details>
+
+<details class="accordion">
+  <summary><span class="badge-num">2</span> ContextProvider workflow <span class="hint">click to expand</span></summary>
+  <div class="acc-body">
+    <div class="qa">
+      <div class="q">🧪 Example</div>
+      <div class="a">
+<pre class="code"><span class="kw">from</span> agent_framework <span class="kw">import</span> Agent, MemoryContextProvider
+
+<span class="cm"># Create a memory provider: injects relevant memories before each run</span>
+memory_provider = MemoryContextProvider(
+    memory_store=...,  <span class="cm"># vector DB / Redis / other storage</span>
+    relevance_threshold=0.7
+)
+
+agent = Agent(
+    client=client,
+    name=<span class="st">"Assistant"</span>,
+    context_providers=[memory_provider],  <span class="cm"># attach</span>
+)
+
+<span class="cm"># User first says "I love hiking"</span>
+session = agent.create_session()
+<span class="kw">await</span> agent.run(<span class="st">"I love hiking"</span>, session=session)
+<span class="cm"># → MemoryContextProvider stores "user loves hiking" in memory bank</span>
+
+<span class="cm"># Days later, new session</span>
+session2 = agent.create_session()
+<span class="kw">await</span> agent.run(<span class="st">"Suggest weekend activities"</span>, session=session2)
+<span class="cm"># → MemoryContextProvider retrieves "loves hiking", injects into context</span>
+<span class="cm"># → Model answers considering this memory</span></pre>
+      </div>
+    </div>
+    <div class="qa">
+      <div class="q">❓ Why this matters</div>
+      <div class="a"><span class="mono">AgentSession</span> only remembers within <strong>a single conversation</strong>; after it ends, history is gone. Real apps need <strong>cross-session memory</strong>:<ul>
+        <li><strong>User preferences</strong>: user says "I'm allergic to seafood", all future conversations must remember.</li>
+        <li><strong>RAG (Retrieval Augmented Generation)</strong>: user asks "Company vacation policy?", retrieve relevant doc paragraphs, inject into context.</li>
+        <li><strong>Personalization</strong>: based on user interaction history (questions asked, preferences stated), adjust answer style.</li>
+      </ul>
+      Hard-coding these into <span class="mono">instructions</span> or manually splicing into each message is tedious and non-extensible. Need <strong>pluggable context injection</strong>.</div>
+    </div>
+    <div class="qa">
+      <div class="q">✅ How MAF does it</div>
+      <div class="a"><span class="mono">ContextProvider</span> interface (see <span class="mono">python/src/agent_framework/context/_provider.py</span>):<ul>
+        <li><strong>Called before each run</strong>: Agent execution iterates through <span class="mono">context_providers</span> list, calls each provider's <span class="mono">provide_context(...)</span>.</li>
+        <li><strong>Returns messages / content</strong>: provider can return <span class="mono">Message</span> lists (inject history), <span class="mono">Content</span> lists (inject doc snippets), or modify system prompt.</li>
+        <li><strong>Built-in implementations</strong>: <span class="mono">MemoryContextProvider</span> (vector retrieval memory), <span class="mono">InMemoryHistoryProvider</span> (cross-session history), <span class="mono">DocumentContextProvider</span> (doc RAG).</li>
+        <li><strong>Composable</strong>: multiple providers execute in order, can use memory + doc retrieval + user preferences together.</li>
+      </ul>
+      This design <strong>decouples</strong> context logic; Agent doesn't care "where memory comes from", only "have this context".</div>
+    </div>
+    <div class="qa">
+      <div class="q">🔀 Alternatives</div>
+      <div class="a"><ul>
+        <li><strong>LangChain Memory</strong>: <span class="mono">ConversationBufferMemory</span>, <span class="mono">ConversationSummaryMemory</span>, etc., but coupled to Chain, not easy to swap storage backends.</li>
+        <li><strong>LlamaIndex chat memory</strong>: focuses on vector retrieval, but doesn't support other context types (user preferences, doc snippets).</li>
+        <li><strong>Manual splicing</strong>: before <span class="mono">run</span>, manually query memory bank, splice into message list — repetitive code, error-prone.</li>
+        <li>MAF <strong>interface abstraction + built-ins</strong>: out-of-box providers, can also custom (e.g., integrate enterprise knowledge graph).</li>
+      </ul></div>
+    </div>
+  </div>
+</details>
+
+<details class="accordion">
+  <summary><span class="badge-num">3</span> Session storage backends <span class="hint">click to expand</span></summary>
+  <div class="acc-body">
+    <div class="qa">
+      <div class="q">🧪 Example</div>
+      <div class="a">
+<pre class="code"><span class="cm"># Dev environment: in-memory storage (lost on restart)</span>
+<span class="kw">from</span> agent_framework.session <span class="kw">import</span> InMemorySessionStore
+session_store = InMemorySessionStore()
+
+<span class="cm"># Production: Redis storage (persistent + distributed)</span>
+<span class="kw">from</span> agent_framework.session.redis <span class="kw">import</span> RedisSessionStore
+session_store = RedisSessionStore(redis_url=<span class="st">"redis://localhost:6379"</span>)
+
+<span class="cm"># Azure: Cosmos DB storage</span>
+<span class="kw">from</span> agent_framework.session.cosmos <span class="kw">import</span> CosmosSessionStore
+session_store = CosmosSessionStore(
+    endpoint=<span class="st">"https://..."</span>,
+    key=<span class="st">"..."</span>,
+    database=<span class="st">"agents"</span>,
+    container=<span class="st">"sessions"</span>
+)
+
+<span class="cm"># Agent uses the store</span>
+agent = Agent(client=client, session_store=session_store)
+session = agent.create_session(session_id=<span class="st">"user_123_conv_456"</span>)
+<span class="cm"># History auto-saved to backend, restored on next load</span></pre>
+      </div>
+    </div>
+    <div class="qa">
+      <div class="q">❓ Why this matters</div>
+      <div class="a">Different environments have different storage needs:<ul>
+        <li><strong>Dev / test</strong>: in-memory storage suffices, fast, no config.</li>
+        <li><strong>Single-server production</strong>: file storage (SQLite, JSON), simple persistence.</li>
+        <li><strong>Distributed production</strong>: Redis / Cosmos / DynamoDB, multi-instance state sharing, high availability.</li>
+        <li><strong>Compliance / audit</strong>: must store in enterprise DB (PostgreSQL / MongoDB), easy to query, archive.</li>
+      </ul>
+      If storage logic is coupled to Agent (hard-coded Redis), switching environments requires code changes, hard to test. Need <strong>abstract storage interface</strong>.</div>
+    </div>
+    <div class="qa">
+      <div class="q">✅ How MAF does it</div>
+      <div class="a"><span class="mono">SessionStore</span> interface (see <span class="mono">python/src/agent_framework/session/_store.py</span>):<ul>
+        <li><strong>Abstract interface</strong>: <span class="mono">save_session</span> / <span class="mono">load_session</span> / <span class="mono">delete_session</span>, Agent depends only on interface.</li>
+        <li><strong>Multiple implementations</strong>:<ul>
+          <li><span class="mono">InMemorySessionStore</span>: for dev, dict storage.</li>
+          <li><span class="mono">RedisSessionStore</span>: for production, Redis hash storage (<span class="mono">HSET sessions:{id} history ...</span>).</li>
+          <li><span class="mono">CosmosSessionStore</span>: for Azure users, Cosmos DB document storage.</li>
+          <li><span class="mono">FileSessionStore</span>: single-server, JSON file storage.</li>
+        </ul></li>
+        <li><strong>Auto-serialization</strong>: <span class="mono">Message.to_dict()</span> converts to JSON, stores in backend; on load <span class="mono">from_dict</span> restores.</li>
+        <li><strong>Extensible</strong>: custom backends (e.g., integrate PostgreSQL, MongoDB) just implement <span class="mono">SessionStore</span> interface.</li>
+      </ul></div>
+    </div>
+    <div class="qa">
+      <div class="q">🔀 Alternatives</div>
+      <div class="a"><ul>
+        <li><strong>LangChain</strong>: <span class="mono">RedisChatMessageHistory</span>, <span class="mono">FileChatMessageHistory</span>, etc., but coupled to Memory classes, switching storage requires changing Memory init.</li>
+        <li><strong>OpenAI Assistants</strong>: server-managed, developers can't choose storage backend, can't debug locally.</li>
+        <li><strong>Manual serialization</strong>: write own <span class="mono">json.dump(history, file)</span>, repetitive code, easy to get wrong (forget handling tool calls etc.).</li>
+        <li>MAF <strong>interface + multiple impls</strong>: dev uses memory, production switches to Redis, just one line config change.</li>
+      </ul></div>
+    </div>
+  </div>
+</details>
+
+<details class="accordion">
+  <summary><span class="badge-num">4</span> Context window compaction <span class="hint">click to expand</span></summary>
+  <div class="acc-body">
+    <div class="qa">
+      <div class="q">🧪 Example</div>
+      <div class="a">
+<pre class="code"><span class="kw">from</span> agent_framework.context <span class="kw">import</span> ContextWindowCompactionStrategy
+
+<span class="cm"># Strategy A: sliding window (keep recent N messages)</span>
+strategy = ContextWindowCompactionStrategy.sliding_window(max_messages=20)
+
+<span class="cm"># Strategy B: summarization (old messages summarized into one)</span>
+strategy = ContextWindowCompactionStrategy.summarize(
+    max_tokens=4000,
+    summary_model=<span class="st">"gpt-4o-mini"</span>
+)
+
+<span class="cm"># Strategy C: hybrid (keep system + recent + summarize middle)</span>
+strategy = ContextWindowCompactionStrategy.hybrid(
+    keep_system=<span class="kw">True</span>,
+    keep_recent=10,
+    summarize_older=<span class="kw">True</span>
+)
+
+agent = Agent(
+    client=client,
+    context_window_strategy=strategy
+)
+
+<span class="cm"># After 20 turns, compaction auto-triggers</span>
+session = agent.create_session()
+<span class="kw">for</span> i <span class="kw">in</span> <span class="fn">range</span>(30):
+    <span class="kw">await</span> agent.run(<span class="st">f"Message {i}"</span>, session=session)
+    <span class="cm"># → At turn 21, strategy kicks in: delete oldest or generate summary</span></pre>
+      </div>
+    </div>
+    <div class="qa">
+      <div class="q">❓ Why this matters</div>
+      <div class="a">Conversation history <strong>grows unbounded</strong>, problems:<ul>
+        <li><strong>Token limits</strong>: models have context window caps (e.g., GPT-4 128k tokens), exceeding causes errors or truncation.</li>
+        <li><strong>Cost</strong>: input tokens also billed, longer history = more expensive each call.</li>
+        <li><strong>Latency</strong>: sending and processing more tokens increases latency.</li>
+        <li><strong>Relevance decay</strong>: 50 turns ago may be irrelevant to current question, but still occupies context.</li>
+      </ul>
+      Need <strong>auto-compaction strategies</strong>: control context size without losing key info.</div>
+    </div>
+    <div class="qa">
+      <div class="q">✅ How MAF does it</div>
+      <div class="a"><span class="mono">ContextWindowCompactionStrategy</span> (see <span class="mono">python/src/agent_framework/context/_compaction.py</span>):<ul>
+        <li><strong>Sliding window</strong>: keep recent N messages, delete oldest (good for short-term conversations).</li>
+        <li><strong>Summarization</strong>: summarize old messages into one system message (<span class="st">"Previously user mentioned…"</span>), preserve semantics, reduce tokens.</li>
+        <li><strong>Hybrid strategy</strong>: keep system messages (important instructions) + recent messages (current context) + summarize middle messages.</li>
+        <li><strong>Auto-trigger</strong>: Agent checks history length before <span class="mono">run</span>, calls strategy to compact if over threshold.</li>
+        <li><strong>Configurable</strong>: <span class="mono">max_tokens</span>, <span class="mono">max_messages</span>, <span class="mono">summary_model</span> all tunable.</li>
+      </ul>
+      Developers don't manually manage context; framework auto-optimizes.</div>
+    </div>
+    <div class="qa">
+      <div class="q">🔀 Alternatives</div>
+      <div class="a"><ul>
+        <li><strong>LangChain ConversationSummaryMemory</strong>: calls LLM to generate summary after each turn, but expensive, timing inflexible.</li>
+        <li><strong>Manual truncation</strong>: <span class="mono">messages[-10:]</span> keeps last 10, simple but loses early important info.</li>
+        <li><strong>Vector retrieval</strong>: store history in vector DB, retrieve relevant snippets each time, but needs extra infrastructure.</li>
+        <li>MAF <strong>multiple strategies</strong>: simple cases use sliding window, complex use summarization, can also combine with ContextProvider for vector retrieval.</li>
+      </ul></div>
+    </div>
+  </div>
+</details>
 
 <div class="card key">
   <div class="tag">✅ Key points</div>

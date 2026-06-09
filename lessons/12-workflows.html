@@ -292,14 +292,98 @@ events = <span class="kw">await</span> wf.run(<span class="st">"hello"</span>)  
 </div>
 
 <details class="accordion">
-  <summary><span class="badge-num">1</span> @handler vs @executor 有什么区别？ <span class="hint">点击展开</span></summary>
+  <summary><span class="badge-num">1</span> Executor 两种写法 <span class="hint">点击展开详解</span></summary>
   <div class="acc-body">
-    <div class="qa">
-      <div class="q">🔬 两种写法</div>
-      <div class="a"><span class="mono">@handler</span> 标记<strong>类方法</strong>（在 Executor 子类里），
-        <span class="mono">@executor</span> 标记<strong>独立函数</strong>（自动包成 FunctionExecutor）。
-        功能一样，选哪个看你喜不喜欢写类。</div>
-    </div>
+    <div class="qa"><div class="q">🧪 示例</div><div class="a">
+<strong>Class-based</strong>（Executor 子类 + @handler）：
+<pre class="code"><span class="kw">class</span> <span class="fn">UpperCase</span>(Executor):
+    <span class="nb">@handler</span>
+    <span class="kw">async def</span> <span class="fn">to_upper</span>(self, text: str, ctx: WorkflowContext):
+        <span class="kw">await</span> ctx.send_message(text.upper())</pre>
+<strong>Function-based</strong>（@executor 装饰独立函数）：
+<pre class="code"><span class="nb">@executor</span>(id=<span class="st">&quot;reverse&quot;</span>)
+<span class="kw">async def</span> <span class="fn">reverse</span>(text: str, ctx: WorkflowContext):
+    <span class="kw">await</span> ctx.yield_output(text[::-1])</pre>
+函数式写法会自动包装成 <span class="mono">FunctionExecutor</span>，功能完全等价。</div></div>
+    <div class="qa"><div class="q">❓ 为什么这件事必要</div><div class="a">不同场景有不同诉求：简单节点写一个函数最快，复杂节点需要在类里维护 <span class="mono">__init__</span> 参数、多个 handler、甚至复用继承。
+      两种写法让框架<strong>同时服务脚本级原型和生产级代码</strong>。</div></div>
+    <div class="qa"><div class="q">✅ MAF 的做法与优点</div><div class="a">MAF 让 <span class="mono">@executor</span> 装饰器自动把函数包成 <span class="mono">FunctionExecutor</span>，
+      内部共享同一套 handler 注册和消息分发机制。你可以在<strong>同一张图里混用两种写法</strong>——类节点和函数节点通过边自由连接。</div></div>
+    <div class="qa"><div class="q">🔀 还有什么其他方案</div><div class="a">LangGraph 只支持函数节点（无类继承概念）；
+      Prefect 只支持 <span class="mono">@task</span> 函数。MAF 两者兼备，是更灵活的选择。</div></div>
+  </div>
+</details>
+
+<details class="accordion">
+  <summary><span class="badge-num">2</span> Edge 的高级模式 <span class="hint">点击展开详解</span></summary>
+  <div class="acc-body">
+    <div class="qa"><div class="q">🧪 示例</div><div class="a">
+<pre class="code"><span class="cm"># 1-to-1</span>
+builder.add_edge(node_a, node_b)
+<span class="cm"># 1-to-many (fan-out)</span>
+builder.add_fan_out_edges(splitter, [worker1, worker2, worker3])
+<span class="cm"># many-to-1 (fan-in)</span>
+builder.add_fan_in_edges([worker1, worker2, worker3], aggregator)
+<span class="cm"># 条件分支 (switch-case)</span>
+builder.add_switch_case_edge_group(router, [
+    Case(target=fast_path, condition=<span class="kw">lambda</span> msg: msg.priority == <span class="st">&quot;high&quot;</span>),
+    Default(target=slow_path),
+])
+<span class="cm"># 链式快捷 (等价于连续 add_edge)</span>
+builder.add_chain([step1, step2, step3])</pre></div></div>
+    <div class="qa"><div class="q">❓ 为什么这件事必要</div><div class="a">真实工作流不只是线性管线——你需要并行 map-reduce（fan-out/fan-in）、条件路由（switch-case）等拓扑。
+      如果框架只提供 <span class="mono">add_edge</span>，复杂图的构建代码会非常冗长且易出错。</div></div>
+    <div class="qa"><div class="q">✅ MAF 的做法与优点</div><div class="a">MAF 在 <span class="mono">WorkflowBuilder</span> 上提供五种边方法，覆盖所有常见拓扑。
+      还有 <span class="mono">add_multi_selection_edge_group</span>（动态多选）用于"根据消息内容选择下游子集"的场景。
+      所有方法返回 <span class="mono">Self</span>，支持链式调用。</div></div>
+    <div class="qa"><div class="q">🔀 还有什么其他方案</div><div class="a">Airflow 用 <span class="mono">&gt;&gt;</span> 运算符连边，可读但只支持 1-to-1；
+      LangGraph 用字典声明条件路由。MAF 用显式方法名（<span class="mono">add_fan_out_edges</span>）让拓扑意图一目了然。</div></div>
+  </div>
+</details>
+
+<details class="accordion">
+  <summary><span class="badge-num">3</span> WorkflowContext 的 API <span class="hint">点击展开详解</span></summary>
+  <div class="acc-body">
+    <div class="qa"><div class="q">🧪 示例</div><div class="a">
+<pre class="code"><span class="nb">@handler</span>
+<span class="kw">async def</span> <span class="fn">process</span>(self, msg: str, ctx: WorkflowContext):
+    ctx.set_state(<span class="st">&quot;count&quot;</span>, ctx.get_state(<span class="st">&quot;count&quot;</span>, 0) + 1)  <span class="cm"># 读写共享状态</span>
+    <span class="kw">await</span> ctx.send_message(result, target_id=<span class="st">&quot;next&quot;</span>)  <span class="cm"># 转发给下一节点</span>
+    <span class="kw">await</span> ctx.yield_output(final)  <span class="cm"># 输出最终结果</span>
+    <span class="kw">await</span> ctx.add_event(WorkflowEvent.status(...))  <span class="cm"># 自定义事件</span></pre></div></div>
+    <div class="qa"><div class="q">❓ 为什么这件事必要</div><div class="a"><span class="mono">WorkflowContext</span> 是节点与引擎之间的<strong>唯一通信通道</strong>。
+      没有它，节点无法知道自己的上游是谁（<span class="mono">source_executor_ids</span>）、
+      无法向下游传数据、无法把结果暴露给调用者、也无法操作跨节点的共享状态。</div></div>
+    <div class="qa"><div class="q">✅ MAF 的做法与优点</div><div class="a">Context 提供四大能力：
+      ① <span class="mono">send_message()</span> 向下游传消息（可指定 <span class="mono">target_id</span>）；
+      ② <span class="mono">yield_output()</span> 向调用者输出结果；
+      ③ <span class="mono">get_state/set_state</span> 读写工作流级共享状态；
+      ④ <span class="mono">request_info()</span> 请求外部输入（Human-in-the-Loop）。
+      还有 <span class="mono">is_streaming()</span> 让节点感知当前是否流式运行。</div></div>
+    <div class="qa"><div class="q">🔀 还有什么其他方案</div><div class="a">Temporal 把状态放在 workflow 函数的局部变量里；
+      LangGraph 用全局 State 字典。MAF 选择显式 Context 对象——既不污染函数签名，也不引入全局可变状态。</div></div>
+  </div>
+</details>
+
+<details class="accordion">
+  <summary><span class="badge-num">4</span> workflow.run() 返回值 <span class="hint">点击展开详解</span></summary>
+  <div class="acc-body">
+    <div class="qa"><div class="q">🧪 示例</div><div class="a">
+<pre class="code">result: WorkflowRunResult = <span class="kw">await</span> wf.run(<span class="st">&quot;hello&quot;</span>)
+outputs = result.get_outputs()          <span class="cm"># [&quot;OLLEH&quot;] — 最终结果</span>
+intermediates = result.get_intermediate_outputs()  <span class="cm"># 中间输出</span>
+state = result.get_final_state()        <span class="cm"># WorkflowRunState.IDLE</span>
+<span class="cm"># WorkflowRunResult 本身继承 list[WorkflowEvent]，可直接遍历</span>
+<span class="kw">for</span> event <span class="kw">in</span> result:
+    <span class="fn">print</span>(event.type, event.data)</pre></div></div>
+    <div class="qa"><div class="q">❓ 为什么这件事必要</div><div class="a">工作流执行后，你可能只关心最终输出（<span class="mono">get_outputs</span>），也可能需要调试每一步的事件轨迹。
+      <span class="mono">WorkflowRunResult</span> 同时提供两种视角，让"用"和"调"都方便。</div></div>
+    <div class="qa"><div class="q">✅ MAF 的做法与优点</div><div class="a"><span class="mono">WorkflowRunResult</span> 继承自 <span class="mono">list[WorkflowEvent]</span>，
+      所以你可以当列表遍历所有事件，也可以用语义化方法提取：
+      <span class="mono">get_outputs()</span>（终端输出）、<span class="mono">get_intermediate_outputs()</span>（中间结果）、
+      <span class="mono">get_request_info_events()</span>（HITL 请求）、<span class="mono">status_timeline()</span>（状态变更时间线）。</div></div>
+    <div class="qa"><div class="q">🔀 还有什么其他方案</div><div class="a">Prefect 返回 <span class="mono">FlowRun</span> 对象需要额外 API 查询事件；
+      Airflow 通过 XCom 取中间值。MAF 把事件列表和便捷方法融为一体——一次 <span class="mono">run()</span> 全部到手。</div></div>
   </div>
 </details>
 
@@ -358,14 +442,101 @@ events = <span class="kw">await</span> wf.run(<span class="st">"hello"</span>)  
 </div>
 
 <details class="accordion">
-  <summary><span class="badge-num">1</span> @handler vs @executor? <span class="hint">expand</span></summary>
+  <summary><span class="badge-num">1</span> Two Executor styles <span class="hint">click to expand</span></summary>
   <div class="acc-body">
-    <div class="qa">
-      <div class="q">🔬 Two styles</div>
-      <div class="a"><span class="mono">@handler</span> marks a <strong>class method</strong> (inside an Executor subclass);
-        <span class="mono">@executor</span> marks a <strong>standalone function</strong> (auto-wrapped into a FunctionExecutor).
-        Same capability — pick whichever style you prefer.</div>
-    </div>
+    <div class="qa"><div class="q">🧪 Example</div><div class="a">
+<strong>Class-based</strong> (Executor subclass + @handler):
+<pre class="code"><span class="kw">class</span> <span class="fn">UpperCase</span>(Executor):
+    <span class="nb">@handler</span>
+    <span class="kw">async def</span> <span class="fn">to_upper</span>(self, text: str, ctx: WorkflowContext):
+        <span class="kw">await</span> ctx.send_message(text.upper())</pre>
+<strong>Function-based</strong> (@executor on a standalone function):
+<pre class="code"><span class="nb">@executor</span>(id=<span class="st">&quot;reverse&quot;</span>)
+<span class="kw">async def</span> <span class="fn">reverse</span>(text: str, ctx: WorkflowContext):
+    <span class="kw">await</span> ctx.yield_output(text[::-1])</pre>
+The function style auto-wraps into a <span class="mono">FunctionExecutor</span> — functionally identical.</div></div>
+    <div class="qa"><div class="q">❓ Why this matters</div><div class="a">Different scenarios call for different ergonomics: a quick single-purpose node is easiest as a function;
+      a complex node with init params, multiple handlers, or inheritance is better as a class.
+      Two styles let the framework <strong>serve both prototyping and production code</strong>.</div></div>
+    <div class="qa"><div class="q">✅ How MAF does it</div><div class="a">The <span class="mono">@executor</span> decorator auto-wraps the function into a <span class="mono">FunctionExecutor</span>,
+      sharing the same handler registry and message dispatch mechanism as class-based nodes.
+      You can <strong>mix both styles in the same graph</strong> — class nodes and function nodes connect via edges freely.</div></div>
+    <div class="qa"><div class="q">🔀 Alternatives</div><div class="a">LangGraph supports only function nodes (no class inheritance);
+      Prefect only supports <span class="mono">@task</span> functions. MAF offers both — a more flexible choice.</div></div>
+  </div>
+</details>
+
+<details class="accordion">
+  <summary><span class="badge-num">2</span> Advanced Edge patterns <span class="hint">click to expand</span></summary>
+  <div class="acc-body">
+    <div class="qa"><div class="q">🧪 Example</div><div class="a">
+<pre class="code"><span class="cm"># 1-to-1</span>
+builder.add_edge(node_a, node_b)
+<span class="cm"># 1-to-many (fan-out)</span>
+builder.add_fan_out_edges(splitter, [worker1, worker2, worker3])
+<span class="cm"># many-to-1 (fan-in)</span>
+builder.add_fan_in_edges([worker1, worker2, worker3], aggregator)
+<span class="cm"># conditional routing (switch-case)</span>
+builder.add_switch_case_edge_group(router, [
+    Case(target=fast_path, condition=<span class="kw">lambda</span> msg: msg.priority == <span class="st">&quot;high&quot;</span>),
+    Default(target=slow_path),
+])
+<span class="cm"># chain shorthand (equivalent to consecutive add_edge calls)</span>
+builder.add_chain([step1, step2, step3])</pre></div></div>
+    <div class="qa"><div class="q">❓ Why this matters</div><div class="a">Real workflows aren't just linear pipelines — you need parallel map-reduce (fan-out/fan-in),
+      conditional routing (switch-case), and more. With only <span class="mono">add_edge</span>, complex graph construction becomes verbose and error-prone.</div></div>
+    <div class="qa"><div class="q">✅ How MAF does it</div><div class="a"><span class="mono">WorkflowBuilder</span> provides five edge methods covering all common topologies.
+      There's also <span class="mono">add_multi_selection_edge_group</span> (dynamic multi-select) for "pick a subset of targets based on message content."
+      All methods return <span class="mono">Self</span> for fluent chaining.</div></div>
+    <div class="qa"><div class="q">🔀 Alternatives</div><div class="a">Airflow uses the <span class="mono">&gt;&gt;</span> operator (readable but limited to 1-to-1);
+      LangGraph uses dicts for conditional routing. MAF's explicit method names (<span class="mono">add_fan_out_edges</span>) make topology intent immediately clear.</div></div>
+  </div>
+</details>
+
+<details class="accordion">
+  <summary><span class="badge-num">3</span> WorkflowContext API <span class="hint">click to expand</span></summary>
+  <div class="acc-body">
+    <div class="qa"><div class="q">🧪 Example</div><div class="a">
+<pre class="code"><span class="nb">@handler</span>
+<span class="kw">async def</span> <span class="fn">process</span>(self, msg: str, ctx: WorkflowContext):
+    ctx.set_state(<span class="st">&quot;count&quot;</span>, ctx.get_state(<span class="st">&quot;count&quot;</span>, 0) + 1)  <span class="cm"># read/write shared state</span>
+    <span class="kw">await</span> ctx.send_message(result, target_id=<span class="st">&quot;next&quot;</span>)  <span class="cm"># forward to next node</span>
+    <span class="kw">await</span> ctx.yield_output(final)  <span class="cm"># emit final result</span>
+    <span class="kw">await</span> ctx.add_event(WorkflowEvent.status(...))  <span class="cm"># custom event</span></pre></div></div>
+    <div class="qa"><div class="q">❓ Why this matters</div><div class="a"><span class="mono">WorkflowContext</span> is the <strong>sole communication channel</strong> between a node and the engine.
+      Without it, a node can't discover its upstream (<span class="mono">source_executor_ids</span>),
+      can't forward data downstream, can't expose results, and can't access cross-node shared state.</div></div>
+    <div class="qa"><div class="q">✅ How MAF does it</div><div class="a">The context provides four core capabilities:
+      ① <span class="mono">send_message()</span> forwards data downstream (optionally to a specific <span class="mono">target_id</span>);
+      ② <span class="mono">yield_output()</span> emits results to the caller;
+      ③ <span class="mono">get_state/set_state</span> reads/writes workflow-level shared state;
+      ④ <span class="mono">request_info()</span> requests external input (Human-in-the-Loop).
+      Plus <span class="mono">is_streaming()</span> lets a node adapt behavior for streaming mode.</div></div>
+    <div class="qa"><div class="q">🔀 Alternatives</div><div class="a">Temporal stores state in workflow-function local variables;
+      LangGraph uses a global State dict. MAF chooses an explicit Context object — no function-signature pollution, no global mutable state.</div></div>
+  </div>
+</details>
+
+<details class="accordion">
+  <summary><span class="badge-num">4</span> workflow.run() return value <span class="hint">click to expand</span></summary>
+  <div class="acc-body">
+    <div class="qa"><div class="q">🧪 Example</div><div class="a">
+<pre class="code">result: WorkflowRunResult = <span class="kw">await</span> wf.run(<span class="st">&quot;hello&quot;</span>)
+outputs = result.get_outputs()          <span class="cm"># [&quot;OLLEH&quot;] — final results</span>
+intermediates = result.get_intermediate_outputs()  <span class="cm"># intermediate outputs</span>
+state = result.get_final_state()        <span class="cm"># WorkflowRunState.IDLE</span>
+<span class="cm"># WorkflowRunResult inherits list[WorkflowEvent] — iterate directly</span>
+<span class="kw">for</span> event <span class="kw">in</span> result:
+    <span class="fn">print</span>(event.type, event.data)</pre></div></div>
+    <div class="qa"><div class="q">❓ Why this matters</div><div class="a">After workflow execution, you may only care about the final output (<span class="mono">get_outputs</span>),
+      or you may need to debug the full event trace. <span class="mono">WorkflowRunResult</span> provides both perspectives,
+      making "use it" and "debug it" equally convenient.</div></div>
+    <div class="qa"><div class="q">✅ How MAF does it</div><div class="a"><span class="mono">WorkflowRunResult</span> extends <span class="mono">list[WorkflowEvent]</span>,
+      so you can iterate all events as a list, or use semantic methods:
+      <span class="mono">get_outputs()</span> (terminal outputs), <span class="mono">get_intermediate_outputs()</span> (intermediate results),
+      <span class="mono">get_request_info_events()</span> (HITL requests), <span class="mono">status_timeline()</span> (state change timeline).</div></div>
+    <div class="qa"><div class="q">🔀 Alternatives</div><div class="a">Prefect returns a <span class="mono">FlowRun</span> object requiring extra API calls for events;
+      Airflow uses XCom for intermediate values. MAF folds the event list and convenience methods into one object — a single <span class="mono">run()</span> gives you everything.</div></div>
   </div>
 </details>
 

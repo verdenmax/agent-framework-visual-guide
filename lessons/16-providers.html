@@ -275,13 +275,184 @@ table.t td.mono, table.t td .mono { font-family: ui-monospace, monospace; font-s
 <p>全部用法一样：实例化 ChatClient → <span class="mono">client.as_agent(…)</span> → <span class="mono">agent.run(…)</span>。</p>
 
 <details class="accordion">
-  <summary><span class="badge-num">1</span> Foundry vs OpenAI 有什么区别？ <span class="hint">点击展开</span></summary>
+  <summary><span class="badge-num">1</span> FoundryChatClient 配置 <span class="hint">点击展开详解</span></summary>
   <div class="acc-body">
     <div class="qa">
-      <div class="q">🔬 关键差异</div>
-      <div class="a"><span class="mono">FoundryChatClient</span> 走 <strong>Azure AI Foundry 项目端点</strong>（统一管理模型、记忆、文件等）。
-        <span class="mono">OpenAIChatClient</span> 直连 <strong>OpenAI API 或 Azure OpenAI 端点</strong>。
-        如果你已有 Foundry 项目，推荐 Foundry；否则 OpenAI 最直接。</div>
+      <div class="q">🧪 示例</div>
+      <div class="a">完整配置代码：
+<pre class="code"><span class="kw">from</span> agent_framework_foundry <span class="kw">import</span> FoundryChatClient
+<span class="kw">from</span> azure.identity <span class="kw">import</span> DefaultAzureCredential
+<span class="kw">import</span> os
+
+client = FoundryChatClient(
+    project_endpoint=os.environ[<span class="st">"AZURE_AI_FOUNDRY_PROJECT_ENDPOINT"</span>],
+    model=<span class="st">"gpt-4o"</span>,
+    credential=DefaultAzureCredential()
+)</pre>
+      </div>
+    </div>
+    <div class="qa">
+      <div class="q">❓ 为什么这件事必要</div>
+      <div class="a">Azure AI Foundry 统一管理模型、记忆、文件存储于一个端点下。企业客户通常已有 Foundry 项目，这让他们能直接复用现有基础设施和安全配置。</div>
+    </div>
+    <div class="qa">
+      <div class="q">✅ MAF 的做法与优点</div>
+      <div class="a"><span class="mono">FoundryChatClient</span> 只需三个参数：<span class="mono">project_endpoint</span>、<span class="mono">model</span>、<span class="mono">credential</span>。一次 import，三行配置，完成。底层走 Foundry 的统一 API。</div>
+    </div>
+    <div class="qa">
+      <div class="q">🔀 还有什么其他方案</div>
+      <div class="a">直接调用 Foundry REST API，或用 Azure SDK。MAF 的优势是把这些封装成 ChatClient 接口，切换厂商时不用改 Agent 代码。</div>
+    </div>
+  </div>
+</details>
+
+<details class="accordion">
+  <summary><span class="badge-num">2</span> OpenAIChatClient 配置 <span class="hint">点击展开详解</span></summary>
+  <div class="acc-body">
+    <div class="qa">
+      <div class="q">🧪 示例</div>
+      <div class="a">OpenAI 或 Azure OpenAI 均可：
+<pre class="code"><span class="kw">from</span> agent_framework <span class="kw">import</span> OpenAIChatClient
+
+<span class="cm"># OpenAI</span>
+client = OpenAIChatClient(
+    model=<span class="st">"gpt-4o"</span>,
+    api_key=os.environ[<span class="st">"OPENAI_API_KEY"</span>]
+)
+
+<span class="cm"># Azure OpenAI</span>
+client = OpenAIChatClient(
+    model=<span class="st">"gpt-4o"</span>,
+    base_url=<span class="st">"https://your-resource.openai.azure.com/"</span>,
+    api_key=os.environ[<span class="st">"AZURE_OPENAI_KEY"</span>]
+)</pre>
+      </div>
+    </div>
+    <div class="qa">
+      <div class="q">❓ 为什么这件事必要</div>
+      <div class="a">OpenAI 是最常见的起点。Azure OpenAI 则增加企业级安全（VNet、托管身份等）。许多团队从 OpenAI 开始原型，之后迁移到 Azure OpenAI。</div>
+    </div>
+    <div class="qa">
+      <div class="q">✅ MAF 的做法与优点</div>
+      <div class="a">内置于核心包（无需额外安装）。通过 <span class="mono">base_url</span> 参数同时支持 OpenAI 和 Azure OpenAI。接口完全相同。</div>
+    </div>
+    <div class="qa">
+      <div class="q">🔀 还有什么其他方案</div>
+      <div class="a">直接用 <span class="mono">openai</span> SDK，或用 LiteLLM 代理。MAF 的优势是与其他厂商统一接口，切换时不用重写 Agent 逻辑。</div>
+    </div>
+  </div>
+</details>
+
+<details class="accordion">
+  <summary><span class="badge-num">3</span> AnthropicChatClient 配置 <span class="hint">点击展开详解</span></summary>
+  <div class="acc-body">
+    <div class="qa">
+      <div class="q">🧪 示例</div>
+      <div class="a">先安装包，再配置：
+<pre class="code"><span class="cm"># 安装</span>
+pip install agent-framework-anthropic
+
+<span class="cm"># 使用</span>
+<span class="kw">from</span> agent_framework_anthropic <span class="kw">import</span> AnthropicChatClient
+
+client = AnthropicChatClient(
+    model=<span class="st">"claude-sonnet-4-5"</span>,
+    api_key=os.environ[<span class="st">"ANTHROPIC_API_KEY"</span>]
+)
+<span class="cm"># 也可用 claude-haiku-3-5 等其他模型</span></pre>
+      </div>
+    </div>
+    <div class="qa">
+      <div class="q">❓ 为什么这件事必要</div>
+      <div class="a">Claude 模型在长上下文和仔细推理方面表现优异。许多团队需要厂商多样性来降低风险、比较质量或应对某一厂商的限制。</div>
+    </div>
+    <div class="qa">
+      <div class="q">✅ MAF 的做法与优点</div>
+      <div class="a">独立包保持核心轻量。同样的 <span class="mono">as_agent()</span> → <span class="mono">run()</span> 模式。Agent 代码与 OpenAI 版本完全一样。</div>
+    </div>
+    <div class="qa">
+      <div class="q">🔀 还有什么其他方案</div>
+      <div class="a">直接用 <span class="mono">anthropic</span> SDK，或用 AWS Bedrock（也支持 Claude）。MAF 统一了接口，让切换变成一行代码的事。</div>
+    </div>
+  </div>
+</details>
+
+<details class="accordion">
+  <summary><span class="badge-num">4</span> OllamaChatClient 配置 <span class="hint">点击展开详解</span></summary>
+  <div class="acc-body">
+    <div class="qa">
+      <div class="q">🧪 示例</div>
+      <div class="a">本地运行 Ollama，无需 API key：
+<pre class="code"><span class="cm"># 1. 安装 Ollama（本地）并拉取模型</span>
+ollama pull llama3.1
+
+<span class="cm"># 2. Python 代码</span>
+<span class="kw">from</span> agent_framework_ollama <span class="kw">import</span> OllamaChatClient
+
+client = OllamaChatClient(
+    model=<span class="st">"llama3.1"</span>,
+    endpoint=<span class="st">"http://localhost:11434"</span>  <span class="cm"># 默认值</span>
+)</pre>
+      </div>
+    </div>
+    <div class="qa">
+      <div class="q">❓ 为什么这件事必要</div>
+      <div class="a">本地模型 = 零 API 成本、数据不离开本地。适合开发、隐私敏感场景、或无法访问云端 API 的环境。</div>
+    </div>
+    <div class="qa">
+      <div class="q">✅ MAF 的做法与优点</div>
+      <div class="a">MAF 对本地模型和云端模型一视同仁。同样的 Agent 代码可以在 Ollama 或 GPT-4o 上运行，只需切换 client 实例。</div>
+    </div>
+    <div class="qa">
+      <div class="q">🔀 还有什么其他方案</div>
+      <div class="a">vLLM、llama.cpp 服务器、LocalAI。Ollama 是最简单的开发选项，但 MAF 的抽象意味着你也可以写其他本地后端的 ChatClient。</div>
+    </div>
+  </div>
+</details>
+
+<details class="accordion">
+  <summary><span class="badge-num">5</span> 切换厂商的实际演示 <span class="hint">点击展开详解</span></summary>
+  <div class="acc-body">
+    <div class="qa">
+      <div class="q">🧪 示例</div>
+      <div class="a">同一个 Agent 定义，只换 client 一行：
+<pre class="code"><span class="cm"># 变体 1：OpenAI</span>
+client = OpenAIChatClient(model=<span class="st">"gpt-4o"</span>, api_key=...)
+agent = client.as_agent(
+    name=<span class="st">"Assistant"</span>,
+    instructions=<span class="st">"You are helpful."</span>,
+    tools=[web_search]
+)
+
+<span class="cm"># 变体 2：Anthropic</span>
+client = AnthropicChatClient(model=<span class="st">"claude-sonnet-4-5"</span>, api_key=...)
+agent = client.as_agent(
+    name=<span class="st">"Assistant"</span>,
+    instructions=<span class="st">"You are helpful."</span>,
+    tools=[web_search]
+)
+
+<span class="cm"># 变体 3：Ollama</span>
+client = OllamaChatClient(model=<span class="st">"llama3.1"</span>)
+agent = client.as_agent(
+    name=<span class="st">"Assistant"</span>,
+    instructions=<span class="st">"You are helpful."</span>,
+    tools=[web_search]
+)</pre>
+<span class="cm"># Agent 定义（name、instructions、tools、middleware）完全相同！</span>
+      </div>
+    </div>
+    <div class="qa">
+      <div class="q">❓ 为什么这件事必要</div>
+      <div class="a">厂商锁定成本高昂。能用一行代码切换是竞争优势：价格变动时切换、某厂商限流时切换、对比质量时切换。</div>
+    </div>
+    <div class="qa">
+      <div class="q">✅ MAF 的做法与优点</div>
+      <div class="a">MAF 的 <span class="mono">ChatClient</span> 抽象意味着 Agent 逻辑 100% 厂商无关。只有 client 实例化那一行需要改。工具、中间件、编排全部不变。</div>
+    </div>
+    <div class="qa">
+      <div class="q">🔀 还有什么其他方案</div>
+      <div class="a">LiteLLM 代理（增加网络跳转），LangChain 的 ChatModel（类似思路但更重）。MAF 是最干净的抽象。</div>
     </div>
   </div>
 </details>
@@ -323,13 +494,184 @@ This lesson surveys the main provider packages and shows the <strong>import-to-r
 <p>Same pattern for all: instantiate ChatClient → <span class="mono">client.as_agent(…)</span> → <span class="mono">agent.run(…)</span>.</p>
 
 <details class="accordion">
-  <summary><span class="badge-num">1</span> Foundry vs OpenAI? <span class="hint">expand</span></summary>
+  <summary><span class="badge-num">1</span> FoundryChatClient configuration <span class="hint">expand</span></summary>
   <div class="acc-body">
     <div class="qa">
-      <div class="q">🔬 Key difference</div>
-      <div class="a"><span class="mono">FoundryChatClient</span> uses an <strong>Azure AI Foundry project endpoint</strong>
-        (unified model, memory, file management). <span class="mono">OpenAIChatClient</span> connects directly to the
-        <strong>OpenAI API or Azure OpenAI endpoint</strong>. If you have a Foundry project, use Foundry; otherwise OpenAI is simplest.</div>
+      <div class="q">🧪 Example</div>
+      <div class="a">Full setup code:
+<pre class="code"><span class="kw">from</span> agent_framework_foundry <span class="kw">import</span> FoundryChatClient
+<span class="kw">from</span> azure.identity <span class="kw">import</span> DefaultAzureCredential
+<span class="kw">import</span> os
+
+client = FoundryChatClient(
+    project_endpoint=os.environ[<span class="st">&quot;AZURE_AI_FOUNDRY_PROJECT_ENDPOINT&quot;</span>],
+    model=<span class="st">&quot;gpt-4o&quot;</span>,
+    credential=DefaultAzureCredential()
+)</pre>
+      </div>
+    </div>
+    <div class="qa">
+      <div class="q">❓ Why this matters</div>
+      <div class="a">Azure AI Foundry unifies model management, memory, and file storage under one endpoint. Enterprise customers already have Foundry projects, so they can reuse existing infrastructure and security configurations.</div>
+    </div>
+    <div class="qa">
+      <div class="q">✅ How MAF does it</div>
+      <div class="a"><span class="mono">FoundryChatClient</span> takes three parameters: <span class="mono">project_endpoint</span>, <span class="mono">model</span>, <span class="mono">credential</span>. One import, three params, done.</div>
+    </div>
+    <div class="qa">
+      <div class="q">🔀 Alternatives</div>
+      <div class="a">Direct REST calls to Foundry API, or Azure SDK directly. MAF wraps it into the ChatClient interface so you can swap providers.</div>
+    </div>
+  </div>
+</details>
+
+<details class="accordion">
+  <summary><span class="badge-num">2</span> OpenAIChatClient configuration <span class="hint">expand</span></summary>
+  <div class="acc-body">
+    <div class="qa">
+      <div class="q">🧪 Example</div>
+      <div class="a">Works with both OpenAI and Azure OpenAI:
+<pre class="code"><span class="kw">from</span> agent_framework <span class="kw">import</span> OpenAIChatClient
+
+<span class="cm"># OpenAI</span>
+client = OpenAIChatClient(
+    model=<span class="st">&quot;gpt-4o&quot;</span>,
+    api_key=os.environ[<span class="st">&quot;OPENAI_API_KEY&quot;</span>]
+)
+
+<span class="cm"># Azure OpenAI</span>
+client = OpenAIChatClient(
+    model=<span class="st">&quot;gpt-4o&quot;</span>,
+    base_url=<span class="st">&quot;https://your-resource.openai.azure.com/&quot;</span>,
+    api_key=os.environ[<span class="st">&quot;AZURE_OPENAI_KEY&quot;</span>]
+)</pre>
+      </div>
+    </div>
+    <div class="qa">
+      <div class="q">❓ Why this matters</div>
+      <div class="a">OpenAI is the most common starting point. Azure OpenAI adds enterprise security (VNet, managed identity). Many teams prototype with OpenAI, then migrate to Azure OpenAI.</div>
+    </div>
+    <div class="qa">
+      <div class="q">✅ How MAF does it</div>
+      <div class="a">Built into core package (no extra install). Works with both OpenAI and Azure OpenAI via <span class="mono">base_url</span>. Identical interface.</div>
+    </div>
+    <div class="qa">
+      <div class="q">🔀 Alternatives</div>
+      <div class="a"><span class="mono">openai</span> SDK directly, LiteLLM. MAF's advantage: same interface as all other providers.</div>
+    </div>
+  </div>
+</details>
+
+<details class="accordion">
+  <summary><span class="badge-num">3</span> AnthropicChatClient configuration <span class="hint">expand</span></summary>
+  <div class="acc-body">
+    <div class="qa">
+      <div class="q">🧪 Example</div>
+      <div class="a">Install package, then configure:
+<pre class="code"><span class="cm"># Install</span>
+pip install agent-framework-anthropic
+
+<span class="cm"># Use</span>
+<span class="kw">from</span> agent_framework_anthropic <span class="kw">import</span> AnthropicChatClient
+
+client = AnthropicChatClient(
+    model=<span class="st">&quot;claude-sonnet-4-5&quot;</span>,
+    api_key=os.environ[<span class="st">&quot;ANTHROPIC_API_KEY&quot;</span>]
+)
+<span class="cm"># Also: claude-haiku-3-5, etc.</span></pre>
+      </div>
+    </div>
+    <div class="qa">
+      <div class="q">❓ Why this matters</div>
+      <div class="a">Claude models excel at long context and careful reasoning. Many teams want provider diversity to reduce risk, compare quality, or work around limits from one vendor.</div>
+    </div>
+    <div class="qa">
+      <div class="q">✅ How MAF does it</div>
+      <div class="a">Separate package keeps core lightweight. Same <span class="mono">as_agent()</span> → <span class="mono">run()</span> pattern. Agent code identical to OpenAI version.</div>
+    </div>
+    <div class="qa">
+      <div class="q">🔀 Alternatives</div>
+      <div class="a"><span class="mono">anthropic</span> SDK directly, AWS Bedrock (which also supports Claude). MAF unifies the interface.</div>
+    </div>
+  </div>
+</details>
+
+<details class="accordion">
+  <summary><span class="badge-num">4</span> OllamaChatClient configuration <span class="hint">expand</span></summary>
+  <div class="acc-body">
+    <div class="qa">
+      <div class="q">🧪 Example</div>
+      <div class="a">Run Ollama locally, no API key needed:
+<pre class="code"><span class="cm"># 1. Install Ollama (locally) and pull model</span>
+ollama pull llama3.1
+
+<span class="cm"># 2. Python code</span>
+<span class="kw">from</span> agent_framework_ollama <span class="kw">import</span> OllamaChatClient
+
+client = OllamaChatClient(
+    model=<span class="st">&quot;llama3.1&quot;</span>,
+    endpoint=<span class="st">&quot;http://localhost:11434&quot;</span>  <span class="cm"># default</span>
+)</pre>
+      </div>
+    </div>
+    <div class="qa">
+      <div class="q">❓ Why this matters</div>
+      <div class="a">Local models = no API costs, no data leaving your machine. Great for development and privacy-sensitive use cases.</div>
+    </div>
+    <div class="qa">
+      <div class="q">✅ How MAF does it</div>
+      <div class="a">MAF treats local models identically to cloud ones. Same agent code works with Ollama or GPT-4o, just swap the client.</div>
+    </div>
+    <div class="qa">
+      <div class="q">🔀 Alternatives</div>
+      <div class="a">vLLM, llama.cpp server, LocalAI. Ollama is simplest for development, but MAF's abstraction means you can write other local backend ChatClients.</div>
+    </div>
+  </div>
+</details>
+
+<details class="accordion">
+  <summary><span class="badge-num">5</span> Switching providers demo <span class="hint">expand</span></summary>
+  <div class="acc-body">
+    <div class="qa">
+      <div class="q">🧪 Example</div>
+      <div class="a">Same Agent definition, only swap the client line:
+<pre class="code"><span class="cm"># Variant 1: OpenAI</span>
+client = OpenAIChatClient(model=<span class="st">&quot;gpt-4o&quot;</span>, api_key=...)
+agent = client.as_agent(
+    name=<span class="st">&quot;Assistant&quot;</span>,
+    instructions=<span class="st">&quot;You are helpful.&quot;</span>,
+    tools=[web_search]
+)
+
+<span class="cm"># Variant 2: Anthropic</span>
+client = AnthropicChatClient(model=<span class="st">&quot;claude-sonnet-4-5&quot;</span>, api_key=...)
+agent = client.as_agent(
+    name=<span class="st">&quot;Assistant&quot;</span>,
+    instructions=<span class="st">&quot;You are helpful.&quot;</span>,
+    tools=[web_search]
+)
+
+<span class="cm"># Variant 3: Ollama</span>
+client = OllamaChatClient(model=<span class="st">&quot;llama3.1&quot;</span>)
+agent = client.as_agent(
+    name=<span class="st">&quot;Assistant&quot;</span>,
+    instructions=<span class="st">&quot;You are helpful.&quot;</span>,
+    tools=[web_search]
+)</pre>
+<span class="cm"># Agent definition (name, instructions, tools, middleware) identical!</span>
+      </div>
+    </div>
+    <div class="qa">
+      <div class="q">❓ Why this matters</div>
+      <div class="a">Vendor lock-in is expensive. Being able to switch with one line change is a competitive advantage: switch when prices change, when one vendor rate-limits you, or to compare quality.</div>
+    </div>
+    <div class="qa">
+      <div class="q">✅ How MAF does it</div>
+      <div class="a">MAF's <span class="mono">ChatClient</span> abstraction means agent logic is 100% provider-independent. Only the client instantiation changes. Tools, middleware, orchestration all stay the same.</div>
+    </div>
+    <div class="qa">
+      <div class="q">🔀 Alternatives</div>
+      <div class="a">LiteLLM proxy (adds a network hop), LangChain's ChatModel (similar idea but heavier). MAF is the cleanest abstraction.</div>
     </div>
   </div>
 </details>

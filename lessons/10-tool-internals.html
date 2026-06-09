@@ -280,14 +280,109 @@ table.t td.mono, table.t td .mono { font-family: ui-monospace, monospace; font-s
 </div>
 
 <details class="accordion">
-  <summary><span class="badge-num">1</span> FunctionTool 里装了什么？ <span class="hint">点击展开</span></summary>
+  <summary><span class="badge-num">1</span> FunctionTool 里装了什么？ <span class="hint">点击展开详解</span></summary>
   <div class="acc-body">
-    <div class="qa">
-      <div class="q">🔬 核心属性</div>
-      <div class="a"><span class="mono">FunctionTool</span> 持有：原始函数引用、生成的 JSON Schema、
-        <span class="mono">approval_mode</span>（调用前是否需要人工审批）、函数名、描述。
-        <span class="mono">@tool</span> 装饰器（<span class="mono">_tools.py:1145</span>）是构造 <span class="mono">FunctionTool</span> 的语法糖。</div>
-    </div>
+    <div class="qa"><div class="q">🧪 示例</div><div class="a"><span class="mono">FunctionTool</span>（<span class="mono">_tools.py:240</span>）持有：原始函数引用、生成的 JSON Schema、
+      <span class="mono">approval_mode</span>（调用前是否需要人工审批）、函数名、描述。
+      <span class="mono">@tool</span>（<span class="mono">_tools.py:1145</span>）是构造 <span class="mono">FunctionTool</span> 的语法糖。</div></div>
+    <div class="qa"><div class="q">❓ 为什么这件事必要</div><div class="a">知道 <span class="mono">FunctionTool</span> 的结构，才能理解 schema 是怎么生成的、
+      执行时参数怎么验证的、<span class="mono">approval_mode</span> 在哪里拦截。调试工具调用问题必须从这里入手。</div></div>
+    <div class="qa"><div class="q">✅ MAF 的做法与优点</div><div class="a"><span class="mono">FunctionTool</span> 把函数元信息（名字、描述、schema）和运行时行为
+      （执行、审批、序列化）封装在同一个对象里，是"函数即工具"哲学的载体。</div></div>
+    <div class="qa"><div class="q">🔀 还有什么其他方案</div><div class="a">有的框架用 dict 描述工具（无类型安全）；
+      有的让你手写 JSON Schema。MAF 从类型注解自动生成 schema，消除"代码与 schema 不一致"的风险。</div></div>
+  </div>
+</details>
+
+<details class="accordion">
+  <summary><span class="badge-num">2</span> JSON Schema 长什么样 <span class="hint">点击展开详解</span></summary>
+  <div class="acc-body">
+    <div class="qa"><div class="q">🧪 示例</div><div class="a">一个 <span class="mono">@tool</span> 函数：
+<pre class="code"><span class="nb">@tool</span>
+<span class="kw">def</span> <span class="fn">get_weather</span>(city: Annotated[str, Field(description=<span class="st">&quot;城市名&quot;</span>)]) -&gt; str:
+    <span class="st">&quot;&quot;&quot;查询天气&quot;&quot;&quot;</span>
+    ...</pre>
+      自动生成的 schema（简化）：
+<pre class="code">{
+  <span class="st">&quot;name&quot;</span>: <span class="st">&quot;get_weather&quot;</span>,
+  <span class="st">&quot;description&quot;</span>: <span class="st">&quot;查询天气&quot;</span>,
+  <span class="st">&quot;parameters&quot;</span>: {
+    <span class="st">&quot;type&quot;</span>: <span class="st">&quot;object&quot;</span>,
+    <span class="st">&quot;properties&quot;</span>: {
+      <span class="st">&quot;city&quot;</span>: {<span class="st">&quot;type&quot;</span>: <span class="st">&quot;string&quot;</span>, <span class="st">&quot;description&quot;</span>: <span class="st">&quot;城市名&quot;</span>}
+    },
+    <span class="st">&quot;required&quot;</span>: [<span class="st">&quot;city&quot;</span>]
+  }
+}</pre></div></div>
+    <div class="qa"><div class="q">❓ 为什么这件事必要</div><div class="a">模型看到的就是这份 JSON Schema——如果描述不清楚或类型不对，
+      模型就会生成错误的参数。理解 schema 结构，才知道如何写出"对模型友好"的工具。</div></div>
+    <div class="qa"><div class="q">✅ MAF 的做法与优点</div><div class="a">利用 <span class="mono">Annotated[..., Field(description=...)]</span>
+      和 Python 类型注解自动构建 schema。docstring 变成 <span class="mono">description</span>，参数类型变成 JSON 类型——
+      <strong>代码就是文档</strong>，永远不会过期。</div></div>
+    <div class="qa"><div class="q">🔀 还有什么其他方案</div><div class="a">手写 JSON Schema（容易过期）；用 Pydantic model 定义参数
+      （更显式但更啰嗦）。MAF 的 <span class="mono">@tool</span> + 类型注解方案最简洁，且和 Pydantic 兼容。</div></div>
+  </div>
+</details>
+
+<details class="accordion">
+  <summary><span class="badge-num">3</span> function_call Content 的结构 <span class="hint">点击展开详解</span></summary>
+  <div class="acc-body">
+    <div class="qa"><div class="q">🧪 示例</div><div class="a">当模型决定调用工具时，回复的 <span class="mono">Content</span> 里会有一个 <span class="mono">function_call</span>：
+<pre class="code"><span class="cm"># 模型回复中的 Content（简化）</span>
+Content(
+  type=<span class="st">&quot;function_call&quot;</span>,
+  name=<span class="st">&quot;get_weather&quot;</span>,
+  id=<span class="st">&quot;call_abc123&quot;</span>,
+  arguments=<span class="st">'{&quot;city&quot;: &quot;北京&quot;}'</span>  <span class="cm"># JSON 字符串！</span>
+)</pre>
+      注意 <span class="mono">arguments</span> 是 <strong>JSON 字符串</strong>，不是 dict——框架负责反序列化。</div></div>
+    <div class="qa"><div class="q">❓ 为什么这件事必要</div><div class="a">理解这个结构才能调试"模型返回了工具调用但执行失败"的问题——
+      通常是 <span class="mono">arguments</span> 的 JSON 格式不对，或者 <span class="mono">name</span> 和注册的工具名不匹配。</div></div>
+    <div class="qa"><div class="q">✅ MAF 的做法与优点</div><div class="a">框架自动：① 从 <span class="mono">arguments</span> JSON 字符串反序列化为 Python 对象，
+      ② 用生成的 schema 做验证，③ 调用函数，④ 把返回值包装成 <span class="mono">function_result</span> Content 回灌。
+      开发者无需手动处理任何序列化/反序列化。</div></div>
+    <div class="qa"><div class="q">🔀 还有什么其他方案</div><div class="a">有的框架要求开发者自己解析 JSON 参数（容易出错）；
+      有的用 Protocol Buffer（太重）。MAF 的自动 JSON ↔ Python 转换是最实用的方案。</div></div>
+  </div>
+</details>
+
+<details class="accordion">
+  <summary><span class="badge-num">4</span> FunctionTool 的执行过程 <span class="hint">点击展开详解</span></summary>
+  <div class="acc-body">
+    <div class="qa"><div class="q">🧪 示例</div><div class="a"><span class="mono">FunctionTool.invoke()</span>（<span class="mono">_tools.py:574</span>）的执行步骤：
+<pre class="code"><span class="cm">1. 验证参数</span> → arguments 对照 schema 检查类型
+<span class="cm">2. 创建 FunctionInvocationContext</span>
+<span class="cm">3. 合并参数</span> → 把 context 参数注入 kwargs
+<span class="cm">4. 调用 _invoke_function()</span> → 执行你的 Python 函数
+<span class="cm">5. 解析结果</span> → result_parser 或 parse_result()
+<span class="cm">6. 返回 list[Content]</span> → 包装为 function_result</pre></div></div>
+    <div class="qa"><div class="q">❓ 为什么这件事必要</div><div class="a">出错时（参数验证失败、函数抛异常、结果解析错误），需要知道在哪一步出了问题。
+      <span class="mono">invoke()</span> 的 6 步流水线给你精确的排查路径。</div></div>
+    <div class="qa"><div class="q">✅ MAF 的做法与优点</div><div class="a">验证发生在调用之前，提前拦截非法参数。
+      如果启用了 observability（遥测），每次 <span class="mono">invoke()</span> 会创建 span 和 histogram，
+      自动记录执行时间和异常——无需额外代码就有生产级监控。</div></div>
+    <div class="qa"><div class="q">🔀 还有什么其他方案</div><div class="a">有的框架在调用时才验证（报错晚）；
+      有的不做结果解析（直接返回原始值）。MAF 的"先验证 → 再调用 → 后解析"三段式最健壮。</div></div>
+  </div>
+</details>
+
+<details class="accordion">
+  <summary><span class="badge-num">5</span> 并行工具调用 <span class="hint">点击展开详解</span></summary>
+  <div class="acc-body">
+    <div class="qa"><div class="q">🧪 示例</div><div class="a">当模型一次返回多个 <span class="mono">function_call</span>（如同时查天气和汇率），
+      框架在 <span class="mono">_try_execute_function_calls()</span>（<span class="mono">_tools.py:1655</span>）中用
+      <span class="mono">asyncio.gather()</span> 并行执行所有调用：
+<pre class="code">results = <span class="kw">await</span> asyncio.gather(*[
+    invoke_with_termination_handling(fc, idx)
+    <span class="kw">for</span> idx, fc <span class="kw">in</span> enumerate(function_calls)
+])</pre></div></div>
+    <div class="qa"><div class="q">❓ 为什么这件事必要</div><div class="a">如果 3 个工具各需 1 秒，串行要 3 秒，并行只要 1 秒。
+      对于 I/O 密集型工具（API 调用、数据库查询），并行执行能<strong>大幅降低延迟</strong>。</div></div>
+    <div class="qa"><div class="q">✅ MAF 的做法与优点</div><div class="a">用 <span class="mono">asyncio.gather()</span> 实现真正并发。
+      每个调用独立包裹异常处理（<span class="mono">invoke_with_termination_handling</span>），
+      一个工具失败不会影响其他工具。返回值是 <span class="mono">(list[Content], should_terminate)</span> 元组。</div></div>
+    <div class="qa"><div class="q">🔀 还有什么其他方案</div><div class="a">线程池（<span class="mono">ThreadPoolExecutor</span>）适合 CPU 密集型但对异步不友好；
+      串行执行最简单但最慢。MAF 选择 <span class="mono">asyncio.gather()</span>，完美适配 I/O 密集场景且与框架的 async 架构一致。</div></div>
   </div>
 </details>
 
@@ -336,13 +431,108 @@ Python function to JSON Schema and back through the model's <strong>full round-t
 <details class="accordion">
   <summary><span class="badge-num">1</span> What's inside a FunctionTool? <span class="hint">expand</span></summary>
   <div class="acc-body">
-    <div class="qa">
-      <div class="q">🔬 Core attributes</div>
-      <div class="a"><span class="mono">FunctionTool</span> holds: the original function reference, the generated
-        JSON Schema, <span class="mono">approval_mode</span> (whether human approval is needed before invocation),
-        the function name and description.
-        <span class="mono">@tool</span> (<span class="mono">_tools.py:1145</span>) is syntactic sugar for constructing a <span class="mono">FunctionTool</span>.</div>
-    </div>
+    <div class="qa"><div class="q">🧪 Example</div><div class="a"><span class="mono">FunctionTool</span> (<span class="mono">_tools.py:240</span>) holds: the original function reference,
+      the generated JSON Schema, <span class="mono">approval_mode</span> (whether human approval is needed before invocation),
+      the function name and description.
+      <span class="mono">@tool</span> (<span class="mono">_tools.py:1145</span>) is syntactic sugar for constructing a <span class="mono">FunctionTool</span>.</div></div>
+    <div class="qa"><div class="q">❓ Why this matters</div><div class="a">Knowing <span class="mono">FunctionTool</span>'s structure helps you understand how schemas are generated,
+      how arguments are validated at execution, and where <span class="mono">approval_mode</span> intercepts. Debugging tool calls starts here.</div></div>
+    <div class="qa"><div class="q">✅ How MAF does it</div><div class="a"><span class="mono">FunctionTool</span> bundles function metadata (name, description, schema) and runtime behavior
+      (execution, approval, serialisation) in one object — the carrier of the "function is a tool" philosophy.</div></div>
+    <div class="qa"><div class="q">🔀 Alternatives</div><div class="a">Some frameworks describe tools with dicts (no type safety);
+      others require hand-written JSON Schema. MAF auto-generates schemas from type annotations, eliminating "code vs schema drift".</div></div>
+  </div>
+</details>
+
+<details class="accordion">
+  <summary><span class="badge-num">2</span> What the JSON Schema looks like <span class="hint">expand</span></summary>
+  <div class="acc-body">
+    <div class="qa"><div class="q">🧪 Example</div><div class="a">A <span class="mono">@tool</span> function:
+<pre class="code"><span class="nb">@tool</span>
+<span class="kw">def</span> <span class="fn">get_weather</span>(city: Annotated[str, Field(description=<span class="st">&quot;city name&quot;</span>)]) -&gt; str:
+    <span class="st">&amp;quot;&amp;quot;&amp;quot;Look up weather&amp;quot;&amp;quot;&amp;quot;</span>
+    ...</pre>
+      Auto-generated schema (simplified):
+<pre class="code">{
+  <span class="st">&quot;name&quot;</span>: <span class="st">&quot;get_weather&quot;</span>,
+  <span class="st">&quot;description&quot;</span>: <span class="st">&quot;Look up weather&quot;</span>,
+  <span class="st">&quot;parameters&quot;</span>: {
+    <span class="st">&quot;type&quot;</span>: <span class="st">&quot;object&quot;</span>,
+    <span class="st">&quot;properties&quot;</span>: {
+      <span class="st">&quot;city&quot;</span>: {<span class="st">&quot;type&quot;</span>: <span class="st">&quot;string&quot;</span>, <span class="st">&quot;description&quot;</span>: <span class="st">&quot;city name&quot;</span>}
+    },
+    <span class="st">&quot;required&quot;</span>: [<span class="st">&quot;city&quot;</span>]
+  }
+}</pre></div></div>
+    <div class="qa"><div class="q">❓ Why this matters</div><div class="a">The model sees exactly this JSON Schema — if the description is unclear or the type is wrong,
+      the model will generate incorrect arguments. Understanding schema structure helps you write "model-friendly" tools.</div></div>
+    <div class="qa"><div class="q">✅ How MAF does it</div><div class="a">Uses <span class="mono">Annotated[..., Field(description=...)]</span>
+      and Python type hints to auto-build the schema. Docstrings become <span class="mono">description</span>, param types become JSON types —
+      <strong>code IS documentation</strong>, never stale.</div></div>
+    <div class="qa"><div class="q">🔀 Alternatives</div><div class="a">Hand-write JSON Schema (goes stale easily); use a Pydantic model for params
+      (more explicit but more verbose). MAF's <span class="mono">@tool</span> + type-hints approach is the most concise and Pydantic-compatible.</div></div>
+  </div>
+</details>
+
+<details class="accordion">
+  <summary><span class="badge-num">3</span> function_call Content structure <span class="hint">expand</span></summary>
+  <div class="acc-body">
+    <div class="qa"><div class="q">🧪 Example</div><div class="a">When the model decides to call a tool, its reply <span class="mono">Content</span> contains a <span class="mono">function_call</span>:
+<pre class="code"><span class="cm"># Content in the model's reply (simplified)</span>
+Content(
+  type=<span class="st">&quot;function_call&quot;</span>,
+  name=<span class="st">&quot;get_weather&quot;</span>,
+  id=<span class="st">&quot;call_abc123&quot;</span>,
+  arguments=<span class="st">'{&quot;city&quot;: &quot;Beijing&quot;}'</span>  <span class="cm"># JSON string!</span>
+)</pre>
+      Note: <span class="mono">arguments</span> is a <strong>JSON string</strong>, not a dict — the framework handles deserialisation.</div></div>
+    <div class="qa"><div class="q">❓ Why this matters</div><div class="a">Understanding this structure is key to debugging "model returned a tool call but execution failed" —
+      usually the <span class="mono">arguments</span> JSON is malformed, or the <span class="mono">name</span> doesn't match a registered tool.</div></div>
+    <div class="qa"><div class="q">✅ How MAF does it</div><div class="a">The framework automatically: ① deserialises the <span class="mono">arguments</span> JSON string to Python objects,
+      ② validates against the generated schema, ③ calls the function, ④ wraps the return value as <span class="mono">function_result</span> Content.
+      Developers never touch serialisation/deserialisation.</div></div>
+    <div class="qa"><div class="q">🔀 Alternatives</div><div class="a">Some frameworks require devs to parse JSON arguments themselves (error-prone);
+      others use Protocol Buffers (too heavy). MAF's automatic JSON ↔ Python conversion is the most practical approach.</div></div>
+  </div>
+</details>
+
+<details class="accordion">
+  <summary><span class="badge-num">4</span> FunctionTool execution process <span class="hint">expand</span></summary>
+  <div class="acc-body">
+    <div class="qa"><div class="q">🧪 Example</div><div class="a"><span class="mono">FunctionTool.invoke()</span> (<span class="mono">_tools.py:574</span>) execution steps:
+<pre class="code"><span class="cm">1. Validate arguments</span> → check types against schema
+<span class="cm">2. Create FunctionInvocationContext</span>
+<span class="cm">3. Merge arguments</span> → inject context param into kwargs
+<span class="cm">4. Call _invoke_function()</span> → execute your Python function
+<span class="cm">5. Parse result</span> → result_parser or parse_result()
+<span class="cm">6. Return list[Content]</span> → wrap as function_result</pre></div></div>
+    <div class="qa"><div class="q">❓ Why this matters</div><div class="a">When things go wrong (argument validation fails, function throws, result parsing errors),
+      you need to know which step broke. The 6-step pipeline gives you a precise debugging path.</div></div>
+    <div class="qa"><div class="q">✅ How MAF does it</div><div class="a">Validation happens before invocation, catching illegal arguments early.
+      With observability enabled, each <span class="mono">invoke()</span> creates a span and histogram,
+      automatically recording execution time and exceptions — production-grade monitoring with zero extra code.</div></div>
+    <div class="qa"><div class="q">🔀 Alternatives</div><div class="a">Some frameworks validate only at call time (late errors);
+      others skip result parsing (return raw values). MAF's "validate → invoke → parse" three-phase pipeline is the most robust.</div></div>
+  </div>
+</details>
+
+<details class="accordion">
+  <summary><span class="badge-num">5</span> Parallel tool calls <span class="hint">expand</span></summary>
+  <div class="acc-body">
+    <div class="qa"><div class="q">🧪 Example</div><div class="a">When the model returns multiple <span class="mono">function_call</span>s at once (e.g. look up weather AND exchange rate),
+      the framework in <span class="mono">_try_execute_function_calls()</span> (<span class="mono">_tools.py:1655</span>) uses
+      <span class="mono">asyncio.gather()</span> for parallel execution:
+<pre class="code">results = <span class="kw">await</span> asyncio.gather(*[
+    invoke_with_termination_handling(fc, idx)
+    <span class="kw">for</span> idx, fc <span class="kw">in</span> enumerate(function_calls)
+])</pre></div></div>
+    <div class="qa"><div class="q">❓ Why this matters</div><div class="a">If 3 tools each take 1 second, serial execution = 3 seconds, parallel = 1 second.
+      For I/O-bound tools (API calls, DB queries), parallel execution <strong>drastically reduces latency</strong>.</div></div>
+    <div class="qa"><div class="q">✅ How MAF does it</div><div class="a">Uses <span class="mono">asyncio.gather()</span> for true concurrency.
+      Each call is independently wrapped in error handling (<span class="mono">invoke_with_termination_handling</span>) —
+      one tool failing doesn't affect the others. Returns a <span class="mono">(list[Content], should_terminate)</span> tuple.</div></div>
+    <div class="qa"><div class="q">🔀 Alternatives</div><div class="a"><span class="mono">ThreadPoolExecutor</span> works for CPU-bound tasks but clashes with async;
+      serial execution is simplest but slowest. MAF's <span class="mono">asyncio.gather()</span> perfectly fits I/O-bound scenarios and aligns with the framework's async architecture.</div></div>
   </div>
 </details>
 

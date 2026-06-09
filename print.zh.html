@@ -384,6 +384,186 @@ result = <span class="kw">await</span> agent.run(<span class="st">"What is the c
   </div>
 </details>
 
+<details class="accordion" open>
+  <summary><span class="badge-num">2</span> 厂商锁定怎么破？ <span class="hint">点击展开详解</span></summary>
+  <div class="acc-body">
+    <div class="qa">
+      <div class="q">🧪 示例</div>
+      <div class="a">直接用各家 SDK，写法各不相同：
+<pre class="code"><span class="cm"># OpenAI</span>
+<span class="kw">from</span> openai <span class="kw">import</span> OpenAI
+client = OpenAI()
+r = client.chat.completions.create(model=<span class="st">"gpt-4o"</span>, messages=[...])
+
+<span class="cm"># Anthropic</span>
+<span class="kw">from</span> anthropic <span class="kw">import</span> Anthropic
+client = Anthropic()
+r = client.messages.create(model=<span class="st">"claude-3-7-sonnet"</span>, max_tokens=1024, messages=[...])</pre>
+换成 MAF 之后，只换一个 client，其余代码不动：
+<pre class="code"><span class="kw">from</span> agent_framework <span class="kw">import</span> Agent
+<span class="kw">from</span> agent_framework.openai <span class="kw">import</span> OpenAIChatClient
+<span class="cm"># from agent_framework.anthropic import AnthropicChatClient  # 改这一行就够了</span>
+agent = Agent(client=OpenAIChatClient(model=<span class="st">"gpt-4o"</span>), instructions=<span class="st">"…"</span>)
+<span class="kw">await</span> agent.run(<span class="st">"你好"</span>)</pre></div>
+    </div>
+    <div class="qa">
+      <div class="q">❓ 为什么这件事必要</div>
+      <div class="a">三个非常现实的理由：<br>
+        ① <strong>成本</strong>：同一任务在不同模型上价格相差 5–20 倍；<br>
+        ② <strong>模型迭代极快</strong>：每个季度都有新模型登顶榜单，被锁死意味着踩不上红利；<br>
+        ③ <strong>合规与可用性</strong>：金融 / 政府要求私有部署，海外业务要走 Foundry，国内可能要走自研网关。</div>
+    </div>
+    <div class="qa">
+      <div class="q">✅ MAF 的做法与优点</div>
+      <div class="a">MAF 把所有厂商抽象成统一的 <span class="mono">ChatClient</span> 接口，
+        <span class="mono">FoundryChatClient</span> / <span class="mono">OpenAIChatClient</span> /
+        <span class="mono">AnthropicChatClient</span> / <span class="mono">OllamaChatClient</span> 全部实现同一组方法
+        （<span class="mono">get_response()</span> / <span class="mono">get_streaming_response()</span>）。
+        Agent、工具、工作流只依赖接口，"换一行 import"即可切换厂商。</div>
+    </div>
+    <div class="qa">
+      <div class="q">🔀 还有什么其他方案</div>
+      <div class="a">① <strong>LiteLLM</strong>：外部代理服务，所有请求走 OpenAI 协议——简单但多一跳网络与运维。<br>
+        ② <strong>自己写适配层</strong>：能拿到最贴合业务的接口，但要自己维护流式、工具、函数调用的差异。<br>
+        ③ <strong>云厂商网关</strong>（Azure AI Gateway / AWS Bedrock）：合规与配额统一，缺点是仍被云厂商锁住。</div>
+    </div>
+  </div>
+</details>
+
+<details class="accordion" open>
+  <summary><span class="badge-num">3</span> 对话消息怎么"拼"才不出错？ <span class="hint">点击展开详解</span></summary>
+  <div class="acc-body">
+    <div class="qa">
+      <div class="q">🧪 示例</div>
+      <div class="a">裸字典 vs MAF 的类型化消息：
+<pre class="code"><span class="cm"># 裸字典——拼错 role 直到运行时才报错</span>
+messages = [
+  {<span class="st">"role"</span>: <span class="st">"sytsem"</span>, <span class="st">"content"</span>: <span class="st">"你是助手"</span>},  <span class="cm"># 拼写错了！</span>
+  {<span class="st">"role"</span>: <span class="st">"user"</span>,   <span class="st">"content"</span>: <span class="st">"你好"</span>},
+]
+
+<span class="cm"># MAF——类型受控，IDE 自动补全</span>
+<span class="kw">from</span> agent_framework <span class="kw">import</span> ChatMessage, Role, TextContent
+messages = [
+  ChatMessage(role=Role.SYSTEM, contents=[TextContent(text=<span class="st">"你是助手"</span>)]),
+  ChatMessage(role=Role.USER,   contents=[TextContent(text=<span class="st">"你好"</span>)]),
+]</pre></div>
+    </div>
+    <div class="qa">
+      <div class="q">❓ 为什么这件事必要</div>
+      <div class="a">真实业务里消息绝不只是字符串：还有图像、工具调用、工具结果、思维链、引用等"内容块"。
+        裸字典每加一种就要全工程改 if/else；用类型化的 <span class="mono">Contents</span>，
+        新内容只是<strong>多一个 Content 类型</strong>，老代码完全不动。</div>
+    </div>
+    <div class="qa">
+      <div class="q">✅ MAF 的做法与优点</div>
+      <div class="a">见 <span class="mono">agent_framework/_types.py</span>：<span class="mono">Role</span> 是枚举
+        （<span class="mono">system / user / assistant / tool</span>），<span class="mono">ChatMessage</span>
+        持有 <span class="mono">contents: list[Contents]</span>，<span class="mono">Contents</span> 是
+        <span class="mono">TextContent | DataContent | FunctionCallContent | FunctionResultContent | …</span> 的联合类型。
+        好处：① 静态检查 + 补全；② 多模态 / 工具结果自然容纳；③ Workflow 跨进程序列化零成本。</div>
+    </div>
+    <div class="qa">
+      <div class="q">🔀 还有什么其他方案</div>
+      <div class="a">① <strong>裸字典 + JSON Schema 校验</strong>：轻量但运行时才报错；<br>
+        ② <strong>Pydantic 自建模型</strong>：MAF 内部就是 Pydantic v2，自己写等于重造轮子；<br>
+        ③ <strong>LangChain 的 HumanMessage / AIMessage</strong>：思路相同，但内容块远不如 MAF 全面。</div>
+    </div>
+  </div>
+</details>
+
+<details class="accordion" open>
+  <summary><span class="badge-num">4</span> 工具调用为什么不要手写 JSON？ <span class="hint">点击展开详解</span></summary>
+  <div class="acc-body">
+    <div class="qa">
+      <div class="q">🧪 示例</div>
+      <div class="a">裸 function calling vs MAF 的 <span class="mono">@ai_function</span>：
+<pre class="code"><span class="cm"># 裸 SDK：自己写 schema、自己 dispatch、自己回灌</span>
+tools = [{
+  <span class="st">"type"</span>: <span class="st">"function"</span>,
+  <span class="st">"function"</span>: {
+    <span class="st">"name"</span>: <span class="st">"get_weather"</span>,
+    <span class="st">"parameters"</span>: {<span class="st">"type"</span>: <span class="st">"object"</span>,
+      <span class="st">"properties"</span>: {<span class="st">"city"</span>: {<span class="st">"type"</span>: <span class="st">"string"</span>}},
+      <span class="st">"required"</span>: [<span class="st">"city"</span>]}}}]
+<span class="cm"># 后续：解析 tool_calls → 找函数 → 调用 → 把结果塞回 messages → 再发一次……</span>
+
+<span class="cm"># MAF：装饰器自动生成 schema，自动跑循环</span>
+<span class="kw">from</span> agent_framework <span class="kw">import</span> ai_function
+
+<span class="kw">@ai_function</span>
+<span class="kw">def</span> get_weather(city: str) -&gt; str:
+    <span class="st">"返回城市天气。"</span>
+    <span class="kw">return</span> f<span class="st">"{city} 今天 23°C"</span>
+
+agent = Agent(client=client, tools=[get_weather])</pre></div>
+    </div>
+    <div class="qa">
+      <div class="q">❓ 为什么这件事必要</div>
+      <div class="a">手写 JSON Schema 最容易出三类 bug：① 参数名/类型与函数实际签名不一致；
+        ② 改函数忘了改 schema；③ 各家厂商对 schema 子集支持不同。
+        自动生成意味着<strong>函数即文档、函数即合同</strong>，重构成本接近零。</div>
+    </div>
+    <div class="qa">
+      <div class="q">✅ MAF 的做法与优点</div>
+      <div class="a"><span class="mono">@ai_function</span>（见 <span class="mono">_tools.py</span>）借助
+        <span class="mono">inspect</span> + 类型注解生成 JSON Schema，自动注入到 ChatClient 请求；
+        模型返回 <span class="mono">FunctionCallContent</span> 时，Agent 在<strong>同一个循环</strong>里
+        执行函数、把 <span class="mono">FunctionResultContent</span> 追加回消息，再次请求模型——你不用写一行胶水。</div>
+    </div>
+    <div class="qa">
+      <div class="q">🔀 还有什么其他方案</div>
+      <div class="a">① <strong>手写 schema</strong>：最大可控、最大错率；<br>
+        ② <strong>OpenAI 官方 function calling SDK</strong>：仅限 OpenAI 系；<br>
+        ③ <strong>LangChain Tool / StructuredTool</strong>：思路类似，缺乏与中间件、Workflow 的统一集成；<br>
+        ④ <strong>MCP 协议</strong>：工具跨进程托管，MAF 也支持把 MCP 工具当本地工具用。</div>
+    </div>
+  </div>
+</details>
+
+<details class="accordion" open>
+  <summary><span class="badge-num">5</span> 多步 / 多 Agent 怎么不变成 while 怪兽？ <span class="hint">点击展开详解</span></summary>
+  <div class="acc-body">
+    <div class="qa">
+      <div class="q">🧪 示例</div>
+      <div class="a">手写循环很快就会脏掉：
+<pre class="code">messages = [...]
+<span class="kw">while</span> True:
+    resp = client.chat.completions.create(model=..., messages=messages, tools=tools)
+    msg = resp.choices[0].message
+    <span class="kw">if</span> <span class="kw">not</span> msg.tool_calls:
+        <span class="kw">break</span>
+    <span class="kw">for</span> tc <span class="kw">in</span> msg.tool_calls:
+        result = dispatch(tc.function.name, json.loads(tc.function.arguments))
+        messages.append({<span class="st">"role"</span>: <span class="st">"tool"</span>, ...})
+    <span class="cm"># 没限次数、没异常兜底、没观测点……</span>
+
+<span class="cm"># MAF：交给 agent.run() / Workflow</span>
+agent = Agent(client=client, tools=[get_weather, search_web])
+result = <span class="kw">await</span> agent.run(<span class="st">"先查上海天气再给我推荐衣服"</span>)</pre></div>
+    </div>
+    <div class="qa">
+      <div class="q">❓ 为什么这件事必要</div>
+      <div class="a">"循环"听着简单，工程化以后要处理：最大迭代数、异常重试、上下文裁剪、并发工具、
+        中间件埋点（trace / cost）、多 Agent 之间的消息路由、可恢复的检查点……
+        每一项自己实现都是几百行代码、上百个测试用例。</div>
+    </div>
+    <div class="qa">
+      <div class="q">✅ MAF 的做法与优点</div>
+      <div class="a">单 Agent 用内置循环（含 <span class="mono">DEFAULT_MAX_ITERATIONS</span>、
+        中间件管道、流式聚合）；多 Agent 用 <span class="mono">agent_framework._workflows</span>
+        提供的<strong>图式编排</strong>（节点 / 边 / 共享状态 / 检查点 / 人审），
+        和 LangGraph 思想接近，但与 ChatClient、工具、可观测性原生贯通。</div>
+    </div>
+    <div class="qa">
+      <div class="q">🔀 还有什么其他方案</div>
+      <div class="a">① <strong>LangGraph</strong>：图式编排鼻祖，与 LangChain 生态深度绑定；<br>
+        ② <strong>CrewAI</strong>：角色化多 Agent，编程模型轻但工程化能力弱；<br>
+        ③ <strong>手写状态机 / Temporal / Durable Functions</strong>：稳定但与 LLM 语义脱节，要再造一遍工具循环。</div>
+    </div>
+  </div>
+</details>
+
 <div class="card key">
   <div class="tag">✅ 关键要点</div>
   <ul>
@@ -442,6 +622,174 @@ result = <span class="kw">await</span> agent.run(<span class="st">"What is the c
   provider 子模块（如 <span class="inline">agent_framework.azure</span>）用 <span class="inline">__getattr__</span>
   做<strong>懒加载</strong>：只有真正 import 时才拉起对应依赖，让 core 保持轻量。
 </div>
+
+<details class="accordion" open>
+  <summary><span class="badge-num">1</span> core 包里到底有什么？ <span class="hint">点击展开详解</span></summary>
+  <div class="acc-body">
+    <div class="qa">
+      <div class="q">🧪 示例</div>
+      <div class="a">core 一个文件一个职责，地图大致如下：
+<pre class="code">python/packages/core/agent_framework/
+├── _agents.py        <span class="cm"># Agent 类、run() 循环、DEFAULT_MAX_ITERATIONS</span>
+├── _clients.py       <span class="cm"># ChatClient 抽象基类 + 内置 OpenAI 实现</span>
+├── _tools.py         <span class="cm"># @ai_function 装饰器、AIFunction、ToolProtocol</span>
+├── _middleware.py    <span class="cm"># 中间件管道：trace / retry / 自定义</span>
+├── _types.py         <span class="cm"># ChatMessage / Role / Contents 联合类型</span>
+├── _workflows/       <span class="cm"># 图式编排：节点、边、共享状态、检查点</span>
+├── observability/    <span class="cm"># OpenTelemetry trace / cost / token 指标</span>
+└── __init__.py       <span class="cm"># 公共 API，决定 from agent_framework import 什么</span></pre></div>
+    </div>
+    <div class="qa">
+      <div class="q">❓ 为什么这件事必要</div>
+      <div class="a">如果 core 拆成几十个小包，新人要在第一周里学几十个 import 路径；
+        如果塞成一个 god-module，又会出现循环依赖、加载慢、测试难。
+        "单包多文件"是大型框架最常见且最稳的折中：<strong>一个 import 路径、清晰的内部分层</strong>。</div>
+    </div>
+    <div class="qa">
+      <div class="q">✅ MAF 的做法与优点</div>
+      <div class="a">所有抽象统一从 <span class="mono">agent_framework</span> 导出（<span class="mono">Agent</span>、
+        <span class="mono">ChatMessage</span>、<span class="mono">ai_function</span>、
+        <span class="mono">WorkflowBuilder</span>……）；文件命名以 <span class="mono">_</span> 前缀表示"内部"，
+        通过 <span class="mono">__init__.py</span> 的 <span class="mono">__all__</span> 再暴露——
+        重构内部不影响用户代码。</div>
+    </div>
+    <div class="qa">
+      <div class="q">🔀 还有什么其他方案</div>
+      <div class="a">① <strong>单文件 god-module</strong>：上手最快，长期维护灾难；<br>
+        ② <strong>微包架构</strong>（每个抽象一个 PyPI 包）：依赖管理噩梦；<br>
+        ③ <strong>plugin-only</strong>：core 只有接口，所有实现都是插件——灵活但缺少"开箱即用"的体验。</div>
+    </div>
+  </div>
+</details>
+
+<details class="accordion" open>
+  <summary><span class="badge-num">2</span> provider 包的懒加载是怎么工作的？ <span class="hint">点击展开详解</span></summary>
+  <div class="acc-body">
+    <div class="qa">
+      <div class="q">🧪 示例</div>
+      <div class="a">子模块 <span class="mono">__init__.py</span> 用 <span class="mono">__getattr__</span> 延迟拉依赖：
+<pre class="code"><span class="cm"># agent_framework/azure/__init__.py（示意）</span>
+<span class="kw">import</span> importlib
+<span class="kw">from</span> typing <span class="kw">import</span> TYPE_CHECKING
+
+<span class="kw">if</span> TYPE_CHECKING:
+    <span class="kw">from</span> ._chat_client <span class="kw">import</span> AzureOpenAIChatClient
+
+_LAZY = {<span class="st">"AzureOpenAIChatClient"</span>: <span class="st">"._chat_client"</span>}
+
+<span class="kw">def</span> __getattr__(name: str):
+    <span class="kw">if</span> name <span class="kw">in</span> _LAZY:
+        mod = importlib.import_module(_LAZY[name], __name__)
+        <span class="kw">return</span> getattr(mod, name)
+    <span class="kw">raise</span> AttributeError(name)
+
+__all__ = list(_LAZY)</pre>
+所以 <span class="mono">import agent_framework</span> 不会拉起 <span class="mono">azure-identity</span>；
+只有真的访问 <span class="mono">AzureOpenAIChatClient</span> 时才装载。</div>
+    </div>
+    <div class="qa">
+      <div class="q">❓ 为什么这件事必要</div>
+      <div class="a">① <strong>启动速度</strong>：每多一个 SDK 启动就慢几十到几百毫秒，CLI / Serverless 场景极敏感；<br>
+        ② <strong>可选依赖</strong>：用户只装了 OpenAI 包，不应该被 Anthropic 的 import 错误打断；<br>
+        ③ <strong>安装体积</strong>：core 保持最小依赖，按需安装 extras（<span class="mono">pip install agent-framework[azure]</span>）。</div>
+    </div>
+    <div class="qa">
+      <div class="q">✅ MAF 的做法与优点</div>
+      <div class="a">采用 PEP 562 的模块级 <span class="mono">__getattr__</span> + <span class="mono">TYPE_CHECKING</span>
+        守护的真实 import，对 IDE 与 mypy 完全友好；既保留懒加载，又能拿到完整类型提示。
+        Pyright/PyCharm 都能正确跳转。</div>
+    </div>
+    <div class="qa">
+      <div class="q">🔀 还有什么其他方案</div>
+      <div class="a">① <strong>急加载（eager）</strong>：简单，但启动慢、依赖污染；<br>
+        ② <strong>entry_points / 插件协议</strong>：解耦得更彻底，但发现成本和调试难度上升；<br>
+        ③ <strong>try / except ImportError</strong>：常见小技巧，规模一大就乱。</div>
+    </div>
+  </div>
+</details>
+
+<details class="accordion" open>
+  <summary><span class="badge-num">3</span> Python 与 .NET 是怎么"对齐"的？ <span class="hint">点击展开详解</span></summary>
+  <div class="acc-body">
+    <div class="qa">
+      <div class="q">🧪 示例</div>
+      <div class="a">同一个概念，两种语法：
+<pre class="code"><span class="cm"># Python</span>
+<span class="kw">from</span> agent_framework <span class="kw">import</span> Agent
+<span class="kw">from</span> agent_framework.openai <span class="kw">import</span> OpenAIChatClient
+agent = Agent(
+    client=OpenAIChatClient(model=<span class="st">"gpt-4o"</span>),
+    name=<span class="st">"weather-bot"</span>,
+    instructions=<span class="st">"你是天气助手"</span>,
+)
+<span class="kw">await</span> agent.run(<span class="st">"上海明天天气？"</span>)</pre>
+<pre class="code"><span class="cm">// C#</span>
+<span class="kw">using</span> Microsoft.Agents.AI;
+<span class="kw">using</span> Microsoft.Agents.AI.OpenAI;
+
+<span class="kw">var</span> agent = <span class="kw">new</span> ChatClientAgent(
+    chatClient: <span class="kw">new</span> OpenAIChatClient(<span class="st">"gpt-4o"</span>),
+    name: <span class="st">"weather-bot"</span>,
+    instructions: <span class="st">"You are a weather assistant"</span>);
+<span class="kw">var</span> result = <span class="kw">await</span> agent.RunAsync(<span class="st">"Weather in Shanghai?"</span>);</pre></div>
+    </div>
+    <div class="qa">
+      <div class="q">❓ 为什么这件事必要</div>
+      <div class="a">真实企业里：算法 / 数据团队偏 Python，业务后端常是 .NET。
+        如果两边概念不一样，团队沟通靠翻译，文档要写两份，迁移代价巨大。
+        "API 对齐"意味着<strong>看一份文档能让两边都开工</strong>。</div>
+    </div>
+    <div class="qa">
+      <div class="q">✅ MAF 的做法与优点</div>
+      <div class="a">两套实现在概念、命名、生命周期上对齐：同样的 Agent / ChatClient / Tool / Workflow，
+        同样的 run / stream / observability hook；只在语法上接受各自语言的惯用法（async/await、
+        装饰器 vs Attribute、强类型 vs 类型注解）。</div>
+    </div>
+    <div class="qa">
+      <div class="q">🔀 还有什么其他方案</div>
+      <div class="a">① <strong>只做一种语言</strong>：错过另一半市场；<br>
+        ② <strong>从 IDL / proto 自动生成</strong>：易过度抽象，丢掉语言惯用法；<br>
+        ③ <strong>FFI / 包装</strong>（Python 调 .NET DLL 或反过来）：部署与诊断复杂。</div>
+    </div>
+  </div>
+</details>
+
+<details class="accordion" open>
+  <summary><span class="badge-num">4</span> .NET 那边的命名怎么对应？ <span class="hint">点击展开详解</span></summary>
+  <div class="acc-body">
+    <div class="qa">
+      <div class="q">🧪 示例</div>
+      <div class="a">两边主要符号对照表：
+<table class="t">
+  <tr><th>Python</th><th>.NET</th><th>含义</th></tr>
+  <tr><td class="mono">agent_framework</td><td class="mono">Microsoft.Agents.AI</td><td>核心包</td></tr>
+  <tr><td class="mono">Agent</td><td class="mono">ChatClientAgent</td><td>Agent 实体（带循环）</td></tr>
+  <tr><td class="mono">ChatClient</td><td class="mono">IChatClient</td><td>厂商无关客户端</td></tr>
+  <tr><td class="mono">ChatMessage / Role</td><td class="mono">ChatMessage / ChatRole</td><td>类型化消息</td></tr>
+  <tr><td class="mono">@ai_function</td><td class="mono">[Description] + AIFunctionFactory</td><td>把函数转成工具</td></tr>
+  <tr><td class="mono">_workflows/</td><td class="mono">Microsoft.Agents.AI.Workflows</td><td>图式编排</td></tr>
+  <tr><td class="mono">observability/</td><td class="mono">Microsoft.Extensions.AI.Telemetry</td><td>OTel 集成</td></tr>
+  <tr><td class="mono">agent.run() / .run_stream()</td><td class="mono">RunAsync() / RunStreamingAsync()</td><td>同步与流式入口</td></tr>
+</table></div>
+    </div>
+    <div class="qa">
+      <div class="q">❓ 为什么这件事必要</div>
+      <div class="a">命名对齐 = <strong>认知对齐</strong>：你在 Python 里学到的 "ChatClient 是厂商抽象"
+        会自动迁移到 .NET 同事身上；团队搜文档、做 code review、做迁移都受益。</div>
+    </div>
+    <div class="qa">
+      <div class="q">✅ MAF 的做法与优点</div>
+      <div class="a">命名表存在 <span class="mono">docs/decisions</span> 的 ADR 里，
+        新功能必须同时在两端落地，否则不发布；这让"读 Python 教程顺带学 .NET"成为现实。</div>
+    </div>
+    <div class="qa">
+      <div class="q">🔀 还有什么其他方案</div>
+      <div class="a">① <strong>纯惯用法命名</strong>（Pythonic vs C#-ic 各走各的）：阅读时永远要做心理翻译；<br>
+        ② <strong>从 IDL 生成绑定</strong>：命名一致但不一定符合语言习惯；<br>
+        ③ <strong>共享 IDL 文档但代码独立</strong>：折中方案，MAF 实际就在向这个方向靠拢。</div>
+    </div>
+  </div>
+</details>
 
 <div class="card key">
   <div class="tag">✅ 关键要点</div>
@@ -506,6 +854,167 @@ session = agent.create_session()
   </div>
 </details>
 
+<details class="accordion" open>
+  <summary><span class="badge-num">2</span> 消息到底是怎么组装的？ <span class="hint">点击展开详解</span></summary>
+  <div class="acc-body">
+    <div class="qa">
+      <div class="q">🧪 示例</div>
+      <div class="a">一次 <span class="mono">run()</span> 实际发给 LLM 的列表大致长这样：
+<pre class="code">[
+  SystemMessage(<span class="st">"你是天气助手，回答尽量简短。"</span>),   <span class="cm"># ← instructions</span>
+  UserMessage(<span class="st">"我叫小明"</span>),                       <span class="cm"># ← 历史 1</span>
+  AssistantMessage(<span class="st">"你好，小明！"</span>),               <span class="cm"># ← 历史 2</span>
+  UserMessage(<span class="st">"上海今天天气？"</span>),                  <span class="cm"># ← 本次输入</span>
+]
+tools = [
+  {<span class="st">"name"</span>: <span class="st">"get_weather"</span>,  <span class="st">"parameters"</span>: {...}},  <span class="cm"># ← 自动生成</span>
+]</pre>
+其中 instructions 在最前、历史按时间顺序、当前输入在最后、工具 schema 作为请求字段并行附带。</div>
+    </div>
+    <div class="qa">
+      <div class="q">❓ 为什么这件事必要</div>
+      <div class="a">三个隐藏陷阱：① <strong>system 位置</strong>——某些模型对 system 必须放首；
+        ② <strong>上下文窗口预算</strong>——历史 + 工具 schema + 输入加起来不能超 token 上限；
+        ③ <strong>工具 schema 开销</strong>——20 个工具就能吃掉几千 token。</div>
+    </div>
+    <div class="qa">
+      <div class="q">✅ MAF 的做法与优点</div>
+      <div class="a">Agent 在 <span class="mono">_agents.py</span> 中按固定顺序拼装：
+        <span class="mono">instructions → system</span>、<span class="mono">tools → schema</span>、
+        <span class="mono">history → ordered messages</span>，并把 ChatClient 不支持的内容（如多模态）做 fallback。
+        用户只关心业务输入，组装细节由框架兜底。</div>
+    </div>
+    <div class="qa">
+      <div class="q">🔀 还有什么其他方案</div>
+      <div class="a">① <strong>完全手动拼装</strong>：最灵活，最容易踩坑；<br>
+        ② <strong>模板化（Jinja / Handlebars）</strong>：适合 prompt-engineering 重度场景，但失去类型约束；<br>
+        ③ <strong>纯中间件流水线</strong>：把每一步当 middleware 拼起来，灵活但调试链路长。</div>
+    </div>
+  </div>
+</details>
+
+<details class="accordion" open>
+  <summary><span class="badge-num">3</span> 工具循环的边界在哪？ <span class="hint">点击展开详解</span></summary>
+  <div class="acc-body">
+    <div class="qa">
+      <div class="q">🧪 示例</div>
+      <div class="a">Agent 内置了一个迭代上限，撞到就停：
+<pre class="code"><span class="cm"># agent_framework/_agents.py</span>
+DEFAULT_MAX_ITERATIONS = 10
+
+<span class="kw">class</span> Agent:
+    <span class="kw">def</span> __init__(self, ..., max_iterations: int = DEFAULT_MAX_ITERATIONS):
+        self.max_iterations = max_iterations
+
+    <span class="kw">async def</span> run(self, input, ...):
+        <span class="kw">for</span> i <span class="kw">in</span> range(self.max_iterations):
+            resp = <span class="kw">await</span> self._client.get_response(...)
+            <span class="kw">if</span> <span class="kw">not</span> _has_tool_calls(resp):
+                <span class="kw">return</span> AgentResponse(...)
+            <span class="kw">await</span> self._execute_tools(resp)
+        <span class="cm"># 达到上限：返回带告警的部分结果</span>
+        <span class="kw">return</span> AgentResponse(..., terminated_reason=<span class="st">"max_iterations"</span>)</pre>
+按需调高：<span class="mono">Agent(..., max_iterations=20)</span>。</div>
+    </div>
+    <div class="qa">
+      <div class="q">❓ 为什么这件事必要</div>
+      <div class="a">没有上限的循环 = <strong>账单炸弹</strong>：模型可能把同一个工具反复调用、互相依赖死锁、
+        或被 prompt injection 牵着鼻子走。即便用例正常，也要有止损线。</div>
+    </div>
+    <div class="qa">
+      <div class="q">✅ MAF 的做法与优点</div>
+      <div class="a">默认 <span class="mono">DEFAULT_MAX_ITERATIONS</span> 给出安全值，可按 Agent 覆写；
+        终止时返回结构化的 <span class="mono">terminated_reason</span>，方便上层判断"重试 / 升级 / 报错"，
+        而不是直接 raise。</div>
+    </div>
+    <div class="qa">
+      <div class="q">🔀 还有什么其他方案</div>
+      <div class="a">① <strong>不设上限</strong>：极端危险；<br>
+        ② <strong>按 token 预算</strong>：更经济但实现复杂；<br>
+        ③ <strong>按墙钟超时</strong>：保护延迟敏感场景；<br>
+        ④ <strong>每步人工确认</strong>：成本最高但安全（金融 / 医疗常用），MAF 也可通过 Workflow 的 human approval 实现。</div>
+    </div>
+  </div>
+</details>
+
+<details class="accordion" open>
+  <summary><span class="badge-num">4</span> 流式 vs 非流式内部差异 <span class="hint">点击展开详解</span></summary>
+  <div class="acc-body">
+    <div class="qa">
+      <div class="q">🧪 示例</div>
+      <div class="a">同一个 Agent，两种入口：
+<pre class="code"><span class="cm"># 非流式：一次性拿完整结果</span>
+result: AgentResponse = <span class="kw">await</span> agent.run(<span class="st">"写一首关于秋天的诗"</span>)
+print(result.text)
+
+<span class="cm"># 流式：逐块拿 AgentResponseUpdate</span>
+<span class="kw">async for</span> update <span class="kw">in</span> agent.run_stream(<span class="st">"写一首关于秋天的诗"</span>):
+    <span class="kw">if</span> update.text:
+        print(update.text, end=<span class="st">""</span>, flush=True)</pre></div>
+    </div>
+    <div class="qa">
+      <div class="q">❓ 为什么这件事必要</div>
+      <div class="a">① <strong>首字延迟</strong>：长回答里用户最敏感的是"开始出字"的时间；<br>
+        ② <strong>长回答 UX</strong>：不流式时，等 30s 一片黑屏；流式则像打字机；<br>
+        ③ <strong>调试与中断</strong>：流式可早期发现跑偏，及时取消。</div>
+    </div>
+    <div class="qa">
+      <div class="q">✅ MAF 的做法与优点</div>
+      <div class="a">同一个 Agent、同一组工具，<span class="mono">run()</span> 返回完整 <span class="mono">AgentResponse</span>；
+        <span class="mono">run_stream()</span> 返回 <span class="mono">AsyncIterable[AgentResponseUpdate]</span>，
+        把内容、工具调用、思维块都分块吐出，且内部已对齐为同一种循环——
+        切换流式不需要重写业务逻辑。</div>
+    </div>
+    <div class="qa">
+      <div class="q">🔀 还有什么其他方案</div>
+      <div class="a">① <strong>纯 SSE 推流</strong>：协议简单，但要自己实现重连和心跳；<br>
+        ② <strong>WebSocket</strong>：双向通信，对实时交互更好；<br>
+        ③ <strong>轮询</strong>：兼容性最强，体验最差；<br>
+        ④ <strong>客户端缓冲</strong>：在前端把 chunk 拼回完整文本，MAF 同时支持。</div>
+    </div>
+  </div>
+</details>
+
+<details class="accordion" open>
+  <summary><span class="badge-num">5</span> 错误处理：循环里出错怎么办？ <span class="hint">点击展开详解</span></summary>
+  <div class="acc-body">
+    <div class="qa">
+      <div class="q">🧪 示例</div>
+      <div class="a">三类典型故障：
+<pre class="code"><span class="cm"># 1) LLM 端报错：429 / 500 / timeout</span>
+<span class="cm">   → ChatClient 抛出 ChatClientError</span>
+
+<span class="cm"># 2) 工具函数抛异常</span>
+<span class="kw">@ai_function</span>
+<span class="kw">def</span> get_weather(city: str) -&gt; str:
+    <span class="kw">raise</span> RuntimeError(<span class="st">"weather API down"</span>)
+<span class="cm">   → Agent 捕获后包成 FunctionResultContent(error=...)</span>
+<span class="cm">     交回模型，让它决定降级、换工具或道歉</span>
+
+<span class="cm"># 3) 工具执行超时</span>
+<span class="cm">   → 中间件层兜底，写入 trace span</span></pre></div>
+    </div>
+    <div class="qa">
+      <div class="q">❓ 为什么这件事必要</div>
+      <div class="a">Agent 循环里出错时，"重试 / 跳过 / 放弃 / 返回部分结果"的取舍每种都合理，
+        没有银弹。框架必须给一个<strong>有结构、可定制</strong>的失败模型，否则要么过度吞错、要么动不动崩溃。</div>
+    </div>
+    <div class="qa">
+      <div class="q">✅ MAF 的做法与优点</div>
+      <div class="a">错误走中间件管道（<span class="mono">_middleware.py</span>）：用户可注册重试策略、
+        熔断、降级；工具异常被包成 <span class="mono">FunctionResultContent</span> 回灌模型；
+        无法恢复时 <span class="mono">AgentResponse</span> 上带 <span class="mono">terminated_reason</span>
+        和原始异常链，便于上层结构化处理。</div>
+    </div>
+    <div class="qa">
+      <div class="q">🔀 还有什么其他方案</div>
+      <div class="a">① <strong>到处 try/except</strong>：写起来快，可观测性几乎为零；<br>
+        ② <strong>熔断器（circuit breaker）</strong>：保护下游，但要小心误熔断；<br>
+        ③ <strong>let-it-crash（Erlang 风格）</strong>：失败重启整个 Agent，靠上游 retry——简单但成本高。</div>
+    </div>
+  </div>
+</details>
+
 <div class="card key">
   <div class="tag">✅ 关键要点</div>
   <ul>
@@ -560,10 +1069,10 @@ messages = [
 <span class="mono">Content</span> 对象，或它们的列表。读文本用 <span class="inline">msg.text</span>。</p>
 
 <details class="accordion" open>
-  <summary><span class="badge-num">1</span> Content 能装哪些东西？ <span class="hint">点击展开</span></summary>
+  <summary><span class="badge-num">1</span> Content 能装哪些东西？ <span class="hint">点击展开详解</span></summary>
   <div class="acc-body">
     <div class="qa">
-      <div class="q">🧪 用工厂方法构造</div>
+      <div class="q">🧪 示例</div>
       <div class="a"><span class="mono">Content</span> 是<strong>统一类型</strong>，用类方法创建不同种类：
 <pre class="code">Content.from_text(<span class="st">"一段文字"</span>)
 Content.from_data(data=..., media_type=<span class="st">"image/png"</span>)  <span class="cm"># 图片/二进制</span>
@@ -571,6 +1080,237 @@ Content.from_uri(uri=<span class="st">"https://…"</span>, media_type=<span cla
 Content.from_function_call(...)      <span class="cm"># 模型要调工具</span>
 Content.from_function_result(...)    <span class="cm"># 工具执行结果</span></pre>
         所以一条 <span class="mono">Message</span> 可以图文混排，也能承载工具调用 / 结果。</div>
+    </div>
+    <div class="qa">
+      <div class="q">❓ 为什么这件事必要</div>
+      <div class="a">LLM 能力已超出"纯文本问答"：GPT-4o、Claude支持图像输入，模型可请求调用工具并接收结果。如果每种内容用不同字段（<span class="mono">text</span>、<span class="mono">image_url</span>、<span class="mono">tool_calls</span>……），消息结构变复杂、不可扩展。统一成 <span class="mono">Content</span> 列表后，代码只关心<strong>"一条消息有多个内容块"</strong>，不必为每种类型特殊处理。</div>
+    </div>
+    <div class="qa">
+      <div class="q">✅ MAF 的做法与优点</div>
+      <div class="a">MAF 用<strong>判别联合（discriminated union）</strong>：每个 <span class="mono">Content</span> 都有 <span class="mono">type</span> 字段（<span class="mono">"text"</span>/<span class="mono">"data"</span>/<span class="mono">"uri"</span>/<span class="mono">"function_call"</span>/<span class="mono">"function_result"</span>），框架按 type 路由。新增内容类型（如视频、音频）只需加一个新 type，老消息仍能正常处理。类型安全由 Pydantic 保证，IDE 有完整提示。</div>
+    </div>
+    <div class="qa">
+      <div class="q">🔀 还有什么其他方案</div>
+      <div class="a"><ul>
+        <li><strong>OpenAI SDK</strong>：text 放 <span class="mono">content</span> 字段，图像放 <span class="mono">content</span> 列表，工具调用放 <span class="mono">tool_calls</span> 字段——三种形态不一致，解析时需要分支判断。</li>
+        <li><strong>Anthropic</strong>：采用 <span class="mono">content</span> 数组 + <span class="mono">type</span> 区分，与 MAF 类似，但每个厂商格式不同。</li>
+        <li>MAF 把各家统一成一套，跨厂商代码零修改。</li>
+      </ul></div>
+    </div>
+  </div>
+</details>
+
+<details class="accordion" open>
+  <summary><span class="badge-num">2</span> Message 的构造方式 <span class="hint">点击展开详解</span></summary>
+  <div class="acc-body">
+    <div class="qa">
+      <div class="q">🧪 示例</div>
+      <div class="a">
+<pre class="code"><span class="cm"># 纯文本（字符串自动包装）</span>
+msg = Message(<span class="st">"user"</span>, <span class="st">"你好"</span>)
+
+<span class="cm"># 单个 Content 对象</span>
+msg = Message(<span class="st">"user"</span>, Content.from_text(<span class="st">"你好"</span>))
+
+<span class="cm"># 多个 Content：图文混排</span>
+msg = Message(<span class="st">"user"</span>, [
+    Content.from_text(<span class="st">"这张图是什么？"</span>),
+    Content.from_uri(uri=<span class="st">"https://example.com/img.png"</span>, media_type=<span class="st">"image/png"</span>)
+])
+
+<span class="cm"># 读取文本快捷方式</span>
+text = msg.text  <span class="cm"># 自动从 contents 中提取文本</span></pre>
+      </div>
+    </div>
+    <div class="qa">
+      <div class="q">❓ 为什么这件事必要</div>
+      <div class="a">多模态对话越来越常见：用户发一张图 + 一段问题；模型回复文本 + 图表；工具调用与工具结果也要和文本混排在同一条消息里。如果 <span class="mono">Message</span> 只能装一个字符串，需要拆成多条消息或手拼复杂结构。允许<strong>异构内容列表</strong>后，一条消息能自然表达"文字 + 图 + 工具调用"。</div>
+    </div>
+    <div class="qa">
+      <div class="q">✅ MAF 的做法与优点</div>
+      <div class="a"><span class="mono">Message</span> 的 <span class="mono">contents</span> 参数接受：<ul>
+        <li><strong>字符串</strong>：自动转 <span class="mono">Content.from_text(...)</span></li>
+        <li><strong>单个 Content</strong>：原样包装成列表</li>
+        <li><strong>Content 列表</strong>：直接存储</li>
+      </ul>
+      同时提供 <span class="mono">.text</span> 属性，自动拼接所有文本内容（多个 text content时用空格连接）。用户可按需简单或复杂使用，心智模型统一。</div>
+    </div>
+    <div class="qa">
+      <div class="q">🔀 还有什么其他方案</div>
+      <div class="a"><ul>
+        <li><strong>OpenAI</strong>：文本消息 vs 多内容消息用不同格式（<span class="mono">{role, content: "str"}</span> vs <span class="mono">{role, content: [{type, ...}]}</span>），工具调用另加 <span class="mono">tool_calls</span> 数组。框架需判断格式再解析。</li>
+        <li><strong>LangChain</strong>：<span class="mono">HumanMessage</span>/<span class="mono">AIMessage</span> 各自不同构造函数。</li>
+        <li>MAF <strong>统一构造函数</strong>，类型安全 + IDE提示 + 多模态开箱即用。</li>
+      </ul></div>
+    </div>
+  </div>
+</details>
+
+<details class="accordion" open>
+  <summary><span class="badge-num">3</span> 工具调用如何融入消息流 <span class="hint">点击展开详解</span></summary>
+  <div class="acc-body">
+    <div class="qa">
+      <div class="q">🧪 示例</div>
+      <div class="a">
+<pre class="code"><span class="cm"># 模型输出：assistant 消息带 function_call</span>
+msg_call = Message(<span class="st">"assistant"</span>, [
+    Content.from_function_call(
+        name=<span class="st">"get_weather"</span>,
+        arguments={<span class="st">"location"</span>: <span class="st">"Seattle"</span>},
+        call_id=<span class="st">"call_abc123"</span>
+    )
+])
+
+<span class="cm"># 框架回灌：role="tool" 消息带 function_result</span>
+msg_result = Message(<span class="st">"tool"</span>, [
+    Content.from_function_result(
+        name=<span class="st">"get_weather"</span>,
+        result=<span class="st">"Sunny, 72°F"</span>,
+        call_id=<span class="st">"call_abc123"</span>
+    )
+])
+<span class="cm"># 这两条追加进对话历史，模型继续生成最终答案</span></pre>
+      </div>
+    </div>
+    <div class="qa">
+      <div class="q">❓ 为什么这件事必要</div>
+      <div class="a">工具调用是多轮交互：<ol>
+        <li>模型决定"需要工具"，输出 function_call</li>
+        <li>框架执行工具，拿到结果</li>
+        <li>框架把结果追加进对话，模型读取后产出最终答案</li>
+      </ol>
+      如果工具调用/结果不是标准消息，就需要单独管道。把它们纳入 <span class="mono">Message</span> 后，<strong>整个对话就是一条消息链</strong>，无需特殊逻辑。</div>
+    </div>
+    <div class="qa">
+      <div class="q">✅ MAF 的做法与优点</div>
+      <div class="a"><span class="mono">Content.from_function_call</span> 和 <span class="mono">.from_function_result</span> 是两种特殊内容类型，完全融入消息体系：<ul>
+        <li><strong>类型统一</strong>：工具调用 = assistant 消息 + function_call content；工具结果 = tool 消息 + function_result content。</li>
+        <li><strong>序列化一致</strong>：历史回放、日志、调试时，工具调用和普通消息用相同JSON结构。</li>
+        <li><strong>可扩展</strong>：未来加"并行工具调用"只需在一条消息的 contents 里放多个 function_call。</li>
+      </ul></div>
+    </div>
+    <div class="qa">
+      <div class="q">🔀 还有什么其他方案</div>
+      <div class="a"><ul>
+        <li><strong>OpenAI</strong>：assistant 消息加 <span class="mono">tool_calls</span> 数组，tool 消息用 <span class="mono">role="tool" + tool_call_id</span>。需两套字段。</li>
+        <li><strong>Anthropic</strong>：<span class="mono">content</span> 数组里放 <span class="mono">tool_use</span> / <span class="mono">tool_result</span> 块，和 MAF思路接近，但每家格式不同。</li>
+        <li>MAF 抹平差异：开发者用统一API，框架负责转换各厂商格式。</li>
+      </ul></div>
+    </div>
+  </div>
+</details>
+
+<details class="accordion" open>
+  <summary><span class="badge-num">4</span> 序列化与反序列化 <span class="hint">点击展开详解</span></summary>
+  <div class="acc-body">
+    <div class="qa">
+      <div class="q">🧪 示例</div>
+      <div class="a">
+<pre class="code"><span class="cm"># 消息 → 字典（可JSON序列化）</span>
+msg = Message(<span class="st">"user"</span>, <span class="st">"Hello"</span>)
+d = msg.to_dict()
+<span class="cm"># → {"role": "user", "contents": [{"type": "text", "text": "Hello"}]}</span>
+
+<span class="cm"># 字典 → 消息（从JSON恢复）</span>
+msg_restored = Message.from_dict(d)
+<span class="kw">assert</span> msg_restored.role == <span class="st">"user"</span>
+<span class="kw">assert</span> msg_restored.text == <span class="st">"Hello"</span>
+
+<span class="cm"># 工具调用也能完整序列化</span>
+msg_with_tool = Message(<span class="st">"assistant"</span>, [
+    Content.from_function_call(name=<span class="st">"foo"</span>, arguments={<span class="st">"x"</span>: 1})
+])
+d2 = msg_with_tool.to_dict()
+msg_back = Message.from_dict(d2)  <span class="cm"># 完全恢复</span></pre>
+      </div>
+    </div>
+    <div class="qa">
+      <div class="q">❓ 为什么这件事必要</div>
+      <div class="a">实际应用需要：<ul>
+        <li><strong>持久化</strong>：把对话历史存到数据库（Redis、Cosmos、PostgreSQL）。</li>
+        <li><strong>回放调试</strong>：记录生产环境的消息流，本地重现问题。</li>
+        <li><strong>审计日志</strong>：合规要求保存所有对话（含工具调用）。</li>
+        <li><strong>跨服务传递</strong>：微服务间传递消息上下文。</li>
+      </ul>
+      如果不能无损序列化，工具调用、图像等复杂内容会丢失信息。</div>
+    </div>
+    <div class="qa">
+      <div class="q">✅ MAF 的做法与优点</div>
+      <div class="a"><span class="mono">Message.to_dict()</span> / <span class="mono">from_dict(...)</span> 是<strong>完全可逆</strong>的：<ul>
+        <li>所有 <span class="mono">Content</span> 类型（text/data/uri/function_call/function_result）都能无损序列化。</li>
+        <li>返回的字典是<strong>纯 JSON</strong>，可直接存储、传输、日志。</li>
+        <li>Pydantic 模型自动处理类型验证，反序列化时类型错误会抛异常。</li>
+        <li>第三方持久化库（如 <span class="mono">redis</span>、<span class="mono">azure-cosmos</span>）可直接存字典。</li>
+      </ul></div>
+    </div>
+    <div class="qa">
+      <div class="q">🔀 还有什么其他方案</div>
+      <div class="a"><ul>
+        <li><strong>OpenAI SDK</strong>：原生消息已是字典，但格式每版本可能变，没有类型保证。</li>
+        <li><strong>LangChain</strong>：<span class="mono">Message.dict()</span> 返回嵌套结构，字段名不稳定，需自己处理。</li>
+        <li><strong>手工JSON</strong>：完全自定义，但schema演进时容易破坏兼容性。</li>
+        <li>MAF <strong>schema有版本管理</strong>，升级框架时老数据能自动迁移（见 <span class="mono">_types.py</span> 的兼容层）。</li>
+      </ul></div>
+    </div>
+  </div>
+</details>
+
+<details class="accordion" open>
+  <summary><span class="badge-num">5</span> 和 OpenAI dict 格式的对比 <span class="hint">点击展开详解</span></summary>
+  <div class="acc-body">
+    <div class="qa">
+      <div class="q">🧪 示例</div>
+      <div class="a">
+<table class="t">
+<tr><th>场景</th><th>OpenAI 原生格式</th><th>MAF 格式</th></tr>
+<tr><td>纯文本</td><td><pre class="code">{<span class="st">"role"</span>: <span class="st">"user"</span>,
+ <span class="st">"content"</span>: <span class="st">"hi"</span>}</pre></td><td><pre class="code">Message(<span class="st">"user"</span>, <span class="st">"hi"</span>)</pre></td></tr>
+<tr><td>工具调用</td><td><pre class="code">{<span class="st">"role"</span>: <span class="st">"assistant"</span>,
+ <span class="st">"tool_calls"</span>: [{
+   <span class="st">"type"</span>: <span class="st">"function"</span>,
+   <span class="st">"function"</span>: {<span class="st">"name"</span>: <span class="st">"get_weather"</span>, ...}
+ }]}</pre></td><td><pre class="code">Message(<span class="st">"assistant"</span>, [
+  Content.from_function_call(
+    name=<span class="st">"get_weather"</span>, ...
+  )
+])</pre></td></tr>
+<tr><td>工具结果</td><td><pre class="code">{<span class="st">"role"</span>: <span class="st">"tool"</span>,
+ <span class="st">"content"</span>: <span class="st">"result"</span>,
+ <span class="st">"tool_call_id"</span>: <span class="st">"x"</span>}</pre></td><td><pre class="code">Message(<span class="st">"tool"</span>, [
+  Content.from_function_result(
+    result=<span class="st">"result"</span>, call_id=<span class="st">"x"</span>
+  )
+])</pre></td></tr>
+</table>
+      </div>
+    </div>
+    <div class="qa">
+      <div class="q">❓ 为什么这件事必要</div>
+      <div class="a">直接用 OpenAI dict 的问题：<ul>
+        <li><strong>厂商锁定</strong>：切换到 Anthropic/Ollama/Azure 需大量改动。</li>
+        <li><strong>字段分散</strong>：<span class="mono">content</span> / <span class="mono">tool_calls</span> / <span class="mono">tool_call_id</span> 分散在不同层级，解析复杂。</li>
+        <li><strong>无类型安全</strong>：拼写错误运行时才报错。</li>
+        <li><strong>格式不统一</strong>：纯文本 vs 图像 vs 工具调用用不同结构。</li>
+      </ul>
+      抽象层让你<strong>写一次，到处运行</strong>。</div>
+    </div>
+    <div class="qa">
+      <div class="q">✅ MAF 的做法与优点</div>
+      <div class="a">MAF 提供<strong>统一抽象</strong>，但<strong>双向转换</strong>能力齐全：<ul>
+        <li><span class="mono">BaseChatClient</span> 子类（如 <span class="mono">OpenAIChatClient</span>）内部自动把 <span class="mono">Message</span> 转成厂商格式，调完API再转回来。</li>
+        <li>如需直接转换：<span class="mono">from agent_framework.ai.openai import to_openai_messages, from_openai_messages</span>（见 <span class="mono">python/src/agent_framework/ai/openai/_convert.py</span>）。</li>
+        <li><strong>类型安全</strong>：IDE 自动补全 <span class="mono">Message(...)</span> / <span class="mono">Content.from_...</span>，编译期发现错误。</li>
+        <li><strong>可测试</strong>：单元测试不依赖真实 LLM，mock <span class="mono">Message</span> 即可。</li>
+      </ul></div>
+    </div>
+    <div class="qa">
+      <div class="q">🔀 还有什么其他方案</div>
+      <div class="a"><ul>
+        <li><strong>直接用 SDK dict</strong>：零抽象，换厂商需全盘重构。</li>
+        <li><strong>LangChain MessageType</strong>：提供抽象，但<span class="mono">HumanMessage</span>/<span class="mono">AIMessage</span>/<span class="mono">ToolMessage</span> 分类过细，增加心智负担。</li>
+        <li><strong>LlamaIndex ChatMessage</strong>：简单统一，但功能有限，多模态/工具调用支持弱。</li>
+        <li>MAF <strong>恰到好处</strong>：一个 <span class="mono">Message</span> + 五种 <span class="mono">Content</span>，涵盖所有场景，各厂商无缝切换。</li>
+      </ul></div>
     </div>
   </div>
 </details>
@@ -640,6 +1380,226 @@ result = <span class="kw">await</span> agent.run(<span class="st">"What is the c
   各 client 来自对应 provider 包（见第 16 课）。
 </div>
 
+<details class="accordion" open>
+  <summary><span class="badge-num">1</span> as_agent vs Agent(client=...) 两种创建方式 <span class="hint">点击展开详解</span></summary>
+  <div class="acc-body">
+    <div class="qa">
+      <div class="q">🧪 示例</div>
+      <div class="a">
+<pre class="code"><span class="cm"># 方式 A：直接构造</span>
+agent_a = Agent(
+    client=client,
+    name=<span class="st">"MyAgent"</span>,
+    instructions=<span class="st">"You are helpful."</span>
+)
+
+<span class="cm"># 方式 B：语法糖</span>
+agent_b = client.as_agent(
+    name=<span class="st">"MyAgent"</span>,
+    instructions=<span class="st">"You are helpful."</span>
+)
+
+<span class="cm"># 两者完全等价</span>
+<span class="kw">assert</span> <span class="fn">type</span>(agent_a) == <span class="fn">type</span>(agent_b)  <span class="cm"># 都是 Agent</span></pre>
+      </div>
+    </div>
+    <div class="qa">
+      <div class="q">❓ 为什么这件事必要</div>
+      <div class="a">真实场景中，你可能先创建 <span class="mono">ChatClient</span>（配置好模型、API密钥、重试策略），然后基于它创建多个 Agent（不同人设、不同工具）。两种方式都需要支持：<ul>
+        <li><strong>Agent(client=...)</strong>：适合"Agent 是主角"的场景，显式依赖注入。</li>
+        <li><strong>client.as_agent(...)</strong>：适合"client 是主角"的场景，链式调用更自然。</li>
+      </ul>
+      单一方式会让某些代码风格别扭。</div>
+    </div>
+    <div class="qa">
+      <div class="q">✅ MAF 的做法与优点</div>
+      <div class="a"><span class="mono">as_agent</span> 是<strong>语法糖</strong>，内部调用 <span class="mono">Agent(client=self, ...)</span>（见 <span class="mono">python/src/agent_framework/ai/_chat_client.py</span> 的 <span class="mono">BaseChatClient.as_agent</span> 方法）。两种方式返回<strong>同一类型</strong>的对象，行为完全一致。用户可根据上下文选择：<ul>
+        <li>测试时 mock Agent：<span class="mono">Agent(client=mock_client, ...)</span></li>
+        <li>配置多个 Agent：<span class="mono">agents = [client.as_agent(...) for cfg in configs]</span></li>
+      </ul>
+      框架不强加风格，但保证语义统一。</div>
+    </div>
+    <div class="qa">
+      <div class="q">🔀 还有什么其他方案</div>
+      <div class="a"><ul>
+        <li><strong>LangChain</strong>：没有 <span class="mono">as_agent</span> 模式，需手动包装 <span class="mono">ChatOpenAI</span> 到 <span class="mono">AgentExecutor</span>。</li>
+        <li><strong>Semantic Kernel</strong>：使用 <span class="mono">Kernel</span> 作为容器，Agent 概念较弱。</li>
+        <li><strong>OpenAI Assistants API</strong>：Agent 是服务端对象，无本地构造。</li>
+        <li>MAF 两种方式都支持，语法糖降低入门门槛，直接构造保留灵活性。</li>
+      </ul></div>
+    </div>
+  </div>
+</details>
+
+<details class="accordion" open>
+  <summary><span class="badge-num">2</span> run() 的参数 <span class="hint">点击展开详解</span></summary>
+  <div class="acc-body">
+    <div class="qa">
+      <div class="q">🧪 示例</div>
+      <div class="a">
+<pre class="code"><span class="cm"># 最简：只传消息</span>
+result = <span class="kw">await</span> agent.run(<span class="st">"你好"</span>)
+
+<span class="cm"># 带会话：多轮对话</span>
+session = agent.create_session()
+result = <span class="kw">await</span> agent.run(<span class="st">"我叫 Alice"</span>, session=session)
+result = <span class="kw">await</span> agent.run(<span class="st">"我叫什么？"</span>, session=session)
+
+<span class="cm"># 流式：逐块返回</span>
+<span class="kw">async for</span> chunk <span class="kw">in</span> agent.run(<span class="st">"讲个故事"</span>, stream=<span class="kw">True</span>):
+    <span class="fn">print</span>(chunk.text, end=<span class="st">""</span>)
+
+<span class="cm"># 组合：会话 + 流式</span>
+<span class="kw">async for</span> chunk <span class="kw">in</span> agent.run(<span class="st">"继续"</span>, session=session, stream=<span class="kw">True</span>):
+    <span class="fn">print</span>(chunk.text, end=<span class="st">""</span>)</pre>
+      </div>
+    </div>
+    <div class="qa">
+      <div class="q">❓ 为什么这件事必要</div>
+      <div class="a">Agent 的使用场景多样：<ul>
+        <li><strong>一次性查询</strong>：无状态，只需要答案（如 FAQ bot）。</li>
+        <li><strong>多轮对话</strong>：需要记住上文（如客服、助手）。</li>
+        <li><strong>流式响应</strong>：实时显示生成过程（UX 需求）。</li>
+        <li><strong>组合</strong>：多轮 + 流式（如聊天应用）。</li>
+      </ul>
+      如果每种场景用不同方法（<span class="mono">run</span>、<span class="mono">run_with_session</span>、<span class="mono">run_stream</span>……），API 膨胀且学习成本高。统一成一个 <span class="mono">run()</span>，用可选参数控制行为，更简洁。</div>
+    </div>
+    <div class="qa">
+      <div class="q">✅ MAF 的做法与优点</div>
+      <div class="a"><span class="mono">run()</span> 签名：<pre class="code"><span class="kw">async def</span> <span class="fn">run</span>(
+    <span class="kw">self</span>,
+    message: str | Message,
+    session: AgentSession | <span class="kw">None</span> = <span class="kw">None</span>,
+    stream: bool = <span class="kw">False</span>,
+    ...
+) -> AgentResponse | AsyncIterator[AgentResponseUpdate]:</pre>
+      <ul>
+        <li><strong>必需参数</strong>只有 <span class="mono">message</span>，其他都是可选。</li>
+        <li><strong>session</strong> 默认 <span class="mono">None</span>：不传则无状态，传了则多轮。</li>
+        <li><strong>stream</strong> 默认 <span class="mono">False</span>：阻塞返回完整结果；<span class="mono">True</span> 时返回异步迭代器。</li>
+        <li>返回类型由 <span class="mono">stream</span> 决定：类型检查器（mypy、Pylance）能推断出正确类型。</li>
+      </ul></div>
+    </div>
+    <div class="qa">
+      <div class="q">🔀 还有什么其他方案</div>
+      <div class="a"><ul>
+        <li><strong>OpenAI SDK</strong>：<span class="mono">create(...)</span> vs <span class="mono">create(..., stream=True)</span>，但 Assistants API 另有 <span class="mono">runs.create</span>。</li>
+        <li><strong>LangChain</strong>：<span class="mono">invoke</span>、<span class="mono">ainvoke</span>、<span class="mono">stream</span>、<span class="mono">astream</span> 四个方法。</li>
+        <li><strong>Anthropic SDK</strong>：<span class="mono">messages.create</span> vs <span class="mono">messages.stream</span>。</li>
+        <li>MAF <strong>一个方法</strong>，参数控制行为，心智负担最小。</li>
+      </ul></div>
+    </div>
+  </div>
+</details>
+
+<details class="accordion" open>
+  <summary><span class="badge-num">3</span> 流式的内部机制 <span class="hint">点击展开详解</span></summary>
+  <div class="acc-body">
+    <div class="qa">
+      <div class="q">🧪 示例</div>
+      <div class="a">
+<pre class="code"><span class="kw">async for</span> chunk <span class="kw">in</span> agent.run(<span class="st">"写首诗"</span>, stream=<span class="kw">True</span>):
+    <span class="fn">print</span>(<span class="st">f"type={chunk.type}"</span>)      <span class="cm"># "text_delta" / "tool_call" / "final"</span>
+    <span class="fn">print</span>(<span class="st">f"text={chunk.text}"</span>)      <span class="cm"># 本块的文本增量</span>
+    <span class="fn">print</span>(<span class="st">f"is_final={chunk.is_final}"</span>)  <span class="cm"># 是否最后一块</span>
+    
+    <span class="kw">if</span> chunk.is_final:
+        <span class="fn">print</span>(<span class="st">f"full_response={chunk.response}"</span>)  <span class="cm"># 完整 AgentResponse</span></pre>
+      </div>
+    </div>
+    <div class="qa">
+      <div class="q">❓ 为什么这件事必要</div>
+      <div class="a">流式响应不只是"打字机效果"：<ul>
+        <li><strong>降低感知延迟</strong>：首字延迟（TTFT）比总耗时更重要。</li>
+        <li><strong>长输出场景</strong>：生成几百上千 token 时，用户等不及完整响应。</li>
+        <li><strong>中途取消</strong>：用户看到方向不对，立刻停止（节省成本）。</li>
+        <li><strong>实时处理</strong>：边生成边解析（如实时翻译、代码高亮）。</li>
+      </ul>
+      只返回原始文本流不够：需要知道"工具调用开始""最终完成"等事件，才能正确更新 UI。</div>
+    </div>
+    <div class="qa">
+      <div class="q">✅ MAF 的做法与优点</div>
+      <div class="a">MAF 的流式返回 <span class="mono">AgentResponseUpdate</span> 对象（见 <span class="mono">python/src/agent_framework/_types.py</span>）：<ul>
+        <li><strong>type</strong> 字段：<span class="mono">"text_delta"</span>（文本增量）/ <span class="mono">"tool_call"</span>（工具调用）/ <span class="mono">"final"</span>（结束）。</li>
+        <li><strong>text</strong> 字段：本块新增的文本。</li>
+        <li><strong>is_final</strong>：<span class="mono">True</span> 时是最后一块，<span class="mono">.response</span> 属性包含完整 <span class="mono">AgentResponse</span>。</li>
+        <li><strong>元数据</strong>：<span class="mono">usage</span>（token 消耗）、<span class="mono">finish_reason</span>（停止原因）等。</li>
+      </ul>
+      框架自动累积文本、解析工具调用、处理多轮循环，用户只需 <span class="mono">async for</span> 消费。</div>
+    </div>
+    <div class="qa">
+      <div class="q">🔀 还有什么其他方案</div>
+      <div class="a"><ul>
+        <li><strong>OpenAI SDK</strong>：返回 SSE 事件流，用户需手动解析 <span class="mono">delta</span>、累积文本、判断结束。</li>
+        <li><strong>Anthropic SDK</strong>：<span class="mono">MessageStream</span> 对象，事件类型多（<span class="mono">content_block_start</span>、<span class="mono">content_block_delta</span>……），学习曲线陡。</li>
+        <li><strong>LangChain</strong>：<span class="mono">astream</span> 返回原始 chunk，格式取决于底层 LLM。</li>
+        <li>MAF <strong>统一 Update 对象</strong>，抹平厂商差异，高层语义（"文本增量""工具调用""完成"）清晰。</li>
+      </ul></div>
+    </div>
+  </div>
+</details>
+
+<details class="accordion" open>
+  <summary><span class="badge-num">4</span> 多个 Agent 共享一个 client <span class="hint">点击展开详解</span></summary>
+  <div class="acc-body">
+    <div class="qa">
+      <div class="q">🧪 示例</div>
+      <div class="a">
+<pre class="code">client = FoundryChatClient(model=<span class="st">"gpt-4o"</span>, api_key=...)
+
+<span class="cm"># 创建多个 Agent，不同人设</span>
+weather_agent = client.as_agent(
+    name=<span class="st">"WeatherBot"</span>,
+    instructions=<span class="st">"You are a weather assistant."</span>,
+    tools=[get_weather]
+)
+
+translator_agent = client.as_agent(
+    name=<span class="st">"Translator"</span>,
+    instructions=<span class="st">"Translate to French."</span>
+)
+
+support_agent = client.as_agent(
+    name=<span class="st">"Support"</span>,
+    instructions=<span class="st">"Answer user questions."</span>,
+    tools=[search_kb, create_ticket]
+)
+
+<span class="cm"># 三个 Agent 复用同一个 HTTP 连接池、API 密钥</span></pre>
+      </div>
+    </div>
+    <div class="qa">
+      <div class="q">❓ 为什么这件事必要</div>
+      <div class="a">生产环境常见场景：<ul>
+        <li><strong>多角色系统</strong>：一个应用有多个 Agent（路由员、执行员、审核员），都调用同一个模型。</li>
+        <li><strong>连接池</strong>：HTTP/2 支持多路复用，一个 TCP 连接可并发多个请求。每个 Agent 独立建连接浪费资源。</li>
+        <li><strong>配置复用</strong>：API 密钥、重试策略、超时时间只配置一次。</li>
+        <li><strong>监控 / 限流</strong>：所有请求走同一个 client，便于统一埋点、限流。</li>
+      </ul>
+      如果 Agent 和 ChatClient 耦合（每个 Agent 内部创建 client），无法共享连接。</div>
+    </div>
+    <div class="qa">
+      <div class="q">✅ MAF 的做法与优点</div>
+      <div class="a"><span class="mono">ChatClient</span> 是<strong>无状态的</strong>（见 <span class="mono">BaseChatClient</span>）：<ul>
+        <li>不持有对话历史（历史在 <span class="mono">AgentSession</span> 里）。</li>
+        <li>只负责"发请求 → 解析响应"，可被多个 Agent 并发调用。</li>
+        <li>内部用 <span class="mono">httpx.AsyncClient</span>（Python）或 <span class="mono">HttpClient</span>（.NET），自动管理连接池。</li>
+        <li><strong>线程安全</strong>（或异步安全）：多个 <span class="mono">await agent.run(...)</span> 可并发执行。</li>
+      </ul>
+      这种设计让资源利用率最高，也符合依赖注入原则（Agent 依赖 ChatClient 抽象）。</div>
+    </div>
+    <div class="qa">
+      <div class="q">🔀 还有什么其他方案</div>
+      <div class="a"><ul>
+        <li><strong>每个 Agent 内部创建 client</strong>：简单但浪费。OpenAI Assistants API 是服务端 Agent，不存在此问题。</li>
+        <li><strong>全局单例 client</strong>：难以测试、难以配置不同环境。</li>
+        <li><strong>LangChain</strong>：<span class="mono">ChatOpenAI</span> 可共享，但文档不强调，用户容易每次新建。</li>
+        <li>MAF <strong>明确设计</strong>：<span class="mono">client.as_agent(...)</span> 的语法就暗示"多个 agent 共享一个 client"。</li>
+      </ul></div>
+    </div>
+  </div>
+</details>
+
 <div class="card key">
   <div class="tag">✅ 关键要点</div>
   <ul>
@@ -702,6 +1662,250 @@ result = <span class="kw">await</span> agent.run(<span class="st">"What's the we
   <span class="inline">"always_require"</span></strong>，在工具执行前要求人工确认（尤其是写操作 / 花钱的操作）。
 </div>
 
+<details class="accordion" open>
+  <summary><span class="badge-num">1</span> schema 自动生成原理 <span class="hint">点击展开详解</span></summary>
+  <div class="acc-body">
+    <div class="qa">
+      <div class="q">🧪 示例</div>
+      <div class="a">
+<pre class="code"><span class="kw">from</span> typing <span class="kw">import</span> Annotated
+<span class="kw">from</span> agent_framework <span class="kw">import</span> tool
+<span class="kw">from</span> pydantic <span class="kw">import</span> Field
+
+<span class="nb">@tool</span>(approval_mode=<span class="st">"never_require"</span>)
+<span class="kw">def</span> <span class="fn">search_products</span>(
+    query: Annotated[str, Field(description=<span class="st">"Search keywords"</span>)],
+    max_results: Annotated[int, Field(description=<span class="st">"Max results to return"</span>, ge=1, le=10)] = 5
+) -> list[dict]:
+    <span class="st">&quot;&quot;&quot;Search for products in the catalog.&quot;&quot;&quot;</span>
+    ...
+
+<span class="cm"># 自动生成的 JSON Schema：</span>
+<span class="cm"># {</span>
+<span class="cm">#   &quot;name&quot;: &quot;search_products&quot;,</span>
+<span class="cm">#   &quot;description&quot;: &quot;Search for products in the catalog.&quot;,</span>
+<span class="cm">#   &quot;parameters&quot;: {</span>
+<span class="cm">#     &quot;type&quot;: &quot;object&quot;,</span>
+<span class="cm">#     &quot;properties&quot;: {</span>
+<span class="cm">#       &quot;query&quot;: {&quot;type&quot;: &quot;string&quot;, &quot;description&quot;: &quot;Search keywords&quot;},</span>
+<span class="cm">#       &quot;max_results&quot;: {&quot;type&quot;: &quot;integer&quot;, &quot;description&quot;: &quot;Max results...&quot;, &quot;minimum&quot;: 1, &quot;maximum&quot;: 10, &quot;default&quot;: 5}</span>
+<span class="cm">#     },</span>
+<span class="cm">#     &quot;required&quot;: [&quot;query&quot;]</span>
+<span class="cm">#   }</span>
+<span class="cm"># }</span></pre>
+      </div>
+    </div>
+    <div class="qa">
+      <div class="q">❓ 为什么这件事必要</div>
+      <div class="a">模型需要<strong>JSON Schema</strong> 才能理解工具签名：参数名、类型、约束、含义。手写 schema 的问题：<ul>
+        <li><strong>易出错</strong>：字段名拼错、类型不匹配、忘记更新 description。</li>
+        <li><strong>双重维护</strong>：函数签名改了，schema 要同步改，容易漏。</li>
+        <li><strong>无类型检查</strong>：schema 和代码脱节，调用时参数不对只能运行时才发现。</li>
+      </ul>
+      自动生成让<strong>类型注解 = 单一事实来源</strong>，函数签名即契约。</div>
+    </div>
+    <div class="qa">
+      <div class="q">✅ MAF 的做法与优点</div>
+      <div class="a">MAF 用 <strong>Pydantic</strong> 自动生成 schema（见 <span class="mono">python/src/agent_framework/ai/_tool.py</span> 的 <span class="mono">ToolDefinition.from_function</span>）：<ul>
+        <li><strong>类型注解</strong> → <span class="mono">type</span> 字段（<span class="mono">str</span> → <span class="mono">"string"</span>，<span class="mono">int</span> → <span class="mono">"integer"</span>……）。</li>
+        <li><strong>Field(description=...)</strong> → <span class="mono">description</span> 字段。</li>
+        <li><strong>Field(..., ge=1, le=10)</strong> → <span class="mono">minimum</span>/<span class="mono">maximum</span> 约束。</li>
+        <li><strong>默认值</strong> → <span class="mono">default</span> 字段，非必需参数。</li>
+        <li><strong>Docstring</strong> → 工具的 <span class="mono">description</span>。</li>
+      </ul>
+      IDE 自动补全、类型检查器（mypy）验证调用，schema 与代码永远同步。</div>
+    </div>
+    <div class="qa">
+      <div class="q">🔀 还有什么其他方案</div>
+      <div class="a"><ul>
+        <li><strong>手写 JSON Schema</strong>：OpenAI SDK 早期做法，容易出错、维护成本高。</li>
+        <li><strong>LangChain @tool</strong>：也用 Pydantic，但对复杂类型（嵌套对象、联合类型）支持弱。</li>
+        <li><strong>OpenAI function calling JSON</strong>：需手动构造 <span class="mono">{"name": ..., "parameters": {...}}</span>，无类型保证。</li>
+        <li>MAF <strong>完全自动</strong>：支持泛型、嵌套、可选参数、约束，生成的 schema 符合各厂商规范。</li>
+      </ul></div>
+    </div>
+  </div>
+</details>
+
+<details class="accordion" open>
+  <summary><span class="badge-num">2</span> approval_mode 三种值 <span class="hint">点击展开详解</span></summary>
+  <div class="acc-body">
+    <div class="qa">
+      <div class="q">🧪 示例</div>
+      <div class="a">
+<pre class="code"><span class="nb">@tool</span>(approval_mode=<span class="st">"never_require"</span>)
+<span class="kw">def</span> <span class="fn">get_time</span>() -> str:
+    <span class="st">&quot;&quot;&quot;Get current time (safe, always auto-execute).&quot;&quot;&quot;</span>
+    <span class="kw">return</span> datetime.now().isoformat()
+
+<span class="nb">@tool</span>(approval_mode=<span class="st">"always_require"</span>)
+<span class="kw">def</span> <span class="fn">send_email</span>(to: str, subject: str, body: str) -> str:
+    <span class="st">&quot;&quot;&quot;Send an email (requires human approval).&quot;&quot;&quot;</span>
+    ...  <span class="cm"># 框架会在执行前要求确认</span>
+
+<span class="nb">@tool</span>(approval_mode=<span class="st">"auto_if_low_risk"</span>)
+<span class="kw">def</span> <span class="fn">create_ticket</span>(title: str, priority: str) -> str:
+    <span class="st">&quot;&quot;&quot;Create a support ticket (low-priority auto, high requires approval).&quot;&quot;&quot;</span>
+    ...  <span class="cm"># 可自定义风险评估逻辑</span></pre>
+      </div>
+    </div>
+    <div class="qa">
+      <div class="q">❓ 为什么这件事必要</div>
+      <div class="a">工具能力各异，风险不同：<ul>
+        <li><strong>只读查询</strong>（查天气、搜索）：无副作用，可自动执行。</li>
+        <li><strong>写操作</strong>（发邮件、删文件、转账）：有副作用，必须人工确认。</li>
+        <li><strong>灰色地带</strong>（创建草稿、添加备注）：低风险可自动，高风险需确认。</li>
+      </ul>
+      如果所有工具都自动执行（<span class="mono">never_require</span>），模型一个幻觉就可能发错邮件、删错数据。如果所有工具都要确认（<span class="mono">always_require</span>），用户体验糟糕（查个天气也要点确认）。需要<strong>分级控制</strong>。</div>
+    </div>
+    <div class="qa">
+      <div class="q">✅ MAF 的做法与优点</div>
+      <div class="a">MAF 的 <span class="mono">approval_mode</span>（见 <span class="mono">python/src/agent_framework/ai/_tool.py</span>）：<ul>
+        <li><strong>"never_require"</strong>：无需确认，自动执行（默认）。</li>
+        <li><strong>"always_require"</strong>：每次都弹出确认对话框 / 回调，用户批准后才执行。</li>
+        <li><strong>"auto_if_low_risk"</strong>（未来扩展）：根据参数内容动态决定（如金额 < $10 自动，>= $10 确认）。</li>
+      </ul>
+      审批流程由 <span class="mono">ApprovalStrategy</span> 接口定义（见 <span class="mono">_approval.py</span>），可自定义（如接入 Slack 审批机器人、钉钉审批流）。框架在工具执行前自动拦截，无需在工具函数内写审批逻辑。</div>
+    </div>
+    <div class="qa">
+      <div class="q">🔀 还有什么其他方案</div>
+      <div class="a"><ul>
+        <li><strong>LangChain HumanApprovalCallbackHandler</strong>：通过回调实现，但需手动注册到每个 Agent，容易漏。</li>
+        <li><strong>手动在工具内判断</strong>：<span class="mono">if dangerous: ask_user(); ...</span>，把审批逻辑和业务逻辑耦合。</li>
+        <li><strong>OpenAI function calling</strong>：无内置审批，需应用层拦截 <span class="mono">function_call</span> 自行处理。</li>
+        <li>MAF <strong>声明式审批</strong>：<span class="mono">@tool(approval_mode=...)</span> 一行搞定，审批逻辑与工具解耦，可插拔策略。</li>
+      </ul></div>
+    </div>
+  </div>
+</details>
+
+<details class="accordion" open>
+  <summary><span class="badge-num">3</span> 异步工具 <span class="hint">点击展开详解</span></summary>
+  <div class="acc-body">
+    <div class="qa">
+      <div class="q">🧪 示例</div>
+      <div class="a">
+<pre class="code"><span class="kw">import</span> httpx
+
+<span class="cm"># 同步工具（阻塞 I/O）</span>
+<span class="nb">@tool</span>(approval_mode=<span class="st">"never_require"</span>)
+<span class="kw">def</span> <span class="fn">get_weather_sync</span>(city: str) -> str:
+    <span class="st">&quot;&quot;&quot;Get weather (blocks event loop).&quot;&quot;&quot;</span>
+    resp = httpx.get(<span class="st">f"https://api.weather.com?q={city}"</span>)  <span class="cm"># 阻塞！</span>
+    <span class="kw">return</span> resp.json()[<span class="st">"temp"</span>]
+
+<span class="cm"># 异步工具（非阻塞）</span>
+<span class="nb">@tool</span>(approval_mode=<span class="st">"never_require"</span>)
+<span class="kw">async def</span> <span class="fn">get_weather_async</span>(city: str) -> str:
+    <span class="st">&quot;&quot;&quot;Get weather (async, doesn't block).&quot;&quot;&quot;</span>
+    <span class="kw">async with</span> httpx.AsyncClient() <span class="kw">as</span> client:
+        resp = <span class="kw">await</span> client.get(<span class="st">f"https://api.weather.com?q={city}"</span>)
+        <span class="kw">return</span> resp.json()[<span class="st">"temp"</span>]
+
+<span class="cm"># Agent 自动处理：sync 用 run_in_executor，async 直接 await</span></pre>
+      </div>
+    </div>
+    <div class="qa">
+      <div class="q">❓ 为什么这件事必要</div>
+      <div class="a">工具常做 I/O：<ul>
+        <li><strong>HTTP 请求</strong>：调第三方 API（天气、地图、支付）。</li>
+        <li><strong>数据库查询</strong>：读用户信息、订单历史。</li>
+        <li><strong>文件读写</strong>：读配置、写日志。</li>
+      </ul>
+      同步 I/O 会<strong>阻塞事件循环</strong>：一个工具调用花 2 秒，整个 Agent 卡住 2 秒，无法处理其他请求。异步 I/O 让事件循环继续运转，多个工具调用可并发执行（一个等网络时另一个跑 CPU 任务）。Python 的 <span class="mono">asyncio</span> 和 .NET 的 <span class="mono">Task</span> 都要求异步传染性——<strong>async all the way</strong>。</div>
+    </div>
+    <div class="qa">
+      <div class="q">✅ MAF 的做法与优点</div>
+      <div class="a">MAF 的 <span class="mono">@tool</span> <strong>同时支持同步和异步</strong>（见 <span class="mono">python/src/agent_framework/ai/_tool.py</span> 的 <span class="mono">ToolDefinition.invoke</span>）：<ul>
+        <li><strong>同步工具</strong>：框架用 <span class="mono">asyncio.to_thread</span>（或 <span class="mono">run_in_executor</span>）在线程池执行，避免阻塞。</li>
+        <li><strong>异步工具</strong>：框架直接 <span class="mono">await</span>，不阻塞事件循环。</li>
+        <li><strong>自动检测</strong>：<span class="mono">inspect.iscoroutinefunction(...)</span> 判断是否异步。</li>
+        <li><strong>并发执行</strong>：多个工具调用可用 <span class="mono">asyncio.gather</span> 并发（未来支持 parallel tool calls）。</li>
+      </ul>
+      开发者不用关心同步 / 异步细节，框架保证高效执行。</div>
+    </div>
+    <div class="qa">
+      <div class="q">🔀 还有什么其他方案</div>
+      <div class="a"><ul>
+        <li><strong>LangChain</strong>：<span class="mono">@tool</span> 支持异步，但 <span class="mono">AgentExecutor</span> 的同步 / 异步路径分离，易出错。</li>
+        <li><strong>OpenAI SDK</strong>：不管工具同步 / 异步，应用层自己处理。</li>
+        <li><strong>同步 only</strong>：简单但性能差，Agent 处理并发请求时会卡住。</li>
+        <li>MAF <strong>透明处理</strong>：写同步工具（简单）或异步工具（高效）都行，框架自动优化。</li>
+      </ul></div>
+    </div>
+  </div>
+</details>
+
+<details class="accordion" open>
+  <summary><span class="badge-num">4</span> 多个工具配合 <span class="hint">点击展开详解</span></summary>
+  <div class="acc-body">
+    <div class="qa">
+      <div class="q">🧪 示例</div>
+      <div class="a">
+<pre class="code"><span class="nb">@tool</span>(approval_mode=<span class="st">"never_require"</span>)
+<span class="kw">def</span> <span class="fn">search_docs</span>(query: str) -> list[str]:
+    <span class="st">&quot;&quot;&quot;Search documentation for relevant pages.&quot;&quot;&quot;</span>
+    ...
+
+<span class="nb">@tool</span>(approval_mode=<span class="st">"never_require"</span>)
+<span class="kw">def</span> <span class="fn">read_page</span>(page_id: str) -> str:
+    <span class="st">&quot;&quot;&quot;Read the full content of a documentation page.&quot;&quot;&quot;</span>
+    ...
+
+<span class="nb">@tool</span>(approval_mode=<span class="st">"always_require"</span>)
+<span class="kw">def</span> <span class="fn">create_ticket</span>(title: str, description: str) -> str:
+    <span class="st">&quot;&quot;&quot;Create a support ticket.&quot;&quot;&quot;</span>
+    ...
+
+agent = Agent(
+    client=client,
+    name=<span class="st">"SupportBot"</span>,
+    instructions=<span class="st">"Help users find docs or file tickets."</span>,
+    tools=[search_docs, read_page, create_ticket]
+)
+
+<span class="cm"># 用户："How do I reset my password?"</span>
+<span class="cm"># 模型：调 search_docs("reset password") → 拿到 [page_123, page_456]</span>
+<span class="cm"># 模型：调 read_page("page_123") → 读到步骤</span>
+<span class="cm"># 模型：回答用户</span>
+
+<span class="cm"># 用户："I still can't log in, please help"</span>
+<span class="cm"># 模型：调 create_ticket(...) → 框架弹确认 → 用户批准 → 创建工单</span></pre>
+      </div>
+    </div>
+    <div class="qa">
+      <div class="q">❓ 为什么这件事必要</div>
+      <div class="a">真实 Agent 需要<strong>多种能力</strong>：<ul>
+        <li><strong>检索</strong>：搜索知识库、数据库、API。</li>
+        <li><strong>读写</strong>：读文件、写日志、更新记录。</li>
+        <li><strong>计算</strong>：调计算器、运行代码。</li>
+        <li><strong>交互</strong>：发邮件、创建工单、调第三方服务。</li>
+      </ul>
+      单个工具功能有限，多个工具<strong>组合</strong>才能完成复杂任务。模型需要<strong>规划</strong>：先搜索 → 再读取 → 最后创建工单。框架需要支持<strong>多轮工具调用</strong>（一个工具的输出可能触发下一个工具）。</div>
+    </div>
+    <div class="qa">
+      <div class="q">✅ MAF 的做法与优点</div>
+      <div class="a">MAF 的工具循环（见 <span class="mono">python/src/agent_framework/_agent.py</span> 的 <span class="mono">_run_loop</span>）：<ul>
+        <li><strong>传所有工具 schema</strong>：Agent 初始化时把所有工具的 JSON Schema 发给模型。</li>
+        <li><strong>模型选择工具</strong>：模型根据用户问题决定调哪个（或哪几个）工具，输出 <span class="mono">function_call</span>。</li>
+        <li><strong>框架路由执行</strong>：根据 <span class="mono">function_call.name</span> 找到对应 Python 函数，传参调用。</li>
+        <li><strong>结果回灌</strong>：把 <span class="mono">function_result</span> 追加进对话历史，模型读取后决定：继续调工具 or 给出最终答案。</li>
+        <li><strong>循环直到完成</strong>：最多 <span class="mono">max_tool_rounds</span> 轮（默认 10），防止死循环。</li>
+      </ul>
+      开发者只需定义工具、把它们传给 Agent，调度和组合由框架完成。</div>
+    </div>
+    <div class="qa">
+      <div class="q">🔀 还有什么其他方案</div>
+      <div class="a"><ul>
+        <li><strong>OpenAI parallel_tool_calls</strong>：支持一次返回多个 tool_call，MAF 未来也会支持（并发执行工具）。</li>
+        <li><strong>Anthropic tool_use blocks</strong>：一条消息可包含多个 <span class="mono">tool_use</span>，MAF 已在 <span class="mono">Content.from_function_call</span> 抽象。</li>
+        <li><strong>LangChain ToolChain</strong>：需手动编排工具调用顺序（A → B → C），不如让模型自己规划灵活。</li>
+        <li>MAF <strong>自动循环 + 模型规划</strong>：给足工具，模型自己组合，框架保证安全执行（审批 + 轮数限制）。</li>
+      </ul></div>
+    </div>
+  </div>
+</details>
+
 <div class="card key">
   <div class="tag">✅ 关键要点</div>
   <ul>
@@ -749,6 +1953,255 @@ result = <span class="kw">await</span> agent.run(
   <span class="inline">ContextProvider</span>：例如 <span class="inline">MemoryContextProvider</span> 把记忆存进可检索的库，
   每次 run 前自动把相关条目拼进上下文。（记忆库 / 各存储后端见第 16 课与各 provider 包。）
 </div>
+
+<details class="accordion" open>
+  <summary><span class="badge-num">1</span> create_session vs 不传 session <span class="hint">点击展开详解</span></summary>
+  <div class="acc-body">
+    <div class="qa">
+      <div class="q">🧪 示例</div>
+      <div class="a">
+<pre class="code"><span class="cm"># 不传 session：每次都是新对话（失忆）</span>
+result1 = <span class="kw">await</span> agent.run(<span class="st">"我叫 Alice"</span>)
+result2 = <span class="kw">await</span> agent.run(<span class="st">"我叫什么？"</span>)
+<span class="cm"># → 模型不知道，之前的"Alice"已丢失</span>
+
+<span class="cm"># 传 session：记住上下文</span>
+session = agent.create_session()
+result1 = <span class="kw">await</span> agent.run(<span class="st">"我叫 Alice"</span>, session=session)
+result2 = <span class="kw">await</span> agent.run(<span class="st">"我叫什么？"</span>, session=session)
+<span class="cm"># → 模型回答"Alice"</span>
+
+<span class="cm"># 查看会话历史</span>
+<span class="fn">print</span>(session.history)  <span class="cm"># [Message("user", "我叫 Alice"), Message("assistant", ...), ...]</span></pre>
+      </div>
+    </div>
+    <div class="qa">
+      <div class="q">❓ 为什么这件事必要</div>
+      <div class="a">许多 AI 应用需要<strong>上下文连续性</strong>：<ul>
+        <li><strong>对话式 UI</strong>：用户问"天气怎样？" → "明天呢？" → "后天呢？"，每句都依赖前文。</li>
+        <li><strong>任务流</strong>：用户说"帮我订酒店" → 模型问"哪个城市？" → "西雅图" → "几号入住？"，需保持状态。</li>
+        <li><strong>个性化</strong>：用户说"我喜欢素食"，后续对话记得这点。</li>
+      </ul>
+      如果默认<strong>有状态</strong>（隐式全局 session），会导致：不同用户的对话串了、测试时难以隔离、并发请求互相干扰。MAF 选择<strong>无状态为默认</strong>，需要状态时显式传 <span class="mono">session</span>。</div>
+    </div>
+    <div class="qa">
+      <div class="q">✅ MAF 的做法与优点</div>
+      <div class="a"><span class="mono">AgentSession</span>（见 <span class="mono">python/src/agent_framework/_session.py</span>）：<ul>
+        <li><strong>显式创建</strong>：<span class="mono">agent.create_session()</span> 返回一个新会话对象。</li>
+        <li><strong>透传</strong>：把同一个 <span class="mono">session</span> 对象传给每次 <span class="mono">run()</span>。</li>
+        <li><strong>自动累积</strong>：每次 <span class="mono">run</span> 后，用户消息 + 模型回复（+ 工具调用/结果）自动追加进 <span class="mono">session.history</span>。</li>
+        <li><strong>无副作用</strong>：不传 <span class="mono">session</span> 时，<span class="mono">run</span> 不改任何全局状态，完全无状态。</li>
+      </ul>
+      这种设计让<strong>并发安全</strong>（多个用户各自的 session 互不干扰）、<strong>可测试</strong>（每个测试用例独立 session）、<strong>易理解</strong>（有没有记忆一目了然）。</div>
+    </div>
+    <div class="qa">
+      <div class="q">🔀 还有什么其他方案</div>
+      <div class="a"><ul>
+        <li><strong>OpenAI Assistants API</strong>：用 <span class="mono">thread_id</span> 标识会话，服务端管理历史。优点是无需客户端存储，缺点是无法本地调试、换厂商需重构。</li>
+        <li><strong>LangChain Memory</strong>：用 <span class="mono">ConversationBufferMemory</span> 等类，需手动挂到 <span class="mono">Chain</span>。容易忘记清空，导致历史累积过长。</li>
+        <li><strong>隐式全局 session</strong>：框架内部维护 session 字典（user_id → history），简化 API 但并发不安全、难测试。</li>
+        <li>MAF <strong>显式 session 对象</strong>：清晰、安全、可控。</li>
+      </ul></div>
+    </div>
+  </div>
+</details>
+
+<details class="accordion" open>
+  <summary><span class="badge-num">2</span> ContextProvider 的工作流 <span class="hint">点击展开详解</span></summary>
+  <div class="acc-body">
+    <div class="qa">
+      <div class="q">🧪 示例</div>
+      <div class="a">
+<pre class="code"><span class="kw">from</span> agent_framework <span class="kw">import</span> Agent, MemoryContextProvider
+
+<span class="cm"># 创建一个记忆提供者：在每次 run 前注入相关记忆</span>
+memory_provider = MemoryContextProvider(
+    memory_store=...,  <span class="cm"># 向量数据库 / Redis / 其他存储</span>
+    relevance_threshold=0.7
+)
+
+agent = Agent(
+    client=client,
+    name=<span class="st">"Assistant"</span>,
+    context_providers=[memory_provider],  <span class="cm"># 挂载</span>
+)
+
+<span class="cm"># 用户首次说"我喜欢爬山"</span>
+session = agent.create_session()
+<span class="kw">await</span> agent.run(<span class="st">"我喜欢爬山"</span>, session=session)
+<span class="cm"># → MemoryContextProvider 把"用户喜欢爬山"存入记忆库</span>
+
+<span class="cm"># 几天后，新会话</span>
+session2 = agent.create_session()
+<span class="kw">await</span> agent.run(<span class="st">"推荐周末活动"</span>, session=session2)
+<span class="cm"># → MemoryContextProvider 检索到"喜欢爬山"，注入上下文</span>
+<span class="cm"># → 模型回答时会考虑这条记忆</span></pre>
+      </div>
+    </div>
+    <div class="qa">
+      <div class="q">❓ 为什么这件事必要</div>
+      <div class="a"><span class="mono">AgentSession</span> 只在<strong>单次对话</strong>内记忆，对话结束后历史就没了。真实应用需要<strong>跨会话记忆</strong>：<ul>
+        <li><strong>用户偏好</strong>：用户说"我对海鲜过敏"，所有后续会话都要记得。</li>
+        <li><strong>RAG（检索增强生成）</strong>：用户问"公司休假政策？"，从文档库检索相关段落，注入上下文。</li>
+        <li><strong>个性化</strong>：根据用户历史交互（问过什么、喜欢什么）调整回答风格。</li>
+      </ul>
+      把这些逻辑硬编码在 <span class="mono">instructions</span> 或手动拼进每条消息，既繁琐又不可扩展。需要<strong>可插拔的上下文注入机制</strong>。</div>
+    </div>
+    <div class="qa">
+      <div class="q">✅ MAF 的做法与优点</div>
+      <div class="a"><span class="mono">ContextProvider</span> 接口（见 <span class="mono">python/src/agent_framework/context/_provider.py</span>）：<ul>
+        <li><strong>在每次 run 前调用</strong>：Agent 执行时，遍历 <span class="mono">context_providers</span> 列表，调用每个 provider 的 <span class="mono">provide_context(...)</span>。</li>
+        <li><strong>返回消息 / 内容</strong>：provider 可返回 <span class="mono">Message</span> 列表（注入历史对话）、<span class="mono">Content</span> 列表（注入文档片段）、或修改 system prompt。</li>
+        <li><strong>内置实现</strong>：<span class="mono">MemoryContextProvider</span>（向量检索记忆）、<span class="mono">InMemoryHistoryProvider</span>（跨会话历史）、<span class="mono">DocumentContextProvider</span>（文档 RAG）。</li>
+        <li><strong>可组合</strong>：多个 provider 按顺序执行，可同时用记忆 + 文档检索 + 用户偏好。</li>
+      </ul>
+      这种设计让上下文逻辑<strong>解耦</strong>，Agent 不关心"记忆从哪来"，只管"有这些上下文"。</div>
+    </div>
+    <div class="qa">
+      <div class="q">🔀 还有什么其他方案</div>
+      <div class="a"><ul>
+        <li><strong>LangChain Memory</strong>：<span class="mono">ConversationBufferMemory</span>、<span class="mono">ConversationSummaryMemory</span> 等，但和 Chain 耦合，不易切换存储后端。</li>
+        <li><strong>LlamaIndex chat memory</strong>：专注向量检索，但不支持其他类型上下文（如用户偏好、文档片段）。</li>
+        <li><strong>手动拼接</strong>：在 <span class="mono">run</span> 前手动查询记忆库、拼进消息列表，重复代码多、易出错。</li>
+        <li>MAF <strong>接口抽象 + 内置实现</strong>：开箱即用的 provider，也可自定义（如接入企业知识图谱）。</li>
+      </ul></div>
+    </div>
+  </div>
+</details>
+
+<details class="accordion" open>
+  <summary><span class="badge-num">3</span> 会话存储后端 <span class="hint">点击展开详解</span></summary>
+  <div class="acc-body">
+    <div class="qa">
+      <div class="q">🧪 示例</div>
+      <div class="a">
+<pre class="code"><span class="cm"># 开发环境：内存存储（进程重启后丢失）</span>
+<span class="kw">from</span> agent_framework.session <span class="kw">import</span> InMemorySessionStore
+session_store = InMemorySessionStore()
+
+<span class="cm"># 生产环境：Redis 存储（持久化 + 分布式）</span>
+<span class="kw">from</span> agent_framework.session.redis <span class="kw">import</span> RedisSessionStore
+session_store = RedisSessionStore(redis_url=<span class="st">"redis://localhost:6379"</span>)
+
+<span class="cm"># Azure：Cosmos DB 存储</span>
+<span class="kw">from</span> agent_framework.session.cosmos <span class="kw">import</span> CosmosSessionStore
+session_store = CosmosSessionStore(
+    endpoint=<span class="st">"https://..."</span>,
+    key=<span class="st">"..."</span>,
+    database=<span class="st">"agents"</span>,
+    container=<span class="st">"sessions"</span>
+)
+
+<span class="cm"># Agent 使用存储</span>
+agent = Agent(client=client, session_store=session_store)
+session = agent.create_session(session_id=<span class="st">"user_123_conv_456"</span>)
+<span class="cm"># 历史自动存到后端，下次加载时恢复</span></pre>
+      </div>
+    </div>
+    <div class="qa">
+      <div class="q">❓ 为什么这件事必要</div>
+      <div class="a">不同环境对存储的需求不同：<ul>
+        <li><strong>开发 / 测试</strong>：内存存储即可，快速、无需配置。</li>
+        <li><strong>单机生产</strong>：文件存储（SQLite、JSON），简单持久化。</li>
+        <li><strong>分布式生产</strong>：Redis / Cosmos / DynamoDB，多实例共享状态、高可用。</li>
+        <li><strong>合规 / 审计</strong>：需存进企业数据库（PostgreSQL / MongoDB），便于查询、归档。</li>
+      </ul>
+      如果存储逻辑和 Agent 耦合（硬编码用 Redis），切换环境需改代码、难以测试。需要<strong>抽象存储接口</strong>。</div>
+    </div>
+    <div class="qa">
+      <div class="q">✅ MAF 的做法与优点</div>
+      <div class="a"><span class="mono">SessionStore</span> 接口（见 <span class="mono">python/src/agent_framework/session/_store.py</span>）：<ul>
+        <li><strong>抽象接口</strong>：<span class="mono">save_session</span> / <span class="mono">load_session</span> / <span class="mono">delete_session</span>，Agent 只依赖接口。</li>
+        <li><strong>多种实现</strong>：<ul>
+          <li><span class="mono">InMemorySessionStore</span>：开发用，字典存储。</li>
+          <li><span class="mono">RedisSessionStore</span>：生产用，Redis 哈希存储（<span class="mono">HSET sessions:{id} history ...</span>）。</li>
+          <li><span class="mono">CosmosSessionStore</span>：Azure 用户，Cosmos DB 文档存储。</li>
+          <li><span class="mono">FileSessionStore</span>：单机，JSON 文件存储。</li>
+        </ul></li>
+        <li><strong>序列化自动</strong>：<span class="mono">Message.to_dict()</span> 转 JSON，存进后端；加载时 <span class="mono">from_dict</span> 恢复。</li>
+        <li><strong>可扩展</strong>：自定义后端（如接入 PostgreSQL、MongoDB）只需实现 <span class="mono">SessionStore</span> 接口。</li>
+      </ul></div>
+    </div>
+    <div class="qa">
+      <div class="q">🔀 还有什么其他方案</div>
+      <div class="a"><ul>
+        <li><strong>LangChain</strong>：<span class="mono">RedisChatMessageHistory</span>、<span class="mono">FileChatMessageHistory</span> 等，但和 Memory 类耦合，切换存储需改 Memory 初始化。</li>
+        <li><strong>OpenAI Assistants</strong>：服务端管理，开发者无法选择存储后端、无法本地调试。</li>
+        <li><strong>手动序列化</strong>：自己写 <span class="mono">json.dump(history, file)</span>，重复代码多、容易出错（忘记处理工具调用等复杂内容）。</li>
+        <li>MAF <strong>接口 + 多实现</strong>：开发用内存、生产切 Redis，只改一行配置。</li>
+      </ul></div>
+    </div>
+  </div>
+</details>
+
+<details class="accordion" open>
+  <summary><span class="badge-num">4</span> context window 压缩 <span class="hint">点击展开详解</span></summary>
+  <div class="acc-body">
+    <div class="qa">
+      <div class="q">🧪 示例</div>
+      <div class="a">
+<pre class="code"><span class="kw">from</span> agent_framework.context <span class="kw">import</span> ContextWindowCompactionStrategy
+
+<span class="cm"># 策略 A：滑动窗口（保留最近 N 条消息）</span>
+strategy = ContextWindowCompactionStrategy.sliding_window(max_messages=20)
+
+<span class="cm"># 策略 B：摘要压缩（老消息总结成一条）</span>
+strategy = ContextWindowCompactionStrategy.summarize(
+    max_tokens=4000,
+    summary_model=<span class="st">"gpt-4o-mini"</span>
+)
+
+<span class="cm"># 策略 C：混合（保留系统消息 + 最近消息 + 摘要）</span>
+strategy = ContextWindowCompactionStrategy.hybrid(
+    keep_system=<span class="kw">True</span>,
+    keep_recent=10,
+    summarize_older=<span class="kw">True</span>
+)
+
+agent = Agent(
+    client=client,
+    context_window_strategy=strategy
+)
+
+<span class="cm"># 对话超过 20 轮时，自动触发压缩</span>
+session = agent.create_session()
+<span class="kw">for</span> i <span class="kw">in</span> <span class="fn">range</span>(30):
+    <span class="kw">await</span> agent.run(<span class="st">f"第 {i} 条消息"</span>, session=session)
+    <span class="cm"># → 第 21 条时，策略生效：删掉最老的或生成摘要</span></pre>
+      </div>
+    </div>
+    <div class="qa">
+      <div class="q">❓ 为什么这件事必要</div>
+      <div class="a">对话历史会<strong>无限增长</strong>，问题：<ul>
+        <li><strong>token 限制</strong>：模型有 context window 上限（如 GPT-4 128k tokens），超过就报错或截断。</li>
+        <li><strong>成本</strong>：输入 token 也计费，历史越长、每次调用越贵。</li>
+        <li><strong>延迟</strong>：发送和处理更多 token 增加延迟。</li>
+        <li><strong>相关性衰减</strong>：50 轮前的对话可能和当前问题无关，但仍占用 context。</li>
+      </ul>
+      需要<strong>自动压缩策略</strong>：在不丢失关键信息的前提下，控制 context 大小。</div>
+    </div>
+    <div class="qa">
+      <div class="q">✅ MAF 的做法与优点</div>
+      <div class="a"><span class="mono">ContextWindowCompactionStrategy</span>（见 <span class="mono">python/src/agent_framework/context/_compaction.py</span>）：<ul>
+        <li><strong>滑动窗口</strong>：保留最近 N 条消息，删掉最老的（适合短期对话）。</li>
+        <li><strong>摘要压缩</strong>：把老消息总结成一条 system 消息（<span class="st">"之前用户提到……"</span>），保留语义、减少 token。</li>
+        <li><strong>混合策略</strong>：保留 system 消息（重要指令）+ 最近消息（当前上下文）+ 摘要中间消息。</li>
+        <li><strong>自动触发</strong>：Agent 在 <span class="mono">run</span> 前检查历史长度，超过阈值时调用策略压缩。</li>
+        <li><strong>可配置</strong>：<span class="mono">max_tokens</span>、<span class="mono">max_messages</span>、<span class="mono">summary_model</span> 都可调。</li>
+      </ul>
+      开发者无需手动管理 context，框架自动优化。</div>
+    </div>
+    <div class="qa">
+      <div class="q">🔀 还有什么其他方案</div>
+      <div class="a"><ul>
+        <li><strong>LangChain ConversationSummaryMemory</strong>：每次对话后调 LLM 生成摘要，但开销大、时机不灵活。</li>
+        <li><strong>手动截断</strong>：<span class="mono">messages[-10:]</span> 只取最后 10 条，简单但丢失早期重要信息。</li>
+        <li><strong>向量检索</strong>：把历史存进向量库，每次检索相关片段，但需额外基础设施。</li>
+        <li>MAF <strong>多策略可选</strong>：简单场景用滑动窗口，复杂场景用摘要，还可组合 ContextProvider 做向量检索。</li>
+      </ul></div>
+    </div>
+  </div>
+</details>
 
 <div class="card key">
   <div class="tag">✅ 关键要点</div>
@@ -801,14 +2254,93 @@ result = <span class="kw">await</span> agent.run(
 </div>
 
 <details class="accordion" open>
-  <summary><span class="badge-num">1</span> BaseAgent 定义了哪些接口？ <span class="hint">点击展开</span></summary>
+  <summary><span class="badge-num">1</span> BaseAgent 定义了哪些接口？ <span class="hint">点击展开详解</span></summary>
   <div class="acc-body">
-    <div class="qa">
-      <div class="q">🔬 核心协议</div>
-      <div class="a"><span class="mono">BaseAgent</span> 规定了 <span class="mono">run()</span>（非流式 + 流式共用）、
-        <span class="mono">create_session()</span>、<span class="mono">get_session()</span> 等。
-        子类只需关注"怎么组装消息、怎么调模型"——循环骨架已由基类搭好。</div>
-    </div>
+    <div class="qa"><div class="q">🧪 示例</div><div class="a"><span class="mono">BaseAgent</span>（<span class="mono">_agents.py:314</span>）规定了
+      <span class="mono">run()</span>（非流式 + 流式共用）、<span class="mono">create_session()</span>、<span class="mono">get_session()</span>。
+      子类只需实现这几个方法，循环骨架已由基类搭好。</div></div>
+    <div class="qa"><div class="q">❓ 为什么这件事必要</div><div class="a">如果没有统一接口，每种 Agent 都得各写一套调用协议，
+      上层编排器无法通用。抽象基类保证"任何 Agent 都能 <span class="mono">run()</span>"，这是多态的基础。</div></div>
+    <div class="qa"><div class="q">✅ MAF 的做法与优点</div><div class="a">MAF 用 <strong>模板方法模式</strong>：<span class="mono">BaseAgent</span>
+      定义骨架，<span class="mono">RawAgent</span> / <span class="mono">Agent</span> 分层实现。
+      这样可以在不破坏协议的前提下自由扩展。</div></div>
+    <div class="qa"><div class="q">🔀 还有什么其他方案</div><div class="a">LangChain 用 <span class="mono">Runnable</span> 协议（更通用但更松散）；
+      AutoGen 用 <span class="mono">ConversableAgent</span>（更紧耦合）。MAF 选择"刚好够用"的抽象层次，避免过度泛化。</div></div>
+  </div>
+</details>
+
+<details class="accordion" open>
+  <summary><span class="badge-num">2</span> Agent.run() 内部调用链 <span class="hint">点击展开详解</span></summary>
+  <div class="acc-body">
+    <div class="qa"><div class="q">🧪 示例</div><div class="a"><span class="mono">Agent</span>（<span class="mono">_agents.py:1584</span>）的 <span class="mono">run()</span>
+      经过中间件 / 遥测层后进入 <span class="mono">RawAgent.run()</span>（<span class="mono">_agents.py:889</span>），依次调用：
+<pre class="code">_prepare_run_context()   <span class="cm"># 准备消息、session、工具、选项</span>
+_call_chat_client()      <span class="cm"># 调用 ChatClient 拿回 ChatResponse</span>
+_parse_non_streaming_response()  <span class="cm"># 非流式：转为 AgentResponse</span>
+_parse_streaming_response()      <span class="cm"># 流式：转为 AgentResponseUpdate 流</span>
+_run_after_providers()   <span class="cm"># 执行 ContextProvider 后置钩子</span></pre></div></div>
+    <div class="qa"><div class="q">❓ 为什么这件事必要</div><div class="a">理解内部调用链，才知道在哪里挂中间件、在哪里注入上下文、
+      出错时该看哪一步——不再"黑箱调试"。</div></div>
+    <div class="qa"><div class="q">✅ MAF 的做法与优点</div><div class="a">每个步骤是独立方法，职责单一。
+      <span class="mono">_prepare_run_context()</span> 只管拼消息，<span class="mono">_call_chat_client()</span> 只管调模型。
+      这让子类可以 <strong>精确覆写某一步</strong>而不动其他步骤。</div></div>
+    <div class="qa"><div class="q">🔀 还有什么其他方案</div><div class="a">有的框架把所有逻辑放进一个大 <span class="mono">run()</span> 方法；
+      也有的用声明式 DAG（如 LangGraph）编排。MAF 的方法函数分拆 + 循环骨架是两者的中间路线。</div></div>
+  </div>
+</details>
+
+<details class="accordion" open>
+  <summary><span class="badge-num">3</span> 自定义 Agent（RawAgent） <span class="hint">点击展开详解</span></summary>
+  <div class="acc-body">
+    <div class="qa"><div class="q">🧪 示例</div><div class="a"><span class="mono">RawAgent</span>（<span class="mono">_agents.py:578</span>）是核心实现层——
+      它继承 <span class="mono">BaseAgent</span>，实现了完整的 <span class="mono">run()</span>、上下文提供者执行、会话管理、工具解析。
+      如果你想"完全接管"Agent 行为，就继承 <span class="mono">RawAgent</span> 并覆写 <span class="mono">_call_chat_client()</span>。</div></div>
+    <div class="qa"><div class="q">❓ 为什么这件事必要</div><div class="a">默认 <span class="mono">Agent</span> 自带中间件层和遥测层。
+      有时你需要跳过这些层，或者完全替换 LLM 调用逻辑（比如做 mock 测试），这时需要 <span class="mono">RawAgent</span>。</div></div>
+    <div class="qa"><div class="q">✅ MAF 的做法与优点</div><div class="a"><span class="mono">Agent = AgentMiddlewareLayer + AgentTelemetryLayer + RawAgent</span>。
+      三层用 Python 多继承组合，你可以只要其中一层或全部。这种 <strong>Mixin 模式</strong>比单一继承链灵活得多。</div></div>
+    <div class="qa"><div class="q">🔀 还有什么其他方案</div><div class="a">可以用装饰器模式逐层包裹（增加运行时开销），
+      或用配置开关控制功能（不够灵活）。MAF 选择 Mixin 继承，编译期确定行为、零额外运行时开销。</div></div>
+  </div>
+</details>
+
+<details class="accordion" open>
+  <summary><span class="badge-num">4</span> AgentResponse 的结构 <span class="hint">点击展开详解</span></summary>
+  <div class="acc-body">
+    <div class="qa"><div class="q">🧪 示例</div><div class="a"><span class="mono">AgentResponse</span>（<span class="mono">_types.py:2530</span>）的核心字段：
+<pre class="code">response.text           <span class="cm"># 所有消息的拼合文本</span>
+response.messages       <span class="cm"># list[Message] — 完整消息列表</span>
+response.usage_details  <span class="cm"># UsageDetails — prompt/completion token 计数</span>
+response.finish_reason  <span class="cm"># &quot;stop&quot; / &quot;tool_calls&quot; / &quot;length&quot;</span>
+response.value          <span class="cm"># 结构化输出（如果设了 response_format）</span>
+response.raw_representation  <span class="cm"># 原始 API 响应</span></pre></div></div>
+    <div class="qa"><div class="q">❓ 为什么这件事必要</div><div class="a">了解返回结构，你才能正确地：提取回复文本、检查 token 用量做成本控制、
+      判断模型是"正常结束"还是"截断了"、拿到结构化数据而不是手动解析 JSON。</div></div>
+    <div class="qa"><div class="q">✅ MAF 的做法与优点</div><div class="a"><span class="mono">.text</span> 是只读属性（自动拼合所有 message），
+      <span class="mono">.value</span> 支持泛型——如果你声明了 <span class="mono">response_format=MyModel</span>，
+      <span class="mono">.value</span> 自动返回 <span class="mono">MyModel</span> 实例，无需手动反序列化。</div></div>
+    <div class="qa"><div class="q">🔀 还有什么其他方案</div><div class="a">OpenAI SDK 直接返回 dict/dataclass；LangChain 用 <span class="mono">AIMessage</span>。
+      MAF 的 <span class="mono">AgentResponse</span> 多了 <span class="mono">.value</span> 泛型和 <span class="mono">.continuation_token</span>
+      （可恢复长对话），更贴近生产需求。</div></div>
+  </div>
+</details>
+
+<details class="accordion" open>
+  <summary><span class="badge-num">5</span> RawAgent vs Agent <span class="hint">点击展开详解</span></summary>
+  <div class="acc-body">
+    <div class="qa"><div class="q">🧪 示例</div><div class="a">
+<pre class="code"><span class="cm"># Agent = 全功能版（中间件 + 遥测 + RawAgent）</span>
+agent = Agent(name=<span class="st">&quot;full&quot;</span>, client=client,
+              middleware=[LogMiddleware()])
+
+<span class="cm"># RawAgent = 最小核心（无中间件 / 遥测层）</span>
+raw = RawAgent(name=<span class="st">&quot;bare&quot;</span>, client=client)</pre></div></div>
+    <div class="qa"><div class="q">❓ 为什么这件事必要</div><div class="a">如果你只想做单元测试或轻量调用，<span class="mono">Agent</span> 的中间件 / 遥测层是不必要的开销。
+      反之，在生产环境你几乎总是需要日志和监控——此时 <span class="mono">Agent</span> 一步到位。</div></div>
+    <div class="qa"><div class="q">✅ MAF 的做法与优点</div><div class="a">两者共享 <span class="mono">BaseAgent</span> 协议，所以对编排器来说是<strong>完全互换的</strong>。
+      你可以开发时用 <span class="mono">RawAgent</span> 快速迭代，上线时换成 <span class="mono">Agent</span> 加中间件，调用方无需任何改动。</div></div>
+    <div class="qa"><div class="q">🔀 还有什么其他方案</div><div class="a">有的框架只提供一个 Agent 类，通过 <span class="mono">debug=True</span> 开关控制行为。
+      MAF 的分层继承更干净——不想要的层根本不存在，而不是"存在但被 if 跳过"。</div></div>
   </div>
 </details>
 
@@ -856,14 +2388,110 @@ result = <span class="kw">await</span> agent.run(
 </table>
 
 <details class="accordion" open>
-  <summary><span class="badge-num">1</span> 厂商怎么实现 _inner_get_response? <span class="hint">点击展开</span></summary>
+  <summary><span class="badge-num">1</span> 厂商怎么实现 _inner_get_response? <span class="hint">点击展开详解</span></summary>
   <div class="acc-body">
-    <div class="qa">
-      <div class="q">🧪 以 FoundryChatClient 为例</div>
-      <div class="a">它继承 <span class="mono">BaseChatClient</span>，只覆写 <span class="mono">_inner_get_response</span>：
-        把 MAF 的 <span class="mono">Message</span> 列表转成 Foundry SDK 的格式、调 API、再把结果转回 <span class="mono">ChatResponse</span>。
-        如果 <span class="mono">stream=True</span>，则返回一个异步生成器。</div>
-    </div>
+    <div class="qa"><div class="q">🧪 示例</div><div class="a">以 FoundryChatClient 为例：它继承 <span class="mono">BaseChatClient</span>，只覆写
+      <span class="mono">_inner_get_response</span>——把 MAF 的 <span class="mono">Message</span> 列表转成 Foundry SDK 格式、
+      调 API、再把结果转回 <span class="mono">ChatResponse</span>。若 <span class="mono">stream=True</span>，返回异步生成器。</div></div>
+    <div class="qa"><div class="q">❓ 为什么这件事必要</div><div class="a">不同 LLM 厂商的 API 格式完全不同。如果让调用方自己适配，
+      换一个模型就要改一堆代码。统一封装在 <span class="mono">_inner_get_response</span> 里，上层代码零改动。</div></div>
+    <div class="qa"><div class="q">✅ MAF 的做法与优点</div><div class="a">子类只需实现一个抽象方法，签名固定：
+      <span class="mono">_inner_get_response(*, messages, stream, options, **kwargs)</span>。
+      基类负责通用逻辑（重试、中间件、compaction），子类只管"怎么和那家 API 通信"。</div></div>
+    <div class="qa"><div class="q">🔀 还有什么其他方案</div><div class="a">LiteLLM 用一个巨大的 if/elif 分发到各厂商；
+      LangChain 每个厂商写一整套类。MAF 的"一个抽象方法"方案最简洁——新增厂商只需一个类 + 一个方法。</div></div>
+  </div>
+</details>
+
+<details class="accordion" open>
+  <summary><span class="badge-num">2</span> get_response 的完整签名 <span class="hint">点击展开详解</span></summary>
+  <div class="acc-body">
+    <div class="qa"><div class="q">🧪 示例</div><div class="a"><span class="mono">get_response()</span>（<span class="mono">_clients.py:482</span>）完整签名：
+<pre class="code">get_response(
+  messages: Sequence[Message],
+  *, <span class="cm"># 以下全是关键字参数</span>
+  stream: bool = False,
+  options: ChatOptions | None = None,
+  compaction_strategy: CompactionStrategy | None,
+  tokenizer: TokenizerProtocol | None,
+  function_invocation_kwargs: Mapping | None,
+  client_kwargs: Mapping | None,
+)</pre>
+      返回 <span class="mono">ChatResponse</span>（非流式）或 <span class="mono">ResponseStream[ChatResponseUpdate, ChatResponse]</span>（流式）。</div></div>
+    <div class="qa"><div class="q">❓ 为什么这件事必要</div><div class="a">知道所有参数才能精细控制：<span class="mono">compaction_strategy</span> 决定消息过长时如何压缩，
+      <span class="mono">client_kwargs</span> 可透传厂商特有参数，<span class="mono">function_invocation_kwargs</span> 转发给工具调用。</div></div>
+    <div class="qa"><div class="q">✅ MAF 的做法与优点</div><div class="a">只有 <span class="mono">messages</span> 是位置参数，其余全是 <strong>keyword-only</strong>，
+      避免参数顺序错误。<span class="mono">stream</span> 用布尔切换返回类型，无需两个方法。</div></div>
+    <div class="qa"><div class="q">🔀 还有什么其他方案</div><div class="a">OpenAI SDK 用 <span class="mono">create()</span> 加大量 kwargs；
+      Anthropic 用 <span class="mono">messages.create()</span>。MAF 统一为一个入口 + keyword 参数，更易发现、更难用错。</div></div>
+  </div>
+</details>
+
+<details class="accordion" open>
+  <summary><span class="badge-num">3</span> ChatResponse 的内部结构 <span class="hint">点击展开详解</span></summary>
+  <div class="acc-body">
+    <div class="qa"><div class="q">🧪 示例</div><div class="a"><span class="mono">ChatResponse</span>（<span class="mono">_types.py:2122</span>）核心字段：
+<pre class="code">resp.messages       <span class="cm"># list[Message] — 模型回复的消息</span>
+resp.text           <span class="cm"># 所有消息文本拼合（只读属性）</span>
+resp.model          <span class="cm"># 实际使用的模型名</span>
+resp.usage_details  <span class="cm"># UsageDetails（prompt_tokens, completion_tokens）</span>
+resp.finish_reason  <span class="cm"># &quot;stop&quot; / &quot;tool_calls&quot; / &quot;length&quot;</span>
+resp.value          <span class="cm"># 泛型结构化输出</span>
+resp.conversation_id  <span class="cm"># 会话状态标识</span></pre></div></div>
+    <div class="qa"><div class="q">❓ 为什么这件事必要</div><div class="a"><span class="mono">ChatResponse</span> 是 Agent 内部循环的"原子交换单位"——
+      每次 LLM 调用返回一个 <span class="mono">ChatResponse</span>，Agent 检查 <span class="mono">finish_reason</span> 决定是继续工具循环还是结束。</div></div>
+    <div class="qa"><div class="q">✅ MAF 的做法与优点</div><div class="a"><span class="mono">.text</span> 自动拼合，省去手动遍历 messages。
+      <span class="mono">.value</span> 支持泛型，<span class="mono">ChatResponse[MyModel]</span> 的 <span class="mono">.value</span> 直接是 <span class="mono">MyModel</span> 实例。
+      <span class="mono">.raw_representation</span> 保留原始响应，便于调试。</div></div>
+    <div class="qa"><div class="q">🔀 还有什么其他方案</div><div class="a">有的框架只返回字符串；有的返回 dict。
+      MAF 的强类型 dataclass 提供自动补全和类型检查，在 IDE 里开发体验远优于 dict。</div></div>
+  </div>
+</details>
+
+<details class="accordion" open>
+  <summary><span class="badge-num">4</span> 自己写一个 ChatClient <span class="hint">点击展开详解</span></summary>
+  <div class="acc-body">
+    <div class="qa"><div class="q">🧪 示例</div><div class="a">最小自定义 <span class="mono">BaseChatClient</span> 子类骨架：
+<pre class="code"><span class="kw">class</span> <span class="fn">MyChatClient</span>(BaseChatClient):
+    <span class="kw">async def</span> <span class="fn">_inner_get_response</span>(
+        self, *, messages, stream, options, **kwargs
+    ):
+        <span class="cm"># 1. 把 MAF Message 转成你的 API 格式</span>
+        <span class="cm"># 2. 调用你的 LLM API</span>
+        <span class="cm"># 3. 把结果转回 ChatResponse</span>
+        <span class="kw">return</span> ChatResponse(messages=[...], model=<span class="st">&quot;my-model&quot;</span>)</pre></div></div>
+    <div class="qa"><div class="q">❓ 为什么这件事必要</div><div class="a">如果你要接入一个 MAF 还没有官方 provider 的模型（私有部署、小众厂商），
+      就需要自己写。只需实现 <strong>一个方法</strong>，门槛极低。</div></div>
+    <div class="qa"><div class="q">✅ MAF 的做法与优点</div><div class="a">基类 <span class="mono">BaseChatClient</span>（<span class="mono">_clients.py:217</span>）
+      已处理中间件触发、compaction、选项验证。你只写"和 API 通信"这一块，其他全部复用。</div></div>
+    <div class="qa"><div class="q">🔀 还有什么其他方案</div><div class="a">可以用 Adapter 模式包裹现有 SDK（更多胶水代码），
+      或者直接在 Agent 层换掉调用逻辑（不复用基类功能）。MAF 的"子类 + 一个方法"最简洁且复用最多。</div></div>
+  </div>
+</details>
+
+<details class="accordion" open>
+  <summary><span class="badge-num">5</span> ChatOptions 详解 <span class="hint">点击展开详解</span></summary>
+  <div class="acc-body">
+    <div class="qa"><div class="q">🧪 示例</div><div class="a"><span class="mono">ChatOptions</span>（<span class="mono">_types.py:3346</span>）常用字段：
+<pre class="code">options = ChatOptions(
+  model=<span class="st">&quot;gpt-4o&quot;</span>,
+  temperature=0.7,
+  max_tokens=2048,
+  top_p=0.9,
+  stop=[<span class="st">&quot;\n\n&quot;</span>],
+  tool_choice=<span class="st">&quot;auto&quot;</span>,
+  response_format=MyModel,  <span class="cm"># 结构化输出</span>
+)</pre>
+      还有 <span class="mono">frequency_penalty</span>、<span class="mono">presence_penalty</span>、<span class="mono">seed</span>、
+      <span class="mono">logit_bias</span>、<span class="mono">metadata</span>、<span class="mono">instructions</span> 等。</div></div>
+    <div class="qa"><div class="q">❓ 为什么这件事必要</div><div class="a">不同任务需要不同参数：创意写作要高 temperature，代码生成要低 temperature + <span class="mono">stop</span> 序列。
+      <span class="mono">ChatOptions</span> 是"一个对象传递所有模型参数"的标准方式。</div></div>
+    <div class="qa"><div class="q">✅ MAF 的做法与优点</div><div class="a"><span class="mono">ChatOptions</span> 是 <span class="mono">TypedDict</span>，
+      所以你在 IDE 里能看到所有合法字段 + 自动补全。它和 <span class="mono">get_response(options=...)</span> 无缝对接，
+      且 <span class="mono">tool_choice</span> 支持 <span class="mono">&quot;auto&quot;</span> / <span class="mono">&quot;required&quot;</span> / <span class="mono">&quot;none&quot;</span>，精确控制工具调用行为。</div></div>
+    <div class="qa"><div class="q">🔀 还有什么其他方案</div><div class="a">直接传 <span class="mono">**kwargs</span>（无类型提示）；
+      或每个参数做 <span class="mono">get_response()</span> 的独立参数（签名爆炸）。
+      <span class="mono">TypedDict</span> 在灵活性和类型安全之间找到了最佳平衡。</div></div>
   </div>
 </details>
 
@@ -909,14 +2537,109 @@ result = <span class="kw">await</span> agent.run(
 </div>
 
 <details class="accordion" open>
-  <summary><span class="badge-num">1</span> FunctionTool 里装了什么？ <span class="hint">点击展开</span></summary>
+  <summary><span class="badge-num">1</span> FunctionTool 里装了什么？ <span class="hint">点击展开详解</span></summary>
   <div class="acc-body">
-    <div class="qa">
-      <div class="q">🔬 核心属性</div>
-      <div class="a"><span class="mono">FunctionTool</span> 持有：原始函数引用、生成的 JSON Schema、
-        <span class="mono">approval_mode</span>（调用前是否需要人工审批）、函数名、描述。
-        <span class="mono">@tool</span> 装饰器（<span class="mono">_tools.py:1145</span>）是构造 <span class="mono">FunctionTool</span> 的语法糖。</div>
-    </div>
+    <div class="qa"><div class="q">🧪 示例</div><div class="a"><span class="mono">FunctionTool</span>（<span class="mono">_tools.py:240</span>）持有：原始函数引用、生成的 JSON Schema、
+      <span class="mono">approval_mode</span>（调用前是否需要人工审批）、函数名、描述。
+      <span class="mono">@tool</span>（<span class="mono">_tools.py:1145</span>）是构造 <span class="mono">FunctionTool</span> 的语法糖。</div></div>
+    <div class="qa"><div class="q">❓ 为什么这件事必要</div><div class="a">知道 <span class="mono">FunctionTool</span> 的结构，才能理解 schema 是怎么生成的、
+      执行时参数怎么验证的、<span class="mono">approval_mode</span> 在哪里拦截。调试工具调用问题必须从这里入手。</div></div>
+    <div class="qa"><div class="q">✅ MAF 的做法与优点</div><div class="a"><span class="mono">FunctionTool</span> 把函数元信息（名字、描述、schema）和运行时行为
+      （执行、审批、序列化）封装在同一个对象里，是"函数即工具"哲学的载体。</div></div>
+    <div class="qa"><div class="q">🔀 还有什么其他方案</div><div class="a">有的框架用 dict 描述工具（无类型安全）；
+      有的让你手写 JSON Schema。MAF 从类型注解自动生成 schema，消除"代码与 schema 不一致"的风险。</div></div>
+  </div>
+</details>
+
+<details class="accordion" open>
+  <summary><span class="badge-num">2</span> JSON Schema 长什么样 <span class="hint">点击展开详解</span></summary>
+  <div class="acc-body">
+    <div class="qa"><div class="q">🧪 示例</div><div class="a">一个 <span class="mono">@tool</span> 函数：
+<pre class="code"><span class="nb">@tool</span>
+<span class="kw">def</span> <span class="fn">get_weather</span>(city: Annotated[str, Field(description=<span class="st">&quot;城市名&quot;</span>)]) -&gt; str:
+    <span class="st">&quot;&quot;&quot;查询天气&quot;&quot;&quot;</span>
+    ...</pre>
+      自动生成的 schema（简化）：
+<pre class="code">{
+  <span class="st">&quot;name&quot;</span>: <span class="st">&quot;get_weather&quot;</span>,
+  <span class="st">&quot;description&quot;</span>: <span class="st">&quot;查询天气&quot;</span>,
+  <span class="st">&quot;parameters&quot;</span>: {
+    <span class="st">&quot;type&quot;</span>: <span class="st">&quot;object&quot;</span>,
+    <span class="st">&quot;properties&quot;</span>: {
+      <span class="st">&quot;city&quot;</span>: {<span class="st">&quot;type&quot;</span>: <span class="st">&quot;string&quot;</span>, <span class="st">&quot;description&quot;</span>: <span class="st">&quot;城市名&quot;</span>}
+    },
+    <span class="st">&quot;required&quot;</span>: [<span class="st">&quot;city&quot;</span>]
+  }
+}</pre></div></div>
+    <div class="qa"><div class="q">❓ 为什么这件事必要</div><div class="a">模型看到的就是这份 JSON Schema——如果描述不清楚或类型不对，
+      模型就会生成错误的参数。理解 schema 结构，才知道如何写出"对模型友好"的工具。</div></div>
+    <div class="qa"><div class="q">✅ MAF 的做法与优点</div><div class="a">利用 <span class="mono">Annotated[..., Field(description=...)]</span>
+      和 Python 类型注解自动构建 schema。docstring 变成 <span class="mono">description</span>，参数类型变成 JSON 类型——
+      <strong>代码就是文档</strong>，永远不会过期。</div></div>
+    <div class="qa"><div class="q">🔀 还有什么其他方案</div><div class="a">手写 JSON Schema（容易过期）；用 Pydantic model 定义参数
+      （更显式但更啰嗦）。MAF 的 <span class="mono">@tool</span> + 类型注解方案最简洁，且和 Pydantic 兼容。</div></div>
+  </div>
+</details>
+
+<details class="accordion" open>
+  <summary><span class="badge-num">3</span> function_call Content 的结构 <span class="hint">点击展开详解</span></summary>
+  <div class="acc-body">
+    <div class="qa"><div class="q">🧪 示例</div><div class="a">当模型决定调用工具时，回复的 <span class="mono">Content</span> 里会有一个 <span class="mono">function_call</span>：
+<pre class="code"><span class="cm"># 模型回复中的 Content（简化）</span>
+Content(
+  type=<span class="st">&quot;function_call&quot;</span>,
+  name=<span class="st">&quot;get_weather&quot;</span>,
+  id=<span class="st">&quot;call_abc123&quot;</span>,
+  arguments=<span class="st">'{&quot;city&quot;: &quot;北京&quot;}'</span>  <span class="cm"># JSON 字符串！</span>
+)</pre>
+      注意 <span class="mono">arguments</span> 是 <strong>JSON 字符串</strong>，不是 dict——框架负责反序列化。</div></div>
+    <div class="qa"><div class="q">❓ 为什么这件事必要</div><div class="a">理解这个结构才能调试"模型返回了工具调用但执行失败"的问题——
+      通常是 <span class="mono">arguments</span> 的 JSON 格式不对，或者 <span class="mono">name</span> 和注册的工具名不匹配。</div></div>
+    <div class="qa"><div class="q">✅ MAF 的做法与优点</div><div class="a">框架自动：① 从 <span class="mono">arguments</span> JSON 字符串反序列化为 Python 对象，
+      ② 用生成的 schema 做验证，③ 调用函数，④ 把返回值包装成 <span class="mono">function_result</span> Content 回灌。
+      开发者无需手动处理任何序列化/反序列化。</div></div>
+    <div class="qa"><div class="q">🔀 还有什么其他方案</div><div class="a">有的框架要求开发者自己解析 JSON 参数（容易出错）；
+      有的用 Protocol Buffer（太重）。MAF 的自动 JSON ↔ Python 转换是最实用的方案。</div></div>
+  </div>
+</details>
+
+<details class="accordion" open>
+  <summary><span class="badge-num">4</span> FunctionTool 的执行过程 <span class="hint">点击展开详解</span></summary>
+  <div class="acc-body">
+    <div class="qa"><div class="q">🧪 示例</div><div class="a"><span class="mono">FunctionTool.invoke()</span>（<span class="mono">_tools.py:574</span>）的执行步骤：
+<pre class="code"><span class="cm">1. 验证参数</span> → arguments 对照 schema 检查类型
+<span class="cm">2. 创建 FunctionInvocationContext</span>
+<span class="cm">3. 合并参数</span> → 把 context 参数注入 kwargs
+<span class="cm">4. 调用 _invoke_function()</span> → 执行你的 Python 函数
+<span class="cm">5. 解析结果</span> → result_parser 或 parse_result()
+<span class="cm">6. 返回 list[Content]</span> → 包装为 function_result</pre></div></div>
+    <div class="qa"><div class="q">❓ 为什么这件事必要</div><div class="a">出错时（参数验证失败、函数抛异常、结果解析错误），需要知道在哪一步出了问题。
+      <span class="mono">invoke()</span> 的 6 步流水线给你精确的排查路径。</div></div>
+    <div class="qa"><div class="q">✅ MAF 的做法与优点</div><div class="a">验证发生在调用之前，提前拦截非法参数。
+      如果启用了 observability（遥测），每次 <span class="mono">invoke()</span> 会创建 span 和 histogram，
+      自动记录执行时间和异常——无需额外代码就有生产级监控。</div></div>
+    <div class="qa"><div class="q">🔀 还有什么其他方案</div><div class="a">有的框架在调用时才验证（报错晚）；
+      有的不做结果解析（直接返回原始值）。MAF 的"先验证 → 再调用 → 后解析"三段式最健壮。</div></div>
+  </div>
+</details>
+
+<details class="accordion" open>
+  <summary><span class="badge-num">5</span> 并行工具调用 <span class="hint">点击展开详解</span></summary>
+  <div class="acc-body">
+    <div class="qa"><div class="q">🧪 示例</div><div class="a">当模型一次返回多个 <span class="mono">function_call</span>（如同时查天气和汇率），
+      框架在 <span class="mono">_try_execute_function_calls()</span>（<span class="mono">_tools.py:1655</span>）中用
+      <span class="mono">asyncio.gather()</span> 并行执行所有调用：
+<pre class="code">results = <span class="kw">await</span> asyncio.gather(*[
+    invoke_with_termination_handling(fc, idx)
+    <span class="kw">for</span> idx, fc <span class="kw">in</span> enumerate(function_calls)
+])</pre></div></div>
+    <div class="qa"><div class="q">❓ 为什么这件事必要</div><div class="a">如果 3 个工具各需 1 秒，串行要 3 秒，并行只要 1 秒。
+      对于 I/O 密集型工具（API 调用、数据库查询），并行执行能<strong>大幅降低延迟</strong>。</div></div>
+    <div class="qa"><div class="q">✅ MAF 的做法与优点</div><div class="a">用 <span class="mono">asyncio.gather()</span> 实现真正并发。
+      每个调用独立包裹异常处理（<span class="mono">invoke_with_termination_handling</span>），
+      一个工具失败不会影响其他工具。返回值是 <span class="mono">(list[Content], should_terminate)</span> 元组。</div></div>
+    <div class="qa"><div class="q">🔀 还有什么其他方案</div><div class="a">线程池（<span class="mono">ThreadPoolExecutor</span>）适合 CPU 密集型但对异步不友好；
+      串行执行最简单但最慢。MAF 选择 <span class="mono">asyncio.gather()</span>，完美适配 I/O 密集场景且与框架的 async 架构一致。</div></div>
   </div>
 </details>
 
@@ -970,11 +2693,9 @@ MAF 有<strong>三层</strong>中间件，每层包裹不同粒度的操作。</
 执行结果挂在 <span class="mono">context.result</span> 上。</p>
 
 <details class="accordion" open>
-  <summary><span class="badge-num">1</span> 也可以用装饰器写法 <span class="hint">点击展开</span></summary>
+  <summary><span class="badge-num">1</span> 也可以用装饰器写法 <span class="hint">点击展开详解</span></summary>
   <div class="acc-body">
-    <div class="qa">
-      <div class="q">🧪 函数式中间件</div>
-      <div class="a">不想写类？用装饰器：
+    <div class="qa"><div class="q">🧪 示例</div><div class="a">不想写类？用装饰器：
 <pre class="code"><span class="kw">from</span> agent_framework <span class="kw">import</span> agent_middleware
 
 <span class="nb">@agent_middleware</span>
@@ -982,8 +2703,132 @@ MAF 有<strong>三层</strong>中间件，每层包裹不同粒度的操作。</
     <span class="fn">print</span>(<span class="st">"before"</span>)
     <span class="kw">await</span> call_next()
     <span class="fn">print</span>(<span class="st">"after"</span>)</pre>
-        同样有 <span class="mono">@function_middleware</span> 和 <span class="mono">@chat_middleware</span>。</div>
-    </div>
+      同样有 <span class="mono">@function_middleware</span> 和 <span class="mono">@chat_middleware</span>。</div></div>
+    <div class="qa"><div class="q">❓ 为什么这件事必要</div><div class="a">类写法适合有状态的中间件（如计数器）；装饰器适合简单的无状态逻辑（如打日志）。
+      两种风格共存，让你按场景选择最简洁的写法。</div></div>
+    <div class="qa"><div class="q">✅ MAF 的做法与优点</div><div class="a"><span class="mono">@agent_middleware</span>（<span class="mono">_middleware.py:682</span>）
+      内部用 <span class="mono">MiddlewareWrapper</span> 把函数包装成类协议——对管线来说，两种写法<strong>完全等价</strong>。</div></div>
+    <div class="qa"><div class="q">🔀 还有什么其他方案</div><div class="a">有的框架只支持类写法（啰嗦）；有的只支持函数写法（难以持有状态）。
+      MAF 两者都支持，且在内部统一为同一协议。</div></div>
+  </div>
+</details>
+
+<details class="accordion" open>
+  <summary><span class="badge-num">2</span> 执行顺序（洋葱模型） <span class="hint">点击展开详解</span></summary>
+  <div class="acc-body">
+    <div class="qa"><div class="q">🧪 示例</div><div class="a">假设注册了 A → B → C 三个中间件，执行顺序：
+<pre class="code">A.process() 进入 → <span class="st">"A before"</span>
+  B.process() 进入 → <span class="st">"B before"</span>
+    C.process() 进入 → <span class="st">"C before"</span>
+      ── 核心执行（call_next 到底）──
+    C.process() 返回 → <span class="st">"C after"</span>
+  B.process() 返回 → <span class="st">"B after"</span>
+A.process() 返回 → <span class="st">"A after"</span></pre>
+      每个中间件在 <span class="mono">await call_next()</span> 前后各有一次执行机会。</div></div>
+    <div class="qa"><div class="q">❓ 为什么这件事必要</div><div class="a">理解洋葱模型，才能正确安排中间件顺序：
+      想"最早记录 + 最晚结束"的日志中间件应放最外层；想"只拦截异常"的重试中间件应放内层。</div></div>
+    <div class="qa"><div class="q">✅ MAF 的做法与优点</div><div class="a">管线（<span class="mono">AgentMiddlewarePipeline</span>，<span class="mono">_middleware.py:847</span>）
+      用闭包递归构建 <span class="mono">call_next</span> 链：从最后一个中间件开始，每层包裹前一层。
+      执行结果统一挂在 <span class="mono">context.result</span>，无需返回值传递。</div></div>
+    <div class="qa"><div class="q">🔀 还有什么其他方案</div><div class="a">Express.js 用线性 <span class="mono">next()</span>（无"出来"阶段）；
+      Django 用 <span class="mono">__call__</span> 包裹（类似但不直观）。MAF 的 <span class="mono">call_next()</span> 洋葱模型最清晰——
+      before 和 after 在同一个函数体里，代码局部性好。</div></div>
+  </div>
+</details>
+
+<details class="accordion" open>
+  <summary><span class="badge-num">3</span> context 上有什么属性 <span class="hint">点击展开详解</span></summary>
+  <div class="acc-body">
+    <div class="qa"><div class="q">🧪 示例</div><div class="a">三层 context 的核心字段：
+<pre class="code"><span class="cm"># AgentContext (_middleware.py:93)</span>
+ctx.agent       <span class="cm"># 正在运行的 Agent</span>
+ctx.messages    <span class="cm"># list[Message] 输入消息</span>
+ctx.session     <span class="cm"># AgentSession | None</span>
+ctx.tools       <span class="cm"># 运行时工具覆盖</span>
+ctx.stream      <span class="cm"># bool 是否流式</span>
+ctx.metadata    <span class="cm"># dict 中间件间共享数据</span>
+ctx.result      <span class="cm"># call_next() 后的执行结果</span>
+
+<span class="cm"># ChatContext (_middleware.py:377)</span>
+ctx.client      <span class="cm"># ChatClient 实例</span>
+ctx.messages    <span class="cm"># 发给模型的消息</span>
+ctx.options     <span class="cm"># ChatOptions</span>
+ctx.stream      <span class="cm"># bool</span>
+ctx.metadata    <span class="cm"># dict</span>
+ctx.result      <span class="cm"># ChatResponse</span>
+
+<span class="cm"># FunctionInvocationContext (_middleware.py:204)</span>
+ctx.function    <span class="cm"># FunctionTool 实例</span>
+ctx.arguments   <span class="cm"># 已验证的参数</span>
+ctx.session     <span class="cm"># AgentSession | None</span>
+ctx.tools       <span class="cm"># 当前运行的工具列表（可动态增删）</span>
+ctx.result      <span class="cm"># 函数执行结果</span></pre></div></div>
+    <div class="qa"><div class="q">❓ 为什么这件事必要</div><div class="a">写中间件时，你要知道"我能读什么、能改什么"。
+      <span class="mono">metadata</span> 是中间件间传数据的官方通道；<span class="mono">result</span> 是执行结果的观察点。</div></div>
+    <div class="qa"><div class="q">✅ MAF 的做法与优点</div><div class="a">每层 context 字段不同但结构一致：都有 <span class="mono">metadata</span>（共享）和 <span class="mono">result</span>（结果）。
+      <span class="mono">FunctionInvocationContext</span> 还有 <span class="mono">add_tools()</span> / <span class="mono">remove_tools()</span>
+      方法，支持<strong>动态工具增删</strong>（下一轮循环生效）。</div></div>
+    <div class="qa"><div class="q">🔀 还有什么其他方案</div><div class="a">有的框架用全局变量传递中间件数据（线程不安全）；
+      有的用 request 对象挂属性（不规范）。MAF 的 <span class="mono">metadata</span> dict 是显式、类型安全、请求级隔离的方案。</div></div>
+  </div>
+</details>
+
+<details class="accordion" open>
+  <summary><span class="badge-num">4</span> 中间件间的数据传递 <span class="hint">点击展开详解</span></summary>
+  <div class="acc-body">
+    <div class="qa"><div class="q">🧪 示例</div><div class="a">中间件 A 记录开始时间，中间件 B 读取并计算耗时：
+<pre class="code"><span class="cm"># 中间件 A（外层）</span>
+<span class="kw">async def</span> <span class="fn">process</span>(self, ctx, call_next):
+    ctx.metadata[<span class="st">"start_time"</span>] = time.time()
+    <span class="kw">await</span> call_next()
+
+<span class="cm"># 中间件 B（内层，call_next 之后读）</span>
+<span class="kw">async def</span> <span class="fn">process</span>(self, ctx, call_next):
+    <span class="kw">await</span> call_next()
+    elapsed = time.time() - ctx.metadata[<span class="st">"start_time"</span>]</pre>
+      <strong>关键</strong>：用 <span class="mono">context.metadata</span>，不用全局变量！</div></div>
+    <div class="qa"><div class="q">❓ 为什么这件事必要</div><div class="a">中间件之间经常需要协作：计时器中间件记录开始时间，日志中间件读取耗时。
+      如果用全局变量，并发请求会互相干扰。</div></div>
+    <div class="qa"><div class="q">✅ MAF 的做法与优点</div><div class="a"><span class="mono">context.metadata</span> 是每次请求独立的 <span class="mono">dict[str, Any]</span>，
+      天然线程/协程安全。中间件只需约定 key 名即可通信，无需导入彼此。</div></div>
+    <div class="qa"><div class="q">🔀 还有什么其他方案</div><div class="a">Python <span class="mono">contextvars</span>（更隐式，调试困难）；
+      闭包捕获（仅限同一管线内）。<span class="mono">metadata</span> dict 最直观、最易调试。</div></div>
+  </div>
+</details>
+
+<details class="accordion" open>
+  <summary><span class="badge-num">5</span> 真实中间件示例 <span class="hint">点击展开详解</span></summary>
+  <div class="acc-body">
+    <div class="qa"><div class="q">🧪 示例</div><div class="a">三个生产级中间件：
+<pre class="code"><span class="cm"># 1. 日志中间件（AgentMiddleware）</span>
+<span class="kw">class</span> <span class="fn">LogMiddleware</span>(AgentMiddleware):
+    <span class="kw">async def</span> <span class="fn">process</span>(self, ctx, call_next):
+        logger.info(f<span class="st">"Agent {ctx.agent.name} start"</span>)
+        <span class="kw">await</span> call_next()
+        logger.info(f<span class="st">"Agent done: {len(ctx.result.messages)} msgs"</span>)
+
+<span class="cm"># 2. Token 计数中间件（ChatMiddleware）</span>
+<span class="kw">class</span> <span class="fn">TokenCounter</span>(ChatMiddleware):
+    <span class="kw">async def</span> <span class="fn">process</span>(self, ctx, call_next):
+        <span class="kw">await</span> call_next()
+        usage = ctx.result.usage_details
+        ctx.metadata[<span class="st">"total_tokens"</span>] = usage.prompt_tokens + usage.completion_tokens
+
+<span class="cm"># 3. 限流中间件（ChatMiddleware）</span>
+<span class="kw">class</span> <span class="fn">RateLimiter</span>(ChatMiddleware):
+    <span class="kw">async def</span> <span class="fn">process</span>(self, ctx, call_next):
+        <span class="kw">await</span> self.semaphore.acquire()
+        <span class="kw">try</span>:
+            <span class="kw">await</span> call_next()
+        <span class="kw">finally</span>:
+            self.semaphore.release()</pre></div></div>
+    <div class="qa"><div class="q">❓ 为什么这件事必要</div><div class="a">这三个覆盖了最常见的生产需求：可观测性（日志）、成本控制（token 计数）、流量管理（限流）。
+      它们展示了 <span class="mono">call_next()</span> 前后分别适合做什么。</div></div>
+    <div class="qa"><div class="q">✅ MAF 的做法与优点</div><div class="a">日志放 <span class="mono">AgentMiddleware</span>（整个 run 级别），
+      token 计数和限流放 <span class="mono">ChatMiddleware</span>（每次 LLM 调用级别）——
+      <strong>三层粒度让每个中间件精确拦截它关心的操作</strong>。</div></div>
+    <div class="qa"><div class="q">🔀 还有什么其他方案</div><div class="a">用 AOP 框架（如 <span class="mono">aspectlib</span>）做切面（太重）；
+      在 Agent 类里加 hook 方法（不够灵活）。MAF 的中间件管线是最标准的横切关注点解决方案。</div></div>
   </div>
 </details>
 
@@ -1041,14 +2886,98 @@ events = <span class="kw">await</span> wf.run(<span class="st">"hello"</span>)  
 </div>
 
 <details class="accordion" open>
-  <summary><span class="badge-num">1</span> @handler vs @executor 有什么区别？ <span class="hint">点击展开</span></summary>
+  <summary><span class="badge-num">1</span> Executor 两种写法 <span class="hint">点击展开详解</span></summary>
   <div class="acc-body">
-    <div class="qa">
-      <div class="q">🔬 两种写法</div>
-      <div class="a"><span class="mono">@handler</span> 标记<strong>类方法</strong>（在 Executor 子类里），
-        <span class="mono">@executor</span> 标记<strong>独立函数</strong>（自动包成 FunctionExecutor）。
-        功能一样，选哪个看你喜不喜欢写类。</div>
-    </div>
+    <div class="qa"><div class="q">🧪 示例</div><div class="a">
+<strong>Class-based</strong>（Executor 子类 + @handler）：
+<pre class="code"><span class="kw">class</span> <span class="fn">UpperCase</span>(Executor):
+    <span class="nb">@handler</span>
+    <span class="kw">async def</span> <span class="fn">to_upper</span>(self, text: str, ctx: WorkflowContext):
+        <span class="kw">await</span> ctx.send_message(text.upper())</pre>
+<strong>Function-based</strong>（@executor 装饰独立函数）：
+<pre class="code"><span class="nb">@executor</span>(id=<span class="st">&quot;reverse&quot;</span>)
+<span class="kw">async def</span> <span class="fn">reverse</span>(text: str, ctx: WorkflowContext):
+    <span class="kw">await</span> ctx.yield_output(text[::-1])</pre>
+函数式写法会自动包装成 <span class="mono">FunctionExecutor</span>，功能完全等价。</div></div>
+    <div class="qa"><div class="q">❓ 为什么这件事必要</div><div class="a">不同场景有不同诉求：简单节点写一个函数最快，复杂节点需要在类里维护 <span class="mono">__init__</span> 参数、多个 handler、甚至复用继承。
+      两种写法让框架<strong>同时服务脚本级原型和生产级代码</strong>。</div></div>
+    <div class="qa"><div class="q">✅ MAF 的做法与优点</div><div class="a">MAF 让 <span class="mono">@executor</span> 装饰器自动把函数包成 <span class="mono">FunctionExecutor</span>，
+      内部共享同一套 handler 注册和消息分发机制。你可以在<strong>同一张图里混用两种写法</strong>——类节点和函数节点通过边自由连接。</div></div>
+    <div class="qa"><div class="q">🔀 还有什么其他方案</div><div class="a">LangGraph 只支持函数节点（无类继承概念）；
+      Prefect 只支持 <span class="mono">@task</span> 函数。MAF 两者兼备，是更灵活的选择。</div></div>
+  </div>
+</details>
+
+<details class="accordion" open>
+  <summary><span class="badge-num">2</span> Edge 的高级模式 <span class="hint">点击展开详解</span></summary>
+  <div class="acc-body">
+    <div class="qa"><div class="q">🧪 示例</div><div class="a">
+<pre class="code"><span class="cm"># 1-to-1</span>
+builder.add_edge(node_a, node_b)
+<span class="cm"># 1-to-many (fan-out)</span>
+builder.add_fan_out_edges(splitter, [worker1, worker2, worker3])
+<span class="cm"># many-to-1 (fan-in)</span>
+builder.add_fan_in_edges([worker1, worker2, worker3], aggregator)
+<span class="cm"># 条件分支 (switch-case)</span>
+builder.add_switch_case_edge_group(router, [
+    Case(target=fast_path, condition=<span class="kw">lambda</span> msg: msg.priority == <span class="st">&quot;high&quot;</span>),
+    Default(target=slow_path),
+])
+<span class="cm"># 链式快捷 (等价于连续 add_edge)</span>
+builder.add_chain([step1, step2, step3])</pre></div></div>
+    <div class="qa"><div class="q">❓ 为什么这件事必要</div><div class="a">真实工作流不只是线性管线——你需要并行 map-reduce（fan-out/fan-in）、条件路由（switch-case）等拓扑。
+      如果框架只提供 <span class="mono">add_edge</span>，复杂图的构建代码会非常冗长且易出错。</div></div>
+    <div class="qa"><div class="q">✅ MAF 的做法与优点</div><div class="a">MAF 在 <span class="mono">WorkflowBuilder</span> 上提供五种边方法，覆盖所有常见拓扑。
+      还有 <span class="mono">add_multi_selection_edge_group</span>（动态多选）用于"根据消息内容选择下游子集"的场景。
+      所有方法返回 <span class="mono">Self</span>，支持链式调用。</div></div>
+    <div class="qa"><div class="q">🔀 还有什么其他方案</div><div class="a">Airflow 用 <span class="mono">&gt;&gt;</span> 运算符连边，可读但只支持 1-to-1；
+      LangGraph 用字典声明条件路由。MAF 用显式方法名（<span class="mono">add_fan_out_edges</span>）让拓扑意图一目了然。</div></div>
+  </div>
+</details>
+
+<details class="accordion" open>
+  <summary><span class="badge-num">3</span> WorkflowContext 的 API <span class="hint">点击展开详解</span></summary>
+  <div class="acc-body">
+    <div class="qa"><div class="q">🧪 示例</div><div class="a">
+<pre class="code"><span class="nb">@handler</span>
+<span class="kw">async def</span> <span class="fn">process</span>(self, msg: str, ctx: WorkflowContext):
+    ctx.set_state(<span class="st">&quot;count&quot;</span>, ctx.get_state(<span class="st">&quot;count&quot;</span>, 0) + 1)  <span class="cm"># 读写共享状态</span>
+    <span class="kw">await</span> ctx.send_message(result, target_id=<span class="st">&quot;next&quot;</span>)  <span class="cm"># 转发给下一节点</span>
+    <span class="kw">await</span> ctx.yield_output(final)  <span class="cm"># 输出最终结果</span>
+    <span class="kw">await</span> ctx.add_event(WorkflowEvent.status(...))  <span class="cm"># 自定义事件</span></pre></div></div>
+    <div class="qa"><div class="q">❓ 为什么这件事必要</div><div class="a"><span class="mono">WorkflowContext</span> 是节点与引擎之间的<strong>唯一通信通道</strong>。
+      没有它，节点无法知道自己的上游是谁（<span class="mono">source_executor_ids</span>）、
+      无法向下游传数据、无法把结果暴露给调用者、也无法操作跨节点的共享状态。</div></div>
+    <div class="qa"><div class="q">✅ MAF 的做法与优点</div><div class="a">Context 提供四大能力：
+      ① <span class="mono">send_message()</span> 向下游传消息（可指定 <span class="mono">target_id</span>）；
+      ② <span class="mono">yield_output()</span> 向调用者输出结果；
+      ③ <span class="mono">get_state/set_state</span> 读写工作流级共享状态；
+      ④ <span class="mono">request_info()</span> 请求外部输入（Human-in-the-Loop）。
+      还有 <span class="mono">is_streaming()</span> 让节点感知当前是否流式运行。</div></div>
+    <div class="qa"><div class="q">🔀 还有什么其他方案</div><div class="a">Temporal 把状态放在 workflow 函数的局部变量里；
+      LangGraph 用全局 State 字典。MAF 选择显式 Context 对象——既不污染函数签名，也不引入全局可变状态。</div></div>
+  </div>
+</details>
+
+<details class="accordion" open>
+  <summary><span class="badge-num">4</span> workflow.run() 返回值 <span class="hint">点击展开详解</span></summary>
+  <div class="acc-body">
+    <div class="qa"><div class="q">🧪 示例</div><div class="a">
+<pre class="code">result: WorkflowRunResult = <span class="kw">await</span> wf.run(<span class="st">&quot;hello&quot;</span>)
+outputs = result.get_outputs()          <span class="cm"># [&quot;OLLEH&quot;] — 最终结果</span>
+intermediates = result.get_intermediate_outputs()  <span class="cm"># 中间输出</span>
+state = result.get_final_state()        <span class="cm"># WorkflowRunState.IDLE</span>
+<span class="cm"># WorkflowRunResult 本身继承 list[WorkflowEvent]，可直接遍历</span>
+<span class="kw">for</span> event <span class="kw">in</span> result:
+    <span class="fn">print</span>(event.type, event.data)</pre></div></div>
+    <div class="qa"><div class="q">❓ 为什么这件事必要</div><div class="a">工作流执行后，你可能只关心最终输出（<span class="mono">get_outputs</span>），也可能需要调试每一步的事件轨迹。
+      <span class="mono">WorkflowRunResult</span> 同时提供两种视角，让"用"和"调"都方便。</div></div>
+    <div class="qa"><div class="q">✅ MAF 的做法与优点</div><div class="a"><span class="mono">WorkflowRunResult</span> 继承自 <span class="mono">list[WorkflowEvent]</span>，
+      所以你可以当列表遍历所有事件，也可以用语义化方法提取：
+      <span class="mono">get_outputs()</span>（终端输出）、<span class="mono">get_intermediate_outputs()</span>（中间结果）、
+      <span class="mono">get_request_info_events()</span>（HITL 请求）、<span class="mono">status_timeline()</span>（状态变更时间线）。</div></div>
+    <div class="qa"><div class="q">🔀 还有什么其他方案</div><div class="a">Prefect 返回 <span class="mono">FlowRun</span> 对象需要额外 API 查询事件；
+      Airflow 通过 XCom 取中间值。MAF 把事件列表和便捷方法融为一体——一次 <span class="mono">run()</span> 全部到手。</div></div>
   </div>
 </details>
 
@@ -1105,6 +3034,108 @@ result = <span class="kw">await</span> workflow.run(<span class="st">"Write a po
         <strong>Group Chat</strong>：一个 selector 函数（或模型）每轮选谁发言，所有 Agent <strong>看到完整群聊记录</strong>。
         Handoff 更适合专家流转，Group Chat 更适合辩论 / 头脑风暴。</div>
     </div>
+  </div>
+</details>
+
+<details class="accordion" open>
+  <summary><span class="badge-num">2</span> SequentialBuilder 深入 <span class="hint">点击展开详解</span></summary>
+  <div class="acc-body">
+    <div class="qa"><div class="q">🧪 示例</div><div class="a">
+<pre class="code">workflow = SequentialBuilder(
+    participants=[writer, reviewer, editor],
+    intermediate_output_from=<span class="st">&quot;all&quot;</span>,  <span class="cm"># 每个参与者的输出都作为中间结果</span>
+    output_from=[reviewer],  <span class="cm"># 只有 reviewer 的输出算最终结果</span>
+).build()
+result = <span class="kw">await</span> workflow.run(<span class="st">&quot;Write a poem&quot;</span>)
+<span class="cm"># result.get_intermediate_outputs() 包含所有人的中间输出</span>
+<span class="cm"># result.get_outputs() 只包含 reviewer 的输出</span></pre></div></div>
+    <div class="qa"><div class="q">❓ 为什么这件事必要</div><div class="a">在多步链中，你可能只关心最终结果，也可能需要看到每一步的中间输出来做质量检查。
+      <span class="mono">intermediate_output_from</span> 和 <span class="mono">output_from</span> 让你<strong>精确控制哪些输出可见</strong>。</div></div>
+    <div class="qa"><div class="q">✅ MAF 的做法与优点</div><div class="a"><span class="mono">SequentialBuilder</span> 接受 <span class="mono">participants</span>（有序列表）、
+      <span class="mono">output_from</span>（终端输出来源）和 <span class="mono">intermediate_output_from</span>（中间输出来源）。
+      还支持 <span class="mono">chain_only_agent_responses=True</span> 让后一个 Agent 只看到前一个的 AgentResponse，而非整个对话历史。
+      可通过 <span class="mono">with_request_info()</span> 启用 Human-in-the-Loop。</div></div>
+    <div class="qa"><div class="q">🔀 还有什么其他方案</div><div class="a">LangChain 的 <span class="mono">SequentialChain</span> 只传最终输出；
+      CrewAI 的 <span class="mono">Process.sequential</span> 自动传全部上下文。
+      MAF 让你<strong>自选粒度</strong>——是传完整历史还是只传 AgentResponse。</div></div>
+  </div>
+</details>
+
+<details class="accordion" open>
+  <summary><span class="badge-num">3</span> ConcurrentBuilder 深入 <span class="hint">点击展开详解</span></summary>
+  <div class="acc-body">
+    <div class="qa"><div class="q">🧪 示例</div><div class="a">
+<pre class="code"><span class="kw">from</span> agent_framework.orchestrations <span class="kw">import</span> ConcurrentBuilder
+
+workflow = ConcurrentBuilder(
+    participants=[analyst_a, analyst_b, analyst_c],
+).with_aggregator(
+    <span class="kw">lambda</span> responses: <span class="st">&quot;\n---\n&quot;</span>.join(r.text <span class="kw">for</span> r <span class="kw">in</span> responses)
+).build()
+result = <span class="kw">await</span> workflow.run(<span class="st">&quot;Analyze Q3 revenue&quot;</span>)</pre></div></div>
+    <div class="qa"><div class="q">❓ 为什么这件事必要</div><div class="a">很多任务天然可并行：让三个分析师同时分析不同维度，最后汇总。
+      串行执行浪费时间——Concurrent 模式将延迟从 <em>sum(各Agent时间)</em> 降到 <em>max(各Agent时间)</em>。</div></div>
+    <div class="qa"><div class="q">✅ MAF 的做法与优点</div><div class="a"><span class="mono">ConcurrentBuilder</span> 将所有 <span class="mono">participants</span> fan-out 并行执行，
+      然后在 fan-in 节点用<strong>聚合器</strong>合并结果。默认聚合器拼接所有输出；
+      你也可以用 <span class="mono">with_aggregator()</span> 传入自定义 Executor 或 lambda 做 map-reduce 风格的汇总。
+      同样支持 <span class="mono">output_from</span>、<span class="mono">intermediate_output_from</span> 和 <span class="mono">with_request_info()</span>。</div></div>
+    <div class="qa"><div class="q">🔀 还有什么其他方案</div><div class="a">LangGraph 需要手动构建 fan-out/fan-in 图；
+      AutoGen 没有内置并行模式。MAF 的 <span class="mono">ConcurrentBuilder</span> 一行声明并行 + 一行声明聚合器，极其简洁。</div></div>
+  </div>
+</details>
+
+<details class="accordion" open>
+  <summary><span class="badge-num">4</span> HandoffBuilder 深入 <span class="hint">点击展开详解</span></summary>
+  <div class="acc-body">
+    <div class="qa"><div class="q">🧪 示例</div><div class="a">
+<pre class="code"><span class="kw">from</span> agent_framework.orchestrations <span class="kw">import</span> HandoffBuilder, HandoffConfiguration
+
+workflow = HandoffBuilder(
+    participants=[
+        triage_agent,   <span class="cm"># 入口 Agent</span>
+        billing_agent,  <span class="cm"># 计费专家</span>
+        tech_agent,     <span class="cm"># 技术专家</span>
+    ],
+    handoff_configs=[
+        HandoffConfiguration(target=billing_agent, description=<span class="st">&quot;billing issues&quot;</span>),
+        HandoffConfiguration(target=tech_agent, description=<span class="st">&quot;technical problems&quot;</span>),
+    ],
+).build()</pre></div></div>
+    <div class="qa"><div class="q">❓ 为什么这件事必要</div><div class="a">在客服/专家路由场景中，当前 Agent 判断"这个问题我不擅长"后需要<strong>显式交接</strong>给另一个 Agent。
+      Handoff 模式让 Agent 自己决定交接时机和目标，而不是由外部调度器硬编码路由规则。</div></div>
+    <div class="qa"><div class="q">✅ MAF 的做法与优点</div><div class="a"><span class="mono">HandoffConfiguration</span> 用 <span class="mono">target</span> + <span class="mono">description</span> 描述每条交接路径。
+      框架会自动给当前 Agent 注入一个"交接工具"——Agent 调用该工具即触发切换。
+      被交接的 Agent 会收到完整对话历史。如果 Agent 想让用户提供额外信息，可以发出 <span class="mono">HandoffAgentUserRequest</span>。</div></div>
+    <div class="qa"><div class="q">🔀 还有什么其他方案</div><div class="a">OpenAI Swarm 也有 handoff 概念，但通过函数返回值实现，不支持异步和持久化。
+      AutoGen 的 <span class="mono">SwarmAgent</span> 类似但 API 更复杂。
+      MAF 的 Handoff 基于 Workflow 引擎——天然支持检查点和恢复。</div></div>
+  </div>
+</details>
+
+<details class="accordion" open>
+  <summary><span class="badge-num">5</span> MagenticBuilder 深入 <span class="hint">点击展开详解</span></summary>
+  <div class="acc-body">
+    <div class="qa"><div class="q">🧪 示例</div><div class="a">
+<pre class="code"><span class="kw">from</span> agent_framework.orchestrations <span class="kw">import</span> MagenticBuilder
+
+workflow = MagenticBuilder(
+    participants=[coder, web_surfer, file_surfer],
+    manager_agent=orchestrator_llm,  <span class="cm"># 用 LLM 当指挥官</span>
+    enable_plan_review=<span class="kw">True</span>,        <span class="cm"># 计划需人工审核</span>
+    max_round_count=10,
+).build()</pre>
+指挥官会生成 <span class="mono">MagenticProgressLedger</span>，跟踪五个维度：
+<span class="mono">is_request_satisfied</span> / <span class="mono">is_in_loop</span> / <span class="mono">is_progress_being_made</span> /
+<span class="mono">next_speaker</span> / <span class="mono">instruction_or_question</span>。</div></div>
+    <div class="qa"><div class="q">❓ 为什么这件事必要</div><div class="a">复杂任务（如"调研+编码+测试"）需要一个<strong>全局规划者</strong>分解子任务并分配给最合适的 Agent。
+      没有指挥官，Agent 之间会陷入无方向的对话循环。</div></div>
+    <div class="qa"><div class="q">✅ MAF 的做法与优点</div><div class="a">MagenticBuilder 实现了 <strong>Plan → Review → Execute</strong> 循环：
+      ① <span class="mono">MagenticManager</span>（指挥官）用 TaskLedger 维护事实和计划；
+      ② 每轮通过 <span class="mono">MagenticProgressLedger</span> 评估进展，选出 <span class="mono">next_speaker</span>；
+      ③ 检测到卡住（<span class="mono">is_in_loop</span>）会自动重置计划。
+      支持 <span class="mono">enable_plan_review=True</span> 让人工在计划阶段介入审核。</div></div>
+    <div class="qa"><div class="q">🔀 还有什么其他方案</div><div class="a">AutoGen 的 MagenticOne 是该模式的原型；CrewAI 的 hierarchical process 类似但无 ProgressLedger 反馈机制。
+      MAF 的实现加入了<strong>卡住检测和自动重置</strong>，更适合长时间运行的复杂任务。</div></div>
   </div>
 </details>
 
@@ -1168,6 +3199,108 @@ result = <span class="kw">await</span> workflow.run(<span class="st">"Write a po
   </div>
 </details>
 
+<details class="accordion" open>
+  <summary><span class="badge-num">2</span> AgentResponseUpdate 结构 <span class="hint">点击展开详解</span></summary>
+  <div class="acc-body">
+    <div class="qa"><div class="q">🧪 示例</div><div class="a">
+<pre class="code"><span class="kw">async for</span> chunk <span class="kw">in</span> agent.run(<span class="st">&quot;Tell me a joke&quot;</span>, stream=<span class="kw">True</span>):
+    <span class="fn">print</span>(chunk.text, end=<span class="st">&quot;&quot;</span>)       <span class="cm"># 增量文本</span>
+    <span class="fn">print</span>(chunk.contents)            <span class="cm"># [TextContent(...)]</span>
+    <span class="fn">print</span>(chunk.finish_reason)       <span class="cm"># None → ... → &quot;stop&quot;</span>
+    <span class="fn">print</span>(chunk.author_name)         <span class="cm"># 多Agent时标识是谁说的</span></pre>
+最后一个 chunk 的 <span class="mono">finish_reason</span> 为 <span class="mono">&quot;stop&quot;</span>，表示生成完毕。
+把所有 chunk 的 <span class="mono">.text</span> 拼起来就是完整的 <span class="mono">AgentResponse</span>。</div></div>
+    <div class="qa"><div class="q">❓ 为什么这件事必要</div><div class="a">流式场景中，你需要知道每个 chunk 包含什么、何时结束、谁在说话。
+      理解 <span class="mono">AgentResponseUpdate</span> 的字段才能正确地构建 UI 流式渲染。</div></div>
+    <div class="qa"><div class="q">✅ MAF 的做法与优点</div><div class="a"><span class="mono">AgentResponseUpdate</span> 包含：
+      <span class="mono">.contents</span>（Content 列表，可含 TextContent / 图片 / 工具调用）、
+      <span class="mono">.text</span>（所有 TextContent 拼接的纯文本快捷属性）、
+      <span class="mono">.finish_reason</span>（&quot;stop&quot; / &quot;length&quot; / &quot;tool_calls&quot;）、
+      <span class="mono">.author_name</span> / <span class="mono">.agent_id</span>（多 Agent 场景标识来源）。
+      结构与非流式的 <span class="mono">AgentResponse</span> 对齐，切换模式时代码改动最小。</div></div>
+    <div class="qa"><div class="q">🔀 还有什么其他方案</div><div class="a">OpenAI SDK 返回 <span class="mono">ChatCompletionChunk</span>（仅文本 delta）；
+      LangChain 返回 <span class="mono">AIMessageChunk</span>。MAF 的 chunk 带有 <span class="mono">agent_id</span> 和 <span class="mono">author_name</span>，
+      天然适合<strong>多 Agent 流式场景</strong>。</div></div>
+  </div>
+</details>
+
+<details class="accordion" open>
+  <summary><span class="badge-num">3</span> Workflow 的流式 <span class="hint">点击展开详解</span></summary>
+  <div class="acc-body">
+    <div class="qa"><div class="q">🧪 示例</div><div class="a">
+<pre class="code"><span class="kw">async for</span> event <span class="kw">in</span> wf.run(<span class="st">&quot;hello&quot;</span>, stream=<span class="kw">True</span>):
+    <span class="kw">if</span> event.type == <span class="st">&quot;output&quot;</span>:
+        <span class="fn">print</span>(<span class="st">&quot;Final:&quot;</span>, event.data)
+    <span class="kw">elif</span> event.type == <span class="st">&quot;intermediate&quot;</span>:
+        <span class="fn">print</span>(<span class="st">&quot;Step:&quot;</span>, event.data)
+    <span class="kw">elif</span> event.type == <span class="st">&quot;executor_invoked&quot;</span>:
+        <span class="fn">print</span>(<span class="st">&quot;Running:&quot;</span>, event.executor_id)</pre>
+流式模式下 <span class="mono">run()</span> 返回 <span class="mono">AsyncIterator[WorkflowEvent]</span>，而非 <span class="mono">WorkflowRunResult</span>。</div></div>
+    <div class="qa"><div class="q">❓ 为什么这件事必要</div><div class="a">工作流可能包含多个 Agent、运行数分钟。用户不能干等到整个图跑完——
+      流式事件让前端<strong>实时展示进度</strong>：哪个节点在跑、中间结果是什么、最终输出何时到。</div></div>
+    <div class="qa"><div class="q">✅ MAF 的做法与优点</div><div class="a"><span class="mono">WorkflowEvent</span> 有丰富的事件类型：
+      <span class="mono">started</span> / <span class="mono">executor_invoked</span> / <span class="mono">executor_completed</span>（生命周期）、
+      <span class="mono">output</span> / <span class="mono">intermediate</span>（数据）、
+      <span class="mono">request_info</span>（HITL 请求）、<span class="mono">failed</span>（错误）。
+      每个事件携带 <span class="mono">executor_id</span>、<span class="mono">iteration</span>、<span class="mono">state</span> 等元数据。</div></div>
+    <div class="qa"><div class="q">🔀 还有什么其他方案</div><div class="a">LangGraph 的 streaming 返回纯文本 chunk，无结构化事件；
+      Temporal 有事件历史但不支持实时推送。MAF 的 <span class="mono">WorkflowEvent</span> 结构化且类型丰富——
+      前端可以据此渲染进度条、节点高亮、错误提示。</div></div>
+  </div>
+</details>
+
+<details class="accordion" open>
+  <summary><span class="badge-num">4</span> OTel span 层次 <span class="hint">点击展开详解</span></summary>
+  <div class="acc-body">
+    <div class="qa"><div class="q">🧪 示例</div><div class="a">MAF 自动产生的 span 层次：
+<pre class="code">agent.run (parent span)
+  ├── chat_client.call  <span class="cm"># 每次 LLM 调用</span>
+  │     attrs: input_tokens, output_tokens, model
+  ├── tool.execute      <span class="cm"># 每次工具执行</span>
+  │     attrs: tool.name, tool.call.id
+  └── chat_client.call  <span class="cm"># 工具循环再次调用</span>
+
+workflow.run (parent span)
+  ├── executor: upper   <span class="cm"># 每个节点一个子 span</span>
+  │     attrs: executor.id, executor.type
+  ├── message.send      <span class="cm"># 节点间消息传递</span>
+  │     attrs: source_id, target_id
+  └── executor: reverse</pre></div></div>
+    <div class="qa"><div class="q">❓ 为什么这件事必要</div><div class="a">当 Agent 链上某步慢了或报错，你需要知道<strong>具体是哪个 LLM 调用还是哪个工具执行</strong>的问题。
+      分层 span 让你在 Jaeger/Grafana 中像看调用栈一样定位瓶颈。</div></div>
+    <div class="qa"><div class="q">✅ MAF 的做法与优点</div><div class="a"><span class="mono">observability.py</span> 定义了 <span class="mono">OtelAttr</span> 枚举，自动填充 GenAI 语义约定属性：
+      <span class="mono">gen_ai.agent.id</span>、<span class="mono">gen_ai.usage.input_tokens</span>、<span class="mono">gen_ai.tool.name</span> 等。
+      Workflow 层还追踪 <span class="mono">workflow.id</span>、<span class="mono">executor.id</span>、<span class="mono">message.send</span>。
+      零额外代码——只需配置 exporter 即可在 Jaeger / Zipkin / OTLP Collector 中查看。</div></div>
+    <div class="qa"><div class="q">🔀 还有什么其他方案</div><div class="a">LangSmith 是 LangChain 的专有追踪方案（厂商锁定）；
+      LiteLLM 只追踪 LLM 调用不追踪工具和工作流。MAF 用<strong>标准 OTel</strong>——
+      兼容所有 OTel 生态工具，无厂商锁定。</div></div>
+  </div>
+</details>
+
+<details class="accordion" open>
+  <summary><span class="badge-num">5</span> 自定义 span / 指标 <span class="hint">点击展开详解</span></summary>
+  <div class="acc-body">
+    <div class="qa"><div class="q">🧪 示例</div><div class="a">
+<pre class="code"><span class="kw">from</span> agent_framework.observability <span class="kw">import</span> create_workflow_span, OtelAttr
+
+<span class="kw">with</span> create_workflow_span(
+    <span class="st">&quot;my_custom_step&quot;</span>,
+    attributes={OtelAttr.EXECUTOR_ID: <span class="st">&quot;validator&quot;</span>},
+) <span class="kw">as</span> span:
+    result = validate(data)
+    span.set_attribute(<span class="st">&quot;validation.passed&quot;</span>, result.ok)</pre></div></div>
+    <div class="qa"><div class="q">❓ 为什么这件事必要</div><div class="a">框架自动 span 覆盖 LLM 和工具调用，但你的<strong>业务逻辑</strong>（如自定义验证、数据库查询、外部 API 调用）
+      也需要被追踪。自定义 span 填补这些盲区。</div></div>
+    <div class="qa"><div class="q">✅ MAF 的做法与优点</div><div class="a">MAF 暴露 <span class="mono">create_workflow_span()</span> 作为创建自定义 span 的便捷入口，
+      自动挂到当前 trace 上下文中。你也可以直接用 OTel SDK 的 <span class="mono">tracer.start_as_current_span()</span>。
+      框架提供的 <span class="mono">OtelAttr</span> 枚举确保属性名与内置 span 一致——查询时可以统一过滤。</div></div>
+    <div class="qa"><div class="q">🔀 还有什么其他方案</div><div class="a">有些框架（如 Haystack）不暴露 tracer，只能用日志做追踪；
+      LangSmith 需要用其 SDK 的 <span class="mono">@traceable</span> 装饰器。
+      MAF 完全拥抱 OTel 标准——你的自定义 span 和框架内置 span 在同一条 trace 中无缝衔接。</div></div>
+  </div>
+</details>
+
 <div class="card key">
   <div class="tag">✅ 关键要点</div>
   <ul>
@@ -1184,7 +3317,7 @@ result = <span class="kw">await</span> workflow.run(<span class="st">"Write a po
 </div>
 </div></section>
 <section class="print-lesson"><div class="wrap"><div class="lesson-head"><div class="lp">第四部分 · 进阶实战</div><h1><span class="ln">15 ·</span> 读源码 / 调试 / 测试 / 贡献</h1></div>
-<p class="lead">想读 MAF 的源码、跑测试、开调试、提 PR？本课带你搭好环境，打通整个开发者工作流。</p>
+<p class="lead">想读 MAF 的源码、跑测试、开调试、提 PR？本课带你搭好环境,打通整个开发者工作流。</p>
 
 <div class="card analogy">
   <div class="tag">🛠️ 生活类比</div>
@@ -1219,13 +3352,168 @@ uv run poe typecheck <span class="cm"># pyright 类型检查</span></pre></div><
 </table>
 
 <details class="accordion" open>
-  <summary><span class="badge-num">1</span> DevUI 是什么？ <span class="hint">点击展开</span></summary>
+  <summary><span class="badge-num">1</span> uv 为什么比 pip 好 <span class="hint">点击展开详解</span></summary>
   <div class="acc-body">
     <div class="qa">
-      <div class="q">🧪 开发者调试界面</div>
-      <div class="a"><span class="mono">packages/devui</span> 提供一个<strong>交互式 Web UI</strong>，
-        可以在浏览器里试 Agent、看消息流、调试工作流——省掉写脚本反复 run 的麻烦。
-        启动方式见 <span class="mono">samples/02-agents/devui/</span>。</div>
+      <div class="q">🧪 示例</div>
+      <div class="a">速度对比：<span class="inline">uv sync</span> 在秒级完成，而 <span class="inline">pip install</span> 需要数分钟。
+        <span class="mono">uv.lock</span> 是锁定文件，记录所有传递依赖的精确版本。
+        Workspace 模式支持 monorepo，多个包可以一次性安装：
+<pre class="code"><span class="cm"># uv.lock 记录了整个依赖树</span>
+uv sync --all-packages  <span class="cm"># 装整个 monorepo</span>
+cd packages/core && uv run poe test  <span class="cm"># 单包测试</span></pre></div>
+    </div>
+    <div class="qa">
+      <div class="q">❓ 为什么这件事必要</div>
+      <div class="a">可复现的构建需要锁定文件（lockfile），pip 本身没有内置锁定机制。
+        慢速安装会浪费大量 CI 时间。没有 workspace 支持的工具在 monorepo 中需要手动管理多个 <span class="inline">requirements.txt</span>。</div>
+    </div>
+    <div class="qa">
+      <div class="q">✅ MAF 的做法与优点</div>
+      <div class="a">MAF 使用 <span class="mono">uv</span> 的 workspace 模式。<span class="mono">uv.lock</span> 锁定每一个传递依赖的版本。
+        <span class="inline">uv sync --all-packages</span> 原子式地安装整个 monorepo 的所有包，无需手动进入每个子目录。</div>
+    </div>
+    <div class="qa">
+      <div class="q">🔀 还有什么其他方案</div>
+      <div class="a">可选方案：pip + pip-tools（生成 requirements.txt.lock）、poetry（有锁定但慢）、pdm（锁定 + PEP 621）。
+        <strong>uv 是最快的</strong>，且对 monorepo 的 workspace 原生支持最好。</div>
+    </div>
+  </div>
+</details>
+
+<details class="accordion" open>
+  <summary><span class="badge-num">2</span> poe 任务速查 <span class="hint">点击展开详解</span></summary>
+  <div class="acc-body">
+    <div class="qa">
+      <div class="q">🧪 示例</div>
+      <div class="a">主要任务清单：
+<pre class="code">uv run poe test      <span class="cm"># 运行 pytest</span>
+uv run poe lint      <span class="cm"># ruff check（快速 linter）</span>
+uv run poe format    <span class="cm"># ruff format（格式化）</span>
+uv run poe typecheck <span class="cm"># pyright（类型检查）</span></pre>
+        单包运行：
+<pre class="code">cd packages/core
+uv run poe test  <span class="cm"># 只测 core 包</span></pre></div>
+    </div>
+    <div class="qa">
+      <div class="q">❓ 为什么这件事必要</div>
+      <div class="a">没有任务运行器（task runner），每个贡献者都会发明自己的魔法咒语。
+        标准化的任务 = 一致的 CI/CD 流水线，新人上手只需记住几条命令。</div>
+    </div>
+    <div class="qa">
+      <div class="q">✅ MAF 的做法与优点</div>
+      <div class="a">MAF 使用 <span class="mono">poethepoet</span>（简称 poe）。
+        任务定义在 <span class="mono">pyproject.toml</span> 的 <span class="inline">[tool.poe.tasks]</span> 区块。
+        每个质量门都有一条对应命令，本地开发和 CI 使用完全相同的命令。</div>
+    </div>
+    <div class="qa">
+      <div class="q">🔀 还有什么其他方案</div>
+      <div class="a">可选方案：Makefile（跨平台支持差）、just（需额外安装）、nox（偏重测试矩阵）、tox（配置复杂）。
+        poe 的优点是集成在 <span class="inline">pyproject.toml</span> 中，且跨平台支持好。</div>
+    </div>
+  </div>
+</details>
+
+<details class="accordion" open>
+  <summary><span class="badge-num">3</span> 怎么写测试 <span class="hint">点击展开详解</span></summary>
+  <div class="acc-body">
+    <div class="qa">
+      <div class="q">🧪 示例</div>
+      <div class="a">测试文件命名为 <span class="inline">test_*.py</span>，放在 <span class="mono">tests/</span> 或 <span class="mono">packages/*/tests/</span>。
+        使用 <span class="mono">pytest</span> + <span class="mono">pytest-asyncio</span> 处理异步：
+<pre class="code"><span class="kw">import</span> pytest
+
+<span class="nb">@pytest.mark.asyncio</span>
+<span class="kw">async def</span> <span class="fn">test_agent_run</span>():
+    agent = Agent()
+    result = <span class="kw">await</span> agent.<span class="fn">run</span>(<span class="st">&quot;hello&quot;</span>)
+    <span class="kw">assert</span> result.status == <span class="st">&quot;success&quot;</span></pre>
+        使用 fixture 提供 mock 的 ChatClient。</div>
+    </div>
+    <div class="qa">
+      <div class="q">❓ 为什么这件事必要</div>
+      <div class="a">没有测试，重构就像走钢丝。异步代码尤其容易出错——<span class="mono">pytest-asyncio</span> 让异步测试变得可管理。</div>
+    </div>
+    <div class="qa">
+      <div class="q">✅ MAF 的做法与优点</div>
+      <div class="a">MAF 使用 <span class="mono">pytest</span> + <span class="mono">pytest-asyncio</span>。
+        测试与对应的包放在一起（<span class="inline">packages/*/tests/</span>）。
+        单元测试用 mock ChatClient，避免真实 API 调用。<span class="inline">uv run poe test</span> 跑所有测试。</div>
+    </div>
+    <div class="qa">
+      <div class="q">🔀 还有什么其他方案</div>
+      <div class="a">可选方案：unittest（Python 标准库，但啰嗦）、ward（极简但小众）、hypothesis（属性测试，适合复杂逻辑）。
+        pytest 是 Python 社区事实标准；asyncio 插件对异步框架是必需品。</div>
+    </div>
+  </div>
+</details>
+
+<details class="accordion" open>
+  <summary><span class="badge-num">4</span> DevUI 使用 <span class="hint">点击展开详解</span></summary>
+  <div class="acc-body">
+    <div class="qa">
+      <div class="q">🧪 示例</div>
+      <div class="a">启动：
+<pre class="code">cd samples/02-agents/devui
+uv run python main.py</pre>
+        自动打开浏览器界面，提供的功能：
+        <ul>
+          <li>与 Agent 聊天</li>
+          <li>查看消息流（message flow）</li>
+          <li>查看工具调用（tool calls）</li>
+          <li>查看中间件管道（middleware pipeline）</li>
+          <li>实时流式输出</li>
+        </ul></div>
+    </div>
+    <div class="qa">
+      <div class="q">❓ 为什么这件事必要</div>
+      <div class="a">CLI 测试很慢，且看不到中间状态。可视化调试可以揭示消息顺序、工具调用序列、中间件效果——这些在纯文本输出里很难发现。</div>
+    </div>
+    <div class="qa">
+      <div class="q">✅ MAF 的做法与优点</div>
+      <div class="a">MAF 将 DevUI 作为 <span class="mono">packages/devui</span> 包发布。
+        提供交互式 Web 界面，用于开发阶段调试。不需要外部工具，开箱即用。</div>
+    </div>
+    <div class="qa">
+      <div class="q">🔀 还有什么其他方案</div>
+      <div class="a">可选方案：LangSmith（LangChain 生态，收费）、Chainlit（需单独配置）、Mesop（Google 实验性项目）。
+        MAF 的 DevUI 是<strong>内置且免费</strong>的。</div>
+    </div>
+  </div>
+</details>
+
+<details class="accordion" open>
+  <summary><span class="badge-num">5</span> 提 PR 的流程 <span class="hint">点击展开详解</span></summary>
+  <div class="acc-body">
+    <div class="qa">
+      <div class="q">🧪 示例</div>
+      <div class="a">分支命名：<span class="inline">feature/my-change</span> 或 <span class="inline">fix/issue-123</span>。
+        本地运行质量门：
+<pre class="code">uv run poe lint && uv run poe typecheck && uv run poe test</pre>
+        阅读代码规范：
+<pre class="code">cat CODING_STANDARD.md
+cat AGENTS.md</pre>
+        PR 模板会要求填写：
+        <ul>
+          <li>改动描述</li>
+          <li>测试方法</li>
+          <li>关联的 issue</li>
+        </ul></div>
+    </div>
+    <div class="qa">
+      <div class="q">❓ 为什么这件事必要</div>
+      <div class="a">质量差的 PR 会浪费审查者时间。在本地运行 CI 可以在推送前捕获 90% 的问题。
+        阅读代码规范避免不必要的来回修改。</div>
+    </div>
+    <div class="qa">
+      <div class="q">✅ MAF 的做法与优点</div>
+      <div class="a">MAF 提供 <span class="mono">CODING_STANDARD.md</span> 和 <span class="mono">AGENTS.md</span> 文档化约定。
+        CI 运行与本地相同的 poe 任务。PR 模板引导贡献者填写必要信息。</div>
+    </div>
+    <div class="qa">
+      <div class="q">🔀 还有什么其他方案</div>
+      <div class="a">可选方案：有些项目使用 pre-commit hook（自动运行检查）、commitlint（规范提交信息）。
+        MAF 保持简单，使用明确的 poe 任务，让贡献者自主运行。</div>
     </div>
   </div>
 </details>
@@ -1236,6 +3524,7 @@ uv run poe typecheck <span class="cm"># pyright 类型检查</span></pre></div><
     <li>依赖管理用 <span class="mono">uv</span>；日常任务用 <span class="mono">uv run poe &lt;task&gt;</span>。</li>
     <li>核心在 <span class="mono">packages/core</span>，测试在 <span class="mono">packages/core/tests</span>。</li>
     <li>DevUI 提供浏览器调试界面，方便快速迭代。</li>
+    <li>提 PR 前先在本地跑通 lint/typecheck/test。</li>
   </ul>
 </div>
 
@@ -1267,13 +3556,184 @@ uv run poe typecheck <span class="cm"># pyright 类型检查</span></pre></div><
 <p>全部用法一样：实例化 ChatClient → <span class="mono">client.as_agent(…)</span> → <span class="mono">agent.run(…)</span>。</p>
 
 <details class="accordion" open>
-  <summary><span class="badge-num">1</span> Foundry vs OpenAI 有什么区别？ <span class="hint">点击展开</span></summary>
+  <summary><span class="badge-num">1</span> FoundryChatClient 配置 <span class="hint">点击展开详解</span></summary>
   <div class="acc-body">
     <div class="qa">
-      <div class="q">🔬 关键差异</div>
-      <div class="a"><span class="mono">FoundryChatClient</span> 走 <strong>Azure AI Foundry 项目端点</strong>（统一管理模型、记忆、文件等）。
-        <span class="mono">OpenAIChatClient</span> 直连 <strong>OpenAI API 或 Azure OpenAI 端点</strong>。
-        如果你已有 Foundry 项目，推荐 Foundry；否则 OpenAI 最直接。</div>
+      <div class="q">🧪 示例</div>
+      <div class="a">完整配置代码：
+<pre class="code"><span class="kw">from</span> agent_framework_foundry <span class="kw">import</span> FoundryChatClient
+<span class="kw">from</span> azure.identity <span class="kw">import</span> DefaultAzureCredential
+<span class="kw">import</span> os
+
+client = FoundryChatClient(
+    project_endpoint=os.environ[<span class="st">"AZURE_AI_FOUNDRY_PROJECT_ENDPOINT"</span>],
+    model=<span class="st">"gpt-4o"</span>,
+    credential=DefaultAzureCredential()
+)</pre>
+      </div>
+    </div>
+    <div class="qa">
+      <div class="q">❓ 为什么这件事必要</div>
+      <div class="a">Azure AI Foundry 统一管理模型、记忆、文件存储于一个端点下。企业客户通常已有 Foundry 项目，这让他们能直接复用现有基础设施和安全配置。</div>
+    </div>
+    <div class="qa">
+      <div class="q">✅ MAF 的做法与优点</div>
+      <div class="a"><span class="mono">FoundryChatClient</span> 只需三个参数：<span class="mono">project_endpoint</span>、<span class="mono">model</span>、<span class="mono">credential</span>。一次 import，三行配置，完成。底层走 Foundry 的统一 API。</div>
+    </div>
+    <div class="qa">
+      <div class="q">🔀 还有什么其他方案</div>
+      <div class="a">直接调用 Foundry REST API，或用 Azure SDK。MAF 的优势是把这些封装成 ChatClient 接口，切换厂商时不用改 Agent 代码。</div>
+    </div>
+  </div>
+</details>
+
+<details class="accordion" open>
+  <summary><span class="badge-num">2</span> OpenAIChatClient 配置 <span class="hint">点击展开详解</span></summary>
+  <div class="acc-body">
+    <div class="qa">
+      <div class="q">🧪 示例</div>
+      <div class="a">OpenAI 或 Azure OpenAI 均可：
+<pre class="code"><span class="kw">from</span> agent_framework <span class="kw">import</span> OpenAIChatClient
+
+<span class="cm"># OpenAI</span>
+client = OpenAIChatClient(
+    model=<span class="st">"gpt-4o"</span>,
+    api_key=os.environ[<span class="st">"OPENAI_API_KEY"</span>]
+)
+
+<span class="cm"># Azure OpenAI</span>
+client = OpenAIChatClient(
+    model=<span class="st">"gpt-4o"</span>,
+    base_url=<span class="st">"https://your-resource.openai.azure.com/"</span>,
+    api_key=os.environ[<span class="st">"AZURE_OPENAI_KEY"</span>]
+)</pre>
+      </div>
+    </div>
+    <div class="qa">
+      <div class="q">❓ 为什么这件事必要</div>
+      <div class="a">OpenAI 是最常见的起点。Azure OpenAI 则增加企业级安全（VNet、托管身份等）。许多团队从 OpenAI 开始原型，之后迁移到 Azure OpenAI。</div>
+    </div>
+    <div class="qa">
+      <div class="q">✅ MAF 的做法与优点</div>
+      <div class="a">内置于核心包（无需额外安装）。通过 <span class="mono">base_url</span> 参数同时支持 OpenAI 和 Azure OpenAI。接口完全相同。</div>
+    </div>
+    <div class="qa">
+      <div class="q">🔀 还有什么其他方案</div>
+      <div class="a">直接用 <span class="mono">openai</span> SDK，或用 LiteLLM 代理。MAF 的优势是与其他厂商统一接口，切换时不用重写 Agent 逻辑。</div>
+    </div>
+  </div>
+</details>
+
+<details class="accordion" open>
+  <summary><span class="badge-num">3</span> AnthropicChatClient 配置 <span class="hint">点击展开详解</span></summary>
+  <div class="acc-body">
+    <div class="qa">
+      <div class="q">🧪 示例</div>
+      <div class="a">先安装包，再配置：
+<pre class="code"><span class="cm"># 安装</span>
+pip install agent-framework-anthropic
+
+<span class="cm"># 使用</span>
+<span class="kw">from</span> agent_framework_anthropic <span class="kw">import</span> AnthropicChatClient
+
+client = AnthropicChatClient(
+    model=<span class="st">"claude-sonnet-4-5"</span>,
+    api_key=os.environ[<span class="st">"ANTHROPIC_API_KEY"</span>]
+)
+<span class="cm"># 也可用 claude-haiku-3-5 等其他模型</span></pre>
+      </div>
+    </div>
+    <div class="qa">
+      <div class="q">❓ 为什么这件事必要</div>
+      <div class="a">Claude 模型在长上下文和仔细推理方面表现优异。许多团队需要厂商多样性来降低风险、比较质量或应对某一厂商的限制。</div>
+    </div>
+    <div class="qa">
+      <div class="q">✅ MAF 的做法与优点</div>
+      <div class="a">独立包保持核心轻量。同样的 <span class="mono">as_agent()</span> → <span class="mono">run()</span> 模式。Agent 代码与 OpenAI 版本完全一样。</div>
+    </div>
+    <div class="qa">
+      <div class="q">🔀 还有什么其他方案</div>
+      <div class="a">直接用 <span class="mono">anthropic</span> SDK，或用 AWS Bedrock（也支持 Claude）。MAF 统一了接口，让切换变成一行代码的事。</div>
+    </div>
+  </div>
+</details>
+
+<details class="accordion" open>
+  <summary><span class="badge-num">4</span> OllamaChatClient 配置 <span class="hint">点击展开详解</span></summary>
+  <div class="acc-body">
+    <div class="qa">
+      <div class="q">🧪 示例</div>
+      <div class="a">本地运行 Ollama，无需 API key：
+<pre class="code"><span class="cm"># 1. 安装 Ollama（本地）并拉取模型</span>
+ollama pull llama3.1
+
+<span class="cm"># 2. Python 代码</span>
+<span class="kw">from</span> agent_framework_ollama <span class="kw">import</span> OllamaChatClient
+
+client = OllamaChatClient(
+    model=<span class="st">"llama3.1"</span>,
+    endpoint=<span class="st">"http://localhost:11434"</span>  <span class="cm"># 默认值</span>
+)</pre>
+      </div>
+    </div>
+    <div class="qa">
+      <div class="q">❓ 为什么这件事必要</div>
+      <div class="a">本地模型 = 零 API 成本、数据不离开本地。适合开发、隐私敏感场景、或无法访问云端 API 的环境。</div>
+    </div>
+    <div class="qa">
+      <div class="q">✅ MAF 的做法与优点</div>
+      <div class="a">MAF 对本地模型和云端模型一视同仁。同样的 Agent 代码可以在 Ollama 或 GPT-4o 上运行，只需切换 client 实例。</div>
+    </div>
+    <div class="qa">
+      <div class="q">🔀 还有什么其他方案</div>
+      <div class="a">vLLM、llama.cpp 服务器、LocalAI。Ollama 是最简单的开发选项，但 MAF 的抽象意味着你也可以写其他本地后端的 ChatClient。</div>
+    </div>
+  </div>
+</details>
+
+<details class="accordion" open>
+  <summary><span class="badge-num">5</span> 切换厂商的实际演示 <span class="hint">点击展开详解</span></summary>
+  <div class="acc-body">
+    <div class="qa">
+      <div class="q">🧪 示例</div>
+      <div class="a">同一个 Agent 定义，只换 client 一行：
+<pre class="code"><span class="cm"># 变体 1：OpenAI</span>
+client = OpenAIChatClient(model=<span class="st">"gpt-4o"</span>, api_key=...)
+agent = client.as_agent(
+    name=<span class="st">"Assistant"</span>,
+    instructions=<span class="st">"You are helpful."</span>,
+    tools=[web_search]
+)
+
+<span class="cm"># 变体 2：Anthropic</span>
+client = AnthropicChatClient(model=<span class="st">"claude-sonnet-4-5"</span>, api_key=...)
+agent = client.as_agent(
+    name=<span class="st">"Assistant"</span>,
+    instructions=<span class="st">"You are helpful."</span>,
+    tools=[web_search]
+)
+
+<span class="cm"># 变体 3：Ollama</span>
+client = OllamaChatClient(model=<span class="st">"llama3.1"</span>)
+agent = client.as_agent(
+    name=<span class="st">"Assistant"</span>,
+    instructions=<span class="st">"You are helpful."</span>,
+    tools=[web_search]
+)</pre>
+<span class="cm"># Agent 定义（name、instructions、tools、middleware）完全相同！</span>
+      </div>
+    </div>
+    <div class="qa">
+      <div class="q">❓ 为什么这件事必要</div>
+      <div class="a">厂商锁定成本高昂。能用一行代码切换是竞争优势：价格变动时切换、某厂商限流时切换、对比质量时切换。</div>
+    </div>
+    <div class="qa">
+      <div class="q">✅ MAF 的做法与优点</div>
+      <div class="a">MAF 的 <span class="mono">ChatClient</span> 抽象意味着 Agent 逻辑 100% 厂商无关。只有 client 实例化那一行需要改。工具、中间件、编排全部不变。</div>
+    </div>
+    <div class="qa">
+      <div class="q">🔀 还有什么其他方案</div>
+      <div class="a">LiteLLM 代理（增加网络跳转），LangChain 的 ChatModel（类似思路但更重）。MAF 是最干净的抽象。</div>
     </div>
   </div>
 </details>
@@ -1314,12 +3774,140 @@ tools:
 适合快速原型和版本控制。</p>
 
 <details class="accordion" open>
-  <summary><span class="badge-num">1</span> 声明式能做到和代码一样吗？ <span class="hint">点击展开</span></summary>
+  <summary><span class="badge-num">1</span> 完整 YAML schema <span class="hint">点击展开详解</span></summary>
   <div class="acc-body">
     <div class="qa">
-      <div class="q">🔬 能力边界</div>
-      <div class="a">简单 Agent（名字 + 指令 + 工具列表）完全可以；复杂的自定义中间件或动态逻辑仍需代码。
-        声明式和代码式可以<strong>混用</strong>——YAML 定义骨架，代码补充高级逻辑。</div>
+      <div class="q">🧪 示例</div>
+      <div class="a">支持的所有字段：
+<pre class="code">name: MyAgent
+instructions: You are a helpful assistant.
+model: gpt-4o
+description: Optional agent description
+
+tools:
+  - tool_name_1
+  - tool_name_2
+
+middleware:
+  - LoggingMiddleware
+  - RetryMiddleware
+
+context_providers:
+  - provider_name</pre>
+每个字段说明：<span class="mono">name</span>（Agent 名称）、<span class="mono">instructions</span>（系统提示）、<span class="mono">model</span>（模型名）、<span class="mono">tools</span>（工具列表）、<span class="mono">middleware</span>（中间件列表）、<span class="mono">context_providers</span>（上下文提供者）、<span class="mono">description</span>（可选描述）。
+      </div>
+    </div>
+    <div class="qa">
+      <div class="q">❓ 为什么这件事必要</div>
+      <div class="a">不知道完整 schema，用户会猜测字段名，浪费时间调试 YAML 拼写错误。明确的 schema 让配置可预测。</div>
+    </div>
+    <div class="qa">
+      <div class="q">✅ MAF 的做法与优点</div>
+      <div class="a">MAF 的 declarative 包会验证 YAML 是否符合已知 schema。未知字段会抛出清晰的错误，而不是悄悄失败。</div>
+    </div>
+    <div class="qa">
+      <div class="q">🔀 还有什么其他方案</div>
+      <div class="a">JSON Schema 验证，Pydantic 模型配置。YAML 对人类友好，且在版本控制中 diff 友好。</div>
+    </div>
+  </div>
+</details>
+
+<details class="accordion" open>
+  <summary><span class="badge-num">2</span> 加载代码 <span class="hint">点击展开详解</span></summary>
+  <div class="acc-body">
+    <div class="qa">
+      <div class="q">🧪 示例</div>
+      <div class="a">从 YAML 加载到运行：
+<pre class="code"><span class="kw">from</span> agent_framework.declarative <span class="kw">import</span> load_agent
+
+agent = load_agent(<span class="st">"my_agent.yaml"</span>)
+result = <span class="kw">await</span> agent.run(<span class="st">"Hello"</span>)</pre>
+仅 3 行代码。<span class="mono">load_agent</span> 读取 YAML → 构造完整配置的 Agent 实例。
+      </div>
+    </div>
+    <div class="qa">
+      <div class="q">❓ 为什么这件事必要</div>
+      <div class="a">如果加载复杂，声明式就失去吸引力。应该和"加载 → 运行"一样简单。</div>
+    </div>
+    <div class="qa">
+      <div class="q">✅ MAF 的做法与优点</div>
+      <div class="a">MAF 让它成为一行代码：加载 YAML，得到完整配置的 Agent。declarative 包处理工具解析、模型连接等所有细节。</div>
+    </div>
+    <div class="qa">
+      <div class="q">🔀 还有什么其他方案</div>
+      <div class="a">Hydra（Facebook）、OmegaConf。MAF 的方法是为 Agent 量身定制的，而不是通用配置。</div>
+    </div>
+  </div>
+</details>
+
+<details class="accordion" open>
+  <summary><span class="badge-num">3</span> YAML + 代码混合 <span class="hint">点击展开详解</span></summary>
+  <div class="acc-body">
+    <div class="qa">
+      <div class="q">🧪 示例</div>
+      <div class="a">YAML 定义框架，代码添加自定义工具：
+<pre class="code"><span class="cm"># 1. 在 Python 中定义工具</span>
+<span class="kw">from</span> agent_framework <span class="kw">import</span> tool
+
+<span class="nb">@tool</span>
+<span class="kw">def</span> <span class="fn">my_custom_tool</span>(query: str) -> str:
+    <span class="st">&quot;&quot;&quot;My custom logic&quot;&quot;&quot;</span>
+    <span class="kw">return</span> f<span class="st">&quot;Result for {query}&quot;</span>
+
+<span class="cm"># 2. YAML 引用工具名称</span>
+<span class="cm"># my_agent.yaml:</span>
+<span class="cm">#   tools:</span>
+<span class="cm">#     - my_custom_tool</span>
+
+<span class="cm"># 3. 加载时工具自动连接</span>
+agent = load_agent(<span class="st">"my_agent.yaml"</span>)</pre>
+工作流：在 Python 中定义工具 → 在 YAML 中按名称引用 → 加载。
+      </div>
+    </div>
+    <div class="qa">
+      <div class="q">❓ 为什么这件事必要</div>
+      <div class="a">真正的 Agent 需要无法在 YAML 中表达的自定义逻辑。混合模式让非开发人员拥有配置，开发人员拥有逻辑。</div>
+    </div>
+    <div class="qa">
+      <div class="q">✅ MAF 的做法与优点</div>
+      <div class="a">MAF 的工具注册表意味着 YAML 可以按名称引用 Python 函数。两全其美。</div>
+    </div>
+    <div class="qa">
+      <div class="q">🔀 还有什么其他方案</div>
+      <div class="a">全代码（失去非开发人员可访问性），全 YAML 带嵌入代码（安全风险）。混合是最佳平衡点。</div>
+    </div>
+  </div>
+</details>
+
+<details class="accordion" open>
+  <summary><span class="badge-num">4</span> 声明式工作流 <span class="hint">点击展开详解</span></summary>
+  <div class="acc-body">
+    <div class="qa">
+      <div class="q">🧪 示例</div>
+      <div class="a">工作流（SequentialBuilder、ConcurrentBuilder）能否在 YAML 中定义？
+<pre class="code"><span class="cm"># 当前：单个 Agent 的声明式支持很好</span>
+<span class="cm"># 工作流通常需要代码来处理复杂的路由逻辑</span>
+
+<span class="cm"># 可能的未来 YAML（如果支持）：</span>
+workflow:
+  participants:
+    - writer_agent
+    - reviewer_agent
+  orchestration: sequential</pre>
+当前限制：工作流的复杂路由逻辑最好用代码表达。
+      </div>
+    </div>
+    <div class="qa">
+      <div class="q">❓ 为什么这件事必要</div>
+      <div class="a">如果单个 Agent 可以声明式，团队也会想要声明式工作流。这是自然的下一步。</div>
+    </div>
+    <div class="qa">
+      <div class="q">✅ MAF 的做法与优点</div>
+      <div class="a">MAF 的声明式支持正在发展。目前最适合单个 Agent；工作流通常需要代码来处理复杂路由逻辑。这是一个活跃的开发领域。</div>
+    </div>
+    <div class="qa">
+      <div class="q">🔀 还有什么其他方案</div>
+      <div class="a">Temporal 工作流定义、AWS Step Functions（JSON）。声明式工作流是一个活跃的研究领域。</div>
     </div>
   </div>
 </details>
@@ -1363,14 +3951,147 @@ tools:
 <p>挂到 Agent 上：<span class="inline">Agent(client=client, chat_middleware=[RetryChatMiddleware(3)])</span>。</p>
 
 <details class="accordion" open>
-  <summary><span class="badge-num">1</span> 三层中间件分别怎么挂？ <span class="hint">点击展开</span></summary>
+  <summary><span class="badge-num">1</span> 完整的日志中间件 <span class="hint">点击展开详解</span></summary>
   <div class="acc-body">
     <div class="qa">
-      <div class="q">🧪 挂载方式</div>
-      <div class="a"><span class="mono">Agent(middleware=[…])</span> 挂 AgentMiddleware；
-        <span class="mono">Agent(chat_middleware=[…])</span> 挂 ChatMiddleware；
-        <span class="mono">Agent(function_middleware=[…])</span> 挂 FunctionMiddleware。
-        多个中间件按列表顺序从外到内排列。</div>
+      <div class="q">🧪 示例</div>
+      <div class="a">完整代码，带计时：
+<pre class="code"><span class="kw">import</span> logging
+<span class="kw">import</span> time
+<span class="kw">from</span> agent_framework <span class="kw">import</span> ChatMiddleware, ChatContext
+
+logger = logging.getLogger(__name__)
+
+<span class="kw">class</span> <span class="fn">LoggingChatMiddleware</span>(ChatMiddleware):
+    <span class="kw">async def</span> <span class="fn">process</span>(self, context: ChatContext, call_next):
+        logger.info(f<span class="st">&quot;Input: {context.messages}&quot;</span>)
+        start = time.monotonic()
+        
+        <span class="kw">await</span> call_next()
+        
+        duration = time.monotonic() - start
+        logger.info(f<span class="st">&quot;Output: {context.result}&quot;</span>)
+        logger.info(f<span class="st">&quot;Duration: {duration:.2f}s&quot;</span>)</pre>
+约 15 行完整日志中间件。<span class="mono">call_next()</span> 前记输入，之后记输出和耗时。
+      </div>
+    </div>
+    <div class="qa">
+      <div class="q">❓ 为什么这件事必要</div>
+      <div class="a">日志是第一常见中间件。没有它，调试生产 Agent 就是盲飞。看不到输入输出和耗时，无法定位问题。</div>
+    </div>
+    <div class="qa">
+      <div class="q">✅ MAF 的做法与优点</div>
+      <div class="a">MAF 的中间件模式让日志变得简单：用 before/after 逻辑包装 <span class="mono">call_next()</span>。访问 <span class="mono">context.messages</span> 获取输入，<span class="mono">context.result</span> 获取输出。</div>
+    </div>
+    <div class="qa">
+      <div class="q">🔀 还有什么其他方案</div>
+      <div class="a">基于装饰器的日志、OpenTelemetry 自动埋点。中间件是显式的且可组合的。</div>
+    </div>
+  </div>
+</details>
+
+<details class="accordion" open>
+  <summary><span class="badge-num">2</span> 审批中间件 <span class="hint">点击展开详解</span></summary>
+  <div class="acc-body">
+    <div class="qa">
+      <div class="q">🧪 示例</div>
+      <div class="a"><span class="mono">ApprovalMiddleware</span> 在 <span class="mono">call_next()</span> 前检查条件：
+<pre class="code"><span class="kw">class</span> <span class="fn">ApprovalMiddleware</span>(ChatMiddleware):
+    <span class="kw">async def</span> <span class="fn">process</span>(self, context: ChatContext, call_next):
+        user_input = context.messages[-<span class="nb">1</span>].content
+        
+        <span class="kw">if</span> <span class="st">&quot;publish&quot;</span> <span class="kw">in</span> user_input <span class="kw">or</span> <span class="st">&quot;delete&quot;</span> <span class="kw">in</span> user_input:
+            <span class="cm"># 暂停，等待人工确认（与 HITL 机制集成）</span>
+            approved = <span class="kw">await</span> request_human_approval(user_input)
+            <span class="kw">if not</span> approved:
+                <span class="kw">raise</span> Exception(<span class="st">&quot;Action not approved&quot;</span>)
+        
+        <span class="kw">await</span> call_next()</pre>
+消息包含"publish"或"delete"时暂停，等人签字后再继续。
+      </div>
+    </div>
+    <div class="qa">
+      <div class="q">❓ 为什么这件事必要</div>
+      <div class="a">自主 Agent 需要护栏。某些操作（发布、删除、付款）应该需要人工批准。没有审批，风险不可控。</div>
+    </div>
+    <div class="qa">
+      <div class="q">✅ MAF 的做法与优点</div>
+      <div class="a">MAF 中间件可以拦截任何调用。结合 <span class="mono">request_info</span> 进行异步人工输入，创建完整的审批流程。</div>
+    </div>
+    <div class="qa">
+      <div class="q">🔀 还有什么其他方案</div>
+      <div class="a">独立审批服务、基于 webhook 的审批。中间件保持在进程内且可组合。</div>
+    </div>
+  </div>
+</details>
+
+<details class="accordion" open>
+  <summary><span class="badge-num">3</span> Token 计费中间件 <span class="hint">点击展开详解</span></summary>
+  <div class="acc-body">
+    <div class="qa">
+      <div class="q">🧪 示例</div>
+      <div class="a">在 <span class="mono">await call_next()</span> 后读取用量：
+<pre class="code"><span class="kw">class</span> <span class="fn">BillingMiddleware</span>(ChatMiddleware):
+    <span class="kw">def</span> <span class="fn">__init__</span>(self):
+        self.total_cost = <span class="nb">0.0</span>
+    
+    <span class="kw">async def</span> <span class="fn">process</span>(self, context: ChatContext, call_next):
+        <span class="kw">await</span> call_next()
+        
+        usage = context.result.usage
+        <span class="cm"># 假设价格：输入 $0.01/1k，输出 $0.03/1k</span>
+        cost = (usage.input_tokens * <span class="nb">0.01</span> + 
+                usage.output_tokens * <span class="nb">0.03</span>) / <span class="nb">1000</span>
+        self.total_cost += cost
+        logger.info(f<span class="st">&quot;Cost: ${cost:.4f}, Total: ${self.total_cost:.4f}&quot;</span>)</pre>
+约 12 行实时成本追踪。读取 <span class="mono">context.result.usage</span>，计算成本，累加。
+      </div>
+    </div>
+    <div class="qa">
+      <div class="q">❓ 为什么这件事必要</div>
+      <div class="a">LLM 成本可能爆炸。按请求成本追踪启用预算、告警和按用户计费。没有它，账单成谜。</div>
+    </div>
+    <div class="qa">
+      <div class="q">✅ MAF 的做法与优点</div>
+      <div class="a">MAF 在每次调用后的 <span class="mono">context.result.usage</span> 上暴露 token 用量。中间件可以读取它而不修改响应。</div>
+    </div>
+    <div class="qa">
+      <div class="q">🔀 还有什么其他方案</div>
+      <div class="a">厂商控制台计费、外部代理（如 Helicone）。中间件提供实时、进程内追踪。</div>
+    </div>
+  </div>
+</details>
+
+<details class="accordion" open>
+  <summary><span class="badge-num">4</span> 中间件的错误处理 <span class="hint">点击展开详解</span></summary>
+  <div class="acc-body">
+    <div class="qa">
+      <div class="q">🧪 示例</div>
+      <div class="a">在 <span class="mono">await call_next()</span> 周围加 <span class="mono">try/except</span>：
+<pre class="code"><span class="kw">class</span> <span class="fn">ErrorHandlingMiddleware</span>(ChatMiddleware):
+    <span class="kw">async def</span> <span class="fn">process</span>(self, context: ChatContext, call_next):
+        <span class="kw">try</span>:
+            <span class="kw">await</span> call_next()
+        <span class="kw">except</span> Exception <span class="kw">as</span> e:
+            logger.error(f<span class="st">&quot;Call failed: {e}&quot;</span>)
+            <span class="cm"># 可选：重试逻辑</span>
+            <span class="cm"># 可选：返回后备响应</span>
+            <span class="cm"># 或重新抛出</span>
+            <span class="kw">raise</span></pre>
+失败时：记录错误、可选重试、可选后备响应。模式：捕获异常，记录后重新抛出。
+      </div>
+    </div>
+    <div class="qa">
+      <div class="q">❓ 为什么这件事必要</div>
+      <div class="a">LLM 调用会失败（速率限制、超时、错误响应）。没有错误处理中间件，失败会让整个 Agent 崩溃。</div>
+    </div>
+    <div class="qa">
+      <div class="q">✅ MAF 的做法与优点</div>
+      <div class="a">MAF 的管道自然传播异常。中间件可以在任何层捕获、记录、重试或转换错误。</div>
+    </div>
+    <div class="qa">
+      <div class="q">🔀 还有什么其他方案</div>
+      <div class="a">熔断器库（tenacity）、全局错误处理器。中间件是按层的且可组合的。</div>
     </div>
   </div>
 </details>
@@ -1409,13 +4130,136 @@ tools:
 工作流层面也有 <span class="mono">request_info</span> 机制：节点暂停、发问、等回答再继续。</p>
 
 <details class="accordion" open>
-  <summary><span class="badge-num">1</span> DurableTask 是什么？ <span class="hint">点击展开</span></summary>
+  <summary><span class="badge-num">1</span> InMemoryCheckpointStorage 示例 <span class="hint">点击展开详解</span></summary>
   <div class="acc-body">
     <div class="qa">
-      <div class="q">🔬 持久化执行</div>
-      <div class="a"><span class="mono">packages/durabletask</span> 把工作流跑在 <strong>Durable Task Framework</strong> 上：
-        状态持久化到外部存储，支持<strong>跨进程恢复</strong>和长时间等待（比如等人审批几小时）。
-        配合 Azure Functions 可做无服务器部署。</div>
+      <div class="q">🧪 示例</div>
+      <div class="a">设置代码：
+<pre class="code"><span class="kw">from</span> agent_framework <span class="kw">import</span> InMemoryCheckpointStorage
+<span class="kw">from</span> agent_framework.orchestrations <span class="kw">import</span> SequentialBuilder
+
+storage = InMemoryCheckpointStorage()
+workflow = SequentialBuilder(
+    participants=[agent1, agent2],
+    checkpoint_storage=storage
+).build()</pre>
+保存内容：Agent 状态、消息历史、当前步骤。适合开发，不适合生产。
+      </div>
+    </div>
+    <div class="qa">
+      <div class="q">❓ 为什么这件事必要</div>
+      <div class="a">没有检查点，10 步工作流在第 5 步崩溃意味着从第 1 步重新开始。浪费时间和 LLM token。</div>
+    </div>
+    <div class="qa">
+      <div class="q">✅ MAF 的做法与优点</div>
+      <div class="a">MAF 在 superstep 边界自动保存。<span class="mono">InMemoryCheckpointStorage</span> 零配置，适合开发。</div>
+    </div>
+    <div class="qa">
+      <div class="q">🔀 还有什么其他方案</div>
+      <div class="a">手动状态序列化、数据库快照。MAF 的检查点 API 是自动且透明的。</div>
+    </div>
+  </div>
+</details>
+
+<details class="accordion" open>
+  <summary><span class="badge-num">2</span> 人在环完整流程 <span class="hint">点击展开详解</span></summary>
+  <div class="acc-body">
+    <div class="qa">
+      <div class="q">🧪 示例</div>
+      <div class="a"><span class="mono">request_info</span> 机制：
+<pre class="code"><span class="cm"># 工作流层面：节点暂停等待人工输入</span>
+answer = <span class="kw">await</span> request_info(<span class="st">&quot;Should I proceed?&quot;</span>)
+<span class="kw">if</span> answer == <span class="st">&quot;yes&quot;</span>:
+    <span class="cm"># 继续</span>
+    ...
+
+<span class="cm"># 工具层面：审批模式</span>
+<span class="nb">@tool</span>(approval_mode=<span class="st">&quot;always_require&quot;</span>)
+<span class="kw">def</span> <span class="fn">publish_article</span>(content: str):
+    <span class="st">&quot;&quot;&quot;Publish article (requires approval)&quot;&quot;&quot;</span>
+    ...</pre>
+两个层级：工具级（<span class="mono">approval_mode</span>）和工作流级（<span class="mono">request_info</span>）。都会暂停执行并等待人工输入。
+      </div>
+    </div>
+    <div class="qa">
+      <div class="q">❓ 为什么这件事必要</div>
+      <div class="a">完全自主的 Agent 对于高风险任务很危险。HITL 在关键决策点增加安全网。</div>
+    </div>
+    <div class="qa">
+      <div class="q">✅ MAF 的做法与优点</div>
+      <div class="a">MAF 在两个层级支持 HITL：工具级（approval_mode）和工作流级（request_info）。两者都会暂停执行并等待人工输入。</div>
+    </div>
+    <div class="qa">
+      <div class="q">🔀 还有什么其他方案</div>
+      <div class="a">外部审批队列（Slack 机器人、电子邮件）、基于轮询的检查。MAF 的 HITL 内置于执行模型中。</div>
+    </div>
+  </div>
+</details>
+
+<details class="accordion" open>
+  <summary><span class="badge-num">3</span> DurableTask 配置 <span class="hint">点击展开详解</span></summary>
+  <div class="acc-body">
+    <div class="qa">
+      <div class="q">🧪 示例</div>
+      <div class="a">安装和设置：
+<pre class="code">pip install agent-framework-durabletask
+
+<span class="cm"># 与 Azure Functions 集成</span>
+<span class="cm"># 查看 packages/durabletask 了解配置详情</span></pre>
+持久性保证：状态在进程重启后存活，支持长时间等待（数小时/数天）。
+      </div>
+    </div>
+    <div class="qa">
+      <div class="q">❓ 为什么这件事必要</div>
+      <div class="a">内存检查点随进程消亡。生产需要在重启、部署和基础设施故障后存活的状态。</div>
+    </div>
+    <div class="qa">
+      <div class="q">✅ MAF 的做法与优点</div>
+      <div class="a">MAF 的 DurableTask 包利用久经考验的 Durable Task Framework。与 Azure Functions 配对实现无服务器、自动扩展部署。</div>
+    </div>
+    <div class="qa">
+      <div class="q">🔀 还有什么其他方案</div>
+      <div class="a">Temporal、AWS Step Functions、Prefect。DurableTask 与 Azure 生态系统原生集成。</div>
+    </div>
+  </div>
+</details>
+
+<details class="accordion" open>
+  <summary><span class="badge-num">4</span> Redis/Cosmos 持久化存储 <span class="hint">点击展开详解</span></summary>
+  <div class="acc-body">
+    <div class="qa">
+      <div class="q">🧪 示例</div>
+      <div class="a">从 <span class="mono">InMemoryCheckpointStorage</span> 切换到 Redis 或 Cosmos：
+<pre class="code"><span class="cm"># 安装包</span>
+pip install agent-framework-redis
+<span class="cm"># 或</span>
+pip install agent-framework-azure-cosmos
+
+<span class="cm"># 改一行配置</span>
+<span class="kw">from</span> agent_framework_redis <span class="kw">import</span> RedisCheckpointStorage
+storage = RedisCheckpointStorage(
+    connection_string=<span class="st">&quot;redis://...&quot;</span>
+)
+
+<span class="cm"># 工作流构建保持不变</span>
+workflow = SequentialBuilder(
+    participants=[agent1, agent2],
+    checkpoint_storage=storage
+).build()</pre>
+切换后端只改一行。所有检查点 API 保持不变。
+      </div>
+    </div>
+    <div class="qa">
+      <div class="q">❓ 为什么这件事必要</div>
+      <div class="a">内存存储快但易失。Redis 提供速度 + 持久性；Cosmos 提供全球分布 + 强一致性。</div>
+    </div>
+    <div class="qa">
+      <div class="q">✅ MAF 的做法与优点</div>
+      <div class="a">MAF 的存储抽象意味着切换后端只需改一行。所有检查点 API 保持不变。</div>
+    </div>
+    <div class="qa">
+      <div class="q">🔀 还有什么其他方案</div>
+      <div class="a">PostgreSQL、DynamoDB、S3。MAF 提供 Redis 和 Cosmos 包；社区可以添加其他。</div>
     </div>
   </div>
 </details>
@@ -1464,13 +4308,175 @@ result = <span class="kw">await</span> workflow.run(<span class="st">"Write abou
 </div>
 
 <details class="accordion" open>
-  <summary><span class="badge-num">1</span> 加上工具和检查点 <span class="hint">点击展开</span></summary>
+  <summary><span class="badge-num">1</span> 完整代码骨架（扩展版） <span class="hint">点击展开详解</span></summary>
   <div class="acc-body">
     <div class="qa">
-      <div class="q">🧪 扩展</div>
-      <div class="a">给 Writer 加 <span class="mono">tools=[web_search]</span> 让它查资料；
-        在 Reviewer 的工具里加 <span class="mono">approval_mode="always_require"</span> 的发布工具。
-        检查点在 Workflow superstep 边界自动保存——如果中间断了，重启从最后存档恢复。</div>
+      <div class="q">🧪 示例</div>
+      <div class="a">完整的 25-30 行可工作示例：
+<pre class="code"><span class="kw">from</span> agent_framework <span class="kw">import</span> Agent, tool, OpenAIChatClient
+<span class="kw">from</span> agent_framework.orchestrations <span class="kw">import</span> SequentialBuilder
+<span class="kw">from</span> agent_framework <span class="kw">import</span> InMemoryCheckpointStorage
+
+<span class="cm"># 工具</span>
+<span class="nb">@tool</span>
+<span class="kw">def</span> <span class="fn">web_search</span>(query: str) -> str:
+    <span class="st">&quot;&quot;&quot;搜索网络&quot;&quot;&quot;</span>
+    <span class="kw">return</span> f<span class="st">&quot;Results for {query}&quot;</span>
+
+<span class="cm"># 中间件</span>
+<span class="kw">class</span> <span class="fn">LoggingMiddleware</span>(ChatMiddleware):
+    <span class="kw">async def</span> <span class="fn">process</span>(self, context, call_next):
+        logger.info(f<span class="st">&quot;Input: {context.messages}&quot;</span>)
+        <span class="kw">await</span> call_next()
+        logger.info(f<span class="st">&quot;Output: {context.result}&quot;</span>)
+
+<span class="cm"># Agents</span>
+client = OpenAIChatClient(model=<span class="st">&quot;gpt-4o&quot;</span>)
+writer = client.as_agent(name=<span class="st">&quot;Writer&quot;</span>,
+    instructions=<span class="st">&quot;Write articles&quot;</span>,
+    tools=[web_search],
+    chat_middleware=[LoggingMiddleware()])
+
+reviewer = client.as_agent(name=<span class="st">&quot;Reviewer&quot;</span>,
+    instructions=<span class="st">&quot;Review and improve&quot;</span>)
+
+<span class="cm"># 工作流</span>
+storage = InMemoryCheckpointStorage()
+workflow = SequentialBuilder(
+    participants=[writer, reviewer],
+    checkpoint_storage=storage
+).build()
+
+result = <span class="kw">await</span> workflow.run(<span class="st">&quot;Write about MAF&quot;</span>)</pre>
+所有组件整合：Agent、工具、中间件、检查点、编排。
+      </div>
+    </div>
+    <div class="qa">
+      <div class="q">❓ 为什么这件事必要</div>
+      <div class="a">看到所有组件一起工作能巩固理解。可复制粘贴的代码是最好的学习工具。</div>
+    </div>
+    <div class="qa">
+      <div class="q">✅ MAF 的做法与优点</div>
+      <div class="a">MAF 的可组合性意味着每个组件（Agent、工具、中间件、检查点、编排）都能干净地组合在一起。</div>
+    </div>
+    <div class="qa">
+      <div class="q">🔀 还有什么其他方案</div>
+      <div class="a">样板代码繁重的框架需要 100+ 行才能实现相同功能。MAF 保持在 30 行以内。</div>
+    </div>
+  </div>
+</details>
+
+<details class="accordion" open>
+  <summary><span class="badge-num">2</span> 加入 Concurrent 变体 <span class="hint">点击展开详解</span></summary>
+  <div class="acc-body">
+    <div class="qa">
+      <div class="q">🧪 示例</div>
+      <div class="a">用 Sequential 替换为：Writer + FactChecker 并行运行，然后 Reviewer 串行运行：
+<pre class="code"><span class="kw">from</span> agent_framework.orchestrations <span class="kw">import</span> (
+    SequentialBuilder, ConcurrentBuilder
+)
+
+<span class="cm"># 阶段 1：并行</span>
+concurrent_stage = ConcurrentBuilder(
+    participants=[writer, fact_checker]
+).build()
+
+<span class="cm"># 阶段 2：串行（等待并行阶段完成）</span>
+workflow = SequentialBuilder(
+    participants=[concurrent_stage, reviewer]
+).build()
+
+result = <span class="kw">await</span> workflow.run(<span class="st">&quot;Write about AI&quot;</span>)</pre>
+Builder 可组合：混合并行和串行阶段。
+      </div>
+    </div>
+    <div class="qa">
+      <div class="q">❓ 为什么这件事必要</div>
+      <div class="a">串行工作流在步骤独立时很慢。并行执行减少实际时间。</div>
+    </div>
+    <div class="qa">
+      <div class="q">✅ MAF 的做法与优点</div>
+      <div class="a">MAF 的 ConcurrentBuilder + SequentialBuilder 自然组合。自由混合并行和串行阶段。</div>
+    </div>
+    <div class="qa">
+      <div class="q">🔀 还有什么其他方案</div>
+      <div class="a">手动 asyncio.gather()、线程池。MAF 的 builder 自动处理扇出/扇入。</div>
+    </div>
+  </div>
+</details>
+
+<details class="accordion" open>
+  <summary><span class="badge-num">3</span> 加入人在环 <span class="hint">点击展开详解</span></summary>
+  <div class="acc-body">
+    <div class="qa">
+      <div class="q">🧪 示例</div>
+      <div class="a">给 Reviewer 添加 <span class="mono">publish</span> 工具，带 <span class="mono">approval_mode="always_require"</span>：
+<pre class="code"><span class="nb">@tool</span>(approval_mode=<span class="st">&quot;always_require&quot;</span>)
+<span class="kw">def</span> <span class="fn">publish</span>(content: str):
+    <span class="st">&quot;&quot;&quot;发布文章（需要审批）&quot;&quot;&quot;</span>
+    <span class="cm"># 实际发布逻辑</span>
+    <span class="kw">return</span> f<span class="st">&quot;Published: {content[:50]}...&quot;</span>
+
+reviewer = client.as_agent(
+    name=<span class="st">&quot;Reviewer&quot;</span>,
+    instructions=<span class="st">&quot;Review and publish if good&quot;</span>,
+    tools=[publish]  <span class="cm"># 发布前必须人工审批</span>
+)</pre>
+在文章发布前，必须有人批准。框架处理暂停、通知和恢复。
+      </div>
+    </div>
+    <div class="qa">
+      <div class="q">❓ 为什么这件事必要</div>
+      <div class="a">自动发布而不审查有风险。发布步骤的 HITL 防止不良内容上线。</div>
+    </div>
+    <div class="qa">
+      <div class="q">✅ MAF 的做法与优点</div>
+      <div class="a">工具定义上的一个参数（<span class="mono">approval_mode</span>）。框架处理暂停、通知和恢复。</div>
+    </div>
+    <div class="qa">
+      <div class="q">🔀 还有什么其他方案</div>
+      <div class="a">自定义 webhook 审批、外部审核 API。MAF 的方法是声明式且内置的。</div>
+    </div>
+  </div>
+</details>
+
+<details class="accordion" open>
+  <summary><span class="badge-num">4</span> 生产化清单 <span class="hint">点击展开详解</span></summary>
+  <div class="acc-body">
+    <div class="qa">
+      <div class="q">🧪 示例</div>
+      <div class="a">生产就绪检查清单：
+<pre class="code"><span class="cm"># ✓ 添加 OpenTelemetry 追踪</span>
+<span class="kw">from</span> agent_framework.telemetry <span class="kw">import</span> setup_otel
+setup_otel(service_name=<span class="st">&quot;my-agent&quot;</span>)
+
+<span class="cm"># ✓ 切换到持久化存储</span>
+<span class="kw">from</span> agent_framework_redis <span class="kw">import</span> RedisCheckpointStorage
+storage = RedisCheckpointStorage(conn_string)
+
+<span class="cm"># ✓ 添加错误处理中间件</span>
+middleware=[ErrorHandlingMiddleware(), RetryMiddleware()]
+
+<span class="cm"># ✓ 设置 token 预算</span>
+agent = client.as_agent(..., max_tokens=<span class="nb">10000</span>)
+
+<span class="cm"># ✓ 添加速率限制</span>
+<span class="cm"># ✓ 配置日志级别</span>
+logging.basicConfig(level=logging.INFO)</pre>
+从演示到生产的差距清单。
+      </div>
+    </div>
+    <div class="qa">
+      <div class="q">❓ 为什么这件事必要</div>
+      <div class="a">演示代码 ≠ 生产代码。知道差距可防止中断和成本超支。</div>
+    </div>
+    <div class="qa">
+      <div class="q">✅ MAF 的做法与优点</div>
+      <div class="a">MAF 提供所有生产构建块：OTel 集成、持久化存储包、重试/日志/计费中间件。无需第三方胶水。</div>
+    </div>
+    <div class="qa">
+      <div class="q">🔀 还有什么其他方案</div>
+      <div class="a">平台特定解决方案（Azure Monitor、Datadog）。MAF 是云无关的；OTel 导出到任何后端。</div>
     </div>
   </div>
 </details>
@@ -1493,6 +4499,12 @@ result = <span class="kw">await</span> workflow.run(<span class="st">"Write abou
 <section class="print-lesson"><div class="wrap"><div class="lesson-head"><div class="lp">第六部分 · 番外篇</div><h1><span class="ln">21 ·</span> 横向对比：AF vs 其他框架</h1></div>
 <p class="lead">Agent 框架不止 MAF 一个。本课横向对比四大框架，帮你建立<strong>全局坐标</strong>。</p>
 
+<div class="card analogy">
+  <div class="tag">🗺️ 生活类比</div>
+  <strong>MAF</strong> 像<strong>全能 SUV</strong>（城市通勤到越野都行），<strong>LangGraph</strong> 像<strong>手动挡跑车</strong>（精确控制），
+  <strong>AutoGen</strong> 像<strong>实验越野车</strong>（探路利器），<strong>SK</strong> 像<strong>商务轿车</strong>（企业平稳）。
+</div>
+
 <h2>四框架对比</h2>
 <table class="t">
   <tr><th></th><th>MAF</th><th>LangGraph</th><th>AutoGen</th><th>Semantic Kernel</th></tr>
@@ -1502,21 +4514,159 @@ result = <span class="kw">await</span> workflow.run(<span class="st">"Write abou
   <tr><td><strong>定位</strong></td><td>原型到生产，SK + AutoGen 统一继任</td><td>图控制流 + 可控 Agent</td><td>多 Agent 研究/探索</td><td>企业 AI 编排</td></tr>
 </table>
 
-<div class="card analogy">
-  <div class="tag">🗺️ 生活类比</div>
-  <strong>MAF</strong> 像<strong>全能 SUV</strong>（城市通勤到越野都行），<strong>LangGraph</strong> 像<strong>手动挡跑车</strong>（精确控制），
-  <strong>AutoGen</strong> 像<strong>实验越野车</strong>（探路利器），<strong>SK</strong> 像<strong>商务轿车</strong>（企业平稳）。
-</div>
+<p class="acc-intro" style="color:var(--muted);font-size:.92rem">
+👇 点开下面的折叠卡片，深入对比每一对框架——代码示例、架构差异、选型建议。
+</p>
 
 <details class="accordion" open>
-  <summary><span class="badge-num">1</span> 我该选哪个？ <span class="hint">点击展开</span></summary>
+  <summary><span class="badge-num">1</span> MAF vs LangGraph 深入对比 <span class="hint">点击展开详解</span></summary>
   <div class="acc-body">
     <div class="qa">
-      <div class="q">✅ 选择建议</div>
-      <div class="a">要<strong>生产级 + 双语言 + 全功能</strong>：MAF。
-        要<strong>最细粒度图控制</strong>：LangGraph。
-        要<strong>多 Agent 对话实验</strong>：AutoGen（或 MAF 的 MagenticBuilder，它就源自 AutoGen）。
-        已在<strong>微软企业生态</strong>里深度集成：SK 或 MAF（MAF 是 SK 的继任方向）。</div>
+      <div class="q">🧪 示例</div>
+      <div class="a">同一件事——"两个 Agent 串行"——在两个框架里的写法：
+<pre class="code"><span class="cm"># MAF：用 SequentialBuilder</span>
+<span class="kw">from</span> agent_framework.orchestrations <span class="kw">import</span> SequentialBuilder
+wf = SequentialBuilder(participants=[writer, reviewer]).build()
+result = <span class="kw">await</span> wf.run(<span class="st">"Write a poem"</span>)
+
+<span class="cm"># LangGraph：手画 StateGraph</span>
+<span class="kw">from</span> langgraph.graph <span class="kw">import</span> StateGraph
+graph = StateGraph(State)
+graph.add_node(<span class="st">"writer"</span>, writer_fn)
+graph.add_node(<span class="st">"reviewer"</span>, reviewer_fn)
+graph.add_edge(<span class="st">"writer"</span>, <span class="st">"reviewer"</span>)
+app = graph.compile()
+result = app.invoke({<span class="st">"input"</span>: <span class="st">"Write a poem"</span>})</pre>
+      </div>
+    </div>
+    <div class="qa">
+      <div class="q">❓ 为什么这件事必要</div>
+      <div class="a">LangGraph 是 LangChain 生态的图编排层，用户基数大、文档丰富。
+        做技术选型时，这两个框架经常被放到一起比较，你需要知道它们的本质差异在哪——
+        是"图模型"还是"编排抽象层级"。</div>
+    </div>
+    <div class="qa">
+      <div class="q">✅ MAF 的做法与优点</div>
+      <div class="a">MAF 提供<strong>两个抽象层</strong>：底层 <span class="mono">WorkflowBuilder</span>（和 LangGraph 的 StateGraph 同级，手动画图），
+        上层<strong>预置编排</strong>（Sequential / Concurrent / Handoff / Group / Magentic）。大部分场景用预置编排几行搞定，
+        复杂拓扑再下沉到手动图。LangGraph 只有手动图这一级——简单任务也要手画。
+        另外 MAF 原生双语言（Python + .NET），LangGraph 主要 Python。</div>
+    </div>
+    <div class="qa">
+      <div class="q">🔀 还有什么其他方案</div>
+      <div class="a"><strong>LangGraph</strong> 适合已在 LangChain 生态里、需要最细粒度图控制的团队。
+        <strong>两者混用</strong>也是可行的——用 MAF 的 Agent + ChatClient，但用 LangGraph 做编排（它们不冲突，只是编排层替换）。
+        <strong>Temporal / Prefect</strong>等通用工作流引擎也能编排 Agent，但缺乏 AI 原生抽象。</div>
+    </div>
+  </div>
+</details>
+
+<details class="accordion" open>
+  <summary><span class="badge-num">2</span> MAF vs AutoGen 深入对比 <span class="hint">点击展开详解</span></summary>
+  <div class="acc-body">
+    <div class="qa">
+      <div class="q">🧪 示例</div>
+      <div class="a">AutoGen 的范式是"多个 Agent 在群聊里对话"：
+<pre class="code"><span class="cm"># AutoGen 风格（MAF 里用 MagenticBuilder 实现）</span>
+<span class="kw">from</span> agent_framework.orchestrations <span class="kw">import</span> MagenticBuilder
+wf = MagenticBuilder(
+    participants=[coder, reviewer, tester],
+    manager=manager,
+).build()
+result = <span class="kw">await</span> wf.run(<span class="st">"Build a calculator app"</span>)</pre>
+        AutoGen 原版需要自己搭 <span class="mono">GroupChat</span> + <span class="mono">GroupChatManager</span>，
+        MAF 把这个模式封装成了 <span class="mono">MagenticBuilder</span>。</div>
+    </div>
+    <div class="qa">
+      <div class="q">❓ 为什么这件事必要</div>
+      <div class="a">AutoGen 是微软研究院出的多 Agent 框架，开创了"多 Agent 对话"范式。
+        MAF 直接继承了 AutoGen 的 Magentic-One 思想（指挥官 + 工人），
+        所以了解两者关系能帮你判断"用 MAF 就够了，还是仍需要原版 AutoGen"。</div>
+    </div>
+    <div class="qa">
+      <div class="q">✅ MAF 的做法与优点</div>
+      <div class="a">MAF 把 AutoGen 的<strong>多 Agent 对话</strong>做成了<strong>编排模式之一</strong>（MagenticBuilder / GroupChatBuilder），
+        而不是唯一范式。你可以在同一个项目里混用 Sequential（简单串行）和 Magentic（指挥官调度），
+        而 AutoGen 里所有事都是"对话"，简单任务也被迫用群聊。
+        另外 MAF 的<strong>生产特性</strong>（检查点、OTel、DurableTask）远超 AutoGen。</div>
+    </div>
+    <div class="qa">
+      <div class="q">🔀 还有什么其他方案</div>
+      <div class="a"><strong>原版 AutoGen</strong> 仍适合纯研究 / 快速原型（API 更简单，社区活跃）。
+        <strong>CrewAI</strong> 是另一个多 Agent 框架，角色定义更"人性化"但生产特性弱。
+        如果你只要"两个 Agent 对话"，不需要编排引擎，<strong>手写循环</strong>其实最简单。</div>
+    </div>
+  </div>
+</details>
+
+<details class="accordion" open>
+  <summary><span class="badge-num">3</span> MAF vs Semantic Kernel 深入对比 <span class="hint">点击展开详解</span></summary>
+  <div class="acc-body">
+    <div class="qa">
+      <div class="q">🧪 示例</div>
+      <div class="a">SK 的核心抽象是 Kernel + Plugin + Planner：
+<pre class="code"><span class="cm"># Semantic Kernel 风格</span>
+kernel = Kernel()
+kernel.add_plugin(WeatherPlugin(), <span class="st">"weather"</span>)
+result = <span class="kw">await</span> kernel.invoke_prompt(<span class="st">"What's the weather in Seattle?"</span>)
+
+<span class="cm"># MAF 风格——同样的事</span>
+agent = Agent(client=client, tools=[get_weather],
+    instructions=<span class="st">"Answer weather questions."</span>)
+result = <span class="kw">await</span> agent.run(<span class="st">"What's the weather in Seattle?"</span>)</pre>
+      </div>
+    </div>
+    <div class="qa">
+      <div class="q">❓ 为什么这件事必要</div>
+      <div class="a">Semantic Kernel 是 MAF 的<strong>前身之一</strong>——很多企业已经在用 SK。
+        理解 SK → MAF 的演进，能帮已有 SK 用户判断是否迁移、怎么迁移。</div>
+    </div>
+    <div class="qa">
+      <div class="q">✅ MAF 的做法与优点</div>
+      <div class="a">SK 强在<strong>企业连接器</strong>（几十种现成 Plugin）和<strong>Planner</strong>（LLM 自动规划步骤）。
+        MAF 继承了这些能力，并<strong>新增</strong>：图式 Workflow 编排（SK 没有）、多 Agent 协作（SK 没有）、
+        DurableTask 持久化、统一的 ChatClient 抽象（SK 的 ChatCompletionService 更分散）。
+        MAF 是微软官方推荐的"下一代"方向。</div>
+    </div>
+    <div class="qa">
+      <div class="q">🔀 还有什么其他方案</div>
+      <div class="a"><strong>继续用 SK</strong>——如果已有大量 SK Plugin 且不需要多 Agent / 工作流，短期内不急着迁。
+        <strong>渐进迁移</strong>——SK 和 MAF 可以共存，先在新功能上用 MAF，老功能保持 SK。
+        <strong>直接 MAF</strong>——新项目建议直接用 MAF，因为 SK 的维护重心已转向 MAF。</div>
+    </div>
+  </div>
+</details>
+
+<details class="accordion" open>
+  <summary><span class="badge-num">4</span> 生态与社区对比 <span class="hint">点击展开详解</span></summary>
+  <div class="acc-body">
+    <div class="qa">
+      <div class="q">🧪 示例</div>
+      <div class="a">截至 2026 年中的大致状况：
+<pre class="code"><span class="cm"># GitHub 星标（量级）</span>
+MAF:       ~10k  (快速增长，微软全力投入)
+LangChain: ~100k (最大社区，但 LangGraph 星标分开计)
+AutoGen:   ~40k  (研究社区活跃)
+SK:        ~25k  (企业用户基数大)</pre>
+      </div>
+    </div>
+    <div class="qa">
+      <div class="q">❓ 为什么这件事必要</div>
+      <div class="a">社区大小影响：遇到问题能不能搜到答案、有没有第三方插件、招聘时候选人熟不熟。
+        这不是技术问题，但实际上经常是选型的<strong>决定性因素</strong>。</div>
+    </div>
+    <div class="qa">
+      <div class="q">✅ MAF 的做法与优点</div>
+      <div class="a">MAF 虽年轻但背靠<strong>微软全力推</strong>：官方文档在 MS Learn、有 Discord 社区、
+        与 Azure AI Foundry 深度集成。企业用户天然信任微软背书。
+        且 MAF 吸收了 SK + AutoGen 两个社区的用户，增长曲线陡。</div>
+    </div>
+    <div class="qa">
+      <div class="q">🔀 还有什么其他方案</div>
+      <div class="a">如果你最看重<strong>社区和生态丰富度</strong>，LangChain 仍是最大的。
+        如果看重<strong>学术前沿</strong>，AutoGen 论文产出最多。
+        如果看重<strong>企业稳定性 + 微软生态</strong>，MAF 或 SK。
+        没有"最好"——只有"最适合你的场景"。</div>
     </div>
   </div>
 </details>
@@ -1526,13 +4676,15 @@ result = <span class="kw">await</span> workflow.run(<span class="st">"Write abou
   <ul>
     <li>MAF = SK + AutoGen 合并演进，面向"原型到生产"。</li>
     <li>LangGraph 强在图控制流精度；AutoGen 强在多 Agent 对话探索。</li>
-    <li>选框架看你的核心需求：语言、生产特性、控制粒度。</li>
+    <li>选框架看你的核心需求：语言、生产特性、控制粒度、社区生态。</li>
+    <li>MAF 提供两层抽象（预置编排 + 手动图），覆盖从简到繁。</li>
   </ul>
 </div>
 
 <div class="card spark">
   <div class="tag">💡 设计亮点</div>
   MAF 把"图编排"和"多 Agent 对话"<strong>统一到同一个框架</strong>——你不用在 LangGraph 和 AutoGen 之间二选一。
+  预置编排是糖，底层 Workflow 是引擎，两者可以混用。
 </div>
 </div></section>
 <section class="print-lesson"><div class="wrap"><div class="lesson-head"><div class="lp">第六部分 · 番外篇</div><h1><span class="ln">22 ·</span> 全栈坐标系 & 学习地图</h1></div>
@@ -1542,33 +4694,176 @@ result = <span class="kw">await</span> workflow.run(<span class="st">"Write abou
 <h2>AI 全栈分层</h2>
 <div class="layers">
   <div class="layer l-app"><div class="lh"><span class="badge">L7</span><span class="name">应用层</span></div>
-    <div class="ld">你的产品 / UI / API 网关。</div></div>
+    <div class="ld">你的产品 / UI / API 网关（Chainlit · Streamlit · FastAPI）。</div></div>
   <div class="layer l-part"><div class="lh"><span class="badge">L6</span><span class="name">Agent 编排</span></div>
-    <div class="ld"><strong>← 你在这里</strong>（MAF / LangGraph / AutoGen）。</div></div>
+    <div class="ld"><strong>← 你在这里</strong>（MAF / LangGraph / AutoGen / SK）。</div></div>
   <div class="layer l-main"><div class="lh"><span class="badge">L5</span><span class="name">模型 API / 推理</span></div>
     <div class="ld">OpenAI API · Azure AI · vLLM · llama.cpp · Ollama。</div></div>
   <div class="layer l-core"><div class="lh"><span class="badge">L4</span><span class="name">向量检索 / RAG</span></div>
     <div class="ld">Embeddings · pgvector · Qdrant · Azure AI Search。</div></div>
 </div>
 
-<h2>隔壁层学习地图</h2>
+<h2>编排流派一览</h2>
 <table class="t">
-  <tr><th>层</th><th>你可以学</th><th>入口</th></tr>
-  <tr><td>L5 推理</td><td>vLLM（高吞吐推理）· llama.cpp（CPU/边缘）· Ollama（本地一键跑）</td><td>各项目 GitHub</td></tr>
-  <tr><td>L4 向量检索</td><td>hnswlib（内存向量索引）· pgvector（PG 扩展）· Qdrant（云原生）</td><td>各项目文档</td></tr>
-  <tr><td>L7 应用</td><td>Chainlit / Streamlit（快速 UI）· FastAPI（API 网关）</td><td>各项目文档</td></tr>
+  <tr><th>流派</th><th>代表</th><th>核心思想</th></tr>
+  <tr><td>链/管道</td><td>LangChain LCEL</td><td>函数组合，<span class="mono">A | B | C</span></td></tr>
+  <tr><td>图</td><td>LangGraph / MAF Workflow</td><td>有向图 + 状态</td></tr>
+  <tr><td>多 Agent 对话</td><td>AutoGen / MAF Group Chat</td><td>Agent 间消息传递</td></tr>
+  <tr><td>Planner</td><td>SK</td><td>LLM 规划步骤后执行</td></tr>
+  <tr><td>声明式</td><td>MAF Declarative / Rivet</td><td>配置驱动</td></tr>
 </table>
 
+<p class="acc-intro" style="color:var(--muted);font-size:.92rem">
+👇 点开卡片，深入了解每个隔壁层——学什么、用什么工具、什么时候该学。
+</p>
+
 <details class="accordion" open>
-  <summary><span class="badge-num">1</span> Agent 编排有哪几种流派？ <span class="hint">点击展开</span></summary>
+  <summary><span class="badge-num">1</span> L5 推理层深入 <span class="hint">点击展开详解</span></summary>
   <div class="acc-body">
     <div class="qa">
-      <div class="q">🔬 五大流派</div>
-      <div class="a"><strong>1. 链/管道</strong>（LangChain LCEL）：函数组合。
-        <strong>2. 图</strong>（LangGraph / MAF Workflow）：有向图 + 状态。
-        <strong>3. 多 Agent 对话</strong>（AutoGen / MAF Group Chat）：Agent 间消息传递。
-        <strong>4. Planner</strong>（SK）：LLM 规划步骤后执行。
-        <strong>5. 声明式</strong>（MAF Declarative / Rivet）：配置驱动。</div>
+      <div class="q">🧪 示例</div>
+      <div class="a">推理层的三种选择：
+<pre class="code"><span class="cm"># vLLM — 高吞吐 GPU 推理服务</span>
+vllm serve meta-llama/Llama-3-8B --port 8000
+
+<span class="cm"># llama.cpp — CPU / 边缘设备推理</span>
+./main -m model.gguf -p <span class="st">"Hello"</span>
+
+<span class="cm"># Ollama — 本地一键跑模型</span>
+ollama run llama3</pre>
+      </div>
+    </div>
+    <div class="qa">
+      <div class="q">❓ 为什么这件事必要</div>
+      <div class="a">MAF 通过 ChatClient 调用模型，但<strong>模型从哪来</strong>？如果你用 OpenAI API 就不用管；
+        但如果要<strong>私有化部署</strong>（数据安全、成本控制、低延迟），就需要了解推理层。
+        vLLM 适合高并发 GPU 场景，llama.cpp 适合边缘/嵌入式，Ollama 适合开发者本地调试。</div>
+    </div>
+    <div class="qa">
+      <div class="q">✅ MAF 的做法与优点</div>
+      <div class="a">MAF 不绑定推理层：<span class="mono">OpenAIChatClient</span> 可以指向任何兼容 OpenAI API 的端点
+        （vLLM、llama.cpp 的 server 模式、Ollama 都兼容）。所以你可以先用 OpenAI API 开发，
+        上线时切到私有 vLLM，<strong>Agent 代码不用改</strong>。</div>
+    </div>
+    <div class="qa">
+      <div class="q">🔀 还有什么其他方案</div>
+      <div class="a"><strong>TGI</strong>（HuggingFace 的推理服务器）、<strong>TensorRT-LLM</strong>（NVIDIA 优化）、
+        <strong>Azure AI Foundry</strong>（托管推理，零运维）。如果你不想自己运维 GPU，用云端 API 最省心。</div>
+    </div>
+  </div>
+</details>
+
+<details class="accordion" open>
+  <summary><span class="badge-num">2</span> L4 向量检索 / RAG 深入 <span class="hint">点击展开详解</span></summary>
+  <div class="acc-body">
+    <div class="qa">
+      <div class="q">🧪 示例</div>
+      <div class="a">向量检索的核心流程：
+<pre class="code"><span class="cm"># 1. 文本 → Embedding 向量</span>
+vector = embedding_model.encode(<span class="st">"What is MAF?"</span>)
+
+<span class="cm"># 2. 向量存入数据库</span>
+db.insert(vector, metadata={<span class="st">"source"</span>: <span class="st">"docs/readme.md"</span>})
+
+<span class="cm"># 3. 查询时找最相似的向量</span>
+results = db.search(query_vector, top_k=<span class="nb">5</span>)
+
+<span class="cm"># 4. 把检索到的文本塞给 Agent 作上下文</span>
+context = <span class="st">"\n"</span>.join(r.text <span class="kw">for</span> r <span class="kw">in</span> results)
+<span class="kw">await</span> agent.run(f<span class="st">"Based on: {context}\nAnswer: {question}"</span>)</pre>
+      </div>
+    </div>
+    <div class="qa">
+      <div class="q">❓ 为什么这件事必要</div>
+      <div class="a">LLM 不知道你的私有数据。<strong>RAG（检索增强生成）</strong>通过在提示词里塞进相关文档片段，
+        让模型能"看到"你的知识库。向量检索是 RAG 的核心引擎——把"语义相似度"变成数据库查询。</div>
+    </div>
+    <div class="qa">
+      <div class="q">✅ MAF 的做法与优点</div>
+      <div class="a">MAF 通过 <span class="mono">ContextProvider</span> 机制集成 RAG：
+        <span class="mono">packages/azure-ai-search</span> 封装了 Azure AI Search（企业级向量检索），
+        你也可以自己写 ContextProvider 接 pgvector / Qdrant / Pinecone。
+        Agent 不需要知道知识从哪来——<strong>ContextProvider 在 run 前自动注入</strong>。</div>
+    </div>
+    <div class="qa">
+      <div class="q">🔀 还有什么其他方案</div>
+      <div class="a"><strong>pgvector</strong>（熟悉 SQL 的首选，PostgreSQL 扩展）、
+        <strong>Qdrant</strong>（云原生向量数据库，专为向量设计）、
+        <strong>Chroma</strong>（轻量嵌入式，适合本地原型）、
+        <strong>Azure AI Search</strong>（企业级，MAF 有现成包）。</div>
+    </div>
+  </div>
+</details>
+
+<details class="accordion" open>
+  <summary><span class="badge-num">3</span> L7 应用层深入 <span class="hint">点击展开详解</span></summary>
+  <div class="acc-body">
+    <div class="qa">
+      <div class="q">🧪 示例</div>
+      <div class="a">把 MAF Agent 暴露为 Web 端点：
+<pre class="code"><span class="cm"># FastAPI + MAF Agent</span>
+<span class="kw">from</span> fastapi <span class="kw">import</span> FastAPI
+app = FastAPI()
+
+<span class="nb">@app.post</span>(<span class="st">"/chat"</span>)
+<span class="kw">async def</span> <span class="fn">chat</span>(prompt: str):
+    result = <span class="kw">await</span> agent.run(prompt)
+    <span class="kw">return</span> {<span class="st">"response"</span>: str(result)}</pre>
+      </div>
+    </div>
+    <div class="qa">
+      <div class="q">❓ 为什么这件事必要</div>
+      <div class="a">Agent 不能只在终端里跑——最终要面向用户。应用层负责<strong>UI、API、认证、限流</strong>等。
+        了解怎么把 Agent 包成 API / Web 应用，是从"能跑"到"能用"的关键一步。</div>
+    </div>
+    <div class="qa">
+      <div class="q">✅ MAF 的做法与优点</div>
+      <div class="a">MAF 的 <span class="mono">hosting</span> 包提供了多种部署方式：
+        <strong>ASP.NET Core / Azure Functions</strong>（.NET 端）、
+        <strong>FastAPI / Azure Functions</strong>（Python 端）、
+        <strong>A2A 协议</strong>（Agent-to-Agent，让 Agent 作为服务被其他 Agent 调用）、
+        <strong>Foundry 托管 Agent</strong>（零运维部署到 Azure）。</div>
+    </div>
+    <div class="qa">
+      <div class="q">🔀 还有什么其他方案</div>
+      <div class="a"><strong>Chainlit</strong>（一行代码搞定聊天 UI，适合 demo）、
+        <strong>Streamlit</strong>（快速数据应用 + 聊天界面）、
+        <strong>Gradio</strong>（ML demo 界面）、
+        <strong>自建 React/Vue 前端</strong>（最灵活但工作量最大）。</div>
+    </div>
+  </div>
+</details>
+
+<details class="accordion" open>
+  <summary><span class="badge-num">4</span> 三条学习路径推荐 <span class="hint">点击展开详解</span></summary>
+  <div class="acc-body">
+    <div class="qa">
+      <div class="q">🧪 路径 A：我要做一个生产级聊天机器人</div>
+      <div class="a"><strong>本教程 L01-07</strong>（基础）→ <strong>L16</strong>（选 provider）→
+        <strong>L18-19</strong>（中间件 + 检查点）→ <strong>L7 应用层</strong>（FastAPI / Foundry 托管）→
+        <strong>L4 向量检索</strong>（Azure AI Search / pgvector，做 RAG）。
+        重点：<strong>先跑通，再加 RAG，再加生产能力</strong>。</div>
+    </div>
+    <div class="qa">
+      <div class="q">❓ 路径 B：我要理解 AI 基础设施</div>
+      <div class="a"><strong>本教程 L01-03</strong>（全局观）→ <strong>L08-14</strong>（内部源码）→
+        <strong>L5 推理层</strong>（vLLM / llama.cpp）→ <strong>L4 向量检索</strong>（hnswlib / pgvector）→
+        <strong>L15</strong>（读 MAF 源码）。
+        重点：<strong>从应用层往下挖，理解每一层在做什么</strong>。</div>
+    </div>
+    <div class="qa">
+      <div class="q">✅ 路径 C：我要贡献 MAF 源码</div>
+      <div class="a"><strong>本教程全部 22 课</strong>（建立完整认知）→ <strong>L15</strong>（搭环境 + 跑测试）→
+        从 <span class="mono">good first issue</span> 开始 →
+        <strong>读 AGENTS.md + CODING_STANDARD.md</strong> → 提 PR。
+        重点：<strong>先读懂，再动手；先小改，再大改</strong>。</div>
+    </div>
+    <div class="qa">
+      <div class="q">🔀 通用建议</div>
+      <div class="a">不要试图一次学完所有层——<strong>从你的目标出发，往上或往下扩展一层</strong>就好。
+        做 Agent 应用？先吃透 L6（编排），再看 L4（RAG）和 L7（应用）。
+        做基础设施？先吃透 L5（推理），再看 L6（编排）。
+        <strong>边做边学</strong>永远比"先学完再做"高效。</div>
     </div>
   </div>
 </details>
@@ -1579,6 +4874,7 @@ result = <span class="kw">await</span> workflow.run(<span class="st">"Write abou
     <li>MAF 在全栈中位于 <strong>L6 Agent 编排层</strong>。</li>
     <li>下一层（L5 推理 / L4 向量检索）是深入 AI 基础设施的方向。</li>
     <li>上一层（L7 应用）是把 Agent 交给用户的方向。</li>
+    <li>选学习路径看你的目标：做产品 / 学基础 / 贡献源码。</li>
   </ul>
 </div>
 
@@ -1586,6 +4882,7 @@ result = <span class="kw">await</span> workflow.run(<span class="st">"Write abou
   <div class="tag">💡 设计亮点</div>
   <strong>编排层是"胶水层"</strong>——它连接模型、工具、存储和应用，
   因此<strong>对上下层都有基本了解</strong>是成为 Agent 高手的关键。
+  你不需要精通每一层，但需要知道它在做什么、怎么和你的层对接。
 </div>
 </div></section>
 </body></html>

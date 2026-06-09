@@ -277,14 +277,147 @@ table.t td.mono, table.t td .mono { font-family: ui-monospace, monospace; font-s
 <p>挂到 Agent 上：<span class="inline">Agent(client=client, chat_middleware=[RetryChatMiddleware(3)])</span>。</p>
 
 <details class="accordion">
-  <summary><span class="badge-num">1</span> 三层中间件分别怎么挂？ <span class="hint">点击展开</span></summary>
+  <summary><span class="badge-num">1</span> 完整的日志中间件 <span class="hint">点击展开详解</span></summary>
   <div class="acc-body">
     <div class="qa">
-      <div class="q">🧪 挂载方式</div>
-      <div class="a"><span class="mono">Agent(middleware=[…])</span> 挂 AgentMiddleware；
-        <span class="mono">Agent(chat_middleware=[…])</span> 挂 ChatMiddleware；
-        <span class="mono">Agent(function_middleware=[…])</span> 挂 FunctionMiddleware。
-        多个中间件按列表顺序从外到内排列。</div>
+      <div class="q">🧪 示例</div>
+      <div class="a">完整代码，带计时：
+<pre class="code"><span class="kw">import</span> logging
+<span class="kw">import</span> time
+<span class="kw">from</span> agent_framework <span class="kw">import</span> ChatMiddleware, ChatContext
+
+logger = logging.getLogger(__name__)
+
+<span class="kw">class</span> <span class="fn">LoggingChatMiddleware</span>(ChatMiddleware):
+    <span class="kw">async def</span> <span class="fn">process</span>(self, context: ChatContext, call_next):
+        logger.info(f<span class="st">&quot;Input: {context.messages}&quot;</span>)
+        start = time.monotonic()
+        
+        <span class="kw">await</span> call_next()
+        
+        duration = time.monotonic() - start
+        logger.info(f<span class="st">&quot;Output: {context.result}&quot;</span>)
+        logger.info(f<span class="st">&quot;Duration: {duration:.2f}s&quot;</span>)</pre>
+约 15 行完整日志中间件。<span class="mono">call_next()</span> 前记输入，之后记输出和耗时。
+      </div>
+    </div>
+    <div class="qa">
+      <div class="q">❓ 为什么这件事必要</div>
+      <div class="a">日志是第一常见中间件。没有它，调试生产 Agent 就是盲飞。看不到输入输出和耗时，无法定位问题。</div>
+    </div>
+    <div class="qa">
+      <div class="q">✅ MAF 的做法与优点</div>
+      <div class="a">MAF 的中间件模式让日志变得简单：用 before/after 逻辑包装 <span class="mono">call_next()</span>。访问 <span class="mono">context.messages</span> 获取输入，<span class="mono">context.result</span> 获取输出。</div>
+    </div>
+    <div class="qa">
+      <div class="q">🔀 还有什么其他方案</div>
+      <div class="a">基于装饰器的日志、OpenTelemetry 自动埋点。中间件是显式的且可组合的。</div>
+    </div>
+  </div>
+</details>
+
+<details class="accordion">
+  <summary><span class="badge-num">2</span> 审批中间件 <span class="hint">点击展开详解</span></summary>
+  <div class="acc-body">
+    <div class="qa">
+      <div class="q">🧪 示例</div>
+      <div class="a"><span class="mono">ApprovalMiddleware</span> 在 <span class="mono">call_next()</span> 前检查条件：
+<pre class="code"><span class="kw">class</span> <span class="fn">ApprovalMiddleware</span>(ChatMiddleware):
+    <span class="kw">async def</span> <span class="fn">process</span>(self, context: ChatContext, call_next):
+        user_input = context.messages[-<span class="nb">1</span>].content
+        
+        <span class="kw">if</span> <span class="st">&quot;publish&quot;</span> <span class="kw">in</span> user_input <span class="kw">or</span> <span class="st">&quot;delete&quot;</span> <span class="kw">in</span> user_input:
+            <span class="cm"># 暂停，等待人工确认（与 HITL 机制集成）</span>
+            approved = <span class="kw">await</span> request_human_approval(user_input)
+            <span class="kw">if not</span> approved:
+                <span class="kw">raise</span> Exception(<span class="st">&quot;Action not approved&quot;</span>)
+        
+        <span class="kw">await</span> call_next()</pre>
+消息包含"publish"或"delete"时暂停，等人签字后再继续。
+      </div>
+    </div>
+    <div class="qa">
+      <div class="q">❓ 为什么这件事必要</div>
+      <div class="a">自主 Agent 需要护栏。某些操作（发布、删除、付款）应该需要人工批准。没有审批，风险不可控。</div>
+    </div>
+    <div class="qa">
+      <div class="q">✅ MAF 的做法与优点</div>
+      <div class="a">MAF 中间件可以拦截任何调用。结合 <span class="mono">request_info</span> 进行异步人工输入，创建完整的审批流程。</div>
+    </div>
+    <div class="qa">
+      <div class="q">🔀 还有什么其他方案</div>
+      <div class="a">独立审批服务、基于 webhook 的审批。中间件保持在进程内且可组合。</div>
+    </div>
+  </div>
+</details>
+
+<details class="accordion">
+  <summary><span class="badge-num">3</span> Token 计费中间件 <span class="hint">点击展开详解</span></summary>
+  <div class="acc-body">
+    <div class="qa">
+      <div class="q">🧪 示例</div>
+      <div class="a">在 <span class="mono">await call_next()</span> 后读取用量：
+<pre class="code"><span class="kw">class</span> <span class="fn">BillingMiddleware</span>(ChatMiddleware):
+    <span class="kw">def</span> <span class="fn">__init__</span>(self):
+        self.total_cost = <span class="nb">0.0</span>
+    
+    <span class="kw">async def</span> <span class="fn">process</span>(self, context: ChatContext, call_next):
+        <span class="kw">await</span> call_next()
+        
+        usage = context.result.usage
+        <span class="cm"># 假设价格：输入 $0.01/1k，输出 $0.03/1k</span>
+        cost = (usage.input_tokens * <span class="nb">0.01</span> + 
+                usage.output_tokens * <span class="nb">0.03</span>) / <span class="nb">1000</span>
+        self.total_cost += cost
+        logger.info(f<span class="st">&quot;Cost: ${cost:.4f}, Total: ${self.total_cost:.4f}&quot;</span>)</pre>
+约 12 行实时成本追踪。读取 <span class="mono">context.result.usage</span>，计算成本，累加。
+      </div>
+    </div>
+    <div class="qa">
+      <div class="q">❓ 为什么这件事必要</div>
+      <div class="a">LLM 成本可能爆炸。按请求成本追踪启用预算、告警和按用户计费。没有它，账单成谜。</div>
+    </div>
+    <div class="qa">
+      <div class="q">✅ MAF 的做法与优点</div>
+      <div class="a">MAF 在每次调用后的 <span class="mono">context.result.usage</span> 上暴露 token 用量。中间件可以读取它而不修改响应。</div>
+    </div>
+    <div class="qa">
+      <div class="q">🔀 还有什么其他方案</div>
+      <div class="a">厂商控制台计费、外部代理（如 Helicone）。中间件提供实时、进程内追踪。</div>
+    </div>
+  </div>
+</details>
+
+<details class="accordion">
+  <summary><span class="badge-num">4</span> 中间件的错误处理 <span class="hint">点击展开详解</span></summary>
+  <div class="acc-body">
+    <div class="qa">
+      <div class="q">🧪 示例</div>
+      <div class="a">在 <span class="mono">await call_next()</span> 周围加 <span class="mono">try/except</span>：
+<pre class="code"><span class="kw">class</span> <span class="fn">ErrorHandlingMiddleware</span>(ChatMiddleware):
+    <span class="kw">async def</span> <span class="fn">process</span>(self, context: ChatContext, call_next):
+        <span class="kw">try</span>:
+            <span class="kw">await</span> call_next()
+        <span class="kw">except</span> Exception <span class="kw">as</span> e:
+            logger.error(f<span class="st">&quot;Call failed: {e}&quot;</span>)
+            <span class="cm"># 可选：重试逻辑</span>
+            <span class="cm"># 可选：返回后备响应</span>
+            <span class="cm"># 或重新抛出</span>
+            <span class="kw">raise</span></pre>
+失败时：记录错误、可选重试、可选后备响应。模式：捕获异常，记录后重新抛出。
+      </div>
+    </div>
+    <div class="qa">
+      <div class="q">❓ 为什么这件事必要</div>
+      <div class="a">LLM 调用会失败（速率限制、超时、错误响应）。没有错误处理中间件，失败会让整个 Agent 崩溃。</div>
+    </div>
+    <div class="qa">
+      <div class="q">✅ MAF 的做法与优点</div>
+      <div class="a">MAF 的管道自然传播异常。中间件可以在任何层捕获、记录、重试或转换错误。</div>
+    </div>
+    <div class="qa">
+      <div class="q">🔀 还有什么其他方案</div>
+      <div class="a">熔断器库（tenacity）、全局错误处理器。中间件是按层的且可组合的。</div>
     </div>
   </div>
 </details>
@@ -328,14 +461,147 @@ table.t td.mono, table.t td .mono { font-family: ui-monospace, monospace; font-s
 <p>Attach to an Agent: <span class="inline">Agent(client=client, chat_middleware=[RetryChatMiddleware(3)])</span>.</p>
 
 <details class="accordion">
-  <summary><span class="badge-num">1</span> How to attach each layer? <span class="hint">expand</span></summary>
+  <summary><span class="badge-num">1</span> Complete logging middleware <span class="hint">expand</span></summary>
   <div class="acc-body">
     <div class="qa">
-      <div class="q">🧪 Attachment</div>
-      <div class="a"><span class="mono">Agent(middleware=[…])</span> for AgentMiddleware;
-        <span class="mono">Agent(chat_middleware=[…])</span> for ChatMiddleware;
-        <span class="mono">Agent(function_middleware=[…])</span> for FunctionMiddleware.
-        Multiple middlewares are ordered outside-in by list position.</div>
+      <div class="q">🧪 Example</div>
+      <div class="a">Full code with timing:
+<pre class="code"><span class="kw">import</span> logging
+<span class="kw">import</span> time
+<span class="kw">from</span> agent_framework <span class="kw">import</span> ChatMiddleware, ChatContext
+
+logger = logging.getLogger(__name__)
+
+<span class="kw">class</span> <span class="fn">LoggingChatMiddleware</span>(ChatMiddleware):
+    <span class="kw">async def</span> <span class="fn">process</span>(self, context: ChatContext, call_next):
+        logger.info(f<span class="st">&quot;Input: {context.messages}&quot;</span>)
+        start = time.monotonic()
+        
+        <span class="kw">await</span> call_next()
+        
+        duration = time.monotonic() - start
+        logger.info(f<span class="st">&quot;Output: {context.result}&quot;</span>)
+        logger.info(f<span class="st">&quot;Duration: {duration:.2f}s&quot;</span>)</pre>
+~15 lines for complete logging middleware. Log input before <span class="mono">call_next()</span>, output and duration after.
+      </div>
+    </div>
+    <div class="qa">
+      <div class="q">❓ Why this matters</div>
+      <div class="a">Logging is the #1 most common middleware. Without it, debugging production agents is blind. Can't see inputs, outputs, or timing means can't diagnose issues.</div>
+    </div>
+    <div class="qa">
+      <div class="q">✅ How MAF does it</div>
+      <div class="a">MAF's middleware pattern makes logging trivial: wrap <span class="mono">call_next()</span> with before/after logic. Access <span class="mono">context.messages</span> for input, <span class="mono">context.result</span> for output.</div>
+    </div>
+    <div class="qa">
+      <div class="q">🔀 Alternatives</div>
+      <div class="a">Decorator-based logging, OTel auto-instrumentation. Middleware is explicit and composable.</div>
+    </div>
+  </div>
+</details>
+
+<details class="accordion">
+  <summary><span class="badge-num">2</span> Approval middleware <span class="hint">expand</span></summary>
+  <div class="acc-body">
+    <div class="qa">
+      <div class="q">🧪 Example</div>
+      <div class="a"><span class="mono">ApprovalMiddleware</span> checks condition before <span class="mono">call_next()</span>:
+<pre class="code"><span class="kw">class</span> <span class="fn">ApprovalMiddleware</span>(ChatMiddleware):
+    <span class="kw">async def</span> <span class="fn">process</span>(self, context: ChatContext, call_next):
+        user_input = context.messages[-<span class="nb">1</span>].content
+        
+        <span class="kw">if</span> <span class="st">&quot;publish&quot;</span> <span class="kw">in</span> user_input <span class="kw">or</span> <span class="st">&quot;delete&quot;</span> <span class="kw">in</span> user_input:
+            <span class="cm"># Pause, wait for human confirmation (integrate with HITL)</span>
+            approved = <span class="kw">await</span> request_human_approval(user_input)
+            <span class="kw">if not</span> approved:
+                <span class="kw">raise</span> Exception(<span class="st">&quot;Action not approved&quot;</span>)
+        
+        <span class="kw">await</span> call_next()</pre>
+If message contains &quot;publish&quot; or &quot;delete&quot;, pause and wait for human signature before continuing.
+      </div>
+    </div>
+    <div class="qa">
+      <div class="q">❓ Why this matters</div>
+      <div class="a">Autonomous agents need guardrails. Certain actions (publish, delete, pay) should require human approval. Without approval, risk is uncontrolled.</div>
+    </div>
+    <div class="qa">
+      <div class="q">✅ How MAF does it</div>
+      <div class="a">MAF middleware can intercept any call. Combined with <span class="mono">request_info</span> for async human input, it creates a complete approval flow.</div>
+    </div>
+    <div class="qa">
+      <div class="q">🔀 Alternatives</div>
+      <div class="a">Separate approval service, webhook-based approval. Middleware keeps it in-process and composable.</div>
+    </div>
+  </div>
+</details>
+
+<details class="accordion">
+  <summary><span class="badge-num">3</span> Token billing middleware <span class="hint">expand</span></summary>
+  <div class="acc-body">
+    <div class="qa">
+      <div class="q">🧪 Example</div>
+      <div class="a">After <span class="mono">await call_next()</span>, read usage:
+<pre class="code"><span class="kw">class</span> <span class="fn">BillingMiddleware</span>(ChatMiddleware):
+    <span class="kw">def</span> <span class="fn">__init__</span>(self):
+        self.total_cost = <span class="nb">0.0</span>
+    
+    <span class="kw">async def</span> <span class="fn">process</span>(self, context: ChatContext, call_next):
+        <span class="kw">await</span> call_next()
+        
+        usage = context.result.usage
+        <span class="cm"># Assume prices: input $0.01/1k, output $0.03/1k</span>
+        cost = (usage.input_tokens * <span class="nb">0.01</span> + 
+                usage.output_tokens * <span class="nb">0.03</span>) / <span class="nb">1000</span>
+        self.total_cost += cost
+        logger.info(f<span class="st">&quot;Cost: ${cost:.4f}, Total: ${self.total_cost:.4f}&quot;</span>)</pre>
+~12 lines for real-time cost tracking. Read <span class="mono">context.result.usage</span>, calculate cost, accumulate.
+      </div>
+    </div>
+    <div class="qa">
+      <div class="q">❓ Why this matters</div>
+      <div class="a">LLM costs can explode. Per-request cost tracking enables budgets, alerts, and per-user billing. Without it, bills are a mystery.</div>
+    </div>
+    <div class="qa">
+      <div class="q">✅ How MAF does it</div>
+      <div class="a">MAF exposes token usage on <span class="mono">context.result.usage</span> after each call. Middleware can read it without modifying the response.</div>
+    </div>
+    <div class="qa">
+      <div class="q">🔀 Alternatives</div>
+      <div class="a">Provider dashboard billing, external proxy (e.g., Helicone). Middleware gives real-time, in-process tracking.</div>
+    </div>
+  </div>
+</details>
+
+<details class="accordion">
+  <summary><span class="badge-num">4</span> Middleware error handling <span class="hint">expand</span></summary>
+  <div class="acc-body">
+    <div class="qa">
+      <div class="q">🧪 Example</div>
+      <div class="a"><span class="mono">try/except</span> around <span class="mono">await call_next()</span>:
+<pre class="code"><span class="kw">class</span> <span class="fn">ErrorHandlingMiddleware</span>(ChatMiddleware):
+    <span class="kw">async def</span> <span class="fn">process</span>(self, context: ChatContext, call_next):
+        <span class="kw">try</span>:
+            <span class="kw">await</span> call_next()
+        <span class="kw">except</span> Exception <span class="kw">as</span> e:
+            logger.error(f<span class="st">&quot;Call failed: {e}&quot;</span>)
+            <span class="cm"># Optional: retry logic</span>
+            <span class="cm"># Optional: return fallback response</span>
+            <span class="cm"># Or re-raise</span>
+            <span class="kw">raise</span></pre>
+On failure: log error, optionally retry, optionally return fallback. Pattern: catch exception, log, then re-raise.
+      </div>
+    </div>
+    <div class="qa">
+      <div class="q">❓ Why this matters</div>
+      <div class="a">LLM calls fail (rate limits, timeouts, bad responses). Without error handling middleware, failures crash the entire agent.</div>
+    </div>
+    <div class="qa">
+      <div class="q">✅ How MAF does it</div>
+      <div class="a">MAF's pipeline propagates exceptions naturally. Middleware can catch, log, retry, or transform errors at any layer.</div>
+    </div>
+    <div class="qa">
+      <div class="q">🔀 Alternatives</div>
+      <div class="a">Circuit breaker libraries (tenacity), global error handlers. Middleware is per-layer and composable.</div>
     </div>
   </div>
 </details>

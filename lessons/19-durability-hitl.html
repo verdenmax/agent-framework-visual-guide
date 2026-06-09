@@ -273,13 +273,136 @@ table.t td.mono, table.t td .mono { font-family: ui-monospace, monospace; font-s
 工作流层面也有 <span class="mono">request_info</span> 机制：节点暂停、发问、等回答再继续。</p>
 
 <details class="accordion">
-  <summary><span class="badge-num">1</span> DurableTask 是什么？ <span class="hint">点击展开</span></summary>
+  <summary><span class="badge-num">1</span> InMemoryCheckpointStorage 示例 <span class="hint">点击展开详解</span></summary>
   <div class="acc-body">
     <div class="qa">
-      <div class="q">🔬 持久化执行</div>
-      <div class="a"><span class="mono">packages/durabletask</span> 把工作流跑在 <strong>Durable Task Framework</strong> 上：
-        状态持久化到外部存储，支持<strong>跨进程恢复</strong>和长时间等待（比如等人审批几小时）。
-        配合 Azure Functions 可做无服务器部署。</div>
+      <div class="q">🧪 示例</div>
+      <div class="a">设置代码：
+<pre class="code"><span class="kw">from</span> agent_framework <span class="kw">import</span> InMemoryCheckpointStorage
+<span class="kw">from</span> agent_framework.orchestrations <span class="kw">import</span> SequentialBuilder
+
+storage = InMemoryCheckpointStorage()
+workflow = SequentialBuilder(
+    participants=[agent1, agent2],
+    checkpoint_storage=storage
+).build()</pre>
+保存内容：Agent 状态、消息历史、当前步骤。适合开发，不适合生产。
+      </div>
+    </div>
+    <div class="qa">
+      <div class="q">❓ 为什么这件事必要</div>
+      <div class="a">没有检查点，10 步工作流在第 5 步崩溃意味着从第 1 步重新开始。浪费时间和 LLM token。</div>
+    </div>
+    <div class="qa">
+      <div class="q">✅ MAF 的做法与优点</div>
+      <div class="a">MAF 在 superstep 边界自动保存。<span class="mono">InMemoryCheckpointStorage</span> 零配置，适合开发。</div>
+    </div>
+    <div class="qa">
+      <div class="q">🔀 还有什么其他方案</div>
+      <div class="a">手动状态序列化、数据库快照。MAF 的检查点 API 是自动且透明的。</div>
+    </div>
+  </div>
+</details>
+
+<details class="accordion">
+  <summary><span class="badge-num">2</span> 人在环完整流程 <span class="hint">点击展开详解</span></summary>
+  <div class="acc-body">
+    <div class="qa">
+      <div class="q">🧪 示例</div>
+      <div class="a"><span class="mono">request_info</span> 机制：
+<pre class="code"><span class="cm"># 工作流层面：节点暂停等待人工输入</span>
+answer = <span class="kw">await</span> request_info(<span class="st">&quot;Should I proceed?&quot;</span>)
+<span class="kw">if</span> answer == <span class="st">&quot;yes&quot;</span>:
+    <span class="cm"># 继续</span>
+    ...
+
+<span class="cm"># 工具层面：审批模式</span>
+<span class="nb">@tool</span>(approval_mode=<span class="st">&quot;always_require&quot;</span>)
+<span class="kw">def</span> <span class="fn">publish_article</span>(content: str):
+    <span class="st">&quot;&quot;&quot;Publish article (requires approval)&quot;&quot;&quot;</span>
+    ...</pre>
+两个层级：工具级（<span class="mono">approval_mode</span>）和工作流级（<span class="mono">request_info</span>）。都会暂停执行并等待人工输入。
+      </div>
+    </div>
+    <div class="qa">
+      <div class="q">❓ 为什么这件事必要</div>
+      <div class="a">完全自主的 Agent 对于高风险任务很危险。HITL 在关键决策点增加安全网。</div>
+    </div>
+    <div class="qa">
+      <div class="q">✅ MAF 的做法与优点</div>
+      <div class="a">MAF 在两个层级支持 HITL：工具级（approval_mode）和工作流级（request_info）。两者都会暂停执行并等待人工输入。</div>
+    </div>
+    <div class="qa">
+      <div class="q">🔀 还有什么其他方案</div>
+      <div class="a">外部审批队列（Slack 机器人、电子邮件）、基于轮询的检查。MAF 的 HITL 内置于执行模型中。</div>
+    </div>
+  </div>
+</details>
+
+<details class="accordion">
+  <summary><span class="badge-num">3</span> DurableTask 配置 <span class="hint">点击展开详解</span></summary>
+  <div class="acc-body">
+    <div class="qa">
+      <div class="q">🧪 示例</div>
+      <div class="a">安装和设置：
+<pre class="code">pip install agent-framework-durabletask
+
+<span class="cm"># 与 Azure Functions 集成</span>
+<span class="cm"># 查看 packages/durabletask 了解配置详情</span></pre>
+持久性保证：状态在进程重启后存活，支持长时间等待（数小时/数天）。
+      </div>
+    </div>
+    <div class="qa">
+      <div class="q">❓ 为什么这件事必要</div>
+      <div class="a">内存检查点随进程消亡。生产需要在重启、部署和基础设施故障后存活的状态。</div>
+    </div>
+    <div class="qa">
+      <div class="q">✅ MAF 的做法与优点</div>
+      <div class="a">MAF 的 DurableTask 包利用久经考验的 Durable Task Framework。与 Azure Functions 配对实现无服务器、自动扩展部署。</div>
+    </div>
+    <div class="qa">
+      <div class="q">🔀 还有什么其他方案</div>
+      <div class="a">Temporal、AWS Step Functions、Prefect。DurableTask 与 Azure 生态系统原生集成。</div>
+    </div>
+  </div>
+</details>
+
+<details class="accordion">
+  <summary><span class="badge-num">4</span> Redis/Cosmos 持久化存储 <span class="hint">点击展开详解</span></summary>
+  <div class="acc-body">
+    <div class="qa">
+      <div class="q">🧪 示例</div>
+      <div class="a">从 <span class="mono">InMemoryCheckpointStorage</span> 切换到 Redis 或 Cosmos：
+<pre class="code"><span class="cm"># 安装包</span>
+pip install agent-framework-redis
+<span class="cm"># 或</span>
+pip install agent-framework-azure-cosmos
+
+<span class="cm"># 改一行配置</span>
+<span class="kw">from</span> agent_framework_redis <span class="kw">import</span> RedisCheckpointStorage
+storage = RedisCheckpointStorage(
+    connection_string=<span class="st">&quot;redis://...&quot;</span>
+)
+
+<span class="cm"># 工作流构建保持不变</span>
+workflow = SequentialBuilder(
+    participants=[agent1, agent2],
+    checkpoint_storage=storage
+).build()</pre>
+切换后端只改一行。所有检查点 API 保持不变。
+      </div>
+    </div>
+    <div class="qa">
+      <div class="q">❓ 为什么这件事必要</div>
+      <div class="a">内存存储快但易失。Redis 提供速度 + 持久性；Cosmos 提供全球分布 + 强一致性。</div>
+    </div>
+    <div class="qa">
+      <div class="q">✅ MAF 的做法与优点</div>
+      <div class="a">MAF 的存储抽象意味着切换后端只需改一行。所有检查点 API 保持不变。</div>
+    </div>
+    <div class="qa">
+      <div class="q">🔀 还有什么其他方案</div>
+      <div class="a">PostgreSQL、DynamoDB、S3。MAF 提供 Redis 和 Cosmos 包；社区可以添加其他。</div>
     </div>
   </div>
 </details>
@@ -319,13 +442,136 @@ swap to persistent storage (Redis, Cosmos) for production. After a crash, restar
 At the workflow level, <span class="mono">request_info</span> lets a node pause, ask a question, and wait for a reply.</p>
 
 <details class="accordion">
-  <summary><span class="badge-num">1</span> What is DurableTask? <span class="hint">expand</span></summary>
+  <summary><span class="badge-num">1</span> InMemoryCheckpointStorage example <span class="hint">expand</span></summary>
   <div class="acc-body">
     <div class="qa">
-      <div class="q">🔬 Durable execution</div>
-      <div class="a"><span class="mono">packages/durabletask</span> runs workflows on the <strong>Durable Task Framework</strong>:
-        state is persisted to external storage, supporting <strong>cross-process resume</strong> and long waits
-        (e.g. waiting hours for human approval). Pair with Azure Functions for serverless deployment.</div>
+      <div class="q">🧪 Example</div>
+      <div class="a">Setup code:
+<pre class="code"><span class="kw">from</span> agent_framework <span class="kw">import</span> InMemoryCheckpointStorage
+<span class="kw">from</span> agent_framework.orchestrations <span class="kw">import</span> SequentialBuilder
+
+storage = InMemoryCheckpointStorage()
+workflow = SequentialBuilder(
+    participants=[agent1, agent2],
+    checkpoint_storage=storage
+).build()</pre>
+What gets saved: agent state, message history, current step. Good for development, not for production.
+      </div>
+    </div>
+    <div class="qa">
+      <div class="q">❓ Why this matters</div>
+      <div class="a">Without checkpoints, a crash in step 5 of a 10-step workflow means restarting from step 1. Wasted time and LLM tokens.</div>
+    </div>
+    <div class="qa">
+      <div class="q">✅ How MAF does it</div>
+      <div class="a">MAF auto-saves at superstep boundaries. <span class="mono">InMemoryCheckpointStorage</span> is zero-config for development.</div>
+    </div>
+    <div class="qa">
+      <div class="q">🔀 Alternatives</div>
+      <div class="a">Manual state serialization, database snapshots. MAF's checkpoint API is automatic and transparent.</div>
+    </div>
+  </div>
+</details>
+
+<details class="accordion">
+  <summary><span class="badge-num">2</span> Complete HITL flow <span class="hint">expand</span></summary>
+  <div class="acc-body">
+    <div class="qa">
+      <div class="q">🧪 Example</div>
+      <div class="a"><span class="mono">request_info</span> mechanism:
+<pre class="code"><span class="cm"># Workflow level: node pauses, waits for human input</span>
+answer = <span class="kw">await</span> request_info(<span class="st">&quot;Should I proceed?&quot;</span>)
+<span class="kw">if</span> answer == <span class="st">&quot;yes&quot;</span>:
+    <span class="cm"># continue</span>
+    ...
+
+<span class="cm"># Tool level: approval mode</span>
+<span class="nb">@tool</span>(approval_mode=<span class="st">&quot;always_require&quot;</span>)
+<span class="kw">def</span> <span class="fn">publish_article</span>(content: str):
+    <span class="st">&quot;&quot;&quot;Publish article (requires approval)&quot;&quot;&quot;</span>
+    ...</pre>
+Two levels: tool-level (<span class="mono">approval_mode</span>) and workflow-level (<span class="mono">request_info</span>). Both pause execution and wait for human input.
+      </div>
+    </div>
+    <div class="qa">
+      <div class="q">❓ Why this matters</div>
+      <div class="a">Fully autonomous agents are dangerous for high-stakes tasks. HITL adds a safety net at critical decision points.</div>
+    </div>
+    <div class="qa">
+      <div class="q">✅ How MAF does it</div>
+      <div class="a">MAF supports HITL at two levels: tool-level (approval_mode) and workflow-level (request_info). Both pause execution and wait for human input.</div>
+    </div>
+    <div class="qa">
+      <div class="q">🔀 Alternatives</div>
+      <div class="a">External approval queues (Slack bots, email), polling-based checks. MAF's HITL is built into the execution model.</div>
+    </div>
+  </div>
+</details>
+
+<details class="accordion">
+  <summary><span class="badge-num">3</span> DurableTask configuration <span class="hint">expand</span></summary>
+  <div class="acc-body">
+    <div class="qa">
+      <div class="q">🧪 Example</div>
+      <div class="a">Install and setup:
+<pre class="code">pip install agent-framework-durabletask
+
+<span class="cm"># Integration with Azure Functions</span>
+<span class="cm"># See packages/durabletask for configuration details</span></pre>
+Durability guarantees: state survives process restarts, supports long waits (hours/days).
+      </div>
+    </div>
+    <div class="qa">
+      <div class="q">❓ Why this matters</div>
+      <div class="a">In-memory checkpoints die with the process. Production needs state that survives restarts, deployments, and infrastructure failures.</div>
+    </div>
+    <div class="qa">
+      <div class="q">✅ How MAF does it</div>
+      <div class="a">MAF's DurableTask package leverages the battle-tested Durable Task Framework. Pair with Azure Functions for serverless, auto-scaling deployment.</div>
+    </div>
+    <div class="qa">
+      <div class="q">🔀 Alternatives</div>
+      <div class="a">Temporal, AWS Step Functions, Prefect. DurableTask integrates natively with Azure ecosystem.</div>
+    </div>
+  </div>
+</details>
+
+<details class="accordion">
+  <summary><span class="badge-num">4</span> Redis/Cosmos persistent storage <span class="hint">expand</span></summary>
+  <div class="acc-body">
+    <div class="qa">
+      <div class="q">🧪 Example</div>
+      <div class="a">Switch from <span class="mono">InMemoryCheckpointStorage</span> to Redis or Cosmos:
+<pre class="code"><span class="cm"># Install package</span>
+pip install agent-framework-redis
+<span class="cm"># or</span>
+pip install agent-framework-azure-cosmos
+
+<span class="cm"># Change one line of config</span>
+<span class="kw">from</span> agent_framework_redis <span class="kw">import</span> RedisCheckpointStorage
+storage = RedisCheckpointStorage(
+    connection_string=<span class="st">&quot;redis://...&quot;</span>
+)
+
+<span class="cm"># Workflow build stays the same</span>
+workflow = SequentialBuilder(
+    participants=[agent1, agent2],
+    checkpoint_storage=storage
+).build()</pre>
+Switching backends is a one-line change. All checkpoint APIs stay the same.
+      </div>
+    </div>
+    <div class="qa">
+      <div class="q">❓ Why this matters</div>
+      <div class="a">In-memory storage is fast but volatile. Redis gives speed + persistence; Cosmos gives global distribution + strong consistency.</div>
+    </div>
+    <div class="qa">
+      <div class="q">✅ How MAF does it</div>
+      <div class="a">MAF's storage abstraction means switching backends is a one-line change. All checkpoint APIs stay the same.</div>
+    </div>
+    <div class="qa">
+      <div class="q">🔀 Alternatives</div>
+      <div class="a">PostgreSQL, DynamoDB, S3. MAF ships Redis and Cosmos packages; community can add others.</div>
     </div>
   </div>
 </details>

@@ -288,11 +288,9 @@ MAF 有<strong>三层</strong>中间件，每层包裹不同粒度的操作。</
 执行结果挂在 <span class="mono">context.result</span> 上。</p>
 
 <details class="accordion">
-  <summary><span class="badge-num">1</span> 也可以用装饰器写法 <span class="hint">点击展开</span></summary>
+  <summary><span class="badge-num">1</span> 也可以用装饰器写法 <span class="hint">点击展开详解</span></summary>
   <div class="acc-body">
-    <div class="qa">
-      <div class="q">🧪 函数式中间件</div>
-      <div class="a">不想写类？用装饰器：
+    <div class="qa"><div class="q">🧪 示例</div><div class="a">不想写类？用装饰器：
 <pre class="code"><span class="kw">from</span> agent_framework <span class="kw">import</span> agent_middleware
 
 <span class="nb">@agent_middleware</span>
@@ -300,8 +298,132 @@ MAF 有<strong>三层</strong>中间件，每层包裹不同粒度的操作。</
     <span class="fn">print</span>(<span class="st">"before"</span>)
     <span class="kw">await</span> call_next()
     <span class="fn">print</span>(<span class="st">"after"</span>)</pre>
-        同样有 <span class="mono">@function_middleware</span> 和 <span class="mono">@chat_middleware</span>。</div>
-    </div>
+      同样有 <span class="mono">@function_middleware</span> 和 <span class="mono">@chat_middleware</span>。</div></div>
+    <div class="qa"><div class="q">❓ 为什么这件事必要</div><div class="a">类写法适合有状态的中间件（如计数器）；装饰器适合简单的无状态逻辑（如打日志）。
+      两种风格共存，让你按场景选择最简洁的写法。</div></div>
+    <div class="qa"><div class="q">✅ MAF 的做法与优点</div><div class="a"><span class="mono">@agent_middleware</span>（<span class="mono">_middleware.py:682</span>）
+      内部用 <span class="mono">MiddlewareWrapper</span> 把函数包装成类协议——对管线来说，两种写法<strong>完全等价</strong>。</div></div>
+    <div class="qa"><div class="q">🔀 还有什么其他方案</div><div class="a">有的框架只支持类写法（啰嗦）；有的只支持函数写法（难以持有状态）。
+      MAF 两者都支持，且在内部统一为同一协议。</div></div>
+  </div>
+</details>
+
+<details class="accordion">
+  <summary><span class="badge-num">2</span> 执行顺序（洋葱模型） <span class="hint">点击展开详解</span></summary>
+  <div class="acc-body">
+    <div class="qa"><div class="q">🧪 示例</div><div class="a">假设注册了 A → B → C 三个中间件，执行顺序：
+<pre class="code">A.process() 进入 → <span class="st">"A before"</span>
+  B.process() 进入 → <span class="st">"B before"</span>
+    C.process() 进入 → <span class="st">"C before"</span>
+      ── 核心执行（call_next 到底）──
+    C.process() 返回 → <span class="st">"C after"</span>
+  B.process() 返回 → <span class="st">"B after"</span>
+A.process() 返回 → <span class="st">"A after"</span></pre>
+      每个中间件在 <span class="mono">await call_next()</span> 前后各有一次执行机会。</div></div>
+    <div class="qa"><div class="q">❓ 为什么这件事必要</div><div class="a">理解洋葱模型，才能正确安排中间件顺序：
+      想"最早记录 + 最晚结束"的日志中间件应放最外层；想"只拦截异常"的重试中间件应放内层。</div></div>
+    <div class="qa"><div class="q">✅ MAF 的做法与优点</div><div class="a">管线（<span class="mono">AgentMiddlewarePipeline</span>，<span class="mono">_middleware.py:847</span>）
+      用闭包递归构建 <span class="mono">call_next</span> 链：从最后一个中间件开始，每层包裹前一层。
+      执行结果统一挂在 <span class="mono">context.result</span>，无需返回值传递。</div></div>
+    <div class="qa"><div class="q">🔀 还有什么其他方案</div><div class="a">Express.js 用线性 <span class="mono">next()</span>（无"出来"阶段）；
+      Django 用 <span class="mono">__call__</span> 包裹（类似但不直观）。MAF 的 <span class="mono">call_next()</span> 洋葱模型最清晰——
+      before 和 after 在同一个函数体里，代码局部性好。</div></div>
+  </div>
+</details>
+
+<details class="accordion">
+  <summary><span class="badge-num">3</span> context 上有什么属性 <span class="hint">点击展开详解</span></summary>
+  <div class="acc-body">
+    <div class="qa"><div class="q">🧪 示例</div><div class="a">三层 context 的核心字段：
+<pre class="code"><span class="cm"># AgentContext (_middleware.py:93)</span>
+ctx.agent       <span class="cm"># 正在运行的 Agent</span>
+ctx.messages    <span class="cm"># list[Message] 输入消息</span>
+ctx.session     <span class="cm"># AgentSession | None</span>
+ctx.tools       <span class="cm"># 运行时工具覆盖</span>
+ctx.stream      <span class="cm"># bool 是否流式</span>
+ctx.metadata    <span class="cm"># dict 中间件间共享数据</span>
+ctx.result      <span class="cm"># call_next() 后的执行结果</span>
+
+<span class="cm"># ChatContext (_middleware.py:377)</span>
+ctx.client      <span class="cm"># ChatClient 实例</span>
+ctx.messages    <span class="cm"># 发给模型的消息</span>
+ctx.options     <span class="cm"># ChatOptions</span>
+ctx.stream      <span class="cm"># bool</span>
+ctx.metadata    <span class="cm"># dict</span>
+ctx.result      <span class="cm"># ChatResponse</span>
+
+<span class="cm"># FunctionInvocationContext (_middleware.py:204)</span>
+ctx.function    <span class="cm"># FunctionTool 实例</span>
+ctx.arguments   <span class="cm"># 已验证的参数</span>
+ctx.session     <span class="cm"># AgentSession | None</span>
+ctx.tools       <span class="cm"># 当前运行的工具列表（可动态增删）</span>
+ctx.result      <span class="cm"># 函数执行结果</span></pre></div></div>
+    <div class="qa"><div class="q">❓ 为什么这件事必要</div><div class="a">写中间件时，你要知道"我能读什么、能改什么"。
+      <span class="mono">metadata</span> 是中间件间传数据的官方通道；<span class="mono">result</span> 是执行结果的观察点。</div></div>
+    <div class="qa"><div class="q">✅ MAF 的做法与优点</div><div class="a">每层 context 字段不同但结构一致：都有 <span class="mono">metadata</span>（共享）和 <span class="mono">result</span>（结果）。
+      <span class="mono">FunctionInvocationContext</span> 还有 <span class="mono">add_tools()</span> / <span class="mono">remove_tools()</span>
+      方法，支持<strong>动态工具增删</strong>（下一轮循环生效）。</div></div>
+    <div class="qa"><div class="q">🔀 还有什么其他方案</div><div class="a">有的框架用全局变量传递中间件数据（线程不安全）；
+      有的用 request 对象挂属性（不规范）。MAF 的 <span class="mono">metadata</span> dict 是显式、类型安全、请求级隔离的方案。</div></div>
+  </div>
+</details>
+
+<details class="accordion">
+  <summary><span class="badge-num">4</span> 中间件间的数据传递 <span class="hint">点击展开详解</span></summary>
+  <div class="acc-body">
+    <div class="qa"><div class="q">🧪 示例</div><div class="a">中间件 A 记录开始时间，中间件 B 读取并计算耗时：
+<pre class="code"><span class="cm"># 中间件 A（外层）</span>
+<span class="kw">async def</span> <span class="fn">process</span>(self, ctx, call_next):
+    ctx.metadata[<span class="st">"start_time"</span>] = time.time()
+    <span class="kw">await</span> call_next()
+
+<span class="cm"># 中间件 B（内层，call_next 之后读）</span>
+<span class="kw">async def</span> <span class="fn">process</span>(self, ctx, call_next):
+    <span class="kw">await</span> call_next()
+    elapsed = time.time() - ctx.metadata[<span class="st">"start_time"</span>]</pre>
+      <strong>关键</strong>：用 <span class="mono">context.metadata</span>，不用全局变量！</div></div>
+    <div class="qa"><div class="q">❓ 为什么这件事必要</div><div class="a">中间件之间经常需要协作：计时器中间件记录开始时间，日志中间件读取耗时。
+      如果用全局变量，并发请求会互相干扰。</div></div>
+    <div class="qa"><div class="q">✅ MAF 的做法与优点</div><div class="a"><span class="mono">context.metadata</span> 是每次请求独立的 <span class="mono">dict[str, Any]</span>，
+      天然线程/协程安全。中间件只需约定 key 名即可通信，无需导入彼此。</div></div>
+    <div class="qa"><div class="q">🔀 还有什么其他方案</div><div class="a">Python <span class="mono">contextvars</span>（更隐式，调试困难）；
+      闭包捕获（仅限同一管线内）。<span class="mono">metadata</span> dict 最直观、最易调试。</div></div>
+  </div>
+</details>
+
+<details class="accordion">
+  <summary><span class="badge-num">5</span> 真实中间件示例 <span class="hint">点击展开详解</span></summary>
+  <div class="acc-body">
+    <div class="qa"><div class="q">🧪 示例</div><div class="a">三个生产级中间件：
+<pre class="code"><span class="cm"># 1. 日志中间件（AgentMiddleware）</span>
+<span class="kw">class</span> <span class="fn">LogMiddleware</span>(AgentMiddleware):
+    <span class="kw">async def</span> <span class="fn">process</span>(self, ctx, call_next):
+        logger.info(f<span class="st">"Agent {ctx.agent.name} start"</span>)
+        <span class="kw">await</span> call_next()
+        logger.info(f<span class="st">"Agent done: {len(ctx.result.messages)} msgs"</span>)
+
+<span class="cm"># 2. Token 计数中间件（ChatMiddleware）</span>
+<span class="kw">class</span> <span class="fn">TokenCounter</span>(ChatMiddleware):
+    <span class="kw">async def</span> <span class="fn">process</span>(self, ctx, call_next):
+        <span class="kw">await</span> call_next()
+        usage = ctx.result.usage_details
+        ctx.metadata[<span class="st">"total_tokens"</span>] = usage.prompt_tokens + usage.completion_tokens
+
+<span class="cm"># 3. 限流中间件（ChatMiddleware）</span>
+<span class="kw">class</span> <span class="fn">RateLimiter</span>(ChatMiddleware):
+    <span class="kw">async def</span> <span class="fn">process</span>(self, ctx, call_next):
+        <span class="kw">await</span> self.semaphore.acquire()
+        <span class="kw">try</span>:
+            <span class="kw">await</span> call_next()
+        <span class="kw">finally</span>:
+            self.semaphore.release()</pre></div></div>
+    <div class="qa"><div class="q">❓ 为什么这件事必要</div><div class="a">这三个覆盖了最常见的生产需求：可观测性（日志）、成本控制（token 计数）、流量管理（限流）。
+      它们展示了 <span class="mono">call_next()</span> 前后分别适合做什么。</div></div>
+    <div class="qa"><div class="q">✅ MAF 的做法与优点</div><div class="a">日志放 <span class="mono">AgentMiddleware</span>（整个 run 级别），
+      token 计数和限流放 <span class="mono">ChatMiddleware</span>（每次 LLM 调用级别）——
+      <strong>三层粒度让每个中间件精确拦截它关心的操作</strong>。</div></div>
+    <div class="qa"><div class="q">🔀 还有什么其他方案</div><div class="a">用 AOP 框架（如 <span class="mono">aspectlib</span>）做切面（太重）；
+      在 Agent 类里加 hook 方法（不够灵活）。MAF 的中间件管线是最标准的横切关注点解决方案。</div></div>
   </div>
 </details>
 
@@ -358,9 +480,7 @@ next layer or the final execution. The result lives on <span class="mono">contex
 <details class="accordion">
   <summary><span class="badge-num">1</span> Decorator shortcut <span class="hint">expand</span></summary>
   <div class="acc-body">
-    <div class="qa">
-      <div class="q">🧪 Function-style middleware</div>
-      <div class="a">Don't want a class? Use a decorator:
+    <div class="qa"><div class="q">🧪 Example</div><div class="a">Don't want a class? Use a decorator:
 <pre class="code"><span class="kw">from</span> agent_framework <span class="kw">import</span> agent_middleware
 
 <span class="nb">@agent_middleware</span>
@@ -368,8 +488,133 @@ next layer or the final execution. The result lives on <span class="mono">contex
     <span class="fn">print</span>(<span class="st">"before"</span>)
     <span class="kw">await</span> call_next()
     <span class="fn">print</span>(<span class="st">"after"</span>)</pre>
-        Similarly <span class="mono">@function_middleware</span> and <span class="mono">@chat_middleware</span>.</div>
-    </div>
+      Similarly <span class="mono">@function_middleware</span> and <span class="mono">@chat_middleware</span>.</div></div>
+    <div class="qa"><div class="q">❓ Why this matters</div><div class="a">Class-based suits stateful middleware (e.g. counters); decorators suit simple stateless logic (e.g. logging).
+      Both styles coexist so you pick the most concise one for your scenario.</div></div>
+    <div class="qa"><div class="q">✅ How MAF does it</div><div class="a"><span class="mono">@agent_middleware</span> (<span class="mono">_middleware.py:682</span>)
+      internally uses <span class="mono">MiddlewareWrapper</span> to convert the function into the class protocol —
+      to the pipeline, both styles are <strong>completely equivalent</strong>.</div></div>
+    <div class="qa"><div class="q">🔀 Alternatives</div><div class="a">Some frameworks only support class-based (verbose); others only function-based (hard to hold state).
+      MAF supports both and unifies them into one protocol internally.</div></div>
+  </div>
+</details>
+
+<details class="accordion">
+  <summary><span class="badge-num">2</span> Execution order (onion model) <span class="hint">expand</span></summary>
+  <div class="acc-body">
+    <div class="qa"><div class="q">🧪 Example</div><div class="a">Given middleware registered A → B → C, the execution order is:
+<pre class="code">A.process() enters → <span class="st">"A before"</span>
+  B.process() enters → <span class="st">"B before"</span>
+    C.process() enters → <span class="st">"C before"</span>
+      ── core execution (call_next bottoms out) ──
+    C.process() returns → <span class="st">"C after"</span>
+  B.process() returns → <span class="st">"B after"</span>
+A.process() returns → <span class="st">"A after"</span></pre>
+      Each middleware gets one chance before and one after <span class="mono">await call_next()</span>.</div></div>
+    <div class="qa"><div class="q">❓ Why this matters</div><div class="a">Understanding the onion model is essential for ordering middleware correctly:
+      a logger that should "start first + finish last" belongs outermost; a retry interceptor belongs inner.</div></div>
+    <div class="qa"><div class="q">✅ How MAF does it</div><div class="a">The pipeline (<span class="mono">AgentMiddlewarePipeline</span>, <span class="mono">_middleware.py:847</span>)
+      builds the <span class="mono">call_next</span> chain via closure recursion: starting from the last middleware, each wraps the previous.
+      Results are placed on <span class="mono">context.result</span> — no return-value passing needed.</div></div>
+    <div class="qa"><div class="q">🔀 Alternatives</div><div class="a">Express.js uses linear <span class="mono">next()</span> (no "way out" phase);
+      Django uses <span class="mono">__call__</span> wrapping (similar but less intuitive). MAF's <span class="mono">call_next()</span> onion model is clearest —
+      before and after live in the same function body, excellent code locality.</div></div>
+  </div>
+</details>
+
+<details class="accordion">
+  <summary><span class="badge-num">3</span> Context attributes <span class="hint">expand</span></summary>
+  <div class="acc-body">
+    <div class="qa"><div class="q">🧪 Example</div><div class="a">Core fields across the three context types:
+<pre class="code"><span class="cm"># AgentContext (_middleware.py:93)</span>
+ctx.agent       <span class="cm"># the running Agent</span>
+ctx.messages    <span class="cm"># list[Message] input messages</span>
+ctx.session     <span class="cm"># AgentSession | None</span>
+ctx.tools       <span class="cm"># runtime tool overrides</span>
+ctx.stream      <span class="cm"># bool streaming?</span>
+ctx.metadata    <span class="cm"># dict shared between middleware</span>
+ctx.result      <span class="cm"># execution result after call_next()</span>
+
+<span class="cm"># ChatContext (_middleware.py:377)</span>
+ctx.client      <span class="cm"># ChatClient instance</span>
+ctx.messages    <span class="cm"># messages sent to model</span>
+ctx.options     <span class="cm"># ChatOptions</span>
+ctx.stream      <span class="cm"># bool</span>
+ctx.metadata    <span class="cm"># dict</span>
+ctx.result      <span class="cm"># ChatResponse</span>
+
+<span class="cm"># FunctionInvocationContext (_middleware.py:204)</span>
+ctx.function    <span class="cm"># FunctionTool instance</span>
+ctx.arguments   <span class="cm"># validated arguments</span>
+ctx.session     <span class="cm"># AgentSession | None</span>
+ctx.tools       <span class="cm"># live tool list (dynamically add/remove)</span>
+ctx.result      <span class="cm"># function execution result</span></pre></div></div>
+    <div class="qa"><div class="q">❓ Why this matters</div><div class="a">When writing middleware you need to know "what can I read, what can I change?"
+      <span class="mono">metadata</span> is the official channel for inter-middleware data; <span class="mono">result</span> is where you observe outcomes.</div></div>
+    <div class="qa"><div class="q">✅ How MAF does it</div><div class="a">Each layer's context has different fields but a consistent structure: all have <span class="mono">metadata</span> (shared) and <span class="mono">result</span> (outcome).
+      <span class="mono">FunctionInvocationContext</span> additionally provides <span class="mono">add_tools()</span> / <span class="mono">remove_tools()</span>
+      methods for <strong>dynamic tool modification</strong> (takes effect next loop iteration).</div></div>
+    <div class="qa"><div class="q">🔀 Alternatives</div><div class="a">Some frameworks use global variables for middleware data (not thread-safe);
+      others attach attributes to a request object (ad-hoc). MAF's <span class="mono">metadata</span> dict is explicit, type-safe, and request-scoped.</div></div>
+  </div>
+</details>
+
+<details class="accordion">
+  <summary><span class="badge-num">4</span> Passing data between middleware <span class="hint">expand</span></summary>
+  <div class="acc-body">
+    <div class="qa"><div class="q">🧪 Example</div><div class="a">Middleware A records start time; middleware B reads it to compute elapsed time:
+<pre class="code"><span class="cm"># Middleware A (outer)</span>
+<span class="kw">async def</span> <span class="fn">process</span>(self, ctx, call_next):
+    ctx.metadata[<span class="st">"start_time"</span>] = time.time()
+    <span class="kw">await</span> call_next()
+
+<span class="cm"># Middleware B (inner, reads after call_next)</span>
+<span class="kw">async def</span> <span class="fn">process</span>(self, ctx, call_next):
+    <span class="kw">await</span> call_next()
+    elapsed = time.time() - ctx.metadata[<span class="st">"start_time"</span>]</pre>
+      <strong>Key</strong>: use <span class="mono">context.metadata</span>, not global variables!</div></div>
+    <div class="qa"><div class="q">❓ Why this matters</div><div class="a">Middleware often need to cooperate: a timer records start time, a logger reads elapsed time.
+      Global variables would cause interference between concurrent requests.</div></div>
+    <div class="qa"><div class="q">✅ How MAF does it</div><div class="a"><span class="mono">context.metadata</span> is a per-request <span class="mono">dict[str, Any]</span>,
+      inherently safe across threads/coroutines. Middleware just agree on key names to communicate — no imports needed between them.</div></div>
+    <div class="qa"><div class="q">🔀 Alternatives</div><div class="a">Python <span class="mono">contextvars</span> (more implicit, harder to debug);
+      closure capture (only within same pipeline). The <span class="mono">metadata</span> dict is the most straightforward and debuggable.</div></div>
+  </div>
+</details>
+
+<details class="accordion">
+  <summary><span class="badge-num">5</span> Real-world middleware examples <span class="hint">expand</span></summary>
+  <div class="acc-body">
+    <div class="qa"><div class="q">🧪 Example</div><div class="a">Three production-grade middleware:
+<pre class="code"><span class="cm"># 1. Logging middleware (AgentMiddleware)</span>
+<span class="kw">class</span> <span class="fn">LogMiddleware</span>(AgentMiddleware):
+    <span class="kw">async def</span> <span class="fn">process</span>(self, ctx, call_next):
+        logger.info(f<span class="st">"Agent {ctx.agent.name} start"</span>)
+        <span class="kw">await</span> call_next()
+        logger.info(f<span class="st">"Agent done: {len(ctx.result.messages)} msgs"</span>)
+
+<span class="cm"># 2. Token-counting middleware (ChatMiddleware)</span>
+<span class="kw">class</span> <span class="fn">TokenCounter</span>(ChatMiddleware):
+    <span class="kw">async def</span> <span class="fn">process</span>(self, ctx, call_next):
+        <span class="kw">await</span> call_next()
+        usage = ctx.result.usage_details
+        ctx.metadata[<span class="st">"total_tokens"</span>] = usage.prompt_tokens + usage.completion_tokens
+
+<span class="cm"># 3. Rate-limit middleware (ChatMiddleware)</span>
+<span class="kw">class</span> <span class="fn">RateLimiter</span>(ChatMiddleware):
+    <span class="kw">async def</span> <span class="fn">process</span>(self, ctx, call_next):
+        <span class="kw">await</span> self.semaphore.acquire()
+        <span class="kw">try</span>:
+            <span class="kw">await</span> call_next()
+        <span class="kw">finally</span>:
+            self.semaphore.release()</pre></div></div>
+    <div class="qa"><div class="q">❓ Why this matters</div><div class="a">These three cover the most common production needs: observability (logging), cost control (token counting),
+      traffic management (rate limiting). They show what's best done before vs after <span class="mono">call_next()</span>.</div></div>
+    <div class="qa"><div class="q">✅ How MAF does it</div><div class="a">Logging goes in <span class="mono">AgentMiddleware</span> (whole-run level),
+      token counting and rate limiting go in <span class="mono">ChatMiddleware</span> (per-LLM-call level) —
+      <strong>three granularity levels let each middleware precisely intercept what it cares about</strong>.</div></div>
+    <div class="qa"><div class="q">🔀 Alternatives</div><div class="a">AOP frameworks like <span class="mono">aspectlib</span> (too heavy);
+      hook methods in the Agent class (not flexible enough). MAF's middleware pipeline is the standard cross-cutting concern solution.</div></div>
   </div>
 </details>
 

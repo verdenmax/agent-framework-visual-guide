@@ -289,14 +289,93 @@ table.t td.mono, table.t td .mono { font-family: ui-monospace, monospace; font-s
 </div>
 
 <details class="accordion">
-  <summary><span class="badge-num">1</span> BaseAgent 定义了哪些接口？ <span class="hint">点击展开</span></summary>
+  <summary><span class="badge-num">1</span> BaseAgent 定义了哪些接口？ <span class="hint">点击展开详解</span></summary>
   <div class="acc-body">
-    <div class="qa">
-      <div class="q">🔬 核心协议</div>
-      <div class="a"><span class="mono">BaseAgent</span> 规定了 <span class="mono">run()</span>（非流式 + 流式共用）、
-        <span class="mono">create_session()</span>、<span class="mono">get_session()</span> 等。
-        子类只需关注"怎么组装消息、怎么调模型"——循环骨架已由基类搭好。</div>
-    </div>
+    <div class="qa"><div class="q">🧪 示例</div><div class="a"><span class="mono">BaseAgent</span>（<span class="mono">_agents.py:314</span>）规定了
+      <span class="mono">run()</span>（非流式 + 流式共用）、<span class="mono">create_session()</span>、<span class="mono">get_session()</span>。
+      子类只需实现这几个方法，循环骨架已由基类搭好。</div></div>
+    <div class="qa"><div class="q">❓ 为什么这件事必要</div><div class="a">如果没有统一接口，每种 Agent 都得各写一套调用协议，
+      上层编排器无法通用。抽象基类保证"任何 Agent 都能 <span class="mono">run()</span>"，这是多态的基础。</div></div>
+    <div class="qa"><div class="q">✅ MAF 的做法与优点</div><div class="a">MAF 用 <strong>模板方法模式</strong>：<span class="mono">BaseAgent</span>
+      定义骨架，<span class="mono">RawAgent</span> / <span class="mono">Agent</span> 分层实现。
+      这样可以在不破坏协议的前提下自由扩展。</div></div>
+    <div class="qa"><div class="q">🔀 还有什么其他方案</div><div class="a">LangChain 用 <span class="mono">Runnable</span> 协议（更通用但更松散）；
+      AutoGen 用 <span class="mono">ConversableAgent</span>（更紧耦合）。MAF 选择"刚好够用"的抽象层次，避免过度泛化。</div></div>
+  </div>
+</details>
+
+<details class="accordion">
+  <summary><span class="badge-num">2</span> Agent.run() 内部调用链 <span class="hint">点击展开详解</span></summary>
+  <div class="acc-body">
+    <div class="qa"><div class="q">🧪 示例</div><div class="a"><span class="mono">Agent</span>（<span class="mono">_agents.py:1584</span>）的 <span class="mono">run()</span>
+      经过中间件 / 遥测层后进入 <span class="mono">RawAgent.run()</span>（<span class="mono">_agents.py:889</span>），依次调用：
+<pre class="code">_prepare_run_context()   <span class="cm"># 准备消息、session、工具、选项</span>
+_call_chat_client()      <span class="cm"># 调用 ChatClient 拿回 ChatResponse</span>
+_parse_non_streaming_response()  <span class="cm"># 非流式：转为 AgentResponse</span>
+_parse_streaming_response()      <span class="cm"># 流式：转为 AgentResponseUpdate 流</span>
+_run_after_providers()   <span class="cm"># 执行 ContextProvider 后置钩子</span></pre></div></div>
+    <div class="qa"><div class="q">❓ 为什么这件事必要</div><div class="a">理解内部调用链，才知道在哪里挂中间件、在哪里注入上下文、
+      出错时该看哪一步——不再"黑箱调试"。</div></div>
+    <div class="qa"><div class="q">✅ MAF 的做法与优点</div><div class="a">每个步骤是独立方法，职责单一。
+      <span class="mono">_prepare_run_context()</span> 只管拼消息，<span class="mono">_call_chat_client()</span> 只管调模型。
+      这让子类可以 <strong>精确覆写某一步</strong>而不动其他步骤。</div></div>
+    <div class="qa"><div class="q">🔀 还有什么其他方案</div><div class="a">有的框架把所有逻辑放进一个大 <span class="mono">run()</span> 方法；
+      也有的用声明式 DAG（如 LangGraph）编排。MAF 的方法函数分拆 + 循环骨架是两者的中间路线。</div></div>
+  </div>
+</details>
+
+<details class="accordion">
+  <summary><span class="badge-num">3</span> 自定义 Agent（RawAgent） <span class="hint">点击展开详解</span></summary>
+  <div class="acc-body">
+    <div class="qa"><div class="q">🧪 示例</div><div class="a"><span class="mono">RawAgent</span>（<span class="mono">_agents.py:578</span>）是核心实现层——
+      它继承 <span class="mono">BaseAgent</span>，实现了完整的 <span class="mono">run()</span>、上下文提供者执行、会话管理、工具解析。
+      如果你想"完全接管"Agent 行为，就继承 <span class="mono">RawAgent</span> 并覆写 <span class="mono">_call_chat_client()</span>。</div></div>
+    <div class="qa"><div class="q">❓ 为什么这件事必要</div><div class="a">默认 <span class="mono">Agent</span> 自带中间件层和遥测层。
+      有时你需要跳过这些层，或者完全替换 LLM 调用逻辑（比如做 mock 测试），这时需要 <span class="mono">RawAgent</span>。</div></div>
+    <div class="qa"><div class="q">✅ MAF 的做法与优点</div><div class="a"><span class="mono">Agent = AgentMiddlewareLayer + AgentTelemetryLayer + RawAgent</span>。
+      三层用 Python 多继承组合，你可以只要其中一层或全部。这种 <strong>Mixin 模式</strong>比单一继承链灵活得多。</div></div>
+    <div class="qa"><div class="q">🔀 还有什么其他方案</div><div class="a">可以用装饰器模式逐层包裹（增加运行时开销），
+      或用配置开关控制功能（不够灵活）。MAF 选择 Mixin 继承，编译期确定行为、零额外运行时开销。</div></div>
+  </div>
+</details>
+
+<details class="accordion">
+  <summary><span class="badge-num">4</span> AgentResponse 的结构 <span class="hint">点击展开详解</span></summary>
+  <div class="acc-body">
+    <div class="qa"><div class="q">🧪 示例</div><div class="a"><span class="mono">AgentResponse</span>（<span class="mono">_types.py:2530</span>）的核心字段：
+<pre class="code">response.text           <span class="cm"># 所有消息的拼合文本</span>
+response.messages       <span class="cm"># list[Message] — 完整消息列表</span>
+response.usage_details  <span class="cm"># UsageDetails — prompt/completion token 计数</span>
+response.finish_reason  <span class="cm"># &quot;stop&quot; / &quot;tool_calls&quot; / &quot;length&quot;</span>
+response.value          <span class="cm"># 结构化输出（如果设了 response_format）</span>
+response.raw_representation  <span class="cm"># 原始 API 响应</span></pre></div></div>
+    <div class="qa"><div class="q">❓ 为什么这件事必要</div><div class="a">了解返回结构，你才能正确地：提取回复文本、检查 token 用量做成本控制、
+      判断模型是"正常结束"还是"截断了"、拿到结构化数据而不是手动解析 JSON。</div></div>
+    <div class="qa"><div class="q">✅ MAF 的做法与优点</div><div class="a"><span class="mono">.text</span> 是只读属性（自动拼合所有 message），
+      <span class="mono">.value</span> 支持泛型——如果你声明了 <span class="mono">response_format=MyModel</span>，
+      <span class="mono">.value</span> 自动返回 <span class="mono">MyModel</span> 实例，无需手动反序列化。</div></div>
+    <div class="qa"><div class="q">🔀 还有什么其他方案</div><div class="a">OpenAI SDK 直接返回 dict/dataclass；LangChain 用 <span class="mono">AIMessage</span>。
+      MAF 的 <span class="mono">AgentResponse</span> 多了 <span class="mono">.value</span> 泛型和 <span class="mono">.continuation_token</span>
+      （可恢复长对话），更贴近生产需求。</div></div>
+  </div>
+</details>
+
+<details class="accordion">
+  <summary><span class="badge-num">5</span> RawAgent vs Agent <span class="hint">点击展开详解</span></summary>
+  <div class="acc-body">
+    <div class="qa"><div class="q">🧪 示例</div><div class="a">
+<pre class="code"><span class="cm"># Agent = 全功能版（中间件 + 遥测 + RawAgent）</span>
+agent = Agent(name=<span class="st">&quot;full&quot;</span>, client=client,
+              middleware=[LogMiddleware()])
+
+<span class="cm"># RawAgent = 最小核心（无中间件 / 遥测层）</span>
+raw = RawAgent(name=<span class="st">&quot;bare&quot;</span>, client=client)</pre></div></div>
+    <div class="qa"><div class="q">❓ 为什么这件事必要</div><div class="a">如果你只想做单元测试或轻量调用，<span class="mono">Agent</span> 的中间件 / 遥测层是不必要的开销。
+      反之，在生产环境你几乎总是需要日志和监控——此时 <span class="mono">Agent</span> 一步到位。</div></div>
+    <div class="qa"><div class="q">✅ MAF 的做法与优点</div><div class="a">两者共享 <span class="mono">BaseAgent</span> 协议，所以对编排器来说是<strong>完全互换的</strong>。
+      你可以开发时用 <span class="mono">RawAgent</span> 快速迭代，上线时换成 <span class="mono">Agent</span> 加中间件，调用方无需任何改动。</div></div>
+    <div class="qa"><div class="q">🔀 还有什么其他方案</div><div class="a">有的框架只提供一个 Agent 类，通过 <span class="mono">debug=True</span> 开关控制行为。
+      MAF 的分层继承更干净——不想要的层根本不存在，而不是"存在但被 if 跳过"。</div></div>
   </div>
 </details>
 
@@ -354,12 +433,92 @@ Understand them and you'll see how the framework drives an agent through its ful
 <details class="accordion">
   <summary><span class="badge-num">1</span> What does BaseAgent define? <span class="hint">expand</span></summary>
   <div class="acc-body">
-    <div class="qa">
-      <div class="q">🔬 Core protocol</div>
-      <div class="a"><span class="mono">BaseAgent</span> mandates <span class="mono">run()</span> (shared by streaming
-        and non-streaming), <span class="mono">create_session()</span>, <span class="mono">get_session()</span>, etc.
-        Subclasses only focus on "how to assemble messages and call the model" — the loop skeleton is already in the base.</div>
-    </div>
+    <div class="qa"><div class="q">🧪 Example</div><div class="a"><span class="mono">BaseAgent</span> (<span class="mono">_agents.py:314</span>) mandates
+      <span class="mono">run()</span> (shared by streaming and non-streaming), <span class="mono">create_session()</span>,
+      <span class="mono">get_session()</span>. Subclasses only implement these methods — the loop skeleton is in the base.</div></div>
+    <div class="qa"><div class="q">❓ Why this matters</div><div class="a">Without a unified interface every Agent type would need its own calling protocol,
+      and orchestrators couldn't be generic. The abstract base guarantees "any Agent can <span class="mono">run()</span>" — the foundation of polymorphism.</div></div>
+    <div class="qa"><div class="q">✅ How MAF does it</div><div class="a">MAF uses the <strong>Template Method pattern</strong>: <span class="mono">BaseAgent</span>
+      defines the skeleton, <span class="mono">RawAgent</span> / <span class="mono">Agent</span> implement in layers.
+      This allows free extension without breaking the protocol.</div></div>
+    <div class="qa"><div class="q">🔀 Alternatives</div><div class="a">LangChain uses the <span class="mono">Runnable</span> protocol (more generic but looser);
+      AutoGen uses <span class="mono">ConversableAgent</span> (tighter coupling). MAF picks a "just right" abstraction level and avoids over-generalisation.</div></div>
+  </div>
+</details>
+
+<details class="accordion">
+  <summary><span class="badge-num">2</span> Agent.run() internal call chain <span class="hint">expand</span></summary>
+  <div class="acc-body">
+    <div class="qa"><div class="q">🧪 Example</div><div class="a"><span class="mono">Agent</span> (<span class="mono">_agents.py:1584</span>)'s <span class="mono">run()</span>
+      passes through middleware / telemetry layers, then enters <span class="mono">RawAgent.run()</span> (<span class="mono">_agents.py:889</span>):
+<pre class="code">_prepare_run_context()   <span class="cm"># assemble messages, session, tools, options</span>
+_call_chat_client()      <span class="cm"># invoke ChatClient → ChatResponse</span>
+_parse_non_streaming_response()  <span class="cm"># non-stream: convert to AgentResponse</span>
+_parse_streaming_response()      <span class="cm"># stream: convert to AgentResponseUpdate</span>
+_run_after_providers()   <span class="cm"># run ContextProvider post-hooks</span></pre></div></div>
+    <div class="qa"><div class="q">❓ Why this matters</div><div class="a">Understanding the call chain tells you where to attach middleware, where to inject context,
+      and which step to inspect when debugging — no more "black-box guessing".</div></div>
+    <div class="qa"><div class="q">✅ How MAF does it</div><div class="a">Each step is its own method with a single responsibility.
+      <span class="mono">_prepare_run_context()</span> only assembles messages; <span class="mono">_call_chat_client()</span> only calls the model.
+      This lets subclasses <strong>override one step precisely</strong> without touching others.</div></div>
+    <div class="qa"><div class="q">🔀 Alternatives</div><div class="a">Some frameworks put everything in one big <span class="mono">run()</span>;
+      others use a declarative DAG (e.g. LangGraph). MAF's method decomposition + loop skeleton is a middle ground.</div></div>
+  </div>
+</details>
+
+<details class="accordion">
+  <summary><span class="badge-num">3</span> Custom Agent (RawAgent) <span class="hint">expand</span></summary>
+  <div class="acc-body">
+    <div class="qa"><div class="q">🧪 Example</div><div class="a"><span class="mono">RawAgent</span> (<span class="mono">_agents.py:578</span>) is the core implementation layer —
+      it extends <span class="mono">BaseAgent</span> and implements the full <span class="mono">run()</span>, context-provider execution,
+      session management, and tool resolution. To fully take over Agent behavior, subclass <span class="mono">RawAgent</span>
+      and override <span class="mono">_call_chat_client()</span>.</div></div>
+    <div class="qa"><div class="q">❓ Why this matters</div><div class="a">The default <span class="mono">Agent</span> includes middleware and telemetry layers.
+      Sometimes you need to skip them or replace the LLM-call logic entirely (e.g. mock testing) — that's when you need <span class="mono">RawAgent</span>.</div></div>
+    <div class="qa"><div class="q">✅ How MAF does it</div><div class="a"><span class="mono">Agent = AgentMiddlewareLayer + AgentTelemetryLayer + RawAgent</span>.
+      Three layers combined via Python multiple inheritance — you can pick any subset. This <strong>Mixin pattern</strong> is far more flexible than a single inheritance chain.</div></div>
+    <div class="qa"><div class="q">🔀 Alternatives</div><div class="a">Decorator pattern wrapping (more runtime overhead), or feature-flags
+      (less flexible). MAF's mixin approach locks in behavior at class-definition time with zero extra runtime cost.</div></div>
+  </div>
+</details>
+
+<details class="accordion">
+  <summary><span class="badge-num">4</span> AgentResponse structure <span class="hint">expand</span></summary>
+  <div class="acc-body">
+    <div class="qa"><div class="q">🧪 Example</div><div class="a"><span class="mono">AgentResponse</span> (<span class="mono">_types.py:2530</span>) core fields:
+<pre class="code">response.text           <span class="cm"># combined text from all messages</span>
+response.messages       <span class="cm"># list[Message] — full message list</span>
+response.usage_details  <span class="cm"># UsageDetails — prompt/completion tokens</span>
+response.finish_reason  <span class="cm"># &quot;stop&quot; / &quot;tool_calls&quot; / &quot;length&quot;</span>
+response.value          <span class="cm"># structured output (if response_format set)</span>
+response.raw_representation  <span class="cm"># raw API response</span></pre></div></div>
+    <div class="qa"><div class="q">❓ Why this matters</div><div class="a">Knowing the response structure lets you: extract reply text, check token usage for cost control,
+      determine if the model stopped normally or was truncated, and get structured data without manual JSON parsing.</div></div>
+    <div class="qa"><div class="q">✅ How MAF does it</div><div class="a"><span class="mono">.text</span> is a read-only property (auto-joins all messages).
+      <span class="mono">.value</span> supports generics — if you declared <span class="mono">response_format=MyModel</span>,
+      <span class="mono">.value</span> automatically returns a <span class="mono">MyModel</span> instance, no manual deserialisation needed.</div></div>
+    <div class="qa"><div class="q">🔀 Alternatives</div><div class="a">OpenAI SDK returns dict/dataclass; LangChain uses <span class="mono">AIMessage</span>.
+      MAF's <span class="mono">AgentResponse</span> adds generic <span class="mono">.value</span> and <span class="mono">.continuation_token</span>
+      (resumable long conversations), better suited for production.</div></div>
+  </div>
+</details>
+
+<details class="accordion">
+  <summary><span class="badge-num">5</span> RawAgent vs Agent <span class="hint">expand</span></summary>
+  <div class="acc-body">
+    <div class="qa"><div class="q">🧪 Example</div><div class="a">
+<pre class="code"><span class="cm"># Agent = full-featured (middleware + telemetry + RawAgent)</span>
+agent = Agent(name=<span class="st">&quot;full&quot;</span>, client=client,
+              middleware=[LogMiddleware()])
+
+<span class="cm"># RawAgent = minimal core (no middleware / telemetry)</span>
+raw = RawAgent(name=<span class="st">&quot;bare&quot;</span>, client=client)</pre></div></div>
+    <div class="qa"><div class="q">❓ Why this matters</div><div class="a">For unit tests or lightweight calls, <span class="mono">Agent</span>'s middleware/telemetry layers are unnecessary overhead.
+      In production you almost always want logging and monitoring — <span class="mono">Agent</span> gives you that out of the box.</div></div>
+    <div class="qa"><div class="q">✅ How MAF does it</div><div class="a">Both share the <span class="mono">BaseAgent</span> protocol, so they are <strong>fully interchangeable</strong> for orchestrators.
+      Develop with <span class="mono">RawAgent</span> for fast iteration, switch to <span class="mono">Agent</span> with middleware for production — callers need zero changes.</div></div>
+    <div class="qa"><div class="q">🔀 Alternatives</div><div class="a">Some frameworks have one Agent class with a <span class="mono">debug=True</span> switch.
+      MAF's layered inheritance is cleaner — unwanted layers simply don't exist, rather than "present but skipped by an if".</div></div>
   </div>
 </details>
 

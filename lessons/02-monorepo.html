@@ -297,6 +297,174 @@ table.t td.mono, table.t td .mono { font-family: ui-monospace, monospace; font-s
   做<strong>懒加载</strong>：只有真正 import 时才拉起对应依赖，让 core 保持轻量。
 </div>
 
+<details class="accordion">
+  <summary><span class="badge-num">1</span> core 包里到底有什么？ <span class="hint">点击展开详解</span></summary>
+  <div class="acc-body">
+    <div class="qa">
+      <div class="q">🧪 示例</div>
+      <div class="a">core 一个文件一个职责，地图大致如下：
+<pre class="code">python/packages/core/agent_framework/
+├── _agents.py        <span class="cm"># Agent 类、run() 循环、DEFAULT_MAX_ITERATIONS</span>
+├── _clients.py       <span class="cm"># ChatClient 抽象基类 + 内置 OpenAI 实现</span>
+├── _tools.py         <span class="cm"># @ai_function 装饰器、AIFunction、ToolProtocol</span>
+├── _middleware.py    <span class="cm"># 中间件管道：trace / retry / 自定义</span>
+├── _types.py         <span class="cm"># ChatMessage / Role / Contents 联合类型</span>
+├── _workflows/       <span class="cm"># 图式编排：节点、边、共享状态、检查点</span>
+├── observability/    <span class="cm"># OpenTelemetry trace / cost / token 指标</span>
+└── __init__.py       <span class="cm"># 公共 API，决定 from agent_framework import 什么</span></pre></div>
+    </div>
+    <div class="qa">
+      <div class="q">❓ 为什么这件事必要</div>
+      <div class="a">如果 core 拆成几十个小包，新人要在第一周里学几十个 import 路径；
+        如果塞成一个 god-module，又会出现循环依赖、加载慢、测试难。
+        "单包多文件"是大型框架最常见且最稳的折中：<strong>一个 import 路径、清晰的内部分层</strong>。</div>
+    </div>
+    <div class="qa">
+      <div class="q">✅ MAF 的做法与优点</div>
+      <div class="a">所有抽象统一从 <span class="mono">agent_framework</span> 导出（<span class="mono">Agent</span>、
+        <span class="mono">ChatMessage</span>、<span class="mono">ai_function</span>、
+        <span class="mono">WorkflowBuilder</span>……）；文件命名以 <span class="mono">_</span> 前缀表示"内部"，
+        通过 <span class="mono">__init__.py</span> 的 <span class="mono">__all__</span> 再暴露——
+        重构内部不影响用户代码。</div>
+    </div>
+    <div class="qa">
+      <div class="q">🔀 还有什么其他方案</div>
+      <div class="a">① <strong>单文件 god-module</strong>：上手最快，长期维护灾难；<br>
+        ② <strong>微包架构</strong>（每个抽象一个 PyPI 包）：依赖管理噩梦；<br>
+        ③ <strong>plugin-only</strong>：core 只有接口，所有实现都是插件——灵活但缺少"开箱即用"的体验。</div>
+    </div>
+  </div>
+</details>
+
+<details class="accordion">
+  <summary><span class="badge-num">2</span> provider 包的懒加载是怎么工作的？ <span class="hint">点击展开详解</span></summary>
+  <div class="acc-body">
+    <div class="qa">
+      <div class="q">🧪 示例</div>
+      <div class="a">子模块 <span class="mono">__init__.py</span> 用 <span class="mono">__getattr__</span> 延迟拉依赖：
+<pre class="code"><span class="cm"># agent_framework/azure/__init__.py（示意）</span>
+<span class="kw">import</span> importlib
+<span class="kw">from</span> typing <span class="kw">import</span> TYPE_CHECKING
+
+<span class="kw">if</span> TYPE_CHECKING:
+    <span class="kw">from</span> ._chat_client <span class="kw">import</span> AzureOpenAIChatClient
+
+_LAZY = {<span class="st">"AzureOpenAIChatClient"</span>: <span class="st">"._chat_client"</span>}
+
+<span class="kw">def</span> __getattr__(name: str):
+    <span class="kw">if</span> name <span class="kw">in</span> _LAZY:
+        mod = importlib.import_module(_LAZY[name], __name__)
+        <span class="kw">return</span> getattr(mod, name)
+    <span class="kw">raise</span> AttributeError(name)
+
+__all__ = list(_LAZY)</pre>
+所以 <span class="mono">import agent_framework</span> 不会拉起 <span class="mono">azure-identity</span>；
+只有真的访问 <span class="mono">AzureOpenAIChatClient</span> 时才装载。</div>
+    </div>
+    <div class="qa">
+      <div class="q">❓ 为什么这件事必要</div>
+      <div class="a">① <strong>启动速度</strong>：每多一个 SDK 启动就慢几十到几百毫秒，CLI / Serverless 场景极敏感；<br>
+        ② <strong>可选依赖</strong>：用户只装了 OpenAI 包，不应该被 Anthropic 的 import 错误打断；<br>
+        ③ <strong>安装体积</strong>：core 保持最小依赖，按需安装 extras（<span class="mono">pip install agent-framework[azure]</span>）。</div>
+    </div>
+    <div class="qa">
+      <div class="q">✅ MAF 的做法与优点</div>
+      <div class="a">采用 PEP 562 的模块级 <span class="mono">__getattr__</span> + <span class="mono">TYPE_CHECKING</span>
+        守护的真实 import，对 IDE 与 mypy 完全友好；既保留懒加载，又能拿到完整类型提示。
+        Pyright/PyCharm 都能正确跳转。</div>
+    </div>
+    <div class="qa">
+      <div class="q">🔀 还有什么其他方案</div>
+      <div class="a">① <strong>急加载（eager）</strong>：简单，但启动慢、依赖污染；<br>
+        ② <strong>entry_points / 插件协议</strong>：解耦得更彻底，但发现成本和调试难度上升；<br>
+        ③ <strong>try / except ImportError</strong>：常见小技巧，规模一大就乱。</div>
+    </div>
+  </div>
+</details>
+
+<details class="accordion">
+  <summary><span class="badge-num">3</span> Python 与 .NET 是怎么"对齐"的？ <span class="hint">点击展开详解</span></summary>
+  <div class="acc-body">
+    <div class="qa">
+      <div class="q">🧪 示例</div>
+      <div class="a">同一个概念，两种语法：
+<pre class="code"><span class="cm"># Python</span>
+<span class="kw">from</span> agent_framework <span class="kw">import</span> Agent
+<span class="kw">from</span> agent_framework.openai <span class="kw">import</span> OpenAIChatClient
+agent = Agent(
+    client=OpenAIChatClient(model=<span class="st">"gpt-4o"</span>),
+    name=<span class="st">"weather-bot"</span>,
+    instructions=<span class="st">"你是天气助手"</span>,
+)
+<span class="kw">await</span> agent.run(<span class="st">"上海明天天气？"</span>)</pre>
+<pre class="code"><span class="cm">// C#</span>
+<span class="kw">using</span> Microsoft.Agents.AI;
+<span class="kw">using</span> Microsoft.Agents.AI.OpenAI;
+
+<span class="kw">var</span> agent = <span class="kw">new</span> ChatClientAgent(
+    chatClient: <span class="kw">new</span> OpenAIChatClient(<span class="st">"gpt-4o"</span>),
+    name: <span class="st">"weather-bot"</span>,
+    instructions: <span class="st">"You are a weather assistant"</span>);
+<span class="kw">var</span> result = <span class="kw">await</span> agent.RunAsync(<span class="st">"Weather in Shanghai?"</span>);</pre></div>
+    </div>
+    <div class="qa">
+      <div class="q">❓ 为什么这件事必要</div>
+      <div class="a">真实企业里：算法 / 数据团队偏 Python，业务后端常是 .NET。
+        如果两边概念不一样，团队沟通靠翻译，文档要写两份，迁移代价巨大。
+        "API 对齐"意味着<strong>看一份文档能让两边都开工</strong>。</div>
+    </div>
+    <div class="qa">
+      <div class="q">✅ MAF 的做法与优点</div>
+      <div class="a">两套实现在概念、命名、生命周期上对齐：同样的 Agent / ChatClient / Tool / Workflow，
+        同样的 run / stream / observability hook；只在语法上接受各自语言的惯用法（async/await、
+        装饰器 vs Attribute、强类型 vs 类型注解）。</div>
+    </div>
+    <div class="qa">
+      <div class="q">🔀 还有什么其他方案</div>
+      <div class="a">① <strong>只做一种语言</strong>：错过另一半市场；<br>
+        ② <strong>从 IDL / proto 自动生成</strong>：易过度抽象，丢掉语言惯用法；<br>
+        ③ <strong>FFI / 包装</strong>（Python 调 .NET DLL 或反过来）：部署与诊断复杂。</div>
+    </div>
+  </div>
+</details>
+
+<details class="accordion">
+  <summary><span class="badge-num">4</span> .NET 那边的命名怎么对应？ <span class="hint">点击展开详解</span></summary>
+  <div class="acc-body">
+    <div class="qa">
+      <div class="q">🧪 示例</div>
+      <div class="a">两边主要符号对照表：
+<table class="t">
+  <tr><th>Python</th><th>.NET</th><th>含义</th></tr>
+  <tr><td class="mono">agent_framework</td><td class="mono">Microsoft.Agents.AI</td><td>核心包</td></tr>
+  <tr><td class="mono">Agent</td><td class="mono">ChatClientAgent</td><td>Agent 实体（带循环）</td></tr>
+  <tr><td class="mono">ChatClient</td><td class="mono">IChatClient</td><td>厂商无关客户端</td></tr>
+  <tr><td class="mono">ChatMessage / Role</td><td class="mono">ChatMessage / ChatRole</td><td>类型化消息</td></tr>
+  <tr><td class="mono">@ai_function</td><td class="mono">[Description] + AIFunctionFactory</td><td>把函数转成工具</td></tr>
+  <tr><td class="mono">_workflows/</td><td class="mono">Microsoft.Agents.AI.Workflows</td><td>图式编排</td></tr>
+  <tr><td class="mono">observability/</td><td class="mono">Microsoft.Extensions.AI.Telemetry</td><td>OTel 集成</td></tr>
+  <tr><td class="mono">agent.run() / .run_stream()</td><td class="mono">RunAsync() / RunStreamingAsync()</td><td>同步与流式入口</td></tr>
+</table></div>
+    </div>
+    <div class="qa">
+      <div class="q">❓ 为什么这件事必要</div>
+      <div class="a">命名对齐 = <strong>认知对齐</strong>：你在 Python 里学到的 "ChatClient 是厂商抽象"
+        会自动迁移到 .NET 同事身上；团队搜文档、做 code review、做迁移都受益。</div>
+    </div>
+    <div class="qa">
+      <div class="q">✅ MAF 的做法与优点</div>
+      <div class="a">命名表存在 <span class="mono">docs/decisions</span> 的 ADR 里，
+        新功能必须同时在两端落地，否则不发布；这让"读 Python 教程顺带学 .NET"成为现实。</div>
+    </div>
+    <div class="qa">
+      <div class="q">🔀 还有什么其他方案</div>
+      <div class="a">① <strong>纯惯用法命名</strong>（Pythonic vs C#-ic 各走各的）：阅读时永远要做心理翻译；<br>
+        ② <strong>从 IDL 生成绑定</strong>：命名一致但不一定符合语言习惯；<br>
+        ③ <strong>共享 IDL 文档但代码独立</strong>：折中方案，MAF 实际就在向这个方向靠拢。</div>
+    </div>
+  </div>
+</details>
+
 <div class="card key">
   <div class="tag">✅ 关键要点</div>
   <ul>
@@ -357,6 +525,177 @@ have a <strong>source-navigation map</strong>.</p>
   Provider submodules (e.g. <span class="inline">agent_framework.azure</span>) use <span class="inline">__getattr__</span>
   for <strong>lazy loading</strong>: dependencies are pulled only on actual import, keeping core lightweight.
 </div>
+
+<details class="accordion">
+  <summary><span class="badge-num">1</span> What lives inside the core package? <span class="hint">expand</span></summary>
+  <div class="acc-body">
+    <div class="qa">
+      <div class="q">🧪 Example</div>
+      <div class="a">core is "one file, one job":
+<pre class="code">python/packages/core/agent_framework/
+├── _agents.py        <span class="cm"># Agent class, run() loop, DEFAULT_MAX_ITERATIONS</span>
+├── _clients.py       <span class="cm"># ChatClient ABC + built-in OpenAI impl</span>
+├── _tools.py         <span class="cm"># @ai_function, AIFunction, ToolProtocol</span>
+├── _middleware.py    <span class="cm"># middleware pipeline: trace / retry / custom</span>
+├── _types.py         <span class="cm"># ChatMessage / Role / Contents union</span>
+├── _workflows/       <span class="cm"># graph orchestration: nodes, edges, state, checkpoints</span>
+├── observability/    <span class="cm"># OpenTelemetry traces / cost / token metrics</span>
+└── __init__.py       <span class="cm"># public API — what `from agent_framework import` exposes</span></pre></div>
+    </div>
+    <div class="qa">
+      <div class="q">❓ Why this matters</div>
+      <div class="a">If core is split into dozens of micro-packages, newcomers spend their first week learning imports;
+        if it's a single god-module, you get circular deps, slow loads and untestable seams.
+        "Single package, many internal files" is the standard, stable compromise:
+        <strong>one import path, clean inner layering</strong>.</div>
+    </div>
+    <div class="qa">
+      <div class="q">✅ How MAF does it</div>
+      <div class="a">All abstractions are re-exported from <span class="mono">agent_framework</span>
+        (<span class="mono">Agent</span>, <span class="mono">ChatMessage</span>, <span class="mono">ai_function</span>,
+        <span class="mono">WorkflowBuilder</span>…); files prefixed with <span class="mono">_</span> are internal and
+        surfaced via <span class="mono">__all__</span> in <span class="mono">__init__.py</span> — internal refactors
+        never break user code.</div>
+    </div>
+    <div class="qa">
+      <div class="q">🔀 Alternatives</div>
+      <div class="a">① <strong>Single-file god-module</strong> — fastest start, long-term disaster;<br>
+        ② <strong>Micro-package architecture</strong> (one PyPI package per abstraction) — dependency hell;<br>
+        ③ <strong>Plugin-only</strong> — core ships interfaces, everything else is a plugin; flexible, no batteries included.</div>
+    </div>
+  </div>
+</details>
+
+<details class="accordion">
+  <summary><span class="badge-num">2</span> How does provider lazy-loading actually work? <span class="hint">expand</span></summary>
+  <div class="acc-body">
+    <div class="qa">
+      <div class="q">🧪 Example</div>
+      <div class="a">Submodule <span class="mono">__init__.py</span> defers imports with <span class="mono">__getattr__</span>:
+<pre class="code"><span class="cm"># agent_framework/azure/__init__.py (sketch)</span>
+<span class="kw">import</span> importlib
+<span class="kw">from</span> typing <span class="kw">import</span> TYPE_CHECKING
+
+<span class="kw">if</span> TYPE_CHECKING:
+    <span class="kw">from</span> ._chat_client <span class="kw">import</span> AzureOpenAIChatClient
+
+_LAZY = {<span class="st">"AzureOpenAIChatClient"</span>: <span class="st">"._chat_client"</span>}
+
+<span class="kw">def</span> __getattr__(name: str):
+    <span class="kw">if</span> name <span class="kw">in</span> _LAZY:
+        mod = importlib.import_module(_LAZY[name], __name__)
+        <span class="kw">return</span> getattr(mod, name)
+    <span class="kw">raise</span> AttributeError(name)
+
+__all__ = list(_LAZY)</pre>
+So <span class="mono">import agent_framework</span> doesn't drag in <span class="mono">azure-identity</span>;
+it loads only when you actually touch <span class="mono">AzureOpenAIChatClient</span>.</div>
+    </div>
+    <div class="qa">
+      <div class="q">❓ Why this matters</div>
+      <div class="a">① <strong>Startup speed</strong> — each extra SDK adds tens-to-hundreds of ms; critical for CLI &amp; serverless;<br>
+        ② <strong>Optional dependencies</strong> — a user who only installed the OpenAI extras shouldn't crash on Anthropic imports;<br>
+        ③ <strong>Install size</strong> — core stays minimal, extras opt-in via <span class="mono">pip install agent-framework[azure]</span>.</div>
+    </div>
+    <div class="qa">
+      <div class="q">✅ How MAF does it</div>
+      <div class="a">PEP 562 module-level <span class="mono">__getattr__</span> combined with a <span class="mono">TYPE_CHECKING</span>-guarded
+        real import — keeps lazy semantics at runtime while preserving full IDE / mypy navigation.
+        Pyright and PyCharm jump-to-definition still work.</div>
+    </div>
+    <div class="qa">
+      <div class="q">🔀 Alternatives</div>
+      <div class="a">① <strong>Eager imports</strong> — simple but slow + polluted deps;<br>
+        ② <strong>entry_points / plugin protocol</strong> — full decoupling, harder discovery &amp; debugging;<br>
+        ③ <strong>try/except ImportError</strong> — common trick, doesn't scale to many providers.</div>
+    </div>
+  </div>
+</details>
+
+<details class="accordion">
+  <summary><span class="badge-num">3</span> How are Python and .NET kept "aligned"? <span class="hint">expand</span></summary>
+  <div class="acc-body">
+    <div class="qa">
+      <div class="q">🧪 Example</div>
+      <div class="a">Same concept, two syntaxes:
+<pre class="code"><span class="cm"># Python</span>
+<span class="kw">from</span> agent_framework <span class="kw">import</span> Agent
+<span class="kw">from</span> agent_framework.openai <span class="kw">import</span> OpenAIChatClient
+agent = Agent(
+    client=OpenAIChatClient(model=<span class="st">"gpt-4o"</span>),
+    name=<span class="st">"weather-bot"</span>,
+    instructions=<span class="st">"You are a weather assistant"</span>,
+)
+<span class="kw">await</span> agent.run(<span class="st">"Shanghai weather tomorrow?"</span>)</pre>
+<pre class="code"><span class="cm">// C#</span>
+<span class="kw">using</span> Microsoft.Agents.AI;
+<span class="kw">using</span> Microsoft.Agents.AI.OpenAI;
+
+<span class="kw">var</span> agent = <span class="kw">new</span> ChatClientAgent(
+    chatClient: <span class="kw">new</span> OpenAIChatClient(<span class="st">"gpt-4o"</span>),
+    name: <span class="st">"weather-bot"</span>,
+    instructions: <span class="st">"You are a weather assistant"</span>);
+<span class="kw">var</span> result = <span class="kw">await</span> agent.RunAsync(<span class="st">"Shanghai weather?"</span>);</pre></div>
+    </div>
+    <div class="qa">
+      <div class="q">❓ Why this matters</div>
+      <div class="a">In real enterprises, ML/data teams prefer Python while business backends are often .NET.
+        If concepts diverge, communication becomes translation, docs are written twice and migrations are painful.
+        Alignment means <strong>one set of docs powers both sides</strong>.</div>
+    </div>
+    <div class="qa">
+      <div class="q">✅ How MAF does it</div>
+      <div class="a">Both implementations align on concepts, naming and lifecycle: same Agent / ChatClient / Tool / Workflow,
+        same run / stream / observability hooks; only the syntax follows local idioms (async/await, decorators vs
+        attributes, type hints vs strong static types).</div>
+    </div>
+    <div class="qa">
+      <div class="q">🔀 Alternatives</div>
+      <div class="a">① <strong>Single language only</strong> — miss half the market;<br>
+        ② <strong>Auto-generate from IDL / proto</strong> — easy to over-abstract, fights idioms;<br>
+        ③ <strong>FFI / wrappers</strong> (Python calls .NET DLLs or vice versa) — deployment &amp; debugging nightmares.</div>
+    </div>
+  </div>
+</details>
+
+<details class="accordion">
+  <summary><span class="badge-num">4</span> .NET naming correspondence <span class="hint">expand</span></summary>
+  <div class="acc-body">
+    <div class="qa">
+      <div class="q">🧪 Example</div>
+      <div class="a">Main symbol map:
+<table class="t">
+  <tr><th>Python</th><th>.NET</th><th>Meaning</th></tr>
+  <tr><td class="mono">agent_framework</td><td class="mono">Microsoft.Agents.AI</td><td>core package</td></tr>
+  <tr><td class="mono">Agent</td><td class="mono">ChatClientAgent</td><td>agent entity (with loop)</td></tr>
+  <tr><td class="mono">ChatClient</td><td class="mono">IChatClient</td><td>vendor-agnostic client</td></tr>
+  <tr><td class="mono">ChatMessage / Role</td><td class="mono">ChatMessage / ChatRole</td><td>typed messages</td></tr>
+  <tr><td class="mono">@ai_function</td><td class="mono">[Description] + AIFunctionFactory</td><td>turn function into tool</td></tr>
+  <tr><td class="mono">_workflows/</td><td class="mono">Microsoft.Agents.AI.Workflows</td><td>graph orchestration</td></tr>
+  <tr><td class="mono">observability/</td><td class="mono">Microsoft.Extensions.AI.Telemetry</td><td>OTel integration</td></tr>
+  <tr><td class="mono">agent.run() / .run_stream()</td><td class="mono">RunAsync() / RunStreamingAsync()</td><td>sync &amp; streaming entry</td></tr>
+</table></div>
+    </div>
+    <div class="qa">
+      <div class="q">❓ Why this matters</div>
+      <div class="a">Naming alignment = <strong>mental-model alignment</strong>: what you learn in Python
+        ("ChatClient is the vendor abstraction") transfers directly to your .NET teammates.
+        Doc search, code review and migration all benefit.</div>
+    </div>
+    <div class="qa">
+      <div class="q">✅ How MAF does it</div>
+      <div class="a">The naming table lives in ADRs under <span class="mono">docs/decisions</span>;
+        new features must land in both implementations or they don't ship — making
+        "reading the Python tutorial also teaches you .NET" a real outcome.</div>
+    </div>
+    <div class="qa">
+      <div class="q">🔀 Alternatives</div>
+      <div class="a">① <strong>Pure idiomatic naming on both sides</strong> — readers translate forever;<br>
+        ② <strong>IDL-generated bindings</strong> — uniform names, often unidiomatic;<br>
+        ③ <strong>Shared IDL docs, independent code</strong> — pragmatic middle ground, what MAF is gradually moving toward.</div>
+    </div>
+  </div>
+</details>
 
 <div class="card key">
   <div class="tag">✅ Key points</div>

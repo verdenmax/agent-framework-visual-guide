@@ -294,6 +294,108 @@ result = <span class="kw">await</span> workflow.run(<span class="st">"Write a po
   </div>
 </details>
 
+<details class="accordion">
+  <summary><span class="badge-num">2</span> SequentialBuilder 深入 <span class="hint">点击展开详解</span></summary>
+  <div class="acc-body">
+    <div class="qa"><div class="q">🧪 示例</div><div class="a">
+<pre class="code">workflow = SequentialBuilder(
+    participants=[writer, reviewer, editor],
+    intermediate_output_from=<span class="st">&quot;all&quot;</span>,  <span class="cm"># 每个参与者的输出都作为中间结果</span>
+    output_from=[reviewer],  <span class="cm"># 只有 reviewer 的输出算最终结果</span>
+).build()
+result = <span class="kw">await</span> workflow.run(<span class="st">&quot;Write a poem&quot;</span>)
+<span class="cm"># result.get_intermediate_outputs() 包含所有人的中间输出</span>
+<span class="cm"># result.get_outputs() 只包含 reviewer 的输出</span></pre></div></div>
+    <div class="qa"><div class="q">❓ 为什么这件事必要</div><div class="a">在多步链中，你可能只关心最终结果，也可能需要看到每一步的中间输出来做质量检查。
+      <span class="mono">intermediate_output_from</span> 和 <span class="mono">output_from</span> 让你<strong>精确控制哪些输出可见</strong>。</div></div>
+    <div class="qa"><div class="q">✅ MAF 的做法与优点</div><div class="a"><span class="mono">SequentialBuilder</span> 接受 <span class="mono">participants</span>（有序列表）、
+      <span class="mono">output_from</span>（终端输出来源）和 <span class="mono">intermediate_output_from</span>（中间输出来源）。
+      还支持 <span class="mono">chain_only_agent_responses=True</span> 让后一个 Agent 只看到前一个的 AgentResponse，而非整个对话历史。
+      可通过 <span class="mono">with_request_info()</span> 启用 Human-in-the-Loop。</div></div>
+    <div class="qa"><div class="q">🔀 还有什么其他方案</div><div class="a">LangChain 的 <span class="mono">SequentialChain</span> 只传最终输出；
+      CrewAI 的 <span class="mono">Process.sequential</span> 自动传全部上下文。
+      MAF 让你<strong>自选粒度</strong>——是传完整历史还是只传 AgentResponse。</div></div>
+  </div>
+</details>
+
+<details class="accordion">
+  <summary><span class="badge-num">3</span> ConcurrentBuilder 深入 <span class="hint">点击展开详解</span></summary>
+  <div class="acc-body">
+    <div class="qa"><div class="q">🧪 示例</div><div class="a">
+<pre class="code"><span class="kw">from</span> agent_framework.orchestrations <span class="kw">import</span> ConcurrentBuilder
+
+workflow = ConcurrentBuilder(
+    participants=[analyst_a, analyst_b, analyst_c],
+).with_aggregator(
+    <span class="kw">lambda</span> responses: <span class="st">&quot;\n---\n&quot;</span>.join(r.text <span class="kw">for</span> r <span class="kw">in</span> responses)
+).build()
+result = <span class="kw">await</span> workflow.run(<span class="st">&quot;Analyze Q3 revenue&quot;</span>)</pre></div></div>
+    <div class="qa"><div class="q">❓ 为什么这件事必要</div><div class="a">很多任务天然可并行：让三个分析师同时分析不同维度，最后汇总。
+      串行执行浪费时间——Concurrent 模式将延迟从 <em>sum(各Agent时间)</em> 降到 <em>max(各Agent时间)</em>。</div></div>
+    <div class="qa"><div class="q">✅ MAF 的做法与优点</div><div class="a"><span class="mono">ConcurrentBuilder</span> 将所有 <span class="mono">participants</span> fan-out 并行执行，
+      然后在 fan-in 节点用<strong>聚合器</strong>合并结果。默认聚合器拼接所有输出；
+      你也可以用 <span class="mono">with_aggregator()</span> 传入自定义 Executor 或 lambda 做 map-reduce 风格的汇总。
+      同样支持 <span class="mono">output_from</span>、<span class="mono">intermediate_output_from</span> 和 <span class="mono">with_request_info()</span>。</div></div>
+    <div class="qa"><div class="q">🔀 还有什么其他方案</div><div class="a">LangGraph 需要手动构建 fan-out/fan-in 图；
+      AutoGen 没有内置并行模式。MAF 的 <span class="mono">ConcurrentBuilder</span> 一行声明并行 + 一行声明聚合器，极其简洁。</div></div>
+  </div>
+</details>
+
+<details class="accordion">
+  <summary><span class="badge-num">4</span> HandoffBuilder 深入 <span class="hint">点击展开详解</span></summary>
+  <div class="acc-body">
+    <div class="qa"><div class="q">🧪 示例</div><div class="a">
+<pre class="code"><span class="kw">from</span> agent_framework.orchestrations <span class="kw">import</span> HandoffBuilder, HandoffConfiguration
+
+workflow = HandoffBuilder(
+    participants=[
+        triage_agent,   <span class="cm"># 入口 Agent</span>
+        billing_agent,  <span class="cm"># 计费专家</span>
+        tech_agent,     <span class="cm"># 技术专家</span>
+    ],
+    handoff_configs=[
+        HandoffConfiguration(target=billing_agent, description=<span class="st">&quot;billing issues&quot;</span>),
+        HandoffConfiguration(target=tech_agent, description=<span class="st">&quot;technical problems&quot;</span>),
+    ],
+).build()</pre></div></div>
+    <div class="qa"><div class="q">❓ 为什么这件事必要</div><div class="a">在客服/专家路由场景中，当前 Agent 判断"这个问题我不擅长"后需要<strong>显式交接</strong>给另一个 Agent。
+      Handoff 模式让 Agent 自己决定交接时机和目标，而不是由外部调度器硬编码路由规则。</div></div>
+    <div class="qa"><div class="q">✅ MAF 的做法与优点</div><div class="a"><span class="mono">HandoffConfiguration</span> 用 <span class="mono">target</span> + <span class="mono">description</span> 描述每条交接路径。
+      框架会自动给当前 Agent 注入一个"交接工具"——Agent 调用该工具即触发切换。
+      被交接的 Agent 会收到完整对话历史。如果 Agent 想让用户提供额外信息，可以发出 <span class="mono">HandoffAgentUserRequest</span>。</div></div>
+    <div class="qa"><div class="q">🔀 还有什么其他方案</div><div class="a">OpenAI Swarm 也有 handoff 概念，但通过函数返回值实现，不支持异步和持久化。
+      AutoGen 的 <span class="mono">SwarmAgent</span> 类似但 API 更复杂。
+      MAF 的 Handoff 基于 Workflow 引擎——天然支持检查点和恢复。</div></div>
+  </div>
+</details>
+
+<details class="accordion">
+  <summary><span class="badge-num">5</span> MagenticBuilder 深入 <span class="hint">点击展开详解</span></summary>
+  <div class="acc-body">
+    <div class="qa"><div class="q">🧪 示例</div><div class="a">
+<pre class="code"><span class="kw">from</span> agent_framework.orchestrations <span class="kw">import</span> MagenticBuilder
+
+workflow = MagenticBuilder(
+    participants=[coder, web_surfer, file_surfer],
+    manager_agent=orchestrator_llm,  <span class="cm"># 用 LLM 当指挥官</span>
+    enable_plan_review=<span class="kw">True</span>,        <span class="cm"># 计划需人工审核</span>
+    max_round_count=10,
+).build()</pre>
+指挥官会生成 <span class="mono">MagenticProgressLedger</span>，跟踪五个维度：
+<span class="mono">is_request_satisfied</span> / <span class="mono">is_in_loop</span> / <span class="mono">is_progress_being_made</span> /
+<span class="mono">next_speaker</span> / <span class="mono">instruction_or_question</span>。</div></div>
+    <div class="qa"><div class="q">❓ 为什么这件事必要</div><div class="a">复杂任务（如"调研+编码+测试"）需要一个<strong>全局规划者</strong>分解子任务并分配给最合适的 Agent。
+      没有指挥官，Agent 之间会陷入无方向的对话循环。</div></div>
+    <div class="qa"><div class="q">✅ MAF 的做法与优点</div><div class="a">MagenticBuilder 实现了 <strong>Plan → Review → Execute</strong> 循环：
+      ① <span class="mono">MagenticManager</span>（指挥官）用 TaskLedger 维护事实和计划；
+      ② 每轮通过 <span class="mono">MagenticProgressLedger</span> 评估进展，选出 <span class="mono">next_speaker</span>；
+      ③ 检测到卡住（<span class="mono">is_in_loop</span>）会自动重置计划。
+      支持 <span class="mono">enable_plan_review=True</span> 让人工在计划阶段介入审核。</div></div>
+    <div class="qa"><div class="q">🔀 还有什么其他方案</div><div class="a">AutoGen 的 MagenticOne 是该模式的原型；CrewAI 的 hierarchical process 类似但无 ProgressLedger 反馈机制。
+      MAF 的实现加入了<strong>卡住检测和自动重置</strong>，更适合长时间运行的复杂任务。</div></div>
+  </div>
+</details>
+
 <div class="card key">
   <div class="tag">✅ 关键要点</div>
   <ul>
@@ -349,6 +451,109 @@ result = <span class="kw">await</span> workflow.run(<span class="st">"Write a po
         who speaks each turn; all Agents <strong>see the full chat history</strong>. Handoff suits expert routing;
         Group Chat suits debate / brainstorming.</div>
     </div>
+  </div>
+</details>
+
+<details class="accordion">
+  <summary><span class="badge-num">2</span> SequentialBuilder deep dive <span class="hint">click to expand</span></summary>
+  <div class="acc-body">
+    <div class="qa"><div class="q">🧪 Example</div><div class="a">
+<pre class="code">workflow = SequentialBuilder(
+    participants=[writer, reviewer, editor],
+    intermediate_output_from=<span class="st">&quot;all&quot;</span>,  <span class="cm"># every participant's output as intermediate</span>
+    output_from=[reviewer],  <span class="cm"># only reviewer's output counts as final</span>
+).build()
+result = <span class="kw">await</span> workflow.run(<span class="st">&quot;Write a poem&quot;</span>)
+<span class="cm"># result.get_intermediate_outputs() — all participants' intermediate output</span>
+<span class="cm"># result.get_outputs() — only reviewer's output</span></pre></div></div>
+    <div class="qa"><div class="q">❓ Why this matters</div><div class="a">In a multi-step chain you may only care about the final result, or you may need to inspect each step's
+      intermediate output for quality checks. <span class="mono">intermediate_output_from</span> and <span class="mono">output_from</span> give you
+      <strong>precise control over which outputs are visible</strong>.</div></div>
+    <div class="qa"><div class="q">✅ How MAF does it</div><div class="a"><span class="mono">SequentialBuilder</span> accepts <span class="mono">participants</span> (ordered list),
+      <span class="mono">output_from</span> (terminal output sources), and <span class="mono">intermediate_output_from</span> (intermediate output sources).
+      It also supports <span class="mono">chain_only_agent_responses=True</span> so the next Agent sees only the previous Agent's response, not the entire conversation.
+      Use <span class="mono">with_request_info()</span> to enable Human-in-the-Loop.</div></div>
+    <div class="qa"><div class="q">🔀 Alternatives</div><div class="a">LangChain's <span class="mono">SequentialChain</span> only forwards the final output;
+      CrewAI's <span class="mono">Process.sequential</span> auto-forwards all context.
+      MAF lets you <strong>choose the granularity</strong> — full history or AgentResponse only.</div></div>
+  </div>
+</details>
+
+<details class="accordion">
+  <summary><span class="badge-num">3</span> ConcurrentBuilder deep dive <span class="hint">click to expand</span></summary>
+  <div class="acc-body">
+    <div class="qa"><div class="q">🧪 Example</div><div class="a">
+<pre class="code"><span class="kw">from</span> agent_framework.orchestrations <span class="kw">import</span> ConcurrentBuilder
+
+workflow = ConcurrentBuilder(
+    participants=[analyst_a, analyst_b, analyst_c],
+).with_aggregator(
+    <span class="kw">lambda</span> responses: <span class="st">&quot;\n---\n&quot;</span>.join(r.text <span class="kw">for</span> r <span class="kw">in</span> responses)
+).build()
+result = <span class="kw">await</span> workflow.run(<span class="st">&quot;Analyze Q3 revenue&quot;</span>)</pre></div></div>
+    <div class="qa"><div class="q">❓ Why this matters</div><div class="a">Many tasks are inherently parallelizable: have three analysts work on different dimensions simultaneously,
+      then merge results. Sequential execution wastes time — Concurrent mode reduces latency from <em>sum(agent times)</em> to <em>max(agent times)</em>.</div></div>
+    <div class="qa"><div class="q">✅ How MAF does it</div><div class="a"><span class="mono">ConcurrentBuilder</span> fans out all <span class="mono">participants</span> for parallel execution,
+      then fans in at an <strong>aggregator</strong> node to merge results. The default aggregator concatenates all outputs;
+      use <span class="mono">with_aggregator()</span> to pass a custom Executor or lambda for map-reduce style summarization.
+      Also supports <span class="mono">output_from</span>, <span class="mono">intermediate_output_from</span>, and <span class="mono">with_request_info()</span>.</div></div>
+    <div class="qa"><div class="q">🔀 Alternatives</div><div class="a">LangGraph requires manually building fan-out/fan-in graphs;
+      AutoGen has no built-in parallel mode. MAF's <span class="mono">ConcurrentBuilder</span>: one line for parallelism + one line for aggregation — extremely concise.</div></div>
+  </div>
+</details>
+
+<details class="accordion">
+  <summary><span class="badge-num">4</span> HandoffBuilder deep dive <span class="hint">click to expand</span></summary>
+  <div class="acc-body">
+    <div class="qa"><div class="q">🧪 Example</div><div class="a">
+<pre class="code"><span class="kw">from</span> agent_framework.orchestrations <span class="kw">import</span> HandoffBuilder, HandoffConfiguration
+
+workflow = HandoffBuilder(
+    participants=[
+        triage_agent,   <span class="cm"># entry Agent</span>
+        billing_agent,  <span class="cm"># billing expert</span>
+        tech_agent,     <span class="cm"># tech expert</span>
+    ],
+    handoff_configs=[
+        HandoffConfiguration(target=billing_agent, description=<span class="st">&quot;billing issues&quot;</span>),
+        HandoffConfiguration(target=tech_agent, description=<span class="st">&quot;technical problems&quot;</span>),
+    ],
+).build()</pre></div></div>
+    <div class="qa"><div class="q">❓ Why this matters</div><div class="a">In customer-service / expert-routing scenarios, the current Agent judges "this isn't my expertise" and needs
+      to <strong>explicitly hand off</strong> to another Agent. Handoff mode lets the Agent itself decide when and to whom — rather than an external scheduler hard-coding routing rules.</div></div>
+    <div class="qa"><div class="q">✅ How MAF does it</div><div class="a"><span class="mono">HandoffConfiguration</span> pairs a <span class="mono">target</span> with a <span class="mono">description</span> for each handoff path.
+      The framework auto-injects a "handoff tool" into the current Agent — calling that tool triggers the switch.
+      The receiving Agent gets the full conversation history. If an Agent needs additional user info, it can emit a <span class="mono">HandoffAgentUserRequest</span>.</div></div>
+    <div class="qa"><div class="q">🔀 Alternatives</div><div class="a">OpenAI Swarm has a handoff concept too, but via function return values without async or persistence support.
+      AutoGen's <span class="mono">SwarmAgent</span> is similar but has a more complex API.
+      MAF's Handoff is Workflow-engine-based — natively supports checkpointing and resumption.</div></div>
+  </div>
+</details>
+
+<details class="accordion">
+  <summary><span class="badge-num">5</span> MagenticBuilder deep dive <span class="hint">click to expand</span></summary>
+  <div class="acc-body">
+    <div class="qa"><div class="q">🧪 Example</div><div class="a">
+<pre class="code"><span class="kw">from</span> agent_framework.orchestrations <span class="kw">import</span> MagenticBuilder
+
+workflow = MagenticBuilder(
+    participants=[coder, web_surfer, file_surfer],
+    manager_agent=orchestrator_llm,  <span class="cm"># LLM as conductor</span>
+    enable_plan_review=<span class="kw">True</span>,        <span class="cm"># plan requires human review</span>
+    max_round_count=10,
+).build()</pre>
+The conductor generates a <span class="mono">MagenticProgressLedger</span> tracking five dimensions:
+<span class="mono">is_request_satisfied</span> / <span class="mono">is_in_loop</span> / <span class="mono">is_progress_being_made</span> /
+<span class="mono">next_speaker</span> / <span class="mono">instruction_or_question</span>.</div></div>
+    <div class="qa"><div class="q">❓ Why this matters</div><div class="a">Complex tasks (e.g., "research + code + test") need a <strong>global planner</strong> to decompose sub-tasks and assign
+      them to the best Agent. Without a conductor, agents fall into directionless conversation loops.</div></div>
+    <div class="qa"><div class="q">✅ How MAF does it</div><div class="a">MagenticBuilder implements a <strong>Plan → Review → Execute</strong> cycle:
+      ① <span class="mono">MagenticManager</span> (conductor) maintains facts and plans via a TaskLedger;
+      ② Each round, a <span class="mono">MagenticProgressLedger</span> evaluates progress and picks <span class="mono">next_speaker</span>;
+      ③ If a stall is detected (<span class="mono">is_in_loop</span>), the plan auto-resets.
+      Supports <span class="mono">enable_plan_review=True</span> for human review at the planning stage.</div></div>
+    <div class="qa"><div class="q">🔀 Alternatives</div><div class="a">AutoGen's MagenticOne is the prototype of this pattern; CrewAI's hierarchical process is similar but lacks the ProgressLedger feedback mechanism.
+      MAF's implementation adds <strong>stall detection and auto-reset</strong>, better suited for long-running complex tasks.</div></div>
   </div>
 </details>
 

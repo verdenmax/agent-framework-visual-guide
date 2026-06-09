@@ -329,6 +329,186 @@ result = <span class="kw">await</span> agent.run(<span class="st">"What is the c
   </div>
 </details>
 
+<details class="accordion">
+  <summary><span class="badge-num">2</span> 厂商锁定怎么破？ <span class="hint">点击展开详解</span></summary>
+  <div class="acc-body">
+    <div class="qa">
+      <div class="q">🧪 示例</div>
+      <div class="a">直接用各家 SDK，写法各不相同：
+<pre class="code"><span class="cm"># OpenAI</span>
+<span class="kw">from</span> openai <span class="kw">import</span> OpenAI
+client = OpenAI()
+r = client.chat.completions.create(model=<span class="st">"gpt-4o"</span>, messages=[...])
+
+<span class="cm"># Anthropic</span>
+<span class="kw">from</span> anthropic <span class="kw">import</span> Anthropic
+client = Anthropic()
+r = client.messages.create(model=<span class="st">"claude-3-7-sonnet"</span>, max_tokens=1024, messages=[...])</pre>
+换成 MAF 之后，只换一个 client，其余代码不动：
+<pre class="code"><span class="kw">from</span> agent_framework <span class="kw">import</span> Agent
+<span class="kw">from</span> agent_framework.openai <span class="kw">import</span> OpenAIChatClient
+<span class="cm"># from agent_framework.anthropic import AnthropicChatClient  # 改这一行就够了</span>
+agent = Agent(client=OpenAIChatClient(model=<span class="st">"gpt-4o"</span>), instructions=<span class="st">"…"</span>)
+<span class="kw">await</span> agent.run(<span class="st">"你好"</span>)</pre></div>
+    </div>
+    <div class="qa">
+      <div class="q">❓ 为什么这件事必要</div>
+      <div class="a">三个非常现实的理由：<br>
+        ① <strong>成本</strong>：同一任务在不同模型上价格相差 5–20 倍；<br>
+        ② <strong>模型迭代极快</strong>：每个季度都有新模型登顶榜单，被锁死意味着踩不上红利；<br>
+        ③ <strong>合规与可用性</strong>：金融 / 政府要求私有部署，海外业务要走 Foundry，国内可能要走自研网关。</div>
+    </div>
+    <div class="qa">
+      <div class="q">✅ MAF 的做法与优点</div>
+      <div class="a">MAF 把所有厂商抽象成统一的 <span class="mono">ChatClient</span> 接口，
+        <span class="mono">FoundryChatClient</span> / <span class="mono">OpenAIChatClient</span> /
+        <span class="mono">AnthropicChatClient</span> / <span class="mono">OllamaChatClient</span> 全部实现同一组方法
+        （<span class="mono">get_response()</span> / <span class="mono">get_streaming_response()</span>）。
+        Agent、工具、工作流只依赖接口，"换一行 import"即可切换厂商。</div>
+    </div>
+    <div class="qa">
+      <div class="q">🔀 还有什么其他方案</div>
+      <div class="a">① <strong>LiteLLM</strong>：外部代理服务，所有请求走 OpenAI 协议——简单但多一跳网络与运维。<br>
+        ② <strong>自己写适配层</strong>：能拿到最贴合业务的接口，但要自己维护流式、工具、函数调用的差异。<br>
+        ③ <strong>云厂商网关</strong>（Azure AI Gateway / AWS Bedrock）：合规与配额统一，缺点是仍被云厂商锁住。</div>
+    </div>
+  </div>
+</details>
+
+<details class="accordion">
+  <summary><span class="badge-num">3</span> 对话消息怎么"拼"才不出错？ <span class="hint">点击展开详解</span></summary>
+  <div class="acc-body">
+    <div class="qa">
+      <div class="q">🧪 示例</div>
+      <div class="a">裸字典 vs MAF 的类型化消息：
+<pre class="code"><span class="cm"># 裸字典——拼错 role 直到运行时才报错</span>
+messages = [
+  {<span class="st">"role"</span>: <span class="st">"sytsem"</span>, <span class="st">"content"</span>: <span class="st">"你是助手"</span>},  <span class="cm"># 拼写错了！</span>
+  {<span class="st">"role"</span>: <span class="st">"user"</span>,   <span class="st">"content"</span>: <span class="st">"你好"</span>},
+]
+
+<span class="cm"># MAF——类型受控，IDE 自动补全</span>
+<span class="kw">from</span> agent_framework <span class="kw">import</span> ChatMessage, Role, TextContent
+messages = [
+  ChatMessage(role=Role.SYSTEM, contents=[TextContent(text=<span class="st">"你是助手"</span>)]),
+  ChatMessage(role=Role.USER,   contents=[TextContent(text=<span class="st">"你好"</span>)]),
+]</pre></div>
+    </div>
+    <div class="qa">
+      <div class="q">❓ 为什么这件事必要</div>
+      <div class="a">真实业务里消息绝不只是字符串：还有图像、工具调用、工具结果、思维链、引用等"内容块"。
+        裸字典每加一种就要全工程改 if/else；用类型化的 <span class="mono">Contents</span>，
+        新内容只是<strong>多一个 Content 类型</strong>，老代码完全不动。</div>
+    </div>
+    <div class="qa">
+      <div class="q">✅ MAF 的做法与优点</div>
+      <div class="a">见 <span class="mono">agent_framework/_types.py</span>：<span class="mono">Role</span> 是枚举
+        （<span class="mono">system / user / assistant / tool</span>），<span class="mono">ChatMessage</span>
+        持有 <span class="mono">contents: list[Contents]</span>，<span class="mono">Contents</span> 是
+        <span class="mono">TextContent | DataContent | FunctionCallContent | FunctionResultContent | …</span> 的联合类型。
+        好处：① 静态检查 + 补全；② 多模态 / 工具结果自然容纳；③ Workflow 跨进程序列化零成本。</div>
+    </div>
+    <div class="qa">
+      <div class="q">🔀 还有什么其他方案</div>
+      <div class="a">① <strong>裸字典 + JSON Schema 校验</strong>：轻量但运行时才报错；<br>
+        ② <strong>Pydantic 自建模型</strong>：MAF 内部就是 Pydantic v2，自己写等于重造轮子；<br>
+        ③ <strong>LangChain 的 HumanMessage / AIMessage</strong>：思路相同，但内容块远不如 MAF 全面。</div>
+    </div>
+  </div>
+</details>
+
+<details class="accordion">
+  <summary><span class="badge-num">4</span> 工具调用为什么不要手写 JSON？ <span class="hint">点击展开详解</span></summary>
+  <div class="acc-body">
+    <div class="qa">
+      <div class="q">🧪 示例</div>
+      <div class="a">裸 function calling vs MAF 的 <span class="mono">@ai_function</span>：
+<pre class="code"><span class="cm"># 裸 SDK：自己写 schema、自己 dispatch、自己回灌</span>
+tools = [{
+  <span class="st">"type"</span>: <span class="st">"function"</span>,
+  <span class="st">"function"</span>: {
+    <span class="st">"name"</span>: <span class="st">"get_weather"</span>,
+    <span class="st">"parameters"</span>: {<span class="st">"type"</span>: <span class="st">"object"</span>,
+      <span class="st">"properties"</span>: {<span class="st">"city"</span>: {<span class="st">"type"</span>: <span class="st">"string"</span>}},
+      <span class="st">"required"</span>: [<span class="st">"city"</span>]}}}]
+<span class="cm"># 后续：解析 tool_calls → 找函数 → 调用 → 把结果塞回 messages → 再发一次……</span>
+
+<span class="cm"># MAF：装饰器自动生成 schema，自动跑循环</span>
+<span class="kw">from</span> agent_framework <span class="kw">import</span> ai_function
+
+<span class="kw">@ai_function</span>
+<span class="kw">def</span> get_weather(city: str) -&gt; str:
+    <span class="st">"返回城市天气。"</span>
+    <span class="kw">return</span> f<span class="st">"{city} 今天 23°C"</span>
+
+agent = Agent(client=client, tools=[get_weather])</pre></div>
+    </div>
+    <div class="qa">
+      <div class="q">❓ 为什么这件事必要</div>
+      <div class="a">手写 JSON Schema 最容易出三类 bug：① 参数名/类型与函数实际签名不一致；
+        ② 改函数忘了改 schema；③ 各家厂商对 schema 子集支持不同。
+        自动生成意味着<strong>函数即文档、函数即合同</strong>，重构成本接近零。</div>
+    </div>
+    <div class="qa">
+      <div class="q">✅ MAF 的做法与优点</div>
+      <div class="a"><span class="mono">@ai_function</span>（见 <span class="mono">_tools.py</span>）借助
+        <span class="mono">inspect</span> + 类型注解生成 JSON Schema，自动注入到 ChatClient 请求；
+        模型返回 <span class="mono">FunctionCallContent</span> 时，Agent 在<strong>同一个循环</strong>里
+        执行函数、把 <span class="mono">FunctionResultContent</span> 追加回消息，再次请求模型——你不用写一行胶水。</div>
+    </div>
+    <div class="qa">
+      <div class="q">🔀 还有什么其他方案</div>
+      <div class="a">① <strong>手写 schema</strong>：最大可控、最大错率；<br>
+        ② <strong>OpenAI 官方 function calling SDK</strong>：仅限 OpenAI 系；<br>
+        ③ <strong>LangChain Tool / StructuredTool</strong>：思路类似，缺乏与中间件、Workflow 的统一集成；<br>
+        ④ <strong>MCP 协议</strong>：工具跨进程托管，MAF 也支持把 MCP 工具当本地工具用。</div>
+    </div>
+  </div>
+</details>
+
+<details class="accordion">
+  <summary><span class="badge-num">5</span> 多步 / 多 Agent 怎么不变成 while 怪兽？ <span class="hint">点击展开详解</span></summary>
+  <div class="acc-body">
+    <div class="qa">
+      <div class="q">🧪 示例</div>
+      <div class="a">手写循环很快就会脏掉：
+<pre class="code">messages = [...]
+<span class="kw">while</span> True:
+    resp = client.chat.completions.create(model=..., messages=messages, tools=tools)
+    msg = resp.choices[0].message
+    <span class="kw">if</span> <span class="kw">not</span> msg.tool_calls:
+        <span class="kw">break</span>
+    <span class="kw">for</span> tc <span class="kw">in</span> msg.tool_calls:
+        result = dispatch(tc.function.name, json.loads(tc.function.arguments))
+        messages.append({<span class="st">"role"</span>: <span class="st">"tool"</span>, ...})
+    <span class="cm"># 没限次数、没异常兜底、没观测点……</span>
+
+<span class="cm"># MAF：交给 agent.run() / Workflow</span>
+agent = Agent(client=client, tools=[get_weather, search_web])
+result = <span class="kw">await</span> agent.run(<span class="st">"先查上海天气再给我推荐衣服"</span>)</pre></div>
+    </div>
+    <div class="qa">
+      <div class="q">❓ 为什么这件事必要</div>
+      <div class="a">"循环"听着简单，工程化以后要处理：最大迭代数、异常重试、上下文裁剪、并发工具、
+        中间件埋点（trace / cost）、多 Agent 之间的消息路由、可恢复的检查点……
+        每一项自己实现都是几百行代码、上百个测试用例。</div>
+    </div>
+    <div class="qa">
+      <div class="q">✅ MAF 的做法与优点</div>
+      <div class="a">单 Agent 用内置循环（含 <span class="mono">DEFAULT_MAX_ITERATIONS</span>、
+        中间件管道、流式聚合）；多 Agent 用 <span class="mono">agent_framework._workflows</span>
+        提供的<strong>图式编排</strong>（节点 / 边 / 共享状态 / 检查点 / 人审），
+        和 LangGraph 思想接近，但与 ChatClient、工具、可观测性原生贯通。</div>
+    </div>
+    <div class="qa">
+      <div class="q">🔀 还有什么其他方案</div>
+      <div class="a">① <strong>LangGraph</strong>：图式编排鼻祖，与 LangChain 生态深度绑定；<br>
+        ② <strong>CrewAI</strong>：角色化多 Agent，编程模型轻但工程化能力弱；<br>
+        ③ <strong>手写状态机 / Temporal / Durable Functions</strong>：稳定但与 LLM 语义脱节，要再造一遍工具循环。</div>
+    </div>
+  </div>
+</details>
+
 <div class="card key">
   <div class="tag">✅ 关键要点</div>
   <ul>
@@ -421,6 +601,188 @@ result = <span class="kw">await</span> agent.run(<span class="st">"What is the c
       <div class="a">It wants both LangGraph-style <strong>graph orchestration</strong> (controllable, resumable)
         and AutoGen-style <strong>multi-agent collaboration</strong>, while making
         <strong>observability / persistence / approvals</strong> first-class — that's what "production-grade" means.</div>
+    </div>
+  </div>
+</details>
+
+<details class="accordion">
+  <summary><span class="badge-num">2</span> How do you escape vendor lock-in? <span class="hint">expand</span></summary>
+  <div class="acc-body">
+    <div class="qa">
+      <div class="q">🧪 Example</div>
+      <div class="a">Each SDK looks different:
+<pre class="code"><span class="cm"># OpenAI</span>
+<span class="kw">from</span> openai <span class="kw">import</span> OpenAI
+client = OpenAI()
+r = client.chat.completions.create(model=<span class="st">"gpt-4o"</span>, messages=[...])
+
+<span class="cm"># Anthropic</span>
+<span class="kw">from</span> anthropic <span class="kw">import</span> Anthropic
+client = Anthropic()
+r = client.messages.create(model=<span class="st">"claude-3-7-sonnet"</span>, max_tokens=1024, messages=[...])</pre>
+With MAF only the client swaps; the rest stays:
+<pre class="code"><span class="kw">from</span> agent_framework <span class="kw">import</span> Agent
+<span class="kw">from</span> agent_framework.openai <span class="kw">import</span> OpenAIChatClient
+<span class="cm"># from agent_framework.anthropic import AnthropicChatClient  # only this line changes</span>
+agent = Agent(client=OpenAIChatClient(model=<span class="st">"gpt-4o"</span>), instructions=<span class="st">"…"</span>)
+<span class="kw">await</span> agent.run(<span class="st">"hi"</span>)</pre></div>
+    </div>
+    <div class="qa">
+      <div class="q">❓ Why this matters</div>
+      <div class="a">Three very real reasons:<br>
+        ① <strong>cost</strong> — pricing for the same task differs 5–20× across models;<br>
+        ② <strong>fast model turnover</strong> — a new SOTA arrives every quarter; lock-in means missing it;<br>
+        ③ <strong>compliance &amp; availability</strong> — finance/gov demand private deployment; some regions need Foundry, others a corporate gateway.</div>
+    </div>
+    <div class="qa">
+      <div class="q">✅ How MAF does it</div>
+      <div class="a">MAF abstracts every vendor into a uniform <span class="mono">ChatClient</span> interface.
+        <span class="mono">FoundryChatClient</span>, <span class="mono">OpenAIChatClient</span>,
+        <span class="mono">AnthropicChatClient</span> and <span class="mono">OllamaChatClient</span> all implement
+        the same surface (<span class="mono">get_response()</span>, <span class="mono">get_streaming_response()</span>).
+        Agents, tools and workflows depend on the interface only.</div>
+    </div>
+    <div class="qa">
+      <div class="q">🔀 Alternatives</div>
+      <div class="a">① <strong>LiteLLM</strong> — external proxy speaking OpenAI's protocol; simple, but one extra hop & service.<br>
+        ② <strong>Hand-rolled adapter</strong> — exact fit for your domain, but you maintain streaming/tools/function-call differences.<br>
+        ③ <strong>Cloud gateways</strong> (Azure AI Gateway / AWS Bedrock) — great for compliance &amp; quotas, still locks you to one cloud.</div>
+    </div>
+  </div>
+</details>
+
+<details class="accordion">
+  <summary><span class="badge-num">3</span> How to assemble conversations safely? <span class="hint">expand</span></summary>
+  <div class="acc-body">
+    <div class="qa">
+      <div class="q">🧪 Example</div>
+      <div class="a">Raw dict vs MAF's typed messages:
+<pre class="code"><span class="cm"># Raw dict — typos in "role" only surface at runtime</span>
+messages = [
+  {<span class="st">"role"</span>: <span class="st">"sytsem"</span>, <span class="st">"content"</span>: <span class="st">"You are helpful"</span>},  <span class="cm"># typo!</span>
+  {<span class="st">"role"</span>: <span class="st">"user"</span>,   <span class="st">"content"</span>: <span class="st">"hi"</span>},
+]
+
+<span class="cm"># MAF — type-safe, IDE completes everything</span>
+<span class="kw">from</span> agent_framework <span class="kw">import</span> ChatMessage, Role, TextContent
+messages = [
+  ChatMessage(role=Role.SYSTEM, contents=[TextContent(text=<span class="st">"You are helpful"</span>)]),
+  ChatMessage(role=Role.USER,   contents=[TextContent(text=<span class="st">"hi"</span>)]),
+]</pre></div>
+    </div>
+    <div class="qa">
+      <div class="q">❓ Why this matters</div>
+      <div class="a">Real workloads carry more than strings: images, tool calls, tool results, thinking blocks, citations.
+        Raw dicts force a project-wide if/else rewrite for each new kind; typed <span class="mono">Contents</span>
+        means adding a new content type leaves old code untouched.</div>
+    </div>
+    <div class="qa">
+      <div class="q">✅ How MAF does it</div>
+      <div class="a">See <span class="mono">agent_framework/_types.py</span>: <span class="mono">Role</span> is an enum
+        (<span class="mono">system / user / assistant / tool</span>), <span class="mono">ChatMessage</span> holds
+        <span class="mono">contents: list[Contents]</span>, and <span class="mono">Contents</span> is the union of
+        <span class="mono">TextContent | DataContent | FunctionCallContent | FunctionResultContent | …</span>.
+        Wins: ① static checking + completion; ② multimodal &amp; tool results fit naturally;
+        ③ free serialization for Workflow cross-process transport.</div>
+    </div>
+    <div class="qa">
+      <div class="q">🔀 Alternatives</div>
+      <div class="a">① <strong>Raw dicts + JSON Schema validation</strong> — light, but still runtime-only;<br>
+        ② <strong>Roll your own Pydantic models</strong> — MAF already is Pydantic v2 under the hood, you're reinventing it;<br>
+        ③ <strong>LangChain's HumanMessage / AIMessage</strong> — same idea, weaker content-block coverage.</div>
+    </div>
+  </div>
+</details>
+
+<details class="accordion">
+  <summary><span class="badge-num">4</span> Why not hand-write tool-call JSON? <span class="hint">expand</span></summary>
+  <div class="acc-body">
+    <div class="qa">
+      <div class="q">🧪 Example</div>
+      <div class="a">Raw function-calling vs MAF's <span class="mono">@ai_function</span>:
+<pre class="code"><span class="cm"># Raw SDK: write schema, dispatch, feed result back yourself</span>
+tools = [{
+  <span class="st">"type"</span>: <span class="st">"function"</span>,
+  <span class="st">"function"</span>: {
+    <span class="st">"name"</span>: <span class="st">"get_weather"</span>,
+    <span class="st">"parameters"</span>: {<span class="st">"type"</span>: <span class="st">"object"</span>,
+      <span class="st">"properties"</span>: {<span class="st">"city"</span>: {<span class="st">"type"</span>: <span class="st">"string"</span>}},
+      <span class="st">"required"</span>: [<span class="st">"city"</span>]}}}]
+<span class="cm"># Then: parse tool_calls → find function → invoke → append result → call again…</span>
+
+<span class="cm"># MAF: decorator generates schema, agent runs the loop</span>
+<span class="kw">from</span> agent_framework <span class="kw">import</span> ai_function
+
+<span class="kw">@ai_function</span>
+<span class="kw">def</span> get_weather(city: str) -&gt; str:
+    <span class="st">"Return the weather for a city."</span>
+    <span class="kw">return</span> f<span class="st">"{city} is 23°C"</span>
+
+agent = Agent(client=client, tools=[get_weather])</pre></div>
+    </div>
+    <div class="qa">
+      <div class="q">❓ Why this matters</div>
+      <div class="a">Hand-written JSON schema breeds three bug families: ① parameter names/types drift from the function signature;
+        ② you change the function and forget the schema; ③ each vendor supports a different JSON-Schema subset.
+        Auto-generation makes the <strong>function the contract</strong>; refactor cost goes to zero.</div>
+    </div>
+    <div class="qa">
+      <div class="q">✅ How MAF does it</div>
+      <div class="a"><span class="mono">@ai_function</span> (see <span class="mono">_tools.py</span>) uses
+        <span class="mono">inspect</span> + type hints to produce a JSON Schema, auto-injects it into ChatClient requests;
+        when the model returns <span class="mono">FunctionCallContent</span>, the Agent — in the
+        <strong>same loop</strong> — executes the function, appends <span class="mono">FunctionResultContent</span>
+        to the messages, and calls the model again. No glue code from you.</div>
+    </div>
+    <div class="qa">
+      <div class="q">🔀 Alternatives</div>
+      <div class="a">① <strong>Hand-written schema</strong> — max control, max error rate;<br>
+        ② <strong>OpenAI's official function-calling SDK</strong> — OpenAI-only;<br>
+        ③ <strong>LangChain Tool / StructuredTool</strong> — similar idea, no native middleware/Workflow integration;<br>
+        ④ <strong>MCP protocol</strong> — out-of-process tool hosting; MAF can also surface MCP tools as local ones.</div>
+    </div>
+  </div>
+</details>
+
+<details class="accordion">
+  <summary><span class="badge-num">5</span> Multi-step &amp; multi-agent without a while-monster? <span class="hint">expand</span></summary>
+  <div class="acc-body">
+    <div class="qa">
+      <div class="q">🧪 Example</div>
+      <div class="a">Hand-rolled loops go bad fast:
+<pre class="code">messages = [...]
+<span class="kw">while</span> True:
+    resp = client.chat.completions.create(model=..., messages=messages, tools=tools)
+    msg = resp.choices[0].message
+    <span class="kw">if</span> <span class="kw">not</span> msg.tool_calls:
+        <span class="kw">break</span>
+    <span class="kw">for</span> tc <span class="kw">in</span> msg.tool_calls:
+        result = dispatch(tc.function.name, json.loads(tc.function.arguments))
+        messages.append({<span class="st">"role"</span>: <span class="st">"tool"</span>, ...})
+    <span class="cm"># No max iterations, no retries, no observability…</span>
+
+<span class="cm"># MAF: delegated to agent.run() / Workflow</span>
+agent = Agent(client=client, tools=[get_weather, search_web])
+result = <span class="kw">await</span> agent.run(<span class="st">"Check Shanghai weather then suggest what to wear"</span>)</pre></div>
+    </div>
+    <div class="qa">
+      <div class="q">❓ Why this matters</div>
+      <div class="a">"Loop" sounds simple. Productionizing it requires max-iteration limits, retries on errors,
+        context trimming, parallel tools, middleware hooks (trace/cost), inter-agent message routing,
+        resumable checkpoints… each item is hundreds of lines and many tests.</div>
+    </div>
+    <div class="qa">
+      <div class="q">✅ How MAF does it</div>
+      <div class="a">Single agent → built-in loop with <span class="mono">DEFAULT_MAX_ITERATIONS</span>, middleware pipeline
+        and streaming aggregation; multi-agent → <span class="mono">agent_framework._workflows</span> provides
+        <strong>graph orchestration</strong> (nodes / edges / shared state / checkpoints / human approval),
+        natively wired with ChatClient, tools and observability.</div>
+    </div>
+    <div class="qa">
+      <div class="q">🔀 Alternatives</div>
+      <div class="a">① <strong>LangGraph</strong> — original graph orchestrator, tightly coupled to LangChain;<br>
+        ② <strong>CrewAI</strong> — role-based multi-agent; ergonomic but light on productionization;<br>
+        ③ <strong>Hand-rolled state machines / Temporal / Durable Functions</strong> — robust but disconnected from LLM semantics, you rebuild the tool loop yourself.</div>
     </div>
   </div>
 </details>

@@ -260,33 +260,176 @@ table.t td.mono, table.t td .mono { font-family: ui-monospace, monospace; font-s
 <h2>AI 全栈分层</h2>
 <div class="layers">
   <div class="layer l-app"><div class="lh"><span class="badge">L7</span><span class="name">应用层</span></div>
-    <div class="ld">你的产品 / UI / API 网关。</div></div>
+    <div class="ld">你的产品 / UI / API 网关（Chainlit · Streamlit · FastAPI）。</div></div>
   <div class="layer l-part"><div class="lh"><span class="badge">L6</span><span class="name">Agent 编排</span></div>
-    <div class="ld"><strong>← 你在这里</strong>（MAF / LangGraph / AutoGen）。</div></div>
+    <div class="ld"><strong>← 你在这里</strong>（MAF / LangGraph / AutoGen / SK）。</div></div>
   <div class="layer l-main"><div class="lh"><span class="badge">L5</span><span class="name">模型 API / 推理</span></div>
     <div class="ld">OpenAI API · Azure AI · vLLM · llama.cpp · Ollama。</div></div>
   <div class="layer l-core"><div class="lh"><span class="badge">L4</span><span class="name">向量检索 / RAG</span></div>
     <div class="ld">Embeddings · pgvector · Qdrant · Azure AI Search。</div></div>
 </div>
 
-<h2>隔壁层学习地图</h2>
+<h2>编排流派一览</h2>
 <table class="t">
-  <tr><th>层</th><th>你可以学</th><th>入口</th></tr>
-  <tr><td>L5 推理</td><td>vLLM（高吞吐推理）· llama.cpp（CPU/边缘）· Ollama（本地一键跑）</td><td>各项目 GitHub</td></tr>
-  <tr><td>L4 向量检索</td><td>hnswlib（内存向量索引）· pgvector（PG 扩展）· Qdrant（云原生）</td><td>各项目文档</td></tr>
-  <tr><td>L7 应用</td><td>Chainlit / Streamlit（快速 UI）· FastAPI（API 网关）</td><td>各项目文档</td></tr>
+  <tr><th>流派</th><th>代表</th><th>核心思想</th></tr>
+  <tr><td>链/管道</td><td>LangChain LCEL</td><td>函数组合，<span class="mono">A | B | C</span></td></tr>
+  <tr><td>图</td><td>LangGraph / MAF Workflow</td><td>有向图 + 状态</td></tr>
+  <tr><td>多 Agent 对话</td><td>AutoGen / MAF Group Chat</td><td>Agent 间消息传递</td></tr>
+  <tr><td>Planner</td><td>SK</td><td>LLM 规划步骤后执行</td></tr>
+  <tr><td>声明式</td><td>MAF Declarative / Rivet</td><td>配置驱动</td></tr>
 </table>
 
+<p class="acc-intro" style="color:var(--muted);font-size:.92rem">
+👇 点开卡片，深入了解每个隔壁层——学什么、用什么工具、什么时候该学。
+</p>
+
 <details class="accordion">
-  <summary><span class="badge-num">1</span> Agent 编排有哪几种流派？ <span class="hint">点击展开</span></summary>
+  <summary><span class="badge-num">1</span> L5 推理层深入 <span class="hint">点击展开详解</span></summary>
   <div class="acc-body">
     <div class="qa">
-      <div class="q">🔬 五大流派</div>
-      <div class="a"><strong>1. 链/管道</strong>（LangChain LCEL）：函数组合。
-        <strong>2. 图</strong>（LangGraph / MAF Workflow）：有向图 + 状态。
-        <strong>3. 多 Agent 对话</strong>（AutoGen / MAF Group Chat）：Agent 间消息传递。
-        <strong>4. Planner</strong>（SK）：LLM 规划步骤后执行。
-        <strong>5. 声明式</strong>（MAF Declarative / Rivet）：配置驱动。</div>
+      <div class="q">🧪 示例</div>
+      <div class="a">推理层的三种选择：
+<pre class="code"><span class="cm"># vLLM — 高吞吐 GPU 推理服务</span>
+vllm serve meta-llama/Llama-3-8B --port 8000
+
+<span class="cm"># llama.cpp — CPU / 边缘设备推理</span>
+./main -m model.gguf -p <span class="st">"Hello"</span>
+
+<span class="cm"># Ollama — 本地一键跑模型</span>
+ollama run llama3</pre>
+      </div>
+    </div>
+    <div class="qa">
+      <div class="q">❓ 为什么这件事必要</div>
+      <div class="a">MAF 通过 ChatClient 调用模型，但<strong>模型从哪来</strong>？如果你用 OpenAI API 就不用管；
+        但如果要<strong>私有化部署</strong>（数据安全、成本控制、低延迟），就需要了解推理层。
+        vLLM 适合高并发 GPU 场景，llama.cpp 适合边缘/嵌入式，Ollama 适合开发者本地调试。</div>
+    </div>
+    <div class="qa">
+      <div class="q">✅ MAF 的做法与优点</div>
+      <div class="a">MAF 不绑定推理层：<span class="mono">OpenAIChatClient</span> 可以指向任何兼容 OpenAI API 的端点
+        （vLLM、llama.cpp 的 server 模式、Ollama 都兼容）。所以你可以先用 OpenAI API 开发，
+        上线时切到私有 vLLM，<strong>Agent 代码不用改</strong>。</div>
+    </div>
+    <div class="qa">
+      <div class="q">🔀 还有什么其他方案</div>
+      <div class="a"><strong>TGI</strong>（HuggingFace 的推理服务器）、<strong>TensorRT-LLM</strong>（NVIDIA 优化）、
+        <strong>Azure AI Foundry</strong>（托管推理，零运维）。如果你不想自己运维 GPU，用云端 API 最省心。</div>
+    </div>
+  </div>
+</details>
+
+<details class="accordion">
+  <summary><span class="badge-num">2</span> L4 向量检索 / RAG 深入 <span class="hint">点击展开详解</span></summary>
+  <div class="acc-body">
+    <div class="qa">
+      <div class="q">🧪 示例</div>
+      <div class="a">向量检索的核心流程：
+<pre class="code"><span class="cm"># 1. 文本 → Embedding 向量</span>
+vector = embedding_model.encode(<span class="st">"What is MAF?"</span>)
+
+<span class="cm"># 2. 向量存入数据库</span>
+db.insert(vector, metadata={<span class="st">"source"</span>: <span class="st">"docs/readme.md"</span>})
+
+<span class="cm"># 3. 查询时找最相似的向量</span>
+results = db.search(query_vector, top_k=<span class="nb">5</span>)
+
+<span class="cm"># 4. 把检索到的文本塞给 Agent 作上下文</span>
+context = <span class="st">"\n"</span>.join(r.text <span class="kw">for</span> r <span class="kw">in</span> results)
+<span class="kw">await</span> agent.run(f<span class="st">"Based on: {context}\nAnswer: {question}"</span>)</pre>
+      </div>
+    </div>
+    <div class="qa">
+      <div class="q">❓ 为什么这件事必要</div>
+      <div class="a">LLM 不知道你的私有数据。<strong>RAG（检索增强生成）</strong>通过在提示词里塞进相关文档片段，
+        让模型能"看到"你的知识库。向量检索是 RAG 的核心引擎——把"语义相似度"变成数据库查询。</div>
+    </div>
+    <div class="qa">
+      <div class="q">✅ MAF 的做法与优点</div>
+      <div class="a">MAF 通过 <span class="mono">ContextProvider</span> 机制集成 RAG：
+        <span class="mono">packages/azure-ai-search</span> 封装了 Azure AI Search（企业级向量检索），
+        你也可以自己写 ContextProvider 接 pgvector / Qdrant / Pinecone。
+        Agent 不需要知道知识从哪来——<strong>ContextProvider 在 run 前自动注入</strong>。</div>
+    </div>
+    <div class="qa">
+      <div class="q">🔀 还有什么其他方案</div>
+      <div class="a"><strong>pgvector</strong>（熟悉 SQL 的首选，PostgreSQL 扩展）、
+        <strong>Qdrant</strong>（云原生向量数据库，专为向量设计）、
+        <strong>Chroma</strong>（轻量嵌入式，适合本地原型）、
+        <strong>Azure AI Search</strong>（企业级，MAF 有现成包）。</div>
+    </div>
+  </div>
+</details>
+
+<details class="accordion">
+  <summary><span class="badge-num">3</span> L7 应用层深入 <span class="hint">点击展开详解</span></summary>
+  <div class="acc-body">
+    <div class="qa">
+      <div class="q">🧪 示例</div>
+      <div class="a">把 MAF Agent 暴露为 Web 端点：
+<pre class="code"><span class="cm"># FastAPI + MAF Agent</span>
+<span class="kw">from</span> fastapi <span class="kw">import</span> FastAPI
+app = FastAPI()
+
+<span class="nb">@app.post</span>(<span class="st">"/chat"</span>)
+<span class="kw">async def</span> <span class="fn">chat</span>(prompt: str):
+    result = <span class="kw">await</span> agent.run(prompt)
+    <span class="kw">return</span> {<span class="st">"response"</span>: str(result)}</pre>
+      </div>
+    </div>
+    <div class="qa">
+      <div class="q">❓ 为什么这件事必要</div>
+      <div class="a">Agent 不能只在终端里跑——最终要面向用户。应用层负责<strong>UI、API、认证、限流</strong>等。
+        了解怎么把 Agent 包成 API / Web 应用，是从"能跑"到"能用"的关键一步。</div>
+    </div>
+    <div class="qa">
+      <div class="q">✅ MAF 的做法与优点</div>
+      <div class="a">MAF 的 <span class="mono">hosting</span> 包提供了多种部署方式：
+        <strong>ASP.NET Core / Azure Functions</strong>（.NET 端）、
+        <strong>FastAPI / Azure Functions</strong>（Python 端）、
+        <strong>A2A 协议</strong>（Agent-to-Agent，让 Agent 作为服务被其他 Agent 调用）、
+        <strong>Foundry 托管 Agent</strong>（零运维部署到 Azure）。</div>
+    </div>
+    <div class="qa">
+      <div class="q">🔀 还有什么其他方案</div>
+      <div class="a"><strong>Chainlit</strong>（一行代码搞定聊天 UI，适合 demo）、
+        <strong>Streamlit</strong>（快速数据应用 + 聊天界面）、
+        <strong>Gradio</strong>（ML demo 界面）、
+        <strong>自建 React/Vue 前端</strong>（最灵活但工作量最大）。</div>
+    </div>
+  </div>
+</details>
+
+<details class="accordion">
+  <summary><span class="badge-num">4</span> 三条学习路径推荐 <span class="hint">点击展开详解</span></summary>
+  <div class="acc-body">
+    <div class="qa">
+      <div class="q">🧪 路径 A：我要做一个生产级聊天机器人</div>
+      <div class="a"><strong>本教程 L01-07</strong>（基础）→ <strong>L16</strong>（选 provider）→
+        <strong>L18-19</strong>（中间件 + 检查点）→ <strong>L7 应用层</strong>（FastAPI / Foundry 托管）→
+        <strong>L4 向量检索</strong>（Azure AI Search / pgvector，做 RAG）。
+        重点：<strong>先跑通，再加 RAG，再加生产能力</strong>。</div>
+    </div>
+    <div class="qa">
+      <div class="q">❓ 路径 B：我要理解 AI 基础设施</div>
+      <div class="a"><strong>本教程 L01-03</strong>（全局观）→ <strong>L08-14</strong>（内部源码）→
+        <strong>L5 推理层</strong>（vLLM / llama.cpp）→ <strong>L4 向量检索</strong>（hnswlib / pgvector）→
+        <strong>L15</strong>（读 MAF 源码）。
+        重点：<strong>从应用层往下挖，理解每一层在做什么</strong>。</div>
+    </div>
+    <div class="qa">
+      <div class="q">✅ 路径 C：我要贡献 MAF 源码</div>
+      <div class="a"><strong>本教程全部 22 课</strong>（建立完整认知）→ <strong>L15</strong>（搭环境 + 跑测试）→
+        从 <span class="mono">good first issue</span> 开始 →
+        <strong>读 AGENTS.md + CODING_STANDARD.md</strong> → 提 PR。
+        重点：<strong>先读懂，再动手；先小改，再大改</strong>。</div>
+    </div>
+    <div class="qa">
+      <div class="q">🔀 通用建议</div>
+      <div class="a">不要试图一次学完所有层——<strong>从你的目标出发，往上或往下扩展一层</strong>就好。
+        做 Agent 应用？先吃透 L6（编排），再看 L4（RAG）和 L7（应用）。
+        做基础设施？先吃透 L5（推理），再看 L6（编排）。
+        <strong>边做边学</strong>永远比"先学完再做"高效。</div>
     </div>
   </div>
 </details>
@@ -297,6 +440,7 @@ table.t td.mono, table.t td .mono { font-family: ui-monospace, monospace; font-s
     <li>MAF 在全栈中位于 <strong>L6 Agent 编排层</strong>。</li>
     <li>下一层（L5 推理 / L4 向量检索）是深入 AI 基础设施的方向。</li>
     <li>上一层（L7 应用）是把 Agent 交给用户的方向。</li>
+    <li>选学习路径看你的目标：做产品 / 学基础 / 贡献源码。</li>
   </ul>
 </div>
 
@@ -304,6 +448,7 @@ table.t td.mono, table.t td .mono { font-family: ui-monospace, monospace; font-s
   <div class="tag">💡 设计亮点</div>
   <strong>编排层是"胶水层"</strong>——它连接模型、工具、存储和应用，
   因此<strong>对上下层都有基本了解</strong>是成为 Agent 高手的关键。
+  你不需要精通每一层，但需要知道它在做什么、怎么和你的层对接。
 </div>
 </div>
 <div class="i18n" data-lang="en">
@@ -313,33 +458,180 @@ what's worth learning next door.</p>
 <h2>AI full-stack layers</h2>
 <div class="layers">
   <div class="layer l-app"><div class="lh"><span class="badge">L7</span><span class="name">Application</span></div>
-    <div class="ld">Your product / UI / API gateway.</div></div>
+    <div class="ld">Your product / UI / API gateway (Chainlit · Streamlit · FastAPI).</div></div>
   <div class="layer l-part"><div class="lh"><span class="badge">L6</span><span class="name">Agent Orchestration</span></div>
-    <div class="ld"><strong>← You are here</strong> (MAF / LangGraph / AutoGen).</div></div>
+    <div class="ld"><strong>← You are here</strong> (MAF / LangGraph / AutoGen / SK).</div></div>
   <div class="layer l-main"><div class="lh"><span class="badge">L5</span><span class="name">Model API / Inference</span></div>
     <div class="ld">OpenAI API · Azure AI · vLLM · llama.cpp · Ollama.</div></div>
   <div class="layer l-core"><div class="lh"><span class="badge">L4</span><span class="name">Vector Search / RAG</span></div>
     <div class="ld">Embeddings · pgvector · Qdrant · Azure AI Search.</div></div>
 </div>
 
-<h2>Learning map for neighbouring layers</h2>
+<h2>Orchestration schools</h2>
 <table class="t">
-  <tr><th>Layer</th><th>What to learn</th><th>Entry point</th></tr>
-  <tr><td>L5 Inference</td><td>vLLM (high-throughput) · llama.cpp (CPU/edge) · Ollama (local one-click)</td><td>project GitHub</td></tr>
-  <tr><td>L4 Vector search</td><td>hnswlib (in-memory index) · pgvector (PG extension) · Qdrant (cloud-native)</td><td>project docs</td></tr>
-  <tr><td>L7 Application</td><td>Chainlit / Streamlit (quick UI) · FastAPI (API gateway)</td><td>project docs</td></tr>
+  <tr><th>School</th><th>Representative</th><th>Core idea</th></tr>
+  <tr><td>Chain/pipeline</td><td>LangChain LCEL</td><td>Function composition, <span class="mono">A | B | C</span></td></tr>
+  <tr><td>Graph</td><td>LangGraph / MAF Workflow</td><td>Directed graph + state</td></tr>
+  <tr><td>Multi-agent chat</td><td>AutoGen / MAF Group Chat</td><td>Message passing between agents</td></tr>
+  <tr><td>Planner</td><td>SK</td><td>LLM plans steps then executes</td></tr>
+  <tr><td>Declarative</td><td>MAF Declarative / Rivet</td><td>Config-driven</td></tr>
 </table>
 
+<p class="acc-intro" style="color:var(--muted);font-size:.92rem">
+👇 Expand the cards to dive into each neighbouring layer — what to learn, which tools, when to learn it.
+</p>
+
 <details class="accordion">
-  <summary><span class="badge-num">1</span> What are the orchestration schools? <span class="hint">expand</span></summary>
+  <summary><span class="badge-num">1</span> L5 Inference layer deep dive <span class="hint">expand</span></summary>
   <div class="acc-body">
     <div class="qa">
-      <div class="q">🔬 Five schools</div>
-      <div class="a"><strong>1. Chain/pipeline</strong> (LangChain LCEL): function composition.
-        <strong>2. Graph</strong> (LangGraph / MAF Workflow): directed graph + state.
-        <strong>3. Multi-agent chat</strong> (AutoGen / MAF Group Chat): message passing between agents.
-        <strong>4. Planner</strong> (SK): LLM plans steps then executes.
-        <strong>5. Declarative</strong> (MAF Declarative / Rivet): config-driven.</div>
+      <div class="q">🧪 Example</div>
+      <div class="a">Three inference choices:
+<pre class="code"><span class="cm"># vLLM — high-throughput GPU inference</span>
+vllm serve meta-llama/Llama-3-8B --port 8000
+
+<span class="cm"># llama.cpp — CPU / edge inference</span>
+./main -m model.gguf -p <span class="st">"Hello"</span>
+
+<span class="cm"># Ollama — local one-click model</span>
+ollama run llama3</pre>
+      </div>
+    </div>
+    <div class="qa">
+      <div class="q">❓ Why this matters</div>
+      <div class="a">MAF calls models via ChatClient, but <strong>where does the model come from</strong>?
+        If you use OpenAI API you don't worry about this; but for <strong>private deployment</strong>
+        (data security, cost control, low latency) you need the inference layer.
+        vLLM for high-concurrency GPU, llama.cpp for edge/CPU, Ollama for local dev.</div>
+    </div>
+    <div class="qa">
+      <div class="q">✅ How MAF does it</div>
+      <div class="a">MAF doesn't lock you to any inference layer: <span class="mono">OpenAIChatClient</span> can point at any
+        OpenAI-compatible endpoint (vLLM, llama.cpp server mode, Ollama all qualify).
+        Develop with OpenAI API, deploy on private vLLM — <strong>zero Agent code changes</strong>.</div>
+    </div>
+    <div class="qa">
+      <div class="q">🔀 Alternatives</div>
+      <div class="a"><strong>TGI</strong> (HuggingFace inference server), <strong>TensorRT-LLM</strong> (NVIDIA optimised),
+        <strong>Azure AI Foundry</strong> (managed inference, zero ops).
+        If you don't want to run GPUs yourself, cloud APIs are simplest.</div>
+    </div>
+  </div>
+</details>
+
+<details class="accordion">
+  <summary><span class="badge-num">2</span> L4 Vector search / RAG deep dive <span class="hint">expand</span></summary>
+  <div class="acc-body">
+    <div class="qa">
+      <div class="q">🧪 Example</div>
+      <div class="a">Core vector search flow:
+<pre class="code"><span class="cm"># 1. Text → embedding vector</span>
+vector = embedding_model.encode(<span class="st">"What is MAF?"</span>)
+
+<span class="cm"># 2. Store in vector DB</span>
+db.insert(vector, metadata={<span class="st">"source"</span>: <span class="st">"docs/readme.md"</span>})
+
+<span class="cm"># 3. At query time, find most similar</span>
+results = db.search(query_vector, top_k=<span class="nb">5</span>)
+
+<span class="cm"># 4. Feed retrieved text to Agent as context</span>
+context = <span class="st">"\n"</span>.join(r.text <span class="kw">for</span> r <span class="kw">in</span> results)
+<span class="kw">await</span> agent.run(f<span class="st">"Based on: {context}\nAnswer: {question}"</span>)</pre>
+      </div>
+    </div>
+    <div class="qa">
+      <div class="q">❓ Why this matters</div>
+      <div class="a">LLMs don't know your private data. <strong>RAG (Retrieval-Augmented Generation)</strong> splices
+        relevant document chunks into the prompt so the model can "see" your knowledge base.
+        Vector search is RAG's core engine — turns "semantic similarity" into a database query.</div>
+    </div>
+    <div class="qa">
+      <div class="q">✅ How MAF does it</div>
+      <div class="a">MAF integrates RAG through <span class="mono">ContextProvider</span>:
+        <span class="mono">packages/azure-ai-search</span> wraps Azure AI Search (enterprise vector search);
+        you can also write your own ContextProvider to plug in pgvector / Qdrant / Pinecone.
+        The Agent doesn't need to know where knowledge comes from — <strong>ContextProvider auto-injects before run</strong>.</div>
+    </div>
+    <div class="qa">
+      <div class="q">🔀 Alternatives</div>
+      <div class="a"><strong>pgvector</strong> (PostgreSQL extension, familiar to SQL users),
+        <strong>Qdrant</strong> (cloud-native, purpose-built for vectors),
+        <strong>Chroma</strong> (lightweight embedded, good for local prototypes),
+        <strong>Azure AI Search</strong> (enterprise-grade, MAF has a ready-made package).</div>
+    </div>
+  </div>
+</details>
+
+<details class="accordion">
+  <summary><span class="badge-num">3</span> L7 Application layer deep dive <span class="hint">expand</span></summary>
+  <div class="acc-body">
+    <div class="qa">
+      <div class="q">🧪 Example</div>
+      <div class="a">Expose an MAF Agent as a web endpoint:
+<pre class="code"><span class="cm"># FastAPI + MAF Agent</span>
+<span class="kw">from</span> fastapi <span class="kw">import</span> FastAPI
+app = FastAPI()
+
+<span class="nb">@app.post</span>(<span class="st">"/chat"</span>)
+<span class="kw">async def</span> <span class="fn">chat</span>(prompt: str):
+    result = <span class="kw">await</span> agent.run(prompt)
+    <span class="kw">return</span> {<span class="st">"response"</span>: str(result)}</pre>
+      </div>
+    </div>
+    <div class="qa">
+      <div class="q">❓ Why this matters</div>
+      <div class="a">Agents can't just run in a terminal — they need to face users. The application layer owns
+        <strong>UI, API, auth, rate limiting</strong>. Knowing how to wrap an Agent into an API / web app
+        is the key step from "it runs" to "it's usable".</div>
+    </div>
+    <div class="qa">
+      <div class="q">✅ How MAF does it</div>
+      <div class="a">MAF's <span class="mono">hosting</span> packages provide multiple deployment paths:
+        <strong>ASP.NET Core / Azure Functions</strong> (.NET),
+        <strong>FastAPI / Azure Functions</strong> (Python),
+        <strong>A2A protocol</strong> (Agent-to-Agent, exposing an Agent as a service for other Agents),
+        <strong>Foundry Hosted Agents</strong> (zero-ops deploy to Azure).</div>
+    </div>
+    <div class="qa">
+      <div class="q">🔀 Alternatives</div>
+      <div class="a"><strong>Chainlit</strong> (one-liner chat UI, great for demos),
+        <strong>Streamlit</strong> (rapid data apps + chat interface),
+        <strong>Gradio</strong> (ML demo interfaces),
+        <strong>Custom React/Vue frontend</strong> (most flexible but most work).</div>
+    </div>
+  </div>
+</details>
+
+<details class="accordion">
+  <summary><span class="badge-num">4</span> Three recommended learning paths <span class="hint">expand</span></summary>
+  <div class="acc-body">
+    <div class="qa">
+      <div class="q">🧪 Path A: I want to build a production chatbot</div>
+      <div class="a"><strong>This guide L01-07</strong> (basics) → <strong>L16</strong> (pick a provider) →
+        <strong>L18-19</strong> (middleware + checkpoints) → <strong>L7 application layer</strong> (FastAPI / Foundry hosting) →
+        <strong>L4 vector search</strong> (Azure AI Search / pgvector for RAG).
+        Focus: <strong>get it running, add RAG, add production features</strong>.</div>
+    </div>
+    <div class="qa">
+      <div class="q">❓ Path B: I want to understand AI infrastructure</div>
+      <div class="a"><strong>This guide L01-03</strong> (big picture) → <strong>L08-14</strong> (internals) →
+        <strong>L5 inference</strong> (vLLM / llama.cpp) → <strong>L4 vector search</strong> (hnswlib / pgvector) →
+        <strong>L15</strong> (read MAF source).
+        Focus: <strong>drill down from the application layer; understand what each layer does</strong>.</div>
+    </div>
+    <div class="qa">
+      <div class="q">✅ Path C: I want to contribute to MAF</div>
+      <div class="a"><strong>All 22 lessons</strong> (build complete understanding) → <strong>L15</strong> (set up env + run tests) →
+        start with <span class="mono">good first issue</span> →
+        <strong>read AGENTS.md + CODING_STANDARD.md</strong> → submit a PR.
+        Focus: <strong>understand first, then act; start small, then go big</strong>.</div>
+    </div>
+    <div class="qa">
+      <div class="q">🔀 General advice</div>
+      <div class="a">Don't try to learn every layer at once — <strong>start from your goal and expand one layer up or down</strong>.
+        Building Agent apps? Master L6 (orchestration), then look at L4 (RAG) and L7 (application).
+        Building infrastructure? Master L5 (inference), then look at L6 (orchestration).
+        <strong>Learn by doing</strong> is always more efficient than "learn everything first".</div>
     </div>
   </div>
 </details>
@@ -350,6 +642,7 @@ what's worth learning next door.</p>
     <li>MAF sits at <strong>L6 — the Agent Orchestration layer</strong>.</li>
     <li>Next layer down (L5 inference / L4 vector search) deepens AI infrastructure.</li>
     <li>Next layer up (L7 application) delivers agents to users.</li>
+    <li>Pick a learning path based on your goal: build products / learn fundamentals / contribute code.</li>
   </ul>
 </div>
 
@@ -357,6 +650,7 @@ what's worth learning next door.</p>
   <div class="tag">💡 Design highlight</div>
   <strong>The orchestration layer is the "glue layer"</strong> — it connects models, tools, storage and applications.
   Knowing the layers above and below is key to becoming an Agent expert.
+  You don't need to master every layer — just know what it does and how it interfaces with yours.
 </div>
 </div>
   <div class="footnav"><a class="prev" href="21-vs-others.html"><div class="dir"><span class="i18n" data-lang="zh">← 上一课</span><span class="i18n" data-lang="en">← Prev</span></div><div class="ttl"><span class="i18n" data-lang="zh">横向对比：AF vs 其他框架</span><span class="i18n" data-lang="en">AF vs Other Frameworks</span></div></a><a class="next" href="../index.html"><div class="dir"><span class="i18n" data-lang="zh">完成 →</span><span class="i18n" data-lang="en">Done →</span></div><div class="ttl"><span class="i18n" data-lang="zh">返回目录</span><span class="i18n" data-lang="en">Back to Contents</span></div></a></div>

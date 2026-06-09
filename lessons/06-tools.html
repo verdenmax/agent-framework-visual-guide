@@ -300,6 +300,250 @@ result = <span class="kw">await</span> agent.run(<span class="st">"What's the we
   <span class="inline">"always_require"</span></strong>，在工具执行前要求人工确认（尤其是写操作 / 花钱的操作）。
 </div>
 
+<details class="accordion">
+  <summary><span class="badge-num">1</span> schema 自动生成原理 <span class="hint">点击展开详解</span></summary>
+  <div class="acc-body">
+    <div class="qa">
+      <div class="q">🧪 示例</div>
+      <div class="a">
+<pre class="code"><span class="kw">from</span> typing <span class="kw">import</span> Annotated
+<span class="kw">from</span> agent_framework <span class="kw">import</span> tool
+<span class="kw">from</span> pydantic <span class="kw">import</span> Field
+
+<span class="nb">@tool</span>(approval_mode=<span class="st">"never_require"</span>)
+<span class="kw">def</span> <span class="fn">search_products</span>(
+    query: Annotated[str, Field(description=<span class="st">"Search keywords"</span>)],
+    max_results: Annotated[int, Field(description=<span class="st">"Max results to return"</span>, ge=1, le=10)] = 5
+) -> list[dict]:
+    <span class="st">&quot;&quot;&quot;Search for products in the catalog.&quot;&quot;&quot;</span>
+    ...
+
+<span class="cm"># 自动生成的 JSON Schema：</span>
+<span class="cm"># {</span>
+<span class="cm">#   &quot;name&quot;: &quot;search_products&quot;,</span>
+<span class="cm">#   &quot;description&quot;: &quot;Search for products in the catalog.&quot;,</span>
+<span class="cm">#   &quot;parameters&quot;: {</span>
+<span class="cm">#     &quot;type&quot;: &quot;object&quot;,</span>
+<span class="cm">#     &quot;properties&quot;: {</span>
+<span class="cm">#       &quot;query&quot;: {&quot;type&quot;: &quot;string&quot;, &quot;description&quot;: &quot;Search keywords&quot;},</span>
+<span class="cm">#       &quot;max_results&quot;: {&quot;type&quot;: &quot;integer&quot;, &quot;description&quot;: &quot;Max results...&quot;, &quot;minimum&quot;: 1, &quot;maximum&quot;: 10, &quot;default&quot;: 5}</span>
+<span class="cm">#     },</span>
+<span class="cm">#     &quot;required&quot;: [&quot;query&quot;]</span>
+<span class="cm">#   }</span>
+<span class="cm"># }</span></pre>
+      </div>
+    </div>
+    <div class="qa">
+      <div class="q">❓ 为什么这件事必要</div>
+      <div class="a">模型需要<strong>JSON Schema</strong> 才能理解工具签名：参数名、类型、约束、含义。手写 schema 的问题：<ul>
+        <li><strong>易出错</strong>：字段名拼错、类型不匹配、忘记更新 description。</li>
+        <li><strong>双重维护</strong>：函数签名改了，schema 要同步改，容易漏。</li>
+        <li><strong>无类型检查</strong>：schema 和代码脱节，调用时参数不对只能运行时才发现。</li>
+      </ul>
+      自动生成让<strong>类型注解 = 单一事实来源</strong>，函数签名即契约。</div>
+    </div>
+    <div class="qa">
+      <div class="q">✅ MAF 的做法与优点</div>
+      <div class="a">MAF 用 <strong>Pydantic</strong> 自动生成 schema（见 <span class="mono">python/src/agent_framework/ai/_tool.py</span> 的 <span class="mono">ToolDefinition.from_function</span>）：<ul>
+        <li><strong>类型注解</strong> → <span class="mono">type</span> 字段（<span class="mono">str</span> → <span class="mono">"string"</span>，<span class="mono">int</span> → <span class="mono">"integer"</span>……）。</li>
+        <li><strong>Field(description=...)</strong> → <span class="mono">description</span> 字段。</li>
+        <li><strong>Field(..., ge=1, le=10)</strong> → <span class="mono">minimum</span>/<span class="mono">maximum</span> 约束。</li>
+        <li><strong>默认值</strong> → <span class="mono">default</span> 字段，非必需参数。</li>
+        <li><strong>Docstring</strong> → 工具的 <span class="mono">description</span>。</li>
+      </ul>
+      IDE 自动补全、类型检查器（mypy）验证调用，schema 与代码永远同步。</div>
+    </div>
+    <div class="qa">
+      <div class="q">🔀 还有什么其他方案</div>
+      <div class="a"><ul>
+        <li><strong>手写 JSON Schema</strong>：OpenAI SDK 早期做法，容易出错、维护成本高。</li>
+        <li><strong>LangChain @tool</strong>：也用 Pydantic，但对复杂类型（嵌套对象、联合类型）支持弱。</li>
+        <li><strong>OpenAI function calling JSON</strong>：需手动构造 <span class="mono">{"name": ..., "parameters": {...}}</span>，无类型保证。</li>
+        <li>MAF <strong>完全自动</strong>：支持泛型、嵌套、可选参数、约束，生成的 schema 符合各厂商规范。</li>
+      </ul></div>
+    </div>
+  </div>
+</details>
+
+<details class="accordion">
+  <summary><span class="badge-num">2</span> approval_mode 三种值 <span class="hint">点击展开详解</span></summary>
+  <div class="acc-body">
+    <div class="qa">
+      <div class="q">🧪 示例</div>
+      <div class="a">
+<pre class="code"><span class="nb">@tool</span>(approval_mode=<span class="st">"never_require"</span>)
+<span class="kw">def</span> <span class="fn">get_time</span>() -> str:
+    <span class="st">&quot;&quot;&quot;Get current time (safe, always auto-execute).&quot;&quot;&quot;</span>
+    <span class="kw">return</span> datetime.now().isoformat()
+
+<span class="nb">@tool</span>(approval_mode=<span class="st">"always_require"</span>)
+<span class="kw">def</span> <span class="fn">send_email</span>(to: str, subject: str, body: str) -> str:
+    <span class="st">&quot;&quot;&quot;Send an email (requires human approval).&quot;&quot;&quot;</span>
+    ...  <span class="cm"># 框架会在执行前要求确认</span>
+
+<span class="nb">@tool</span>(approval_mode=<span class="st">"auto_if_low_risk"</span>)
+<span class="kw">def</span> <span class="fn">create_ticket</span>(title: str, priority: str) -> str:
+    <span class="st">&quot;&quot;&quot;Create a support ticket (low-priority auto, high requires approval).&quot;&quot;&quot;</span>
+    ...  <span class="cm"># 可自定义风险评估逻辑</span></pre>
+      </div>
+    </div>
+    <div class="qa">
+      <div class="q">❓ 为什么这件事必要</div>
+      <div class="a">工具能力各异，风险不同：<ul>
+        <li><strong>只读查询</strong>（查天气、搜索）：无副作用，可自动执行。</li>
+        <li><strong>写操作</strong>（发邮件、删文件、转账）：有副作用，必须人工确认。</li>
+        <li><strong>灰色地带</strong>（创建草稿、添加备注）：低风险可自动，高风险需确认。</li>
+      </ul>
+      如果所有工具都自动执行（<span class="mono">never_require</span>），模型一个幻觉就可能发错邮件、删错数据。如果所有工具都要确认（<span class="mono">always_require</span>），用户体验糟糕（查个天气也要点确认）。需要<strong>分级控制</strong>。</div>
+    </div>
+    <div class="qa">
+      <div class="q">✅ MAF 的做法与优点</div>
+      <div class="a">MAF 的 <span class="mono">approval_mode</span>（见 <span class="mono">python/src/agent_framework/ai/_tool.py</span>）：<ul>
+        <li><strong>"never_require"</strong>：无需确认，自动执行（默认）。</li>
+        <li><strong>"always_require"</strong>：每次都弹出确认对话框 / 回调，用户批准后才执行。</li>
+        <li><strong>"auto_if_low_risk"</strong>（未来扩展）：根据参数内容动态决定（如金额 < $10 自动，>= $10 确认）。</li>
+      </ul>
+      审批流程由 <span class="mono">ApprovalStrategy</span> 接口定义（见 <span class="mono">_approval.py</span>），可自定义（如接入 Slack 审批机器人、钉钉审批流）。框架在工具执行前自动拦截，无需在工具函数内写审批逻辑。</div>
+    </div>
+    <div class="qa">
+      <div class="q">🔀 还有什么其他方案</div>
+      <div class="a"><ul>
+        <li><strong>LangChain HumanApprovalCallbackHandler</strong>：通过回调实现，但需手动注册到每个 Agent，容易漏。</li>
+        <li><strong>手动在工具内判断</strong>：<span class="mono">if dangerous: ask_user(); ...</span>，把审批逻辑和业务逻辑耦合。</li>
+        <li><strong>OpenAI function calling</strong>：无内置审批，需应用层拦截 <span class="mono">function_call</span> 自行处理。</li>
+        <li>MAF <strong>声明式审批</strong>：<span class="mono">@tool(approval_mode=...)</span> 一行搞定，审批逻辑与工具解耦，可插拔策略。</li>
+      </ul></div>
+    </div>
+  </div>
+</details>
+
+<details class="accordion">
+  <summary><span class="badge-num">3</span> 异步工具 <span class="hint">点击展开详解</span></summary>
+  <div class="acc-body">
+    <div class="qa">
+      <div class="q">🧪 示例</div>
+      <div class="a">
+<pre class="code"><span class="kw">import</span> httpx
+
+<span class="cm"># 同步工具（阻塞 I/O）</span>
+<span class="nb">@tool</span>(approval_mode=<span class="st">"never_require"</span>)
+<span class="kw">def</span> <span class="fn">get_weather_sync</span>(city: str) -> str:
+    <span class="st">&quot;&quot;&quot;Get weather (blocks event loop).&quot;&quot;&quot;</span>
+    resp = httpx.get(<span class="st">f"https://api.weather.com?q={city}"</span>)  <span class="cm"># 阻塞！</span>
+    <span class="kw">return</span> resp.json()[<span class="st">"temp"</span>]
+
+<span class="cm"># 异步工具（非阻塞）</span>
+<span class="nb">@tool</span>(approval_mode=<span class="st">"never_require"</span>)
+<span class="kw">async def</span> <span class="fn">get_weather_async</span>(city: str) -> str:
+    <span class="st">&quot;&quot;&quot;Get weather (async, doesn't block).&quot;&quot;&quot;</span>
+    <span class="kw">async with</span> httpx.AsyncClient() <span class="kw">as</span> client:
+        resp = <span class="kw">await</span> client.get(<span class="st">f"https://api.weather.com?q={city}"</span>)
+        <span class="kw">return</span> resp.json()[<span class="st">"temp"</span>]
+
+<span class="cm"># Agent 自动处理：sync 用 run_in_executor，async 直接 await</span></pre>
+      </div>
+    </div>
+    <div class="qa">
+      <div class="q">❓ 为什么这件事必要</div>
+      <div class="a">工具常做 I/O：<ul>
+        <li><strong>HTTP 请求</strong>：调第三方 API（天气、地图、支付）。</li>
+        <li><strong>数据库查询</strong>：读用户信息、订单历史。</li>
+        <li><strong>文件读写</strong>：读配置、写日志。</li>
+      </ul>
+      同步 I/O 会<strong>阻塞事件循环</strong>：一个工具调用花 2 秒，整个 Agent 卡住 2 秒，无法处理其他请求。异步 I/O 让事件循环继续运转，多个工具调用可并发执行（一个等网络时另一个跑 CPU 任务）。Python 的 <span class="mono">asyncio</span> 和 .NET 的 <span class="mono">Task</span> 都要求异步传染性——<strong>async all the way</strong>。</div>
+    </div>
+    <div class="qa">
+      <div class="q">✅ MAF 的做法与优点</div>
+      <div class="a">MAF 的 <span class="mono">@tool</span> <strong>同时支持同步和异步</strong>（见 <span class="mono">python/src/agent_framework/ai/_tool.py</span> 的 <span class="mono">ToolDefinition.invoke</span>）：<ul>
+        <li><strong>同步工具</strong>：框架用 <span class="mono">asyncio.to_thread</span>（或 <span class="mono">run_in_executor</span>）在线程池执行，避免阻塞。</li>
+        <li><strong>异步工具</strong>：框架直接 <span class="mono">await</span>，不阻塞事件循环。</li>
+        <li><strong>自动检测</strong>：<span class="mono">inspect.iscoroutinefunction(...)</span> 判断是否异步。</li>
+        <li><strong>并发执行</strong>：多个工具调用可用 <span class="mono">asyncio.gather</span> 并发（未来支持 parallel tool calls）。</li>
+      </ul>
+      开发者不用关心同步 / 异步细节，框架保证高效执行。</div>
+    </div>
+    <div class="qa">
+      <div class="q">🔀 还有什么其他方案</div>
+      <div class="a"><ul>
+        <li><strong>LangChain</strong>：<span class="mono">@tool</span> 支持异步，但 <span class="mono">AgentExecutor</span> 的同步 / 异步路径分离，易出错。</li>
+        <li><strong>OpenAI SDK</strong>：不管工具同步 / 异步，应用层自己处理。</li>
+        <li><strong>同步 only</strong>：简单但性能差，Agent 处理并发请求时会卡住。</li>
+        <li>MAF <strong>透明处理</strong>：写同步工具（简单）或异步工具（高效）都行，框架自动优化。</li>
+      </ul></div>
+    </div>
+  </div>
+</details>
+
+<details class="accordion">
+  <summary><span class="badge-num">4</span> 多个工具配合 <span class="hint">点击展开详解</span></summary>
+  <div class="acc-body">
+    <div class="qa">
+      <div class="q">🧪 示例</div>
+      <div class="a">
+<pre class="code"><span class="nb">@tool</span>(approval_mode=<span class="st">"never_require"</span>)
+<span class="kw">def</span> <span class="fn">search_docs</span>(query: str) -> list[str]:
+    <span class="st">&quot;&quot;&quot;Search documentation for relevant pages.&quot;&quot;&quot;</span>
+    ...
+
+<span class="nb">@tool</span>(approval_mode=<span class="st">"never_require"</span>)
+<span class="kw">def</span> <span class="fn">read_page</span>(page_id: str) -> str:
+    <span class="st">&quot;&quot;&quot;Read the full content of a documentation page.&quot;&quot;&quot;</span>
+    ...
+
+<span class="nb">@tool</span>(approval_mode=<span class="st">"always_require"</span>)
+<span class="kw">def</span> <span class="fn">create_ticket</span>(title: str, description: str) -> str:
+    <span class="st">&quot;&quot;&quot;Create a support ticket.&quot;&quot;&quot;</span>
+    ...
+
+agent = Agent(
+    client=client,
+    name=<span class="st">"SupportBot"</span>,
+    instructions=<span class="st">"Help users find docs or file tickets."</span>,
+    tools=[search_docs, read_page, create_ticket]
+)
+
+<span class="cm"># 用户："How do I reset my password?"</span>
+<span class="cm"># 模型：调 search_docs("reset password") → 拿到 [page_123, page_456]</span>
+<span class="cm"># 模型：调 read_page("page_123") → 读到步骤</span>
+<span class="cm"># 模型：回答用户</span>
+
+<span class="cm"># 用户："I still can't log in, please help"</span>
+<span class="cm"># 模型：调 create_ticket(...) → 框架弹确认 → 用户批准 → 创建工单</span></pre>
+      </div>
+    </div>
+    <div class="qa">
+      <div class="q">❓ 为什么这件事必要</div>
+      <div class="a">真实 Agent 需要<strong>多种能力</strong>：<ul>
+        <li><strong>检索</strong>：搜索知识库、数据库、API。</li>
+        <li><strong>读写</strong>：读文件、写日志、更新记录。</li>
+        <li><strong>计算</strong>：调计算器、运行代码。</li>
+        <li><strong>交互</strong>：发邮件、创建工单、调第三方服务。</li>
+      </ul>
+      单个工具功能有限，多个工具<strong>组合</strong>才能完成复杂任务。模型需要<strong>规划</strong>：先搜索 → 再读取 → 最后创建工单。框架需要支持<strong>多轮工具调用</strong>（一个工具的输出可能触发下一个工具）。</div>
+    </div>
+    <div class="qa">
+      <div class="q">✅ MAF 的做法与优点</div>
+      <div class="a">MAF 的工具循环（见 <span class="mono">python/src/agent_framework/_agent.py</span> 的 <span class="mono">_run_loop</span>）：<ul>
+        <li><strong>传所有工具 schema</strong>：Agent 初始化时把所有工具的 JSON Schema 发给模型。</li>
+        <li><strong>模型选择工具</strong>：模型根据用户问题决定调哪个（或哪几个）工具，输出 <span class="mono">function_call</span>。</li>
+        <li><strong>框架路由执行</strong>：根据 <span class="mono">function_call.name</span> 找到对应 Python 函数，传参调用。</li>
+        <li><strong>结果回灌</strong>：把 <span class="mono">function_result</span> 追加进对话历史，模型读取后决定：继续调工具 or 给出最终答案。</li>
+        <li><strong>循环直到完成</strong>：最多 <span class="mono">max_tool_rounds</span> 轮（默认 10），防止死循环。</li>
+      </ul>
+      开发者只需定义工具、把它们传给 Agent，调度和组合由框架完成。</div>
+    </div>
+    <div class="qa">
+      <div class="q">🔀 还有什么其他方案</div>
+      <div class="a"><ul>
+        <li><strong>OpenAI parallel_tool_calls</strong>：支持一次返回多个 tool_call，MAF 未来也会支持（并发执行工具）。</li>
+        <li><strong>Anthropic tool_use blocks</strong>：一条消息可包含多个 <span class="mono">tool_use</span>，MAF 已在 <span class="mono">Content.from_function_call</span> 抽象。</li>
+        <li><strong>LangChain ToolChain</strong>：需手动编排工具调用顺序（A → B → C），不如让模型自己规划灵活。</li>
+        <li>MAF <strong>自动循环 + 模型规划</strong>：给足工具，模型自己组合，框架保证安全执行（审批 + 轮数限制）。</li>
+      </ul></div>
+    </div>
+  </div>
+</details>
+
 <div class="card key">
   <div class="tag">✅ 关键要点</div>
   <ul>
@@ -363,6 +607,250 @@ result = <span class="kw">await</span> agent.run(<span class="st">"What's the we
   <span class="inline">"always_require"</span></strong> to require human confirmation before a tool runs (especially
   for writes / spend).
 </div>
+
+<details class="accordion">
+  <summary><span class="badge-num">1</span> Auto schema generation <span class="hint">click to expand</span></summary>
+  <div class="acc-body">
+    <div class="qa">
+      <div class="q">🧪 Example</div>
+      <div class="a">
+<pre class="code"><span class="kw">from</span> typing <span class="kw">import</span> Annotated
+<span class="kw">from</span> agent_framework <span class="kw">import</span> tool
+<span class="kw">from</span> pydantic <span class="kw">import</span> Field
+
+<span class="nb">@tool</span>(approval_mode=<span class="st">"never_require"</span>)
+<span class="kw">def</span> <span class="fn">search_products</span>(
+    query: Annotated[str, Field(description=<span class="st">"Search keywords"</span>)],
+    max_results: Annotated[int, Field(description=<span class="st">"Max results to return"</span>, ge=1, le=10)] = 5
+) -> list[dict]:
+    <span class="st">&quot;&quot;&quot;Search for products in the catalog.&quot;&quot;&quot;</span>
+    ...
+
+<span class="cm"># Auto-generated JSON Schema:</span>
+<span class="cm"># {</span>
+<span class="cm">#   &quot;name&quot;: &quot;search_products&quot;,</span>
+<span class="cm">#   &quot;description&quot;: &quot;Search for products in the catalog.&quot;,</span>
+<span class="cm">#   &quot;parameters&quot;: {</span>
+<span class="cm">#     &quot;type&quot;: &quot;object&quot;,</span>
+<span class="cm">#     &quot;properties&quot;: {</span>
+<span class="cm">#       &quot;query&quot;: {&quot;type&quot;: &quot;string&quot;, &quot;description&quot;: &quot;Search keywords&quot;},</span>
+<span class="cm">#       &quot;max_results&quot;: {&quot;type&quot;: &quot;integer&quot;, &quot;description&quot;: &quot;Max results...&quot;, &quot;minimum&quot;: 1, &quot;maximum&quot;: 10, &quot;default&quot;: 5}</span>
+<span class="cm">#     },</span>
+<span class="cm">#     &quot;required&quot;: [&quot;query&quot;]</span>
+<span class="cm">#   }</span>
+<span class="cm"># }</span></pre>
+      </div>
+    </div>
+    <div class="qa">
+      <div class="q">❓ Why this matters</div>
+      <div class="a">Models need <strong>JSON Schema</strong> to understand tool signatures: parameter names, types, constraints, meanings. Problems with hand-written schemas:<ul>
+        <li><strong>Error-prone</strong>: field name typos, type mismatches, forgotten description updates.</li>
+        <li><strong>Double maintenance</strong>: function signature changes, schema must sync, easy to miss.</li>
+        <li><strong>No type checking</strong>: schema and code diverge, wrong arguments only caught at runtime.</li>
+      </ul>
+      Auto-generation makes <strong>type annotations = single source of truth</strong>, function signature is the contract.</div>
+    </div>
+    <div class="qa">
+      <div class="q">✅ How MAF does it</div>
+      <div class="a">MAF uses <strong>Pydantic</strong> to auto-generate schemas (see <span class="mono">ToolDefinition.from_function</span> in <span class="mono">python/src/agent_framework/ai/_tool.py</span>):<ul>
+        <li><strong>Type annotations</strong> → <span class="mono">type</span> field (<span class="mono">str</span> → <span class="mono">"string"</span>, <span class="mono">int</span> → <span class="mono">"integer"</span>…).</li>
+        <li><strong>Field(description=...)</strong> → <span class="mono">description</span> field.</li>
+        <li><strong>Field(..., ge=1, le=10)</strong> → <span class="mono">minimum</span>/<span class="mono">maximum</span> constraints.</li>
+        <li><strong>Default values</strong> → <span class="mono">default</span> field, optional parameters.</li>
+        <li><strong>Docstring</strong> → tool's <span class="mono">description</span>.</li>
+      </ul>
+      IDE autocomplete, type checkers (mypy) validate calls, schema and code always in sync.</div>
+    </div>
+    <div class="qa">
+      <div class="q">🔀 Alternatives</div>
+      <div class="a"><ul>
+        <li><strong>Hand-written JSON Schema</strong>: early OpenAI SDK approach, error-prone, high maintenance.</li>
+        <li><strong>LangChain @tool</strong>: also uses Pydantic, but weak support for complex types (nested objects, unions).</li>
+        <li><strong>OpenAI function calling JSON</strong>: manual construction of <span class="mono">{"name": ..., "parameters": {...}}</span>, no type safety.</li>
+        <li>MAF <strong>fully automatic</strong>: supports generics, nesting, optional params, constraints; generated schema matches all vendor specs.</li>
+      </ul></div>
+    </div>
+  </div>
+</details>
+
+<details class="accordion">
+  <summary><span class="badge-num">2</span> Approval modes <span class="hint">click to expand</span></summary>
+  <div class="acc-body">
+    <div class="qa">
+      <div class="q">🧪 Example</div>
+      <div class="a">
+<pre class="code"><span class="nb">@tool</span>(approval_mode=<span class="st">"never_require"</span>)
+<span class="kw">def</span> <span class="fn">get_time</span>() -> str:
+    <span class="st">&quot;&quot;&quot;Get current time (safe, always auto-execute).&quot;&quot;&quot;</span>
+    <span class="kw">return</span> datetime.now().isoformat()
+
+<span class="nb">@tool</span>(approval_mode=<span class="st">"always_require"</span>)
+<span class="kw">def</span> <span class="fn">send_email</span>(to: str, subject: str, body: str) -> str:
+    <span class="st">&quot;&quot;&quot;Send an email (requires human approval).&quot;&quot;&quot;</span>
+    ...  <span class="cm"># framework requests confirmation before execution</span>
+
+<span class="nb">@tool</span>(approval_mode=<span class="st">"auto_if_low_risk"</span>)
+<span class="kw">def</span> <span class="fn">create_ticket</span>(title: str, priority: str) -> str:
+    <span class="st">&quot;&quot;&quot;Create a ticket (low-priority auto, high requires approval).&quot;&quot;&quot;</span>
+    ...  <span class="cm"># can customize risk assessment logic</span></pre>
+      </div>
+    </div>
+    <div class="qa">
+      <div class="q">❓ Why this matters</div>
+      <div class="a">Tools vary in capability and risk:<ul>
+        <li><strong>Read-only queries</strong> (check weather, search): no side effects, can auto-execute.</li>
+        <li><strong>Write operations</strong> (send email, delete files, transfer money): have side effects, must require human confirmation.</li>
+        <li><strong>Gray area</strong> (create draft, add note): low-risk can auto, high-risk needs confirmation.</li>
+      </ul>
+      If all tools auto-execute (<span class="mono">never_require</span>), one model hallucination could send wrong emails, delete wrong data. If all tools require confirmation (<span class="mono">always_require</span>), UX is terrible (confirming even weather lookups). Need <strong>tiered control</strong>.</div>
+    </div>
+    <div class="qa">
+      <div class="q">✅ How MAF does it</div>
+      <div class="a">MAF's <span class="mono">approval_mode</span> (see <span class="mono">python/src/agent_framework/ai/_tool.py</span>):<ul>
+        <li><strong>"never_require"</strong>: no confirmation, auto-execute (default).</li>
+        <li><strong>"always_require"</strong>: pop confirmation dialog / callback every time, execute only after user approval.</li>
+        <li><strong>"auto_if_low_risk"</strong> (future extension): decide dynamically based on parameter content (e.g., amount < $10 auto, >= $10 confirm).</li>
+      </ul>
+      Approval flow defined by <span class="mono">ApprovalStrategy</span> interface (see <span class="mono">_approval.py</span>), customizable (e.g., integrate Slack approval bot, DingTalk approval flow). Framework auto-intercepts before tool execution, no need to write approval logic inside tool functions.</div>
+    </div>
+    <div class="qa">
+      <div class="q">🔀 Alternatives</div>
+      <div class="a"><ul>
+        <li><strong>LangChain HumanApprovalCallbackHandler</strong>: implemented via callbacks, but must manually register to each Agent, easy to miss.</li>
+        <li><strong>Manual checks in tools</strong>: <span class="mono">if dangerous: ask_user(); ...</span>, couples approval logic with business logic.</li>
+        <li><strong>OpenAI function calling</strong>: no built-in approval, application layer must intercept <span class="mono">function_call</span> and handle.</li>
+        <li>MAF <strong>declarative approval</strong>: one line <span class="mono">@tool(approval_mode=...)</span>, approval logic decoupled from tools, pluggable strategies.</li>
+      </ul></div>
+    </div>
+  </div>
+</details>
+
+<details class="accordion">
+  <summary><span class="badge-num">3</span> Async tools <span class="hint">click to expand</span></summary>
+  <div class="acc-body">
+    <div class="qa">
+      <div class="q">🧪 Example</div>
+      <div class="a">
+<pre class="code"><span class="kw">import</span> httpx
+
+<span class="cm"># Sync tool (blocks event loop)</span>
+<span class="nb">@tool</span>(approval_mode=<span class="st">"never_require"</span>)
+<span class="kw">def</span> <span class="fn">get_weather_sync</span>(city: str) -> str:
+    <span class="st">&quot;&quot;&quot;Get weather (blocks event loop).&quot;&quot;&quot;</span>
+    resp = httpx.get(<span class="st">f"https://api.weather.com?q={city}"</span>)  <span class="cm"># blocking!</span>
+    <span class="kw">return</span> resp.json()[<span class="st">"temp"</span>]
+
+<span class="cm"># Async tool (non-blocking)</span>
+<span class="nb">@tool</span>(approval_mode=<span class="st">"never_require"</span>)
+<span class="kw">async def</span> <span class="fn">get_weather_async</span>(city: str) -> str:
+    <span class="st">&quot;&quot;&quot;Get weather (async, doesn't block).&quot;&quot;&quot;</span>
+    <span class="kw">async with</span> httpx.AsyncClient() <span class="kw">as</span> client:
+        resp = <span class="kw">await</span> client.get(<span class="st">f"https://api.weather.com?q={city}"</span>)
+        <span class="kw">return</span> resp.json()[<span class="st">"temp"</span>]
+
+<span class="cm"># Agent auto-handles: sync via run_in_executor, async via direct await</span></pre>
+      </div>
+    </div>
+    <div class="qa">
+      <div class="q">❓ Why this matters</div>
+      <div class="a">Tools often do I/O:<ul>
+        <li><strong>HTTP requests</strong>: calling third-party APIs (weather, maps, payments).</li>
+        <li><strong>Database queries</strong>: reading user info, order history.</li>
+        <li><strong>File I/O</strong>: reading config, writing logs.</li>
+      </ul>
+      Synchronous I/O <strong>blocks the event loop</strong>: one tool call taking 2 seconds freezes the entire Agent for 2 seconds, can't handle other requests. Async I/O lets the event loop continue, multiple tool calls can execute concurrently (one waiting on network while another runs CPU tasks). Python's <span class="mono">asyncio</span> and .NET's <span class="mono">Task</span> both require async contagion — <strong>async all the way</strong>.</div>
+    </div>
+    <div class="qa">
+      <div class="q">✅ How MAF does it</div>
+      <div class="a">MAF's <span class="mono">@tool</span> <strong>supports both sync and async</strong> (see <span class="mono">ToolDefinition.invoke</span> in <span class="mono">python/src/agent_framework/ai/_tool.py</span>):<ul>
+        <li><strong>Sync tools</strong>: framework uses <span class="mono">asyncio.to_thread</span> (or <span class="mono">run_in_executor</span>) to run in thread pool, avoiding blocking.</li>
+        <li><strong>Async tools</strong>: framework directly <span class="mono">await</span>s, doesn't block event loop.</li>
+        <li><strong>Auto-detection</strong>: <span class="mono">inspect.iscoroutinefunction(...)</span> determines if async.</li>
+        <li><strong>Concurrent execution</strong>: multiple tool calls can use <span class="mono">asyncio.gather</span> for concurrency (future support for parallel tool calls).</li>
+      </ul>
+      Developers don't care about sync/async details; framework ensures efficient execution.</div>
+    </div>
+    <div class="qa">
+      <div class="q">🔀 Alternatives</div>
+      <div class="a"><ul>
+        <li><strong>LangChain</strong>: <span class="mono">@tool</span> supports async, but <span class="mono">AgentExecutor</span>'s sync/async paths separated, easy to get wrong.</li>
+        <li><strong>OpenAI SDK</strong>: doesn't care if tools are sync/async, application layer handles it.</li>
+        <li><strong>Sync only</strong>: simple but poor performance, Agent handling concurrent requests will block.</li>
+        <li>MAF <strong>transparent handling</strong>: write sync tools (simple) or async tools (efficient), framework auto-optimizes.</li>
+      </ul></div>
+    </div>
+  </div>
+</details>
+
+<details class="accordion">
+  <summary><span class="badge-num">4</span> Multiple tools together <span class="hint">click to expand</span></summary>
+  <div class="acc-body">
+    <div class="qa">
+      <div class="q">🧪 Example</div>
+      <div class="a">
+<pre class="code"><span class="nb">@tool</span>(approval_mode=<span class="st">"never_require"</span>)
+<span class="kw">def</span> <span class="fn">search_docs</span>(query: str) -> list[str]:
+    <span class="st">&quot;&quot;&quot;Search documentation for relevant pages.&quot;&quot;&quot;</span>
+    ...
+
+<span class="nb">@tool</span>(approval_mode=<span class="st">"never_require"</span>)
+<span class="kw">def</span> <span class="fn">read_page</span>(page_id: str) -> str:
+    <span class="st">&quot;&quot;&quot;Read the full content of a documentation page.&quot;&quot;&quot;</span>
+    ...
+
+<span class="nb">@tool</span>(approval_mode=<span class="st">"always_require"</span>)
+<span class="kw">def</span> <span class="fn">create_ticket</span>(title: str, description: str) -> str:
+    <span class="st">&quot;&quot;&quot;Create a support ticket.&quot;&quot;&quot;</span>
+    ...
+
+agent = Agent(
+    client=client,
+    name=<span class="st">"SupportBot"</span>,
+    instructions=<span class="st">"Help users find docs or file tickets."</span>,
+    tools=[search_docs, read_page, create_ticket]
+)
+
+<span class="cm"># User: "How do I reset my password?"</span>
+<span class="cm"># Model: calls search_docs("reset password") → gets [page_123, page_456]</span>
+<span class="cm"># Model: calls read_page("page_123") → reads steps</span>
+<span class="cm"># Model: answers user</span>
+
+<span class="cm"># User: "I still can't log in, please help"</span>
+<span class="cm"># Model: calls create_ticket(...) → framework pops confirmation → user approves → ticket created</span></pre>
+      </div>
+    </div>
+    <div class="qa">
+      <div class="q">❓ Why this matters</div>
+      <div class="a">Real Agents need <strong>multiple capabilities</strong>:<ul>
+        <li><strong>Retrieval</strong>: search knowledge base, database, API.</li>
+        <li><strong>Read/write</strong>: read files, write logs, update records.</li>
+        <li><strong>Computation</strong>: call calculator, run code.</li>
+        <li><strong>Interaction</strong>: send emails, create tickets, call third-party services.</li>
+      </ul>
+      Single tools are limited; multiple tools <strong>combined</strong> complete complex tasks. Model needs to <strong>plan</strong>: search first → then read → finally create ticket. Framework needs to support <strong>multi-round tool calls</strong> (one tool's output may trigger the next).</div>
+    </div>
+    <div class="qa">
+      <div class="q">✅ How MAF does it</div>
+      <div class="a">MAF's tool loop (see <span class="mono">_run_loop</span> in <span class="mono">python/src/agent_framework/_agent.py</span>):<ul>
+        <li><strong>Pass all tool schemas</strong>: on Agent init, all tools' JSON Schemas sent to model.</li>
+        <li><strong>Model selects tools</strong>: model decides which tool(s) to call based on user question, outputs <span class="mono">function_call</span>.</li>
+        <li><strong>Framework routes execution</strong>: based on <span class="mono">function_call.name</span>, finds corresponding Python function, calls with args.</li>
+        <li><strong>Feed back results</strong>: appends <span class="mono">function_result</span> to conversation history; model reads and decides: call more tools or give final answer.</li>
+        <li><strong>Loop until done</strong>: max <span class="mono">max_tool_rounds</span> (default 10), prevents infinite loops.</li>
+      </ul>
+      Developers just define tools, pass them to Agent; scheduling and composition done by framework.</div>
+    </div>
+    <div class="qa">
+      <div class="q">🔀 Alternatives</div>
+      <div class="a"><ul>
+        <li><strong>OpenAI parallel_tool_calls</strong>: supports returning multiple tool_calls at once, MAF will support in future (concurrent tool execution).</li>
+        <li><strong>Anthropic tool_use blocks</strong>: one message can contain multiple <span class="mono">tool_use</span>, MAF already abstracts in <span class="mono">Content.from_function_call</span>.</li>
+        <li><strong>LangChain ToolChain</strong>: must manually orchestrate tool call order (A → B → C), less flexible than letting model plan.</li>
+        <li>MAF <strong>auto-loop + model planning</strong>: provide tools, model composes them, framework ensures safe execution (approval + round limits).</li>
+      </ul></div>
+    </div>
+  </div>
+</details>
 
 <div class="card key">
   <div class="tag">✅ Key points</div>

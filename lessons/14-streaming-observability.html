@@ -298,6 +298,108 @@ table.t td.mono, table.t td .mono { font-family: ui-monospace, monospace; font-s
   </div>
 </details>
 
+<details class="accordion">
+  <summary><span class="badge-num">2</span> AgentResponseUpdate 结构 <span class="hint">点击展开详解</span></summary>
+  <div class="acc-body">
+    <div class="qa"><div class="q">🧪 示例</div><div class="a">
+<pre class="code"><span class="kw">async for</span> chunk <span class="kw">in</span> agent.run(<span class="st">&quot;Tell me a joke&quot;</span>, stream=<span class="kw">True</span>):
+    <span class="fn">print</span>(chunk.text, end=<span class="st">&quot;&quot;</span>)       <span class="cm"># 增量文本</span>
+    <span class="fn">print</span>(chunk.contents)            <span class="cm"># [TextContent(...)]</span>
+    <span class="fn">print</span>(chunk.finish_reason)       <span class="cm"># None → ... → &quot;stop&quot;</span>
+    <span class="fn">print</span>(chunk.author_name)         <span class="cm"># 多Agent时标识是谁说的</span></pre>
+最后一个 chunk 的 <span class="mono">finish_reason</span> 为 <span class="mono">&quot;stop&quot;</span>，表示生成完毕。
+把所有 chunk 的 <span class="mono">.text</span> 拼起来就是完整的 <span class="mono">AgentResponse</span>。</div></div>
+    <div class="qa"><div class="q">❓ 为什么这件事必要</div><div class="a">流式场景中，你需要知道每个 chunk 包含什么、何时结束、谁在说话。
+      理解 <span class="mono">AgentResponseUpdate</span> 的字段才能正确地构建 UI 流式渲染。</div></div>
+    <div class="qa"><div class="q">✅ MAF 的做法与优点</div><div class="a"><span class="mono">AgentResponseUpdate</span> 包含：
+      <span class="mono">.contents</span>（Content 列表，可含 TextContent / 图片 / 工具调用）、
+      <span class="mono">.text</span>（所有 TextContent 拼接的纯文本快捷属性）、
+      <span class="mono">.finish_reason</span>（&quot;stop&quot; / &quot;length&quot; / &quot;tool_calls&quot;）、
+      <span class="mono">.author_name</span> / <span class="mono">.agent_id</span>（多 Agent 场景标识来源）。
+      结构与非流式的 <span class="mono">AgentResponse</span> 对齐，切换模式时代码改动最小。</div></div>
+    <div class="qa"><div class="q">🔀 还有什么其他方案</div><div class="a">OpenAI SDK 返回 <span class="mono">ChatCompletionChunk</span>（仅文本 delta）；
+      LangChain 返回 <span class="mono">AIMessageChunk</span>。MAF 的 chunk 带有 <span class="mono">agent_id</span> 和 <span class="mono">author_name</span>，
+      天然适合<strong>多 Agent 流式场景</strong>。</div></div>
+  </div>
+</details>
+
+<details class="accordion">
+  <summary><span class="badge-num">3</span> Workflow 的流式 <span class="hint">点击展开详解</span></summary>
+  <div class="acc-body">
+    <div class="qa"><div class="q">🧪 示例</div><div class="a">
+<pre class="code"><span class="kw">async for</span> event <span class="kw">in</span> wf.run(<span class="st">&quot;hello&quot;</span>, stream=<span class="kw">True</span>):
+    <span class="kw">if</span> event.type == <span class="st">&quot;output&quot;</span>:
+        <span class="fn">print</span>(<span class="st">&quot;Final:&quot;</span>, event.data)
+    <span class="kw">elif</span> event.type == <span class="st">&quot;intermediate&quot;</span>:
+        <span class="fn">print</span>(<span class="st">&quot;Step:&quot;</span>, event.data)
+    <span class="kw">elif</span> event.type == <span class="st">&quot;executor_invoked&quot;</span>:
+        <span class="fn">print</span>(<span class="st">&quot;Running:&quot;</span>, event.executor_id)</pre>
+流式模式下 <span class="mono">run()</span> 返回 <span class="mono">AsyncIterator[WorkflowEvent]</span>，而非 <span class="mono">WorkflowRunResult</span>。</div></div>
+    <div class="qa"><div class="q">❓ 为什么这件事必要</div><div class="a">工作流可能包含多个 Agent、运行数分钟。用户不能干等到整个图跑完——
+      流式事件让前端<strong>实时展示进度</strong>：哪个节点在跑、中间结果是什么、最终输出何时到。</div></div>
+    <div class="qa"><div class="q">✅ MAF 的做法与优点</div><div class="a"><span class="mono">WorkflowEvent</span> 有丰富的事件类型：
+      <span class="mono">started</span> / <span class="mono">executor_invoked</span> / <span class="mono">executor_completed</span>（生命周期）、
+      <span class="mono">output</span> / <span class="mono">intermediate</span>（数据）、
+      <span class="mono">request_info</span>（HITL 请求）、<span class="mono">failed</span>（错误）。
+      每个事件携带 <span class="mono">executor_id</span>、<span class="mono">iteration</span>、<span class="mono">state</span> 等元数据。</div></div>
+    <div class="qa"><div class="q">🔀 还有什么其他方案</div><div class="a">LangGraph 的 streaming 返回纯文本 chunk，无结构化事件；
+      Temporal 有事件历史但不支持实时推送。MAF 的 <span class="mono">WorkflowEvent</span> 结构化且类型丰富——
+      前端可以据此渲染进度条、节点高亮、错误提示。</div></div>
+  </div>
+</details>
+
+<details class="accordion">
+  <summary><span class="badge-num">4</span> OTel span 层次 <span class="hint">点击展开详解</span></summary>
+  <div class="acc-body">
+    <div class="qa"><div class="q">🧪 示例</div><div class="a">MAF 自动产生的 span 层次：
+<pre class="code">agent.run (parent span)
+  ├── chat_client.call  <span class="cm"># 每次 LLM 调用</span>
+  │     attrs: input_tokens, output_tokens, model
+  ├── tool.execute      <span class="cm"># 每次工具执行</span>
+  │     attrs: tool.name, tool.call.id
+  └── chat_client.call  <span class="cm"># 工具循环再次调用</span>
+
+workflow.run (parent span)
+  ├── executor: upper   <span class="cm"># 每个节点一个子 span</span>
+  │     attrs: executor.id, executor.type
+  ├── message.send      <span class="cm"># 节点间消息传递</span>
+  │     attrs: source_id, target_id
+  └── executor: reverse</pre></div></div>
+    <div class="qa"><div class="q">❓ 为什么这件事必要</div><div class="a">当 Agent 链上某步慢了或报错，你需要知道<strong>具体是哪个 LLM 调用还是哪个工具执行</strong>的问题。
+      分层 span 让你在 Jaeger/Grafana 中像看调用栈一样定位瓶颈。</div></div>
+    <div class="qa"><div class="q">✅ MAF 的做法与优点</div><div class="a"><span class="mono">observability.py</span> 定义了 <span class="mono">OtelAttr</span> 枚举，自动填充 GenAI 语义约定属性：
+      <span class="mono">gen_ai.agent.id</span>、<span class="mono">gen_ai.usage.input_tokens</span>、<span class="mono">gen_ai.tool.name</span> 等。
+      Workflow 层还追踪 <span class="mono">workflow.id</span>、<span class="mono">executor.id</span>、<span class="mono">message.send</span>。
+      零额外代码——只需配置 exporter 即可在 Jaeger / Zipkin / OTLP Collector 中查看。</div></div>
+    <div class="qa"><div class="q">🔀 还有什么其他方案</div><div class="a">LangSmith 是 LangChain 的专有追踪方案（厂商锁定）；
+      LiteLLM 只追踪 LLM 调用不追踪工具和工作流。MAF 用<strong>标准 OTel</strong>——
+      兼容所有 OTel 生态工具，无厂商锁定。</div></div>
+  </div>
+</details>
+
+<details class="accordion">
+  <summary><span class="badge-num">5</span> 自定义 span / 指标 <span class="hint">点击展开详解</span></summary>
+  <div class="acc-body">
+    <div class="qa"><div class="q">🧪 示例</div><div class="a">
+<pre class="code"><span class="kw">from</span> agent_framework.observability <span class="kw">import</span> create_workflow_span, OtelAttr
+
+<span class="kw">with</span> create_workflow_span(
+    <span class="st">&quot;my_custom_step&quot;</span>,
+    attributes={OtelAttr.EXECUTOR_ID: <span class="st">&quot;validator&quot;</span>},
+) <span class="kw">as</span> span:
+    result = validate(data)
+    span.set_attribute(<span class="st">&quot;validation.passed&quot;</span>, result.ok)</pre></div></div>
+    <div class="qa"><div class="q">❓ 为什么这件事必要</div><div class="a">框架自动 span 覆盖 LLM 和工具调用，但你的<strong>业务逻辑</strong>（如自定义验证、数据库查询、外部 API 调用）
+      也需要被追踪。自定义 span 填补这些盲区。</div></div>
+    <div class="qa"><div class="q">✅ MAF 的做法与优点</div><div class="a">MAF 暴露 <span class="mono">create_workflow_span()</span> 作为创建自定义 span 的便捷入口，
+      自动挂到当前 trace 上下文中。你也可以直接用 OTel SDK 的 <span class="mono">tracer.start_as_current_span()</span>。
+      框架提供的 <span class="mono">OtelAttr</span> 枚举确保属性名与内置 span 一致——查询时可以统一过滤。</div></div>
+    <div class="qa"><div class="q">🔀 还有什么其他方案</div><div class="a">有些框架（如 Haystack）不暴露 tracer，只能用日志做追踪；
+      LangSmith 需要用其 SDK 的 <span class="mono">@traceable</span> 装饰器。
+      MAF 完全拥抱 OTel 标准——你的自定义 span 和框架内置 span 在同一条 trace 中无缝衔接。</div></div>
+  </div>
+</details>
+
 <div class="card key">
   <div class="tag">✅ 关键要点</div>
   <ul>
@@ -356,6 +458,108 @@ them in Jaeger / Grafana.</p>
         <span class="mono">opentelemetry-sdk</span> + an exporter, call <span class="mono">TracerProvider</span> init at
         the top of your code. The framework auto-attaches spans to agent/chat/tool operations.</div>
     </div>
+  </div>
+</details>
+
+<details class="accordion">
+  <summary><span class="badge-num">2</span> AgentResponseUpdate structure <span class="hint">click to expand</span></summary>
+  <div class="acc-body">
+    <div class="qa"><div class="q">🧪 Example</div><div class="a">
+<pre class="code"><span class="kw">async for</span> chunk <span class="kw">in</span> agent.run(<span class="st">&quot;Tell me a joke&quot;</span>, stream=<span class="kw">True</span>):
+    <span class="fn">print</span>(chunk.text, end=<span class="st">&quot;&quot;</span>)       <span class="cm"># incremental text</span>
+    <span class="fn">print</span>(chunk.contents)            <span class="cm"># [TextContent(...)]</span>
+    <span class="fn">print</span>(chunk.finish_reason)       <span class="cm"># None → ... → &quot;stop&quot;</span>
+    <span class="fn">print</span>(chunk.author_name)         <span class="cm"># identifies speaker in multi-agent</span></pre>
+The last chunk's <span class="mono">finish_reason</span> is <span class="mono">&quot;stop&quot;</span>, signaling generation is complete.
+Concatenate all chunks' <span class="mono">.text</span> to reconstruct the full <span class="mono">AgentResponse</span>.</div></div>
+    <div class="qa"><div class="q">❓ Why this matters</div><div class="a">In streaming scenarios you need to know what each chunk contains, when generation ends, and who is speaking.
+      Understanding <span class="mono">AgentResponseUpdate</span> fields is essential for building correct streaming UI rendering.</div></div>
+    <div class="qa"><div class="q">✅ How MAF does it</div><div class="a"><span class="mono">AgentResponseUpdate</span> contains:
+      <span class="mono">.contents</span> (Content list — may include TextContent / images / tool calls),
+      <span class="mono">.text</span> (convenience property concatenating all TextContent),
+      <span class="mono">.finish_reason</span> (&quot;stop&quot; / &quot;length&quot; / &quot;tool_calls&quot;),
+      <span class="mono">.author_name</span> / <span class="mono">.agent_id</span> (source identification in multi-agent scenarios).
+      The structure aligns with non-streaming <span class="mono">AgentResponse</span>, minimizing code changes when switching modes.</div></div>
+    <div class="qa"><div class="q">🔀 Alternatives</div><div class="a">OpenAI SDK returns <span class="mono">ChatCompletionChunk</span> (text delta only);
+      LangChain returns <span class="mono">AIMessageChunk</span>. MAF chunks carry <span class="mono">agent_id</span> and <span class="mono">author_name</span>,
+      making them <strong>natively suited for multi-agent streaming</strong>.</div></div>
+  </div>
+</details>
+
+<details class="accordion">
+  <summary><span class="badge-num">3</span> Workflow streaming <span class="hint">click to expand</span></summary>
+  <div class="acc-body">
+    <div class="qa"><div class="q">🧪 Example</div><div class="a">
+<pre class="code"><span class="kw">async for</span> event <span class="kw">in</span> wf.run(<span class="st">&quot;hello&quot;</span>, stream=<span class="kw">True</span>):
+    <span class="kw">if</span> event.type == <span class="st">&quot;output&quot;</span>:
+        <span class="fn">print</span>(<span class="st">&quot;Final:&quot;</span>, event.data)
+    <span class="kw">elif</span> event.type == <span class="st">&quot;intermediate&quot;</span>:
+        <span class="fn">print</span>(<span class="st">&quot;Step:&quot;</span>, event.data)
+    <span class="kw">elif</span> event.type == <span class="st">&quot;executor_invoked&quot;</span>:
+        <span class="fn">print</span>(<span class="st">&quot;Running:&quot;</span>, event.executor_id)</pre>
+In streaming mode <span class="mono">run()</span> returns <span class="mono">AsyncIterator[WorkflowEvent]</span> instead of <span class="mono">WorkflowRunResult</span>.</div></div>
+    <div class="qa"><div class="q">❓ Why this matters</div><div class="a">Workflows can involve multiple agents and run for minutes. Users can't wait for the entire graph to finish —
+      streaming events let the frontend <strong>show progress in real time</strong>: which node is running, what intermediate results look like, when the final output arrives.</div></div>
+    <div class="qa"><div class="q">✅ How MAF does it</div><div class="a"><span class="mono">WorkflowEvent</span> has rich event types:
+      <span class="mono">started</span> / <span class="mono">executor_invoked</span> / <span class="mono">executor_completed</span> (lifecycle),
+      <span class="mono">output</span> / <span class="mono">intermediate</span> (data),
+      <span class="mono">request_info</span> (HITL requests), <span class="mono">failed</span> (errors).
+      Each event carries <span class="mono">executor_id</span>, <span class="mono">iteration</span>, <span class="mono">state</span> metadata.</div></div>
+    <div class="qa"><div class="q">🔀 Alternatives</div><div class="a">LangGraph streaming returns plain text chunks without structured events;
+      Temporal has event history but doesn't support real-time push. MAF's <span class="mono">WorkflowEvent</span> is structured and richly typed —
+      frontends can render progress bars, node highlights, and error alerts from it.</div></div>
+  </div>
+</details>
+
+<details class="accordion">
+  <summary><span class="badge-num">4</span> OTel span hierarchy <span class="hint">click to expand</span></summary>
+  <div class="acc-body">
+    <div class="qa"><div class="q">🧪 Example</div><div class="a">Auto-generated span hierarchy in MAF:
+<pre class="code">agent.run (parent span)
+  ├── chat_client.call  <span class="cm"># each LLM call</span>
+  │     attrs: input_tokens, output_tokens, model
+  ├── tool.execute      <span class="cm"># each tool execution</span>
+  │     attrs: tool.name, tool.call.id
+  └── chat_client.call  <span class="cm"># tool loop calls model again</span>
+
+workflow.run (parent span)
+  ├── executor: upper   <span class="cm"># one child span per node</span>
+  │     attrs: executor.id, executor.type
+  ├── message.send      <span class="cm"># inter-node message passing</span>
+  │     attrs: source_id, target_id
+  └── executor: reverse</pre></div></div>
+    <div class="qa"><div class="q">❓ Why this matters</div><div class="a">When a step in the agent chain is slow or errors out, you need to know <strong>exactly which LLM call or which tool
+      execution</strong> is the problem. Hierarchical spans let you pinpoint bottlenecks in Jaeger/Grafana like reading a call stack.</div></div>
+    <div class="qa"><div class="q">✅ How MAF does it</div><div class="a"><span class="mono">observability.py</span> defines an <span class="mono">OtelAttr</span> enum, auto-populating GenAI semantic convention attributes:
+      <span class="mono">gen_ai.agent.id</span>, <span class="mono">gen_ai.usage.input_tokens</span>, <span class="mono">gen_ai.tool.name</span>, etc.
+      The Workflow layer also tracks <span class="mono">workflow.id</span>, <span class="mono">executor.id</span>, <span class="mono">message.send</span>.
+      Zero extra code — just configure an exporter and view traces in Jaeger / Zipkin / OTLP Collector.</div></div>
+    <div class="qa"><div class="q">🔀 Alternatives</div><div class="a">LangSmith is LangChain's proprietary tracing solution (vendor lock-in);
+      LiteLLM only traces LLM calls, not tools or workflows. MAF uses <strong>standard OTel</strong> —
+      compatible with the entire OTel ecosystem, no vendor lock-in.</div></div>
+  </div>
+</details>
+
+<details class="accordion">
+  <summary><span class="badge-num">5</span> Custom spans / metrics <span class="hint">click to expand</span></summary>
+  <div class="acc-body">
+    <div class="qa"><div class="q">🧪 Example</div><div class="a">
+<pre class="code"><span class="kw">from</span> agent_framework.observability <span class="kw">import</span> create_workflow_span, OtelAttr
+
+<span class="kw">with</span> create_workflow_span(
+    <span class="st">&quot;my_custom_step&quot;</span>,
+    attributes={OtelAttr.EXECUTOR_ID: <span class="st">&quot;validator&quot;</span>},
+) <span class="kw">as</span> span:
+    result = validate(data)
+    span.set_attribute(<span class="st">&quot;validation.passed&quot;</span>, result.ok)</pre></div></div>
+    <div class="qa"><div class="q">❓ Why this matters</div><div class="a">The framework's auto-spans cover LLM and tool calls, but your <strong>business logic</strong>
+      (custom validation, database queries, external API calls) also needs tracing. Custom spans fill those blind spots.</div></div>
+    <div class="qa"><div class="q">✅ How MAF does it</div><div class="a">MAF exposes <span class="mono">create_workflow_span()</span> as a convenient entry point for custom spans,
+      auto-attaching to the current trace context. You can also use the OTel SDK's <span class="mono">tracer.start_as_current_span()</span> directly.
+      The framework's <span class="mono">OtelAttr</span> enum ensures attribute names match built-in spans — unified filtering in queries.</div></div>
+    <div class="qa"><div class="q">🔀 Alternatives</div><div class="a">Some frameworks (e.g., Haystack) don't expose a tracer, forcing log-based tracing;
+      LangSmith requires its SDK's <span class="mono">@traceable</span> decorator.
+      MAF fully embraces the OTel standard — your custom spans and built-in spans coexist seamlessly on the same trace.</div></div>
   </div>
 </details>
 

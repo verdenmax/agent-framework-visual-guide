@@ -274,12 +274,140 @@ tools:
 适合快速原型和版本控制。</p>
 
 <details class="accordion">
-  <summary><span class="badge-num">1</span> 声明式能做到和代码一样吗？ <span class="hint">点击展开</span></summary>
+  <summary><span class="badge-num">1</span> 完整 YAML schema <span class="hint">点击展开详解</span></summary>
   <div class="acc-body">
     <div class="qa">
-      <div class="q">🔬 能力边界</div>
-      <div class="a">简单 Agent（名字 + 指令 + 工具列表）完全可以；复杂的自定义中间件或动态逻辑仍需代码。
-        声明式和代码式可以<strong>混用</strong>——YAML 定义骨架，代码补充高级逻辑。</div>
+      <div class="q">🧪 示例</div>
+      <div class="a">支持的所有字段：
+<pre class="code">name: MyAgent
+instructions: You are a helpful assistant.
+model: gpt-4o
+description: Optional agent description
+
+tools:
+  - tool_name_1
+  - tool_name_2
+
+middleware:
+  - LoggingMiddleware
+  - RetryMiddleware
+
+context_providers:
+  - provider_name</pre>
+每个字段说明：<span class="mono">name</span>（Agent 名称）、<span class="mono">instructions</span>（系统提示）、<span class="mono">model</span>（模型名）、<span class="mono">tools</span>（工具列表）、<span class="mono">middleware</span>（中间件列表）、<span class="mono">context_providers</span>（上下文提供者）、<span class="mono">description</span>（可选描述）。
+      </div>
+    </div>
+    <div class="qa">
+      <div class="q">❓ 为什么这件事必要</div>
+      <div class="a">不知道完整 schema，用户会猜测字段名，浪费时间调试 YAML 拼写错误。明确的 schema 让配置可预测。</div>
+    </div>
+    <div class="qa">
+      <div class="q">✅ MAF 的做法与优点</div>
+      <div class="a">MAF 的 declarative 包会验证 YAML 是否符合已知 schema。未知字段会抛出清晰的错误，而不是悄悄失败。</div>
+    </div>
+    <div class="qa">
+      <div class="q">🔀 还有什么其他方案</div>
+      <div class="a">JSON Schema 验证，Pydantic 模型配置。YAML 对人类友好，且在版本控制中 diff 友好。</div>
+    </div>
+  </div>
+</details>
+
+<details class="accordion">
+  <summary><span class="badge-num">2</span> 加载代码 <span class="hint">点击展开详解</span></summary>
+  <div class="acc-body">
+    <div class="qa">
+      <div class="q">🧪 示例</div>
+      <div class="a">从 YAML 加载到运行：
+<pre class="code"><span class="kw">from</span> agent_framework.declarative <span class="kw">import</span> load_agent
+
+agent = load_agent(<span class="st">"my_agent.yaml"</span>)
+result = <span class="kw">await</span> agent.run(<span class="st">"Hello"</span>)</pre>
+仅 3 行代码。<span class="mono">load_agent</span> 读取 YAML → 构造完整配置的 Agent 实例。
+      </div>
+    </div>
+    <div class="qa">
+      <div class="q">❓ 为什么这件事必要</div>
+      <div class="a">如果加载复杂，声明式就失去吸引力。应该和"加载 → 运行"一样简单。</div>
+    </div>
+    <div class="qa">
+      <div class="q">✅ MAF 的做法与优点</div>
+      <div class="a">MAF 让它成为一行代码：加载 YAML，得到完整配置的 Agent。declarative 包处理工具解析、模型连接等所有细节。</div>
+    </div>
+    <div class="qa">
+      <div class="q">🔀 还有什么其他方案</div>
+      <div class="a">Hydra（Facebook）、OmegaConf。MAF 的方法是为 Agent 量身定制的，而不是通用配置。</div>
+    </div>
+  </div>
+</details>
+
+<details class="accordion">
+  <summary><span class="badge-num">3</span> YAML + 代码混合 <span class="hint">点击展开详解</span></summary>
+  <div class="acc-body">
+    <div class="qa">
+      <div class="q">🧪 示例</div>
+      <div class="a">YAML 定义框架，代码添加自定义工具：
+<pre class="code"><span class="cm"># 1. 在 Python 中定义工具</span>
+<span class="kw">from</span> agent_framework <span class="kw">import</span> tool
+
+<span class="nb">@tool</span>
+<span class="kw">def</span> <span class="fn">my_custom_tool</span>(query: str) -> str:
+    <span class="st">&quot;&quot;&quot;My custom logic&quot;&quot;&quot;</span>
+    <span class="kw">return</span> f<span class="st">&quot;Result for {query}&quot;</span>
+
+<span class="cm"># 2. YAML 引用工具名称</span>
+<span class="cm"># my_agent.yaml:</span>
+<span class="cm">#   tools:</span>
+<span class="cm">#     - my_custom_tool</span>
+
+<span class="cm"># 3. 加载时工具自动连接</span>
+agent = load_agent(<span class="st">"my_agent.yaml"</span>)</pre>
+工作流：在 Python 中定义工具 → 在 YAML 中按名称引用 → 加载。
+      </div>
+    </div>
+    <div class="qa">
+      <div class="q">❓ 为什么这件事必要</div>
+      <div class="a">真正的 Agent 需要无法在 YAML 中表达的自定义逻辑。混合模式让非开发人员拥有配置，开发人员拥有逻辑。</div>
+    </div>
+    <div class="qa">
+      <div class="q">✅ MAF 的做法与优点</div>
+      <div class="a">MAF 的工具注册表意味着 YAML 可以按名称引用 Python 函数。两全其美。</div>
+    </div>
+    <div class="qa">
+      <div class="q">🔀 还有什么其他方案</div>
+      <div class="a">全代码（失去非开发人员可访问性），全 YAML 带嵌入代码（安全风险）。混合是最佳平衡点。</div>
+    </div>
+  </div>
+</details>
+
+<details class="accordion">
+  <summary><span class="badge-num">4</span> 声明式工作流 <span class="hint">点击展开详解</span></summary>
+  <div class="acc-body">
+    <div class="qa">
+      <div class="q">🧪 示例</div>
+      <div class="a">工作流（SequentialBuilder、ConcurrentBuilder）能否在 YAML 中定义？
+<pre class="code"><span class="cm"># 当前：单个 Agent 的声明式支持很好</span>
+<span class="cm"># 工作流通常需要代码来处理复杂的路由逻辑</span>
+
+<span class="cm"># 可能的未来 YAML（如果支持）：</span>
+workflow:
+  participants:
+    - writer_agent
+    - reviewer_agent
+  orchestration: sequential</pre>
+当前限制：工作流的复杂路由逻辑最好用代码表达。
+      </div>
+    </div>
+    <div class="qa">
+      <div class="q">❓ 为什么这件事必要</div>
+      <div class="a">如果单个 Agent 可以声明式，团队也会想要声明式工作流。这是自然的下一步。</div>
+    </div>
+    <div class="qa">
+      <div class="q">✅ MAF 的做法与优点</div>
+      <div class="a">MAF 的声明式支持正在发展。目前最适合单个 Agent；工作流通常需要代码来处理复杂路由逻辑。这是一个活跃的开发领域。</div>
+    </div>
+    <div class="qa">
+      <div class="q">🔀 还有什么其他方案</div>
+      <div class="a">Temporal 工作流定义、AWS Step Functions（JSON）。声明式工作流是一个活跃的研究领域。</div>
     </div>
   </div>
 </details>
@@ -322,13 +450,140 @@ tools:
 Great for rapid prototyping and version control.</p>
 
 <details class="accordion">
-  <summary><span class="badge-num">1</span> Can declarative do everything code can? <span class="hint">expand</span></summary>
+  <summary><span class="badge-num">1</span> Complete YAML schema <span class="hint">expand</span></summary>
   <div class="acc-body">
     <div class="qa">
-      <div class="q">🔬 Capability boundary</div>
-      <div class="a">Simple agents (name + instructions + tool list) — absolutely. Complex custom middleware or dynamic
-        logic still needs code. Declarative and code <strong>can be mixed</strong> — YAML defines the skeleton,
-        code adds advanced logic.</div>
+      <div class="q">🧪 Example</div>
+      <div class="a">All supported fields:
+<pre class="code">name: MyAgent
+instructions: You are a helpful assistant.
+model: gpt-4o
+description: Optional agent description
+
+tools:
+  - tool_name_1
+  - tool_name_2
+
+middleware:
+  - LoggingMiddleware
+  - RetryMiddleware
+
+context_providers:
+  - provider_name</pre>
+Each field explained: <span class="mono">name</span> (agent name), <span class="mono">instructions</span> (system prompt), <span class="mono">model</span> (model name), <span class="mono">tools</span> (tool list), <span class="mono">middleware</span> (middleware list), <span class="mono">context_providers</span> (context providers), <span class="mono">description</span> (optional description).
+      </div>
+    </div>
+    <div class="qa">
+      <div class="q">❓ Why this matters</div>
+      <div class="a">Without knowing the full schema, users guess at field names and waste time debugging YAML typos. An explicit schema makes configuration predictable.</div>
+    </div>
+    <div class="qa">
+      <div class="q">✅ How MAF does it</div>
+      <div class="a">MAF's declarative package validates the YAML against a known schema. Unknown fields raise clear errors instead of silently failing.</div>
+    </div>
+    <div class="qa">
+      <div class="q">🔀 Alternatives</div>
+      <div class="a">JSON Schema validation, Pydantic models for config. YAML is human-friendly and diff-friendly for version control.</div>
+    </div>
+  </div>
+</details>
+
+<details class="accordion">
+  <summary><span class="badge-num">2</span> Loading code <span class="hint">expand</span></summary>
+  <div class="acc-body">
+    <div class="qa">
+      <div class="q">🧪 Example</div>
+      <div class="a">Load from YAML to running:
+<pre class="code"><span class="kw">from</span> agent_framework.declarative <span class="kw">import</span> load_agent
+
+agent = load_agent(<span class="st">&quot;my_agent.yaml&quot;</span>)
+result = <span class="kw">await</span> agent.run(<span class="st">&quot;Hello&quot;</span>)</pre>
+Just 3 lines. <span class="mono">load_agent</span> reads YAML → gets fully configured Agent instance.
+      </div>
+    </div>
+    <div class="qa">
+      <div class="q">❓ Why this matters</div>
+      <div class="a">If loading is complex, declarative loses its appeal. It should be as easy as &quot;load → run&quot;.</div>
+    </div>
+    <div class="qa">
+      <div class="q">✅ How MAF does it</div>
+      <div class="a">MAF makes it a one-liner: load YAML, get a fully configured Agent. The declarative package handles tool resolution, model wiring, etc.</div>
+    </div>
+    <div class="qa">
+      <div class="q">🔀 Alternatives</div>
+      <div class="a">Hydra (Facebook), OmegaConf. MAF's approach is purpose-built for agents, not generic config.</div>
+    </div>
+  </div>
+</details>
+
+<details class="accordion">
+  <summary><span class="badge-num">3</span> YAML + code hybrid <span class="hint">expand</span></summary>
+  <div class="acc-body">
+    <div class="qa">
+      <div class="q">🧪 Example</div>
+      <div class="a">YAML defines skeleton, code adds custom tools:
+<pre class="code"><span class="cm"># 1. Define tool in Python</span>
+<span class="kw">from</span> agent_framework <span class="kw">import</span> tool
+
+<span class="nb">@tool</span>
+<span class="kw">def</span> <span class="fn">my_custom_tool</span>(query: str) -> str:
+    <span class="st">&quot;&quot;&quot;My custom logic&quot;&quot;&quot;</span>
+    <span class="kw">return</span> f<span class="st">&quot;Result for {query}&quot;</span>
+
+<span class="cm"># 2. YAML references tool by name</span>
+<span class="cm"># my_agent.yaml:</span>
+<span class="cm">#   tools:</span>
+<span class="cm">#     - my_custom_tool</span>
+
+<span class="cm"># 3. Load, tools wire automatically</span>
+agent = load_agent(<span class="st">&quot;my_agent.yaml&quot;</span>)</pre>
+Workflow: define tool in Python → reference by name in YAML → load.
+      </div>
+    </div>
+    <div class="qa">
+      <div class="q">❓ Why this matters</div>
+      <div class="a">Real agents need custom logic that can't be expressed in YAML. Hybrid lets non-devs own the config while devs own the logic.</div>
+    </div>
+    <div class="qa">
+      <div class="q">✅ How MAF does it</div>
+      <div class="a">MAF's tool registry means YAML can reference Python functions by name. Best of both worlds.</div>
+    </div>
+    <div class="qa">
+      <div class="q">🔀 Alternatives</div>
+      <div class="a">Full code (loses non-dev accessibility), full YAML with embedded code (security risk). Hybrid is the sweet spot.</div>
+    </div>
+  </div>
+</details>
+
+<details class="accordion">
+  <summary><span class="badge-num">4</span> Declarative workflows <span class="hint">expand</span></summary>
+  <div class="acc-body">
+    <div class="qa">
+      <div class="q">🧪 Example</div>
+      <div class="a">Can workflows (SequentialBuilder, ConcurrentBuilder) be defined in YAML?
+<pre class="code"><span class="cm"># Currently: declarative support is good for single agents</span>
+<span class="cm"># Workflows typically need code for complex routing logic</span>
+
+<span class="cm"># Possible future YAML (if supported):</span>
+workflow:
+  participants:
+    - writer_agent
+    - reviewer_agent
+  orchestration: sequential</pre>
+Current limitation: complex routing logic in workflows is best expressed in code.
+      </div>
+    </div>
+    <div class="qa">
+      <div class="q">❓ Why this matters</div>
+      <div class="a">If single agents can be declarative, teams will want declarative workflows too. It's the natural next step.</div>
+    </div>
+    <div class="qa">
+      <div class="q">✅ How MAF does it</div>
+      <div class="a">MAF's declarative support is evolving. Currently best for single agents; workflows typically need code for complex routing logic. This is an active area of development.</div>
+    </div>
+    <div class="qa">
+      <div class="q">🔀 Alternatives</div>
+      <div class="a">Temporal workflow definitions, AWS Step Functions (JSON). Declarative workflows are an active area of development.</div>
     </div>
   </div>
 </details>

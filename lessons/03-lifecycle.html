@@ -301,6 +301,167 @@ session = agent.create_session()
   </div>
 </details>
 
+<details class="accordion">
+  <summary><span class="badge-num">2</span> 消息到底是怎么组装的？ <span class="hint">点击展开详解</span></summary>
+  <div class="acc-body">
+    <div class="qa">
+      <div class="q">🧪 示例</div>
+      <div class="a">一次 <span class="mono">run()</span> 实际发给 LLM 的列表大致长这样：
+<pre class="code">[
+  SystemMessage(<span class="st">"你是天气助手，回答尽量简短。"</span>),   <span class="cm"># ← instructions</span>
+  UserMessage(<span class="st">"我叫小明"</span>),                       <span class="cm"># ← 历史 1</span>
+  AssistantMessage(<span class="st">"你好，小明！"</span>),               <span class="cm"># ← 历史 2</span>
+  UserMessage(<span class="st">"上海今天天气？"</span>),                  <span class="cm"># ← 本次输入</span>
+]
+tools = [
+  {<span class="st">"name"</span>: <span class="st">"get_weather"</span>,  <span class="st">"parameters"</span>: {...}},  <span class="cm"># ← 自动生成</span>
+]</pre>
+其中 instructions 在最前、历史按时间顺序、当前输入在最后、工具 schema 作为请求字段并行附带。</div>
+    </div>
+    <div class="qa">
+      <div class="q">❓ 为什么这件事必要</div>
+      <div class="a">三个隐藏陷阱：① <strong>system 位置</strong>——某些模型对 system 必须放首；
+        ② <strong>上下文窗口预算</strong>——历史 + 工具 schema + 输入加起来不能超 token 上限；
+        ③ <strong>工具 schema 开销</strong>——20 个工具就能吃掉几千 token。</div>
+    </div>
+    <div class="qa">
+      <div class="q">✅ MAF 的做法与优点</div>
+      <div class="a">Agent 在 <span class="mono">_agents.py</span> 中按固定顺序拼装：
+        <span class="mono">instructions → system</span>、<span class="mono">tools → schema</span>、
+        <span class="mono">history → ordered messages</span>，并把 ChatClient 不支持的内容（如多模态）做 fallback。
+        用户只关心业务输入，组装细节由框架兜底。</div>
+    </div>
+    <div class="qa">
+      <div class="q">🔀 还有什么其他方案</div>
+      <div class="a">① <strong>完全手动拼装</strong>：最灵活，最容易踩坑；<br>
+        ② <strong>模板化（Jinja / Handlebars）</strong>：适合 prompt-engineering 重度场景，但失去类型约束；<br>
+        ③ <strong>纯中间件流水线</strong>：把每一步当 middleware 拼起来，灵活但调试链路长。</div>
+    </div>
+  </div>
+</details>
+
+<details class="accordion">
+  <summary><span class="badge-num">3</span> 工具循环的边界在哪？ <span class="hint">点击展开详解</span></summary>
+  <div class="acc-body">
+    <div class="qa">
+      <div class="q">🧪 示例</div>
+      <div class="a">Agent 内置了一个迭代上限，撞到就停：
+<pre class="code"><span class="cm"># agent_framework/_agents.py</span>
+DEFAULT_MAX_ITERATIONS = 10
+
+<span class="kw">class</span> Agent:
+    <span class="kw">def</span> __init__(self, ..., max_iterations: int = DEFAULT_MAX_ITERATIONS):
+        self.max_iterations = max_iterations
+
+    <span class="kw">async def</span> run(self, input, ...):
+        <span class="kw">for</span> i <span class="kw">in</span> range(self.max_iterations):
+            resp = <span class="kw">await</span> self._client.get_response(...)
+            <span class="kw">if</span> <span class="kw">not</span> _has_tool_calls(resp):
+                <span class="kw">return</span> AgentResponse(...)
+            <span class="kw">await</span> self._execute_tools(resp)
+        <span class="cm"># 达到上限：返回带告警的部分结果</span>
+        <span class="kw">return</span> AgentResponse(..., terminated_reason=<span class="st">"max_iterations"</span>)</pre>
+按需调高：<span class="mono">Agent(..., max_iterations=20)</span>。</div>
+    </div>
+    <div class="qa">
+      <div class="q">❓ 为什么这件事必要</div>
+      <div class="a">没有上限的循环 = <strong>账单炸弹</strong>：模型可能把同一个工具反复调用、互相依赖死锁、
+        或被 prompt injection 牵着鼻子走。即便用例正常，也要有止损线。</div>
+    </div>
+    <div class="qa">
+      <div class="q">✅ MAF 的做法与优点</div>
+      <div class="a">默认 <span class="mono">DEFAULT_MAX_ITERATIONS</span> 给出安全值，可按 Agent 覆写；
+        终止时返回结构化的 <span class="mono">terminated_reason</span>，方便上层判断"重试 / 升级 / 报错"，
+        而不是直接 raise。</div>
+    </div>
+    <div class="qa">
+      <div class="q">🔀 还有什么其他方案</div>
+      <div class="a">① <strong>不设上限</strong>：极端危险；<br>
+        ② <strong>按 token 预算</strong>：更经济但实现复杂；<br>
+        ③ <strong>按墙钟超时</strong>：保护延迟敏感场景；<br>
+        ④ <strong>每步人工确认</strong>：成本最高但安全（金融 / 医疗常用），MAF 也可通过 Workflow 的 human approval 实现。</div>
+    </div>
+  </div>
+</details>
+
+<details class="accordion">
+  <summary><span class="badge-num">4</span> 流式 vs 非流式内部差异 <span class="hint">点击展开详解</span></summary>
+  <div class="acc-body">
+    <div class="qa">
+      <div class="q">🧪 示例</div>
+      <div class="a">同一个 Agent，两种入口：
+<pre class="code"><span class="cm"># 非流式：一次性拿完整结果</span>
+result: AgentResponse = <span class="kw">await</span> agent.run(<span class="st">"写一首关于秋天的诗"</span>)
+print(result.text)
+
+<span class="cm"># 流式：逐块拿 AgentResponseUpdate</span>
+<span class="kw">async for</span> update <span class="kw">in</span> agent.run_stream(<span class="st">"写一首关于秋天的诗"</span>):
+    <span class="kw">if</span> update.text:
+        print(update.text, end=<span class="st">""</span>, flush=True)</pre></div>
+    </div>
+    <div class="qa">
+      <div class="q">❓ 为什么这件事必要</div>
+      <div class="a">① <strong>首字延迟</strong>：长回答里用户最敏感的是"开始出字"的时间；<br>
+        ② <strong>长回答 UX</strong>：不流式时，等 30s 一片黑屏；流式则像打字机；<br>
+        ③ <strong>调试与中断</strong>：流式可早期发现跑偏，及时取消。</div>
+    </div>
+    <div class="qa">
+      <div class="q">✅ MAF 的做法与优点</div>
+      <div class="a">同一个 Agent、同一组工具，<span class="mono">run()</span> 返回完整 <span class="mono">AgentResponse</span>；
+        <span class="mono">run_stream()</span> 返回 <span class="mono">AsyncIterable[AgentResponseUpdate]</span>，
+        把内容、工具调用、思维块都分块吐出，且内部已对齐为同一种循环——
+        切换流式不需要重写业务逻辑。</div>
+    </div>
+    <div class="qa">
+      <div class="q">🔀 还有什么其他方案</div>
+      <div class="a">① <strong>纯 SSE 推流</strong>：协议简单，但要自己实现重连和心跳；<br>
+        ② <strong>WebSocket</strong>：双向通信，对实时交互更好；<br>
+        ③ <strong>轮询</strong>：兼容性最强，体验最差；<br>
+        ④ <strong>客户端缓冲</strong>：在前端把 chunk 拼回完整文本，MAF 同时支持。</div>
+    </div>
+  </div>
+</details>
+
+<details class="accordion">
+  <summary><span class="badge-num">5</span> 错误处理：循环里出错怎么办？ <span class="hint">点击展开详解</span></summary>
+  <div class="acc-body">
+    <div class="qa">
+      <div class="q">🧪 示例</div>
+      <div class="a">三类典型故障：
+<pre class="code"><span class="cm"># 1) LLM 端报错：429 / 500 / timeout</span>
+<span class="cm">   → ChatClient 抛出 ChatClientError</span>
+
+<span class="cm"># 2) 工具函数抛异常</span>
+<span class="kw">@ai_function</span>
+<span class="kw">def</span> get_weather(city: str) -&gt; str:
+    <span class="kw">raise</span> RuntimeError(<span class="st">"weather API down"</span>)
+<span class="cm">   → Agent 捕获后包成 FunctionResultContent(error=...)</span>
+<span class="cm">     交回模型，让它决定降级、换工具或道歉</span>
+
+<span class="cm"># 3) 工具执行超时</span>
+<span class="cm">   → 中间件层兜底，写入 trace span</span></pre></div>
+    </div>
+    <div class="qa">
+      <div class="q">❓ 为什么这件事必要</div>
+      <div class="a">Agent 循环里出错时，"重试 / 跳过 / 放弃 / 返回部分结果"的取舍每种都合理，
+        没有银弹。框架必须给一个<strong>有结构、可定制</strong>的失败模型，否则要么过度吞错、要么动不动崩溃。</div>
+    </div>
+    <div class="qa">
+      <div class="q">✅ MAF 的做法与优点</div>
+      <div class="a">错误走中间件管道（<span class="mono">_middleware.py</span>）：用户可注册重试策略、
+        熔断、降级；工具异常被包成 <span class="mono">FunctionResultContent</span> 回灌模型；
+        无法恢复时 <span class="mono">AgentResponse</span> 上带 <span class="mono">terminated_reason</span>
+        和原始异常链，便于上层结构化处理。</div>
+    </div>
+    <div class="qa">
+      <div class="q">🔀 还有什么其他方案</div>
+      <div class="a">① <strong>到处 try/except</strong>：写起来快，可观测性几乎为零；<br>
+        ② <strong>熔断器（circuit breaker）</strong>：保护下游，但要小心误熔断；<br>
+        ③ <strong>let-it-crash（Erlang 风格）</strong>：失败重启整个 Agent，靠上游 retry——简单但成本高。</div>
+    </div>
+  </div>
+</details>
+
 <div class="card key">
   <div class="tag">✅ 关键要点</div>
   <ul>
@@ -363,6 +524,169 @@ session = agent.create_session()
 <span class="kw">await</span> agent.run(<span class="st">"My name is Sam"</span>, session=session)
 <span class="kw">await</span> agent.run(<span class="st">"What's my name?"</span>, session=session)  <span class="cm"># remembers "Sam"</span></pre>
         <em>(Sessions & memory are Lesson 07; here just note history rides on the "session".)</em></div>
+    </div>
+  </div>
+</details>
+
+<details class="accordion">
+  <summary><span class="badge-num">2</span> What does message assembly actually look like? <span class="hint">expand</span></summary>
+  <div class="acc-body">
+    <div class="qa">
+      <div class="q">🧪 Example</div>
+      <div class="a">The list sent to the LLM on one <span class="mono">run()</span> roughly looks like:
+<pre class="code">[
+  SystemMessage(<span class="st">"You are a concise weather assistant."</span>),  <span class="cm"># ← instructions</span>
+  UserMessage(<span class="st">"My name is Sam"</span>),                          <span class="cm"># ← history 1</span>
+  AssistantMessage(<span class="st">"Hi Sam!"</span>),                             <span class="cm"># ← history 2</span>
+  UserMessage(<span class="st">"Weather in Shanghai today?"</span>),               <span class="cm"># ← this input</span>
+]
+tools = [
+  {<span class="st">"name"</span>: <span class="st">"get_weather"</span>, <span class="st">"parameters"</span>: {...}},   <span class="cm"># ← auto-generated</span>
+]</pre>
+Instructions go first, history in chronological order, current input last, tool schemas attached alongside.</div>
+    </div>
+    <div class="qa">
+      <div class="q">❓ Why this matters</div>
+      <div class="a">Three hidden traps: ① <strong>system position</strong> — some models require system at index 0;
+        ② <strong>context-window budget</strong> — history + tool schema + input must fit in the token cap;
+        ③ <strong>tool-schema overhead</strong> — 20 tools can eat several thousand tokens.</div>
+    </div>
+    <div class="qa">
+      <div class="q">✅ How MAF does it</div>
+      <div class="a">In <span class="mono">_agents.py</span> the Agent assembles in a fixed order:
+        <span class="mono">instructions → system</span>, <span class="mono">tools → schema</span>,
+        <span class="mono">history → ordered messages</span>, with fallbacks for content kinds a ChatClient doesn't support.
+        Callers only think about business input; assembly is the framework's job.</div>
+    </div>
+    <div class="qa">
+      <div class="q">🔀 Alternatives</div>
+      <div class="a">① <strong>Fully manual assembly</strong> — maximum flexibility, maximum footguns;<br>
+        ② <strong>Templated (Jinja / Handlebars)</strong> — great for prompt-heavy workflows, loses type safety;<br>
+        ③ <strong>Pure middleware pipeline</strong> — every step as middleware; flexible but long debug chain.</div>
+    </div>
+  </div>
+</details>
+
+<details class="accordion">
+  <summary><span class="badge-num">3</span> Where does the tool loop stop? <span class="hint">expand</span></summary>
+  <div class="acc-body">
+    <div class="qa">
+      <div class="q">🧪 Example</div>
+      <div class="a">The Agent ships with an iteration cap that breaks the loop:
+<pre class="code"><span class="cm"># agent_framework/_agents.py</span>
+DEFAULT_MAX_ITERATIONS = 10
+
+<span class="kw">class</span> Agent:
+    <span class="kw">def</span> __init__(self, ..., max_iterations: int = DEFAULT_MAX_ITERATIONS):
+        self.max_iterations = max_iterations
+
+    <span class="kw">async def</span> run(self, input, ...):
+        <span class="kw">for</span> i <span class="kw">in</span> range(self.max_iterations):
+            resp = <span class="kw">await</span> self._client.get_response(...)
+            <span class="kw">if</span> <span class="kw">not</span> _has_tool_calls(resp):
+                <span class="kw">return</span> AgentResponse(...)
+            <span class="kw">await</span> self._execute_tools(resp)
+        <span class="cm"># Cap hit: return a partial result with a reason</span>
+        <span class="kw">return</span> AgentResponse(..., terminated_reason=<span class="st">"max_iterations"</span>)</pre>
+Tune per agent: <span class="mono">Agent(..., max_iterations=20)</span>.</div>
+    </div>
+    <div class="qa">
+      <div class="q">❓ Why this matters</div>
+      <div class="a">Uncapped loops = <strong>bill explosion</strong>: a model can re-call the same tool forever,
+        deadlock between dependent tools, or be steered by prompt injection. Even normal usage needs a stop-loss.</div>
+    </div>
+    <div class="qa">
+      <div class="q">✅ How MAF does it</div>
+      <div class="a">Default <span class="mono">DEFAULT_MAX_ITERATIONS</span> ships a sane value, overridable per Agent;
+        when it trips, the call returns a structured <span class="mono">terminated_reason</span> instead of raising —
+        upper layers can choose to retry, escalate or surface an error.</div>
+    </div>
+    <div class="qa">
+      <div class="q">🔀 Alternatives</div>
+      <div class="a">① <strong>No limit</strong> — outright dangerous;<br>
+        ② <strong>Token-budget based</strong> — more economical, harder to implement;<br>
+        ③ <strong>Wall-clock timeout</strong> — protects latency-sensitive paths;<br>
+        ④ <strong>Human approval per iteration</strong> — most expensive, safest (finance/medical); also doable via Workflow human approval.</div>
+    </div>
+  </div>
+</details>
+
+<details class="accordion">
+  <summary><span class="badge-num">4</span> Streaming vs non-streaming internals <span class="hint">expand</span></summary>
+  <div class="acc-body">
+    <div class="qa">
+      <div class="q">🧪 Example</div>
+      <div class="a">Same Agent, two entry points:
+<pre class="code"><span class="cm"># Non-streaming: one full result</span>
+result: AgentResponse = <span class="kw">await</span> agent.run(<span class="st">"Write a short autumn poem"</span>)
+print(result.text)
+
+<span class="cm"># Streaming: AgentResponseUpdate chunks</span>
+<span class="kw">async for</span> update <span class="kw">in</span> agent.run_stream(<span class="st">"Write a short autumn poem"</span>):
+    <span class="kw">if</span> update.text:
+        print(update.text, end=<span class="st">""</span>, flush=True)</pre></div>
+    </div>
+    <div class="qa">
+      <div class="q">❓ Why this matters</div>
+      <div class="a">① <strong>Time-to-first-token</strong> matters most for long answers;<br>
+        ② <strong>UX</strong> — non-streamed long answers feel like a 30-second freeze; streaming feels like a typewriter;<br>
+        ③ <strong>Early debugging / cancellation</strong> — streaming lets you spot drift early and abort.</div>
+    </div>
+    <div class="qa">
+      <div class="q">✅ How MAF does it</div>
+      <div class="a">Same Agent, same tools: <span class="mono">run()</span> returns a complete <span class="mono">AgentResponse</span>;
+        <span class="mono">run_stream()</span> returns <span class="mono">AsyncIterable[AgentResponseUpdate]</span>,
+        emitting text, tool calls and thinking blocks as chunks — all over the same internal loop, so switching
+        modes doesn't change your business code.</div>
+    </div>
+    <div class="qa">
+      <div class="q">🔀 Alternatives</div>
+      <div class="a">① <strong>Pure SSE push</strong> — simple protocol, you handle reconnect &amp; heartbeats;<br>
+        ② <strong>WebSocket</strong> — bidirectional, better for live interaction;<br>
+        ③ <strong>Polling</strong> — broadest compatibility, worst UX;<br>
+        ④ <strong>Client-side buffering</strong> — reassemble chunks into final text on the client; MAF supports this too.</div>
+    </div>
+  </div>
+</details>
+
+<details class="accordion">
+  <summary><span class="badge-num">5</span> Error handling inside the loop <span class="hint">expand</span></summary>
+  <div class="acc-body">
+    <div class="qa">
+      <div class="q">🧪 Example</div>
+      <div class="a">Three classic failures:
+<pre class="code"><span class="cm"># 1) LLM-side error: 429 / 500 / timeout</span>
+<span class="cm">   → ChatClient raises ChatClientError</span>
+
+<span class="cm"># 2) Tool function raises</span>
+<span class="kw">@ai_function</span>
+<span class="kw">def</span> get_weather(city: str) -&gt; str:
+    <span class="kw">raise</span> RuntimeError(<span class="st">"weather API down"</span>)
+<span class="cm">   → Agent wraps it as FunctionResultContent(error=...),</span>
+<span class="cm">     hands it back to the model to degrade or apologize</span>
+
+<span class="cm"># 3) Tool execution timeout</span>
+<span class="cm">   → middleware layer catches, writes a trace span</span></pre></div>
+    </div>
+    <div class="qa">
+      <div class="q">❓ Why this matters</div>
+      <div class="a">Inside an agent loop, "retry / skip / abort / partial" can all be the right call — there's no silver bullet.
+        The framework has to provide a <strong>structured, customizable</strong> failure model, or you'll either
+        swallow errors silently or crash constantly.</div>
+    </div>
+    <div class="qa">
+      <div class="q">✅ How MAF does it</div>
+      <div class="a">Errors flow through the middleware pipeline (<span class="mono">_middleware.py</span>):
+        users register retry policies, circuit breakers, fallbacks; tool exceptions become
+        <span class="mono">FunctionResultContent</span> fed back to the model; unrecoverable failures surface on
+        <span class="mono">AgentResponse</span> with a <span class="mono">terminated_reason</span> and original exception chain
+        for structured upstream handling.</div>
+    </div>
+    <div class="qa">
+      <div class="q">🔀 Alternatives</div>
+      <div class="a">① <strong>try/except everywhere</strong> — fast to write, near-zero observability;<br>
+        ② <strong>Circuit breaker</strong> — protects downstream, watch for false trips;<br>
+        ③ <strong>Let-it-crash (Erlang style)</strong> — restart the agent on failure, rely on upstream retries — simple but costly.</div>
     </div>
   </div>
 </details>

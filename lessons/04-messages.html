@@ -532,7 +532,7 @@ msg_back = Message.from_dict(d2)  <span class="cm"># 完全恢复</span></pre>
       <div class="q">✅ MAF 的做法与优点</div>
       <div class="a">MAF 提供<strong>统一抽象</strong>，但<strong>双向转换</strong>能力齐全：<ul>
         <li><span class="mono">BaseChatClient</span> 子类（如 <span class="mono">OpenAIChatClient</span>）内部自动把 <span class="mono">Message</span> 转成厂商格式，调完API再转回来。</li>
-        <li>如需直接转换：<span class="mono">from agent_framework.ai.openai import to_openai_messages, from_openai_messages</span>（见 <span class="mono">python/packages/core/agent_framework/openai/</span>）。</li>
+        <li>转换逻辑封装在客户端内部（私有方法 <span class="mono">_prepare_messages_for_openai</span>，见 <span class="mono">python/packages/openai/agent_framework_openai/_chat_client.py</span>），一般无需手动调用。</li>
         <li><strong>类型安全</strong>：IDE 自动补全 <span class="mono">Message(...)</span> / <span class="mono">Content.from_...</span>，编译期发现错误。</li>
         <li><strong>可测试</strong>：单元测试不依赖真实 LLM，mock <span class="mono">Message</span> 即可。</li>
       </ul></div>
@@ -833,7 +833,7 @@ msg_back = Message.from_dict(d2)  <span class="cm"># fully restored</span></pre>
       <div class="q">✅ How MAF does it</div>
       <div class="a">MAF provides <strong>unified abstraction</strong> with <strong>bidirectional conversion</strong>:<ul>
         <li><span class="mono">BaseChatClient</span> subclasses (like <span class="mono">OpenAIChatClient</span>) auto-convert <span class="mono">Message</span> to vendor format, call API, convert back.</li>
-        <li>For direct conversion: <span class="mono">from agent_framework.ai.openai import to_openai_messages, from_openai_messages</span> (see <span class="mono">python/packages/core/agent_framework/openai/</span>).</li>
+        <li>Conversion is encapsulated inside the client (private <span class="mono">_prepare_messages_for_openai</span>, see <span class="mono">python/packages/openai/agent_framework_openai/_chat_client.py</span>); you rarely call it directly.</li>
         <li><strong>Type safety</strong>: IDE auto-completes <span class="mono">Message(...)</span> / <span class="mono">Content.from_...</span>, catches errors at edit time.</li>
         <li><strong>Testable</strong>: unit tests don't depend on real LLMs, just mock <span class="mono">Message</span>.</li>
       </ul></div>

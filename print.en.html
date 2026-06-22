@@ -1369,7 +1369,7 @@ msg_back = Message.from_dict(d2)  <span class="cm"># fully restored</span></pre>
       <div class="q">✅ How MAF does it</div>
       <div class="a">MAF provides <strong>unified abstraction</strong> with <strong>bidirectional conversion</strong>:<ul>
         <li><span class="mono">BaseChatClient</span> subclasses (like <span class="mono">OpenAIChatClient</span>) auto-convert <span class="mono">Message</span> to vendor format, call API, convert back.</li>
-        <li>For direct conversion: <span class="mono">from agent_framework.ai.openai import to_openai_messages, from_openai_messages</span> (see <span class="mono">python/packages/core/agent_framework/openai/</span>).</li>
+        <li>Conversion is encapsulated inside the client (private <span class="mono">_prepare_messages_for_openai</span>, see <span class="mono">python/packages/openai/agent_framework_openai/_chat_client.py</span>); you rarely call it directly.</li>
         <li><strong>Type safety</strong>: IDE auto-completes <span class="mono">Message(...)</span> / <span class="mono">Content.from_...</span>, catches errors at edit time.</li>
         <li><strong>Testable</strong>: unit tests don't depend on real LLMs, just mock <span class="mono">Message</span>.</li>
       </ul></div>
@@ -2153,24 +2153,24 @@ session2 = agent.create_session()
       <div class="q">🧪 Example</div>
       <div class="a">
 <pre class="code"><span class="cm"># Dev environment: in-memory storage (lost on restart)</span>
-<span class="kw">from</span> agent_framework.session <span class="kw">import</span> InMemorySessionStore
-session_store = InMemorySessionStore()
+<span class="kw">from</span> agent_framework <span class="kw">import</span> InMemoryHistoryProvider
+history = InMemoryHistoryProvider()
 
 <span class="cm"># Production: Redis storage (persistent + distributed)</span>
-<span class="kw">from</span> agent_framework.session.redis <span class="kw">import</span> RedisSessionStore
-session_store = RedisSessionStore(redis_url=<span class="st">"redis://localhost:6379"</span>)
+<span class="kw">from</span> agent_framework.redis <span class="kw">import</span> RedisHistoryProvider
+history = RedisHistoryProvider(redis_url=<span class="st">"redis://localhost:6379"</span>)
 
 <span class="cm"># Azure: Cosmos DB storage</span>
-<span class="kw">from</span> agent_framework.session.cosmos <span class="kw">import</span> CosmosSessionStore
-session_store = CosmosSessionStore(
+<span class="kw">from</span> agent_framework.azure <span class="kw">import</span> CosmosHistoryProvider
+history = CosmosHistoryProvider(
     endpoint=<span class="st">"https://..."</span>,
-    key=<span class="st">"..."</span>,
-    database=<span class="st">"agents"</span>,
-    container=<span class="st">"sessions"</span>
+    credential=<span class="st">"..."</span>,
+    database_name=<span class="st">"agents"</span>,
+    container_name=<span class="st">"sessions"</span>
 )
 
-<span class="cm"># Agent uses the store</span>
-agent = Agent(client=client, session_store=session_store)
+<span class="cm"># Agent uses the provider (injected as a context provider)</span>
+agent = Agent(client=client, context_providers=[history])
 session = agent.create_session(session_id=<span class="st">"user_123_conv_456"</span>)
 <span class="cm"># History auto-saved to backend, restored on next load</span></pre>
       </div>
@@ -2187,16 +2187,16 @@ session = agent.create_session(session_id=<span class="st">"user_123_conv_456"</
     </div>
     <div class="qa">
       <div class="q">✅ How MAF does it</div>
-      <div class="a"><span class="mono">SessionStore</span> interface (see <span class="mono">python/packages/core/agent_framework/</span>):<ul>
-        <li><strong>Abstract interface</strong>: <span class="mono">save_session</span> / <span class="mono">load_session</span> / <span class="mono">delete_session</span>, Agent depends only on interface.</li>
+      <div class="a"><span class="mono">HistoryProvider</span> interface (subclass of <span class="mono">ContextProvider</span>, see <span class="mono">python/packages/core/agent_framework/_sessions.py</span>):<ul>
+        <li><strong>Abstract interface</strong>: subclasses implement <span class="mono">get_messages</span> / <span class="mono">save_messages</span>, Agent depends on it via <span class="mono">context_providers</span>.</li>
         <li><strong>Multiple implementations</strong>:<ul>
-          <li><span class="mono">InMemorySessionStore</span>: for dev, dict storage.</li>
-          <li><span class="mono">RedisSessionStore</span>: for production, Redis hash storage (<span class="mono">HSET sessions:{id} history ...</span>).</li>
-          <li><span class="mono">CosmosSessionStore</span>: for Azure users, Cosmos DB document storage.</li>
-          <li><span class="mono">FileSessionStore</span>: single-server, JSON file storage.</li>
+          <li><span class="mono">InMemoryHistoryProvider</span>: for dev, in-memory storage.</li>
+          <li><span class="mono">RedisHistoryProvider</span>: for production, Redis storage (<span class="mono">agent_framework.redis</span>).</li>
+          <li><span class="mono">CosmosHistoryProvider</span>: for Azure users, Cosmos DB storage (<span class="mono">agent_framework.azure</span>).</li>
+          <li><span class="mono">FileHistoryProvider</span>: single-server, JSON file storage.</li>
         </ul></li>
         <li><strong>Auto-serialization</strong>: <span class="mono">Message.to_dict()</span> converts to JSON, stores in backend; on load <span class="mono">from_dict</span> restores.</li>
-        <li><strong>Extensible</strong>: custom backends (e.g., integrate PostgreSQL, MongoDB) just implement <span class="mono">SessionStore</span> interface.</li>
+        <li><strong>Extensible</strong>: custom backends (e.g., integrate PostgreSQL, MongoDB) just subclass <span class="mono">HistoryProvider</span>.</li>
       </ul></div>
     </div>
     <div class="qa">
@@ -2217,34 +2217,37 @@ session = agent.create_session(session_id=<span class="st">"user_123_conv_456"</
     <div class="qa">
       <div class="q">🧪 Example</div>
       <div class="a">
-<pre class="code"><span class="kw">from</span> agent_framework.context <span class="kw">import</span> ContextWindowCompactionStrategy
-
-<span class="cm"># Strategy A: sliding window (keep recent N messages)</span>
-strategy = ContextWindowCompactionStrategy.sliding_window(max_messages=20)
-
-<span class="cm"># Strategy B: summarization (old messages summarized into one)</span>
-strategy = ContextWindowCompactionStrategy.summarize(
-    max_tokens=4000,
-    summary_model=<span class="st">"gpt-4o-mini"</span>
+<pre class="code"><span class="kw">from</span> agent_framework <span class="kw">import</span> (
+    CompactionProvider,
+    SlidingWindowStrategy,
+    SummarizationStrategy,
+    ContextWindowCompactionStrategy,
 )
 
-<span class="cm"># Strategy C: hybrid (keep system + recent + summarize middle)</span>
-strategy = ContextWindowCompactionStrategy.hybrid(
-    keep_system=<span class="kw">True</span>,
-    keep_recent=10,
-    summarize_older=<span class="kw">True</span>
+<span class="cm"># Strategy A: sliding window (keep recent N groups, drop oldest)</span>
+strategy = SlidingWindowStrategy(keep_last_groups=20, preserve_system=<span class="kw">True</span>)
+
+<span class="cm"># Strategy B: summarization (LLM summarizes old messages; needs a client)</span>
+strategy = SummarizationStrategy(client=client, target_count=4)
+
+<span class="cm"># Strategy C: compact by context-window token budget (two-phase: tool-result eviction + truncation)</span>
+strategy = ContextWindowCompactionStrategy(
+    max_context_window_tokens=128_000,
+    max_output_tokens=16_384,
 )
 
+<span class="cm"># Wrap the strategy in a CompactionProvider, inject as a context provider</span>
+compaction = CompactionProvider(before_strategy=strategy)
 agent = Agent(
     client=client,
-    context_window_strategy=strategy
+    context_providers=[compaction]
 )
 
-<span class="cm"># After 20 turns, compaction auto-triggers</span>
+<span class="cm"># As the conversation grows, the framework compacts before each run</span>
 session = agent.create_session()
 <span class="kw">for</span> i <span class="kw">in</span> <span class="fn">range</span>(30):
     <span class="kw">await</span> agent.run(<span class="st">f"Message {i}"</span>, session=session)
-    <span class="cm"># → At turn 21, strategy kicks in: delete oldest or generate summary</span></pre>
+    <span class="cm"># → When over threshold the strategy kicks in: drop oldest groups or summarize</span></pre>
       </div>
     </div>
     <div class="qa">
@@ -2259,12 +2262,12 @@ session = agent.create_session()
     </div>
     <div class="qa">
       <div class="q">✅ How MAF does it</div>
-      <div class="a"><span class="mono">ContextWindowCompactionStrategy</span> (see <span class="mono">python/packages/core/agent_framework/</span>):<ul>
+      <div class="a">MAF ships several compaction strategies (<span class="mono">SlidingWindowStrategy</span> / <span class="mono">SummarizationStrategy</span> / <span class="mono">ContextWindowCompactionStrategy</span>, see <span class="mono">_compaction.py</span>):<ul>
         <li><strong>Sliding window</strong>: keep recent N messages, delete oldest (good for short-term conversations).</li>
         <li><strong>Summarization</strong>: summarize old messages into one system message (<span class="st">"Previously user mentioned…"</span>), preserve semantics, reduce tokens.</li>
         <li><strong>Hybrid strategy</strong>: keep system messages (important instructions) + recent messages (current context) + summarize middle messages.</li>
         <li><strong>Auto-trigger</strong>: Agent checks history length before <span class="mono">run</span>, calls strategy to compact if over threshold.</li>
-        <li><strong>Configurable</strong>: <span class="mono">max_tokens</span>, <span class="mono">max_messages</span>, <span class="mono">summary_model</span> all tunable.</li>
+        <li><strong>Configurable</strong>: <span class="mono">keep_last_groups</span>, <span class="mono">target_count</span>, <span class="mono">max_context_window_tokens</span> and more.</li>
       </ul>
       Developers don't manually manage context; framework auto-optimizes.</div>
     </div>

@@ -502,6 +502,73 @@ QUIZZES = {
             },
         ],
     },
+    "14-streaming-observability.html": {
+        "mcq": [
+            {
+                "q": {
+                    "zh": "在那次“巴黎天气”的流式追踪里，<strong>最前面几个 chunk 的 <code>.text</code> 是空的</strong>。最贴切的原因是？",
+                    "en": "In that “Paris weather” streaming trace, the <strong>first few chunks have empty <code>.text</code></strong>. The most accurate reason is?",
+                },
+                "opts": [
+                    {
+                        "zh": "模型先决定<strong>调工具</strong>（<code>finish_reason=&quot;tool_calls&quot;</code>），可显示的文本增量要等工具返回后才来",
+                        "en": "The model first decides to <strong>call a tool</strong> (<code>finish_reason=&quot;tool_calls&quot;</code>); displayable text deltas only arrive after the tool returns",
+                    },
+                    {"zh": "流式坏了，应该重试", "en": "Streaming is broken and should be retried"},
+                    {"zh": "网络太慢把文本丢了", "en": "The network was too slow and dropped the text"},
+                    {"zh": "<code>.text</code> 永远是空的，要读 <code>.raw</code>", "en": "<code>.text</code> is always empty; you must read <code>.raw</code>"},
+                ],
+                "answer": 0,
+                "why": {
+                    "zh": "首批 chunk 携带的是一个 <code>FunctionCallContent</code> 而非文本，<code>finish_reason</code> 收为 <code>&quot;tool_calls&quot;</code>；框架执行工具（开 <code>execute_tool</code> span）后，带着结果再问模型，第二个 <code>chat</code> span 里才逐字吐出文本、<code>finish_reason=None</code>，直到最后翻成 <code>&quot;stop&quot;</code>。所以“前几秒没字”是正常现象，不是卡死。",
+                    "en": "The first chunks carry a <code>FunctionCallContent</code>, not text, and <code>finish_reason</code> ends as <code>&quot;tool_calls&quot;</code>; after the framework runs the tool (opening an <code>execute_tool</code> span) and asks the model again with the result, the second <code>chat</code> span emits text token by token with <code>finish_reason=None</code>, until it finally flips to <code>&quot;stop&quot;</code>. So “no text for the first seconds” is expected, not a hang.",
+                },
+            },
+            {
+                "q": {
+                    "zh": "MAF 里每个 span 的真实名字是 <code>f&quot;{operation} {target}&quot;</code>。一次 <strong>LLM 调用</strong>对应的 span 名是？",
+                    "en": "In MAF each span's real name is <code>f&quot;{operation} {target}&quot;</code>. The span for one <strong>LLM call</strong> is named?",
+                },
+                "opts": [
+                    {"zh": "<code>chat {model}</code>（<code>CHAT_COMPLETION_OPERATION=&quot;chat&quot;</code>）", "en": "<code>chat {model}</code> (<code>CHAT_COMPLETION_OPERATION=&quot;chat&quot;</code>)"},
+                    {"zh": "<code>llm.call</code>", "en": "<code>llm.call</code>"},
+                    {"zh": "<code>openai.request</code>", "en": "<code>openai.request</code>"},
+                    {"zh": "<code>agent.think</code>", "en": "<code>agent.think</code>"},
+                ],
+                "answer": 0,
+                "why": {
+                    "zh": "<code>observability.py:2112</code> 用 <code>f&quot;{operation} {span_name}&quot;</code> 组名：根 span 是 <code>invoke_agent {agent}</code>，每次 LLM 调用是 <code>chat {model}</code>，每次工具是 <code>execute_tool {name}</code>；Workflow 侧则是 <code>workflow.run</code> / <code>executor.process {id}</code> / <code>message.send</code>。这些都是 GenAI 语义约定下的标准名。",
+                    "en": "<code>observability.py:2112</code> builds names via <code>f&quot;{operation} {span_name}&quot;</code>: the root is <code>invoke_agent {agent}</code>, each LLM call is <code>chat {model}</code>, each tool is <code>execute_tool {name}</code>; the Workflow side is <code>workflow.run</code> / <code>executor.process {id}</code> / <code>message.send</code>. These follow the GenAI semantic conventions.",
+                },
+            },
+            {
+                "q": {
+                    "zh": "Workflow 的 <code>executor.process</code> span 对它的上游<strong>用 link 关联</strong>而不是<strong>嵌套</strong>。为什么这样设计？",
+                    "en": "A Workflow's <code>executor.process</code> span <strong>links</strong> to its upstream instead of <strong>nesting</strong> under it. Why?",
+                },
+                "opts": [
+                    {
+                        "zh": "一个节点可能<strong>同时</strong>收到多个上游消息（fan-in）；link 能指向多个源，嵌套只能挂一个父亲",
+                        "en": "A node may receive messages from <strong>several</strong> upstream nodes at once (fan-in); a link can point at multiple sources, while nesting allows only one parent",
+                    },
+                    {"zh": "link 比嵌套省内存", "en": "Links use less memory than nesting"},
+                    {"zh": "嵌套在 OTel 里不被允许", "en": "Nesting is not allowed in OTel"},
+                    {"zh": "纯粹是历史遗留，没有道理", "en": "It's purely legacy with no real reason"},
+                ],
+                "answer": 0,
+                "why": {
+                    "zh": "<code>observability.py:2454</code> 注释明说 span 是“linked (not nested) ... supporting fan-in”。因为 Workflow 按超步并行推进，扇入节点会从多个源同时拿到消息；用 link 才能<strong>同时保留对所有源的因果指向</strong>，嵌套则被迫只选一个父 span，丢掉其余扇入边的因果。",
+                    "en": "<code>observability.py:2454</code>'s comment says spans are “linked (not nested) ... supporting fan-in”. Because a Workflow advances in parallel supersteps, a fan-in node gets messages from multiple sources at once; a link <strong>preserves causal pointers to all sources simultaneously</strong>, whereas nesting would force picking one parent and lose the other fan-in edges' causality.",
+                },
+            },
+        ],
+        "open": [
+            {
+                "zh": "一次 workflow 跑了 8 秒、还超了 token 预算。请描述你会怎么用<strong>分层 span</strong> 定位问题：(1) 从 <code>workflow.run</code> / <code>executor.process {id}</code> 哪些 span 的耗时入手找最慢节点；(2) 再下钻到 <code>chat {model}</code> span 的 <code>gen_ai.usage.input_tokens / output_tokens</code> 判断是哪个 Agent 烧的 token；(3) 为什么这件事如果没有内置 OTel 会非常难做？",
+                "en": "A workflow run took 8s and blew the token budget. Describe how you'd use <strong>layered spans</strong> to localize it: (1) which <code>workflow.run</code> / <code>executor.process {id}</code> span durations you'd start from to find the slowest node; (2) how you'd drill into <code>chat {model}</code> spans' <code>gen_ai.usage.input_tokens / output_tokens</code> to see which Agent burned the tokens; (3) why this would be very hard without built-in OTel.",
+            },
+        ],
+    },
 }
 
 

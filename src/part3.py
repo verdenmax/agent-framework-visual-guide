@@ -3381,6 +3381,58 @@ L14_ZH = r"""
   可观测性像<strong>监控大屏</strong>：运维看延迟、吞吐、异常告警。两者互补。
 </div>
 
+<h2>追踪一次流式输出 + 它背后的 span 树</h2>
+<p>把"流式"和"可观测"放进同一次真实调用看：用户问"巴黎天气如何？"，Agent 需要调一个 <span class="mono">get_weather</span> 工具。
+下面同时跟两条线——<strong>左脑记你 <code>async for</code> 收到的 chunk</strong>，<strong>右脑记 OTel 在后台挂的 span</strong>。</p>
+<div class="vflow">
+  <div class="step"><div class="num">1</div><div class="sc">
+    <h4>开 invoke_agent 根 span，进入流式</h4>
+    <p>调用 <span class="mono">agent.run("巴黎天气如何？", stream=True)</span>。框架立刻开一个名为
+      <span class="mono">invoke_agent {agent}</span> 的根 span（<span class="mono">AGENT_INVOKE_OPERATION="invoke_agent"</span>，<span class="mono">observability.py:294</span>），并返回一个异步迭代器。此刻还没有任何 token。</p>
+  </div></div>
+  <div class="step"><div class="num">2</div><div class="sc">
+    <h4>模型先决定调工具——首批 chunk 是 tool_calls，不是文本</h4>
+    <p>子 span <span class="mono">chat {model}</span> 开启。第一批 chunk 的 <span class="mono">.text</span> 为空，
+      <span class="mono">.contents</span> 里是一个 <span class="mono">FunctionCallContent</span>，<span class="mono">.finish_reason</span> 最终为 <span class="mono">&quot;tool_calls&quot;</span>：</p>
+<pre class="code">AgentResponseUpdate(contents=[FunctionCallContent(
+    name=&quot;get_weather&quot;, arguments={&quot;city&quot;: &quot;Paris&quot;})],
+    text=&quot;&quot;, finish_reason=&quot;tool_calls&quot;)</pre>
+  </div></div>
+  <div class="step"><div class="num">3</div><div class="sc">
+    <h4>执行工具——再开一个子 span</h4>
+    <p>框架开 <span class="mono">execute_tool {name}</span> span（<span class="mono">TOOL_EXECUTION_OPERATION="execute_tool"</span>，<span class="mono">observability.py:291</span>），
+      属性带 <span class="mono">gen_ai.tool.name=get_weather</span> 和 <span class="mono">gen_ai.tool.call.id</span>。工具返回 "15°C，晴"。这一步<strong>不产生面向用户的 text chunk</strong>。</p>
+  </div></div>
+  <div class="step"><div class="num">4</div><div class="sc">
+    <h4>带工具结果再问模型——这次是真正的文本增量</h4>
+    <p>第二个 <span class="mono">chat {model}</span> span 开启。现在 chunk 真的带文本了，一个一个往外吐：</p>
+<pre class="code">&quot;巴&quot; → &quot;黎&quot; → &quot;现在&quot; → &quot;15&quot; → &quot;°C&quot; → &quot;，晴&quot; ...
+# 每个 chunk：text=增量片段，finish_reason=None</pre>
+  </div></div>
+  <div class="step"><div class="num">5</div><div class="sc">
+    <h4>收尾：finish_reason 翻成 "stop"，span 依次关闭</h4>
+    <p>最后一个 chunk 的 <span class="mono">.finish_reason</span> 从 <span class="mono">None</span> 变成 <span class="mono">&quot;stop&quot;</span>。
+      把每个 chunk 的 <span class="mono">.text</span> 拼起来即得完整答复；与此同时
+      <span class="mono">invoke_agent → chat → execute_tool → chat</span> 这串 span 依次关闭，每个都记下了耗时与 token 数。</p>
+  </div></div>
+</div>
+
+<p>所以一次流式回答的 chunk 节奏常常是"先静默、再爆发"：</p>
+<div class="flow">
+  <div class="node"><div class="nt">chunk #1</div><div class="nd">text=&quot;&quot; · tool_calls</div></div>
+  <div class="arrow">→</div>
+  <div class="node"><div class="nt">[执行工具]</div><div class="nd">无 text chunk</div></div>
+  <div class="arrow">→</div>
+  <div class="node"><div class="nt">chunk #2..n</div><div class="nd">text 增量 · None</div></div>
+  <div class="arrow">→</div>
+  <div class="node hl"><div class="nt">chunk #末</div><div class="nd">finish=&quot;stop&quot;</div></div>
+</div>
+<p>这解释了一个常见困惑：开了流式却<strong>前几秒没字</strong>——那不是卡住，而是模型正在走"决定调工具 → 等工具返回"这段，期间的 chunk 不带可显示文本。理解这一点，你的 UI 才能在工具阶段显示"思考中…"而不是干等。</p>
+
+<div class="card detail"><h4>🔬 两条线为什么能对齐</h4>
+<p>流式给的是<strong>面向用户的时间维度</strong>（什么时候有字可以显示），OTel 给的是<strong>面向运维的因果维度</strong>（这次 run 里发生了哪些操作、各花多久）。
+同一次 <span class="mono">run()</span> 同时产出二者：chunk 让 UI 即时刷新，span 让你事后回看"那次为啥慢——是慢在第二次 <span class="mono">chat</span> 还是 <span class="mono">execute_tool</span>"。两者读的是同一过程的不同投影。</p></div>
+
 <h2>流式输出</h2>
 <div class="codefile">
   <div class="cf-head"><span class="dot"></span><span class="path">streaming</span></div>
@@ -3518,6 +3570,64 @@ workflow.run (parent span)
   </div>
 </details>
 
+<h2>真实的 span 树（用框架里的真名字）</h2>
+<p>前面手绘的层次是示意；MAF 里 span 的<strong>真实命名规则</strong>是 <span class="mono">f"{operation} {target}"</span>
+（<span class="mono">observability.py:2112</span>）。Agent 侧和 Workflow 侧各长一棵树：</p>
+<div class="layers">
+  <div class="layer l-core"><div class="lh"><span class="badge">agent</span><span class="name">invoke_agent {agent}</span></div>
+    <div class="ld">根 span，operation = <span class="mono">AGENT_INVOKE_OPERATION</span></div></div>
+  <div class="layer l-main"><div class="lh"><span class="badge">child</span><span class="name">chat {model}</span></div>
+    <div class="ld">每次 LLM 调用一个，attrs：<span class="mono">gen_ai.usage.input_tokens / output_tokens</span></div></div>
+  <div class="layer l-part"><div class="lh"><span class="badge">child</span><span class="name">execute_tool {name}</span></div>
+    <div class="ld">每次工具执行一个，attrs：<span class="mono">gen_ai.tool.name / gen_ai.tool.call.id</span></div></div>
+</div>
+<div class="layers">
+  <div class="layer l-core"><div class="lh"><span class="badge">workflow</span><span class="name">workflow.run</span></div>
+    <div class="ld">根 span，attrs：<span class="mono">workflow.id</span></div></div>
+  <div class="layer l-main"><div class="lh"><span class="badge">child</span><span class="name">executor.process {id}</span></div>
+    <div class="ld">每个节点处理一条消息一个，attrs：<span class="mono">executor.id / executor.type</span></div></div>
+  <div class="layer l-part"><div class="lh"><span class="badge">link</span><span class="name">message.send</span></div>
+    <div class="ld">节点间消息传递，attrs：<span class="mono">message.source_id / message.target_id</span></div></div>
+</div>
+<p>一个容易忽视却关键的设计：<span class="mono">executor.process</span> span <strong>不是</strong>嵌套在上游节点之下，而是<strong>用 link 关联</strong>到发布消息的源 span
+（<span class="mono">observability.py:2454</span> 注释明确写 "linked (not nested) ... supporting fan-in"）。
+为什么？因为 Workflow 是超步并行的：一个节点可能<strong>同时</strong>收到多个上游的消息（fan-in）。
+若强行嵌套，它只能挂在某一个父亲下；用 link 则能同时指向多个源，<strong>完整保留扇入的因果关系</strong>。</p>
+
+<h2>🔍 真实源码：手动开一个 span</h2>
+<div class="codefile">
+  <div class="cf-head"><span class="dot"></span><span class="dot"></span><span class="dot"></span><span class="path">core/agent_framework/observability.py</span></div>
+<pre><span class="cm"># observability.py:2445 — 通用 workflow span</span>
+<span class="kw">def</span> <span class="fn">create_workflow_span</span>(
+    name: str,
+    attributes: Mapping[str, str | int] | <span class="kw">None</span> = <span class="kw">None</span>,
+    kind: trace.SpanKind = trace.SpanKind.INTERNAL,
+) -> _AgnosticContextManager[trace.Span]:
+    <span class="kw">return</span> workflow_tracer().start_as_current_span(name, kind=kind, attributes=attributes)
+
+<span class="cm"># observability.py:2454 — 执行器处理 span，对扇入用 link 而非嵌套</span>
+<span class="kw">def</span> <span class="fn">create_processing_span</span>(executor_id, executor_type, message_type, payload_type,
+                          source_trace_contexts=<span class="kw">None</span>, source_span_ids=<span class="kw">None</span>):
+    links = [trace.Link(...) <span class="kw">for</span> ... <span class="kw">in</span> sources]  <span class="cm"># 多个源 → 多条 link（fan-in）</span>
+    <span class="kw">return</span> workflow_tracer().start_as_current_span(
+        f<span class="st">&quot;{OtelAttr.EXECUTOR_PROCESS_SPAN} {executor_id}&quot;</span>,  <span class="cm"># &quot;executor.process &lt;id&gt;&quot;</span>
+        attributes={OtelAttr.EXECUTOR_ID: executor_id, ...}, links=links)</pre>
+</div>
+<p>注意 <span class="mono">create_workflow_span</span> 用的是 <span class="mono">start_as_current_span</span>——它把新 span 设为<strong>当前上下文</strong>，
+于是你在 <span class="mono">with</span> 块里再开的任何 span（包括框架内置的 <span class="mono">chat</span> / <span class="mono">execute_tool</span>）都会自动成为它的孩子。这就是"零额外代码自动挂树"的底层机制。</p>
+
+<h2>为什么把流式与可观测做成一等公民</h2>
+<p>很多框架把这两件事当"事后补"：流式靠你自己拼 SSE，追踪靠你自己埋点。MAF 反过来——
+<strong>同一个 <code>run()</code> 调用里，stream 和 span 是同时落地的副产物</strong>。这带来三个实际后果：</p>
+<table class="t">
+  <tr><th>能力</th><th>没有它会怎样</th><th>MAF 内置之后</th></tr>
+  <tr><td>流式</td><td>用户盯着空白等十几秒，以为卡死</td><td>首字延迟即可见，长回答边生成边显示</td></tr>
+  <tr><td>分层 span</td><td>"这次 run 为什么要 8 秒？"无从查起</td><td>一眼看出是第二次 <span class="mono">chat</span> 慢，还是某个 tool 慢</td></tr>
+  <tr><td>token 归因</td><td>月底账单超支，不知道是哪个 Agent 烧的</td><td>每个 <span class="mono">chat</span> span 都带 input/output_tokens，可按 Agent 聚合</td></tr>
+</table>
+<p>底层用的是<strong>标准 OpenTelemetry + GenAI 语义约定</strong>（属性名形如 <span class="mono">gen_ai.usage.input_tokens</span>），
+所以这些 span 能直接喂给 Jaeger、Grafana Tempo 或任何 OTLP 后端，没有厂商锁定——这正是把可观测做成一等公民、而非专有插件的回报。</p>
+
 <div class="card key">
   <div class="tag">✅ 关键要点</div>
   <ul>
@@ -3543,6 +3653,58 @@ L14_EN = r"""
   Streaming is <strong>live TV</strong>: the audience sees frames (tokens) in real time.
   Observability is the <strong>ops dashboard</strong>: SREs watch latency, throughput and alerts. Complementary.
 </div>
+
+<h2>Tracing one streaming run + the span tree behind it</h2>
+<p>Put "streaming" and "observability" inside one real call: a user asks "What's the weather in Paris?" and the Agent must call a <span class="mono">get_weather</span> tool.
+We follow two tracks at once — <strong>your left brain logs the chunks from <code>async for</code></strong>, <strong>your right brain logs the spans OTel attaches in the background</strong>.</p>
+<div class="vflow">
+  <div class="step"><div class="num">1</div><div class="sc">
+    <h4>Open the invoke_agent root span, enter streaming</h4>
+    <p>Call <span class="mono">agent.run("What's the weather in Paris?", stream=True)</span>. The framework immediately opens a root span named
+      <span class="mono">invoke_agent {agent}</span> (<span class="mono">AGENT_INVOKE_OPERATION="invoke_agent"</span>, <span class="mono">observability.py:294</span>) and returns an async iterator. No tokens yet.</p>
+  </div></div>
+  <div class="step"><div class="num">2</div><div class="sc">
+    <h4>The model decides to call a tool first — early chunks are tool_calls, not text</h4>
+    <p>A child span <span class="mono">chat {model}</span> opens. The first chunks have empty <span class="mono">.text</span>;
+      <span class="mono">.contents</span> holds a <span class="mono">FunctionCallContent</span>, and <span class="mono">.finish_reason</span> ends as <span class="mono">&quot;tool_calls&quot;</span>:</p>
+<pre class="code">AgentResponseUpdate(contents=[FunctionCallContent(
+    name=&quot;get_weather&quot;, arguments={&quot;city&quot;: &quot;Paris&quot;})],
+    text=&quot;&quot;, finish_reason=&quot;tool_calls&quot;)</pre>
+  </div></div>
+  <div class="step"><div class="num">3</div><div class="sc">
+    <h4>Execute the tool — another child span</h4>
+    <p>The framework opens an <span class="mono">execute_tool {name}</span> span (<span class="mono">TOOL_EXECUTION_OPERATION="execute_tool"</span>, <span class="mono">observability.py:291</span>),
+      with attrs <span class="mono">gen_ai.tool.name=get_weather</span> and <span class="mono">gen_ai.tool.call.id</span>. The tool returns "15°C, sunny". This step <strong>emits no user-facing text chunk</strong>.</p>
+  </div></div>
+  <div class="step"><div class="num">4</div><div class="sc">
+    <h4>Ask the model again with the tool result — now real text deltas</h4>
+    <p>A second <span class="mono">chat {model}</span> span opens. Now chunks really carry text, token by token:</p>
+<pre class="code">&quot;It&quot; → &quot;'s&quot; → &quot; 15&quot; → &quot;°C&quot; → &quot; and&quot; → &quot; sunny&quot; ...
+# each chunk: text=delta fragment, finish_reason=None</pre>
+  </div></div>
+  <div class="step"><div class="num">5</div><div class="sc">
+    <h4>Finish: finish_reason flips to "stop", spans close in order</h4>
+    <p>The last chunk's <span class="mono">.finish_reason</span> goes from <span class="mono">None</span> to <span class="mono">&quot;stop&quot;</span>.
+      Concatenate every chunk's <span class="mono">.text</span> for the full reply; meanwhile the
+      <span class="mono">invoke_agent → chat → execute_tool → chat</span> spans close in order, each recording its latency and token counts.</p>
+  </div></div>
+</div>
+
+<p>So the chunk rhythm of one streaming answer is often "silence first, then a burst":</p>
+<div class="flow">
+  <div class="node"><div class="nt">chunk #1</div><div class="nd">text=&quot;&quot; · tool_calls</div></div>
+  <div class="arrow">→</div>
+  <div class="node"><div class="nt">[run tool]</div><div class="nd">no text chunk</div></div>
+  <div class="arrow">→</div>
+  <div class="node"><div class="nt">chunk #2..n</div><div class="nd">text delta · None</div></div>
+  <div class="arrow">→</div>
+  <div class="node hl"><div class="nt">chunk #last</div><div class="nd">finish=&quot;stop&quot;</div></div>
+</div>
+<p>This explains a common confusion: you enabled streaming yet <strong>see no text for the first few seconds</strong> — that's not a hang, it's the model going through "decide to call a tool → wait for the tool to return", during which chunks carry no displayable text. Knowing this, your UI can show "thinking…" during the tool phase instead of just waiting.</p>
+
+<div class="card detail"><h4>🔬 Why the two tracks line up</h4>
+<p>Streaming gives the <strong>user-facing time dimension</strong> (when there's text to display); OTel gives the <strong>ops-facing causal dimension</strong> (which operations happened in this run, and how long each took).
+The same <span class="mono">run()</span> produces both: chunks refresh the UI instantly, spans let you look back later and ask "why was that slow — the second <span class="mono">chat</span> or the <span class="mono">execute_tool</span>?". They're two projections of the same process.</p></div>
 
 <h2>Streaming output</h2>
 <div class="codefile">
@@ -3681,6 +3843,64 @@ workflow.run (parent span)
       MAF fully embraces the OTel standard — your custom spans and built-in spans coexist seamlessly on the same trace.</div></div>
   </div>
 </details>
+
+<h2>The real span tree (with the framework's real names)</h2>
+<p>The hand-drawn hierarchy above is illustrative; in MAF the <strong>actual naming rule</strong> is <span class="mono">f"{operation} {target}"</span>
+(<span class="mono">observability.py:2112</span>). The Agent side and the Workflow side each grow a tree:</p>
+<div class="layers">
+  <div class="layer l-core"><div class="lh"><span class="badge">agent</span><span class="name">invoke_agent {agent}</span></div>
+    <div class="ld">root span, operation = <span class="mono">AGENT_INVOKE_OPERATION</span></div></div>
+  <div class="layer l-main"><div class="lh"><span class="badge">child</span><span class="name">chat {model}</span></div>
+    <div class="ld">one per LLM call, attrs: <span class="mono">gen_ai.usage.input_tokens / output_tokens</span></div></div>
+  <div class="layer l-part"><div class="lh"><span class="badge">child</span><span class="name">execute_tool {name}</span></div>
+    <div class="ld">one per tool execution, attrs: <span class="mono">gen_ai.tool.name / gen_ai.tool.call.id</span></div></div>
+</div>
+<div class="layers">
+  <div class="layer l-core"><div class="lh"><span class="badge">workflow</span><span class="name">workflow.run</span></div>
+    <div class="ld">root span, attrs: <span class="mono">workflow.id</span></div></div>
+  <div class="layer l-main"><div class="lh"><span class="badge">child</span><span class="name">executor.process {id}</span></div>
+    <div class="ld">one per node processing a message, attrs: <span class="mono">executor.id / executor.type</span></div></div>
+  <div class="layer l-part"><div class="lh"><span class="badge">link</span><span class="name">message.send</span></div>
+    <div class="ld">inter-node message passing, attrs: <span class="mono">message.source_id / message.target_id</span></div></div>
+</div>
+<p>An easily-missed but crucial design: the <span class="mono">executor.process</span> span is <strong>not</strong> nested under the upstream node — it is <strong>linked</strong> to the publishing source span
+(<span class="mono">observability.py:2454</span>'s comment says verbatim "linked (not nested) ... supporting fan-in").
+Why? Because a Workflow runs in parallel supersteps: a node may receive messages from <strong>several</strong> upstream nodes at once (fan-in).
+Forced nesting could only attach it under one parent; a link can point at multiple sources at once, <strong>preserving the full fan-in causality</strong>.</p>
+
+<h2>🔍 Real source: opening a span by hand</h2>
+<div class="codefile">
+  <div class="cf-head"><span class="dot"></span><span class="dot"></span><span class="dot"></span><span class="path">core/agent_framework/observability.py</span></div>
+<pre><span class="cm"># observability.py:2445 — generic workflow span</span>
+<span class="kw">def</span> <span class="fn">create_workflow_span</span>(
+    name: str,
+    attributes: Mapping[str, str | int] | <span class="kw">None</span> = <span class="kw">None</span>,
+    kind: trace.SpanKind = trace.SpanKind.INTERNAL,
+) -> _AgnosticContextManager[trace.Span]:
+    <span class="kw">return</span> workflow_tracer().start_as_current_span(name, kind=kind, attributes=attributes)
+
+<span class="cm"># observability.py:2454 — executor processing span: link (not nest) for fan-in</span>
+<span class="kw">def</span> <span class="fn">create_processing_span</span>(executor_id, executor_type, message_type, payload_type,
+                          source_trace_contexts=<span class="kw">None</span>, source_span_ids=<span class="kw">None</span>):
+    links = [trace.Link(...) <span class="kw">for</span> ... <span class="kw">in</span> sources]  <span class="cm"># many sources → many links (fan-in)</span>
+    <span class="kw">return</span> workflow_tracer().start_as_current_span(
+        f<span class="st">&quot;{OtelAttr.EXECUTOR_PROCESS_SPAN} {executor_id}&quot;</span>,  <span class="cm"># &quot;executor.process &lt;id&gt;&quot;</span>
+        attributes={OtelAttr.EXECUTOR_ID: executor_id, ...}, links=links)</pre>
+</div>
+<p>Note <span class="mono">create_workflow_span</span> uses <span class="mono">start_as_current_span</span> — it sets the new span as the <strong>current context</strong>,
+so any span you open inside the <span class="mono">with</span> block (including the framework's built-in <span class="mono">chat</span> / <span class="mono">execute_tool</span>) automatically becomes its child. That's the mechanism behind "auto-attached trees with zero extra code".</p>
+
+<h2>Why streaming and observability are first-class</h2>
+<p>Many frameworks treat these as afterthoughts: you stitch your own SSE for streaming, you instrument your own tracing. MAF flips it —
+<strong>within a single <code>run()</code> call, stream and span are simultaneous byproducts</strong>. Three practical consequences:</p>
+<table class="t">
+  <tr><th>Capability</th><th>Without it</th><th>With MAF built in</th></tr>
+  <tr><td>Streaming</td><td>users stare at a blank screen for 10+ seconds, assuming it hung</td><td>first-token latency is visible; long answers render as they generate</td></tr>
+  <tr><td>Layered spans</td><td>"why did this run take 8s?" — nowhere to start</td><td>see at a glance whether the second <span class="mono">chat</span> was slow, or some tool</td></tr>
+  <tr><td>Token attribution</td><td>the monthly bill overruns and you can't tell which Agent burned it</td><td>every <span class="mono">chat</span> span carries input/output_tokens, aggregable per Agent</td></tr>
+</table>
+<p>Underneath it's <strong>standard OpenTelemetry + GenAI semantic conventions</strong> (attribute names like <span class="mono">gen_ai.usage.input_tokens</span>),
+so these spans feed straight into Jaeger, Grafana Tempo, or any OTLP backend with no vendor lock-in — the payoff of making observability first-class rather than a proprietary plugin.</p>
 
 <div class="card key">
   <div class="tag">✅ Key points</div>

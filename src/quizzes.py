@@ -432,6 +432,76 @@ QUIZZES = {
             },
         ],
     },
+    "13-orchestration.html": {
+        "mcq": [
+            {
+                "q": {
+                    "zh": "Handoff 和 Group Chat 都能多 Agent 协作，二者最本质的区别是<strong>谁决定下一个发言者</strong>。它是怎么分的？",
+                    "en": "Handoff and Group Chat both enable multi-agent collaboration; the most essential difference is <strong>who decides the next speaker</strong>. How does it split?",
+                },
+                "opts": [
+                    {
+                        "zh": "Handoff 由<strong>当前 Agent</strong> 自己调 handoff 工具决定交给谁；Group Chat 由一个<strong>集中的 <code>selection_func</code></strong> 每轮挑人",
+                        "en": "Handoff lets the <strong>current Agent</strong> decide via a handoff tool; Group Chat uses a <strong>centralized <code>selection_func</code></strong> to pick each turn",
+                    },
+                    {"zh": "两者都由固定轮转顺序决定，没有区别", "en": "Both decide by a fixed round-robin order; there's no difference"},
+                    {"zh": "两者都必须由人类每轮手动指定下一个", "en": "Both require a human to name the next speaker every turn"},
+                    {"zh": "Handoff 用 <code>selection_func</code>，Group Chat 靠当前 Agent 自己交接", "en": "Handoff uses <code>selection_func</code>; Group Chat relies on the current Agent to hand off"},
+                ],
+                "answer": 0,
+                "why": {
+                    "zh": "Handoff 把决策权下放给当前 Agent——它通过一个名为 <code>handoff_to_&lt;target&gt;</code> 的工具（<code>_handoff.py:122</code>）把控制权转走，最灵活也最难预测；Group Chat 则把'谁说话'收回到一个 <code>selection_func</code>（<code>_group_chat.py:615</code>）集中决定，更可控。",
+                    "en": "Handoff delegates the decision to the current Agent — it transfers control via a tool named <code>handoff_to_&lt;target&gt;</code> (<code>_handoff.py:122</code>), the most flexible but least predictable; Group Chat pulls 'who talks' back into a single <code>selection_func</code> (<code>_group_chat.py:615</code>), more controllable.",
+                },
+            },
+            {
+                "q": {
+                    "zh": "你要让三个 Agent <strong>各自独立</strong>地从不同角度审一份合同，再汇总成一份报告，且希望<strong>总延迟 ≈ 最慢的那个</strong>而不是三者之和。该选哪种编排？",
+                    "en": "You want three Agents to review a contract <strong>independently</strong> from different angles, then aggregate into one report, with <strong>total latency ≈ the slowest one</strong> rather than the sum. Which orchestration?",
+                },
+                "opts": [
+                    {
+                        "zh": "<strong>Concurrent</strong>（并发）——唯一真并行，延迟压到各 Agent 之最大",
+                        "en": "<strong>Concurrent</strong> — the only truly parallel one, collapsing latency to the max of the agents",
+                    },
+                    {"zh": "Sequential（顺序）——一个接一个传递", "en": "Sequential — pass one after another"},
+                    {"zh": "Handoff——让第一个 Agent 决定交给谁", "en": "Handoff — let the first Agent decide whom to pass to"},
+                    {"zh": "Magentic——派一个指挥官逐轮调度", "en": "Magentic — assign a manager to schedule round by round"},
+                ],
+                "answer": 0,
+                "why": {
+                    "zh": "任务之间<strong>无依赖</strong>且要压低延迟，正是 Concurrent 的主场：它把同一输入 fan-out 给多个 Agent 并行跑，再用 aggregator 汇总（<code>_concurrent.py:267</code>）。Sequential/Handoff/Magentic 本质串行，总耗时是各步之和。",
+                    "en": "Independent subtasks plus a latency target is Concurrent's home turf: it fans the same input out to multiple Agents in parallel, then merges via an aggregator (<code>_concurrent.py:267</code>). Sequential/Handoff/Magentic advance serially, so total time is the sum of steps.",
+                },
+            },
+            {
+                "q": {
+                    "zh": "Magentic 的指挥官凭什么不会把多 Agent 协作变成'放养式群聊'？",
+                    "en": "What keeps Magentic's manager from turning multi-agent collaboration into a 'free-for-all group chat'?",
+                },
+                "opts": [
+                    {
+                        "zh": "每轮都让 LLM 填一张<strong>进度账本</strong>（完成？打转？有进展？下一个谁？给什么指令？），据此显式自检与调度",
+                        "en": "Each round it has the LLM fill a <strong>progress ledger</strong> (done? looping? progressing? who's next? what instruction?) and schedules from that explicit self-check",
+                    },
+                    {"zh": "它把所有 Agent 锁成固定轮转顺序", "en": "It locks all Agents into a fixed round-robin order"},
+                    {"zh": "它只允许一个 Agent 存在", "en": "It allows only one Agent to exist"},
+                    {"zh": "它随机选择下一个发言者", "en": "It picks the next speaker at random"},
+                ],
+                "answer": 0,
+                "why": {
+                    "zh": "<code>MagenticProgressLedger</code>（<code>_magentic.py:307</code>）有五个字段：<code>is_request_satisfied / is_in_loop / is_progress_being_made / next_speaker / instruction_or_question</code>。指挥官每轮让 LLM 以结构化输出填它，于是显式判断该收尾、该重置还是该派谁干；卡住超过 <code>max_stall_count</code>（默认 3）就重置计划。",
+                    "en": "<code>MagenticProgressLedger</code> (<code>_magentic.py:307</code>) has five fields: <code>is_request_satisfied / is_in_loop / is_progress_being_made / next_speaker / instruction_or_question</code>. The manager has the LLM fill it as structured output each round, so it explicitly decides to finalize, reset, or dispatch; exceeding <code>max_stall_count</code> (default 3) resets the plan.",
+                },
+            },
+        ],
+        "open": [
+            {
+                "zh": "用 <strong>Handoff</strong> 设计一个客服分流系统：一个 <code>triage</code> 入口 Agent，外加 <code>billing</code>（账单）和 <code>tech</code>（技术）两个专家。请说明：(1) 哪个是 <code>with_start_agent</code> 起点；(2) 至少需要哪几条 <code>add_handoff</code> 边、方向如何；(3) 当两个专家都无法解决时，你会在何处用 <code>ctx.request_info()</code> 升级给人工，以及为什么 Handoff 比让单个大 Agent 硬扛更合适？",
+                "en": "Design a customer-service triage with <strong>Handoff</strong>: a <code>triage</code> entry Agent plus two experts <code>billing</code> and <code>tech</code>. Explain: (1) which is the <code>with_start_agent</code> start; (2) which <code>add_handoff</code> edges you need at minimum and their direction; (3) where you'd escalate to a human via <code>ctx.request_info()</code> when neither expert can resolve it, and why Handoff fits better than forcing one giant Agent to do it all.",
+            },
+        ],
+    },
 }
 
 

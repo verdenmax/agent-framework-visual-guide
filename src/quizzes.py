@@ -158,6 +158,70 @@ QUIZZES = {
             },
         ],
     },
+    "09-chatclient-internals.html": {
+        "mcq": [
+            {
+                "q": {
+                    "zh": "在 <code>BaseChatClient</code> 一侧，把厂商专属 JSON 翻译成统一 <code>ChatResponse</code> 这件事，到底发生在哪里？",
+                    "en": "On the <code>BaseChatClient</code> side, where does the translation of vendor-specific JSON into a unified <code>ChatResponse</code> actually happen?",
+                },
+                "opts": [
+                    {"zh": "在公共方法 <code>get_response()</code> 里统一处理", "en": "Handled centrally in the public <code>get_response()</code>"},
+                    {
+                        "zh": "在子类覆写的 <code>_inner_get_response()</code> 里（基类不碰任何厂商字段）",
+                        "en": "Inside the subclass's overridden <code>_inner_get_response()</code> (the base touches no vendor field)",
+                    },
+                    {"zh": "在 <code>ChatOptions</code> 这个 TypedDict 里", "en": "Inside the <code>ChatOptions</code> TypedDict"},
+                    {"zh": "在 Agent 的工具循环里", "en": "Inside the Agent's tool loop"},
+                ],
+                "answer": 1,
+                "why": {
+                    "zh": "基类 <code>get_response()</code>（<code>_clients.py:482</code>）只做&quot;压不压缩 + 转发&quot;的通用逻辑；把厂商 JSON 逐字段映射成 <code>ChatResponse</code> 的归一化，写在最懂那家 API 的子类 <code>_inner_get_response()</code> 里。所以新增厂商，基类一行都不用改。",
+                    "en": "The base <code>get_response()</code> (<code>_clients.py:482</code>) only does the generic &quot;compact-or-not + forward&quot;; normalizing vendor JSON field-by-field into <code>ChatResponse</code> lives in the subclass <code>_inner_get_response()</code> that knows the API best. So adding a vendor changes not one line in the base.",
+                },
+            },
+            {
+                "q": {
+                    "zh": "在<strong>一次</strong> <code>get_response()</code> 调用里，子类的 <code>_inner_get_response()</code> 会被调用几次？",
+                    "en": "Within <strong>one</strong> <code>get_response()</code> call, how many times is the subclass's <code>_inner_get_response()</code> invoked?",
+                },
+                "opts": [
+                    {"zh": "恰好一次——无论走「无压缩直接转发」还是「先 <code>_prepare</code> 再转发」", "en": "Exactly once — whether via &quot;forward as-is&quot; or &quot;_prepare then forward&quot;"},
+                    {"zh": "每个工具调用一次，循环多次", "en": "Once per tool call, looping multiple times"},
+                    {"zh": "流式时一次、非流式时两次", "en": "Once when streaming, twice when non-streaming"},
+                    {"zh": "零次，由基类直接返回缓存", "en": "Zero times; the base returns a cache directly"},
+                ],
+                "answer": 0,
+                "why": {
+                    "zh": "<code>get_response()</code> 的两条分支（<code>if not overrides</code> 直接转发；否则先 <code>_prepare_messages_for_model_call</code> 再转发）都<strong>只调一次</strong> <code>_inner_get_response()</code>。反复调模型的工具循环在外层的 <code>FunctionInvocationLayer</code>，不在基类。",
+                    "en": "Both branches of <code>get_response()</code> (the <code>if not overrides</code> direct forward, or <code>_prepare_messages_for_model_call</code> then forward) call <code>_inner_get_response()</code> <strong>exactly once</strong>. The repeated model calls of the tool loop live in the outer <code>FunctionInvocationLayer</code>, not the base.",
+                },
+            },
+            {
+                "q": {
+                    "zh": "OpenAI 原始 JSON 里的 <code>usage.prompt_tokens</code>，归一化进统一 <code>UsageDetails</code> 后叫什么？",
+                    "en": "OpenAI raw JSON's <code>usage.prompt_tokens</code> becomes which field after normalization into the unified <code>UsageDetails</code>?",
+                },
+                "opts": [
+                    {"zh": "<code>input_token_count</code>", "en": "<code>input_token_count</code>"},
+                    {"zh": "原样保留 <code>prompt_tokens</code>", "en": "Kept as-is: <code>prompt_tokens</code>"},
+                    {"zh": "<code>output_token_count</code>", "en": "<code>output_token_count</code>"},
+                    {"zh": "<code>completion_tokens</code>", "en": "<code>completion_tokens</code>"},
+                ],
+                "answer": 0,
+                "why": {
+                    "zh": "<code>UsageDetails</code>（<code>_types.py:393</code>）统一用 <code>input_token_count</code> / <code>output_token_count</code> / <code>total_token_count</code>。这个<strong>改名</strong>正是归一化的意义：上层只认框架字段，不被某家厂商的命名绑死。",
+                    "en": "<code>UsageDetails</code> (<code>_types.py:393</code>) uses the unified <code>input_token_count</code> / <code>output_token_count</code> / <code>total_token_count</code>. This <strong>rename</strong> is the whole point of normalization: upper layers know only the framework's fields, not any one vendor's naming.",
+                },
+            },
+        ],
+        "open": [
+            {
+                "zh": "既然每家 API 返回的 JSON 都不同，为什么子类还要多写一道&quot;翻译&quot;、把结果统一成 <code>ChatResponse</code>，而不是把厂商 dict 直接透传给上层？请从&quot;换厂商时谁要改代码&quot;的角度说明，并解释 <code>raw_representation</code> 在这个设计里扮演什么角色。",
+                "en": "Since every API returns different JSON, why does the subclass write an extra &quot;translation&quot; to unify into <code>ChatResponse</code> instead of passing the vendor dict straight through? Argue from &quot;who must change code when you swap vendors&quot;, and explain the role <code>raw_representation</code> plays in this design.",
+            },
+        ],
+    },
 }
 
 

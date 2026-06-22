@@ -2672,6 +2672,98 @@ to any LLM. You only touch <span class="inline">get_response()</span>; vendor-sp
   <tr><td class="mono">_inner_get_response(messages, stream, options)</td><td>base class</td><td>same (implemented by provider)</td></tr>
 </table>
 
+<h2>Tracing a real get_response(): from messages to ChatResponse</h2>
+<p>The skeleton is clear; let's walk one <strong>real call</strong> end to end. Say the upper layer (Agent or the tool loop)
+runs <span class="mono">client.get_response(messages, options=ChatOptions(model=&quot;gpt-4o&quot;))</span>.
+Watch how the request passes through the base class, lands in the vendor implementation, then collapses
+<strong>vendor-specific JSON</strong> into a unified <span class="mono">ChatResponse</span>.</p>
+
+<div class="vflow">
+  <div class="step"><div class="num">1</div><div class="sc"><h4>Public entry: decide whether to compact</h4>
+    <p>The first thing <span class="mono">get_response()</span> (<span class="mono">_clients.py:482</span>) does is
+    <span class="mono">_resolve_compaction_overrides()</span> — merging the per-call strategy with the client-level default:</p>
+<pre class="code">overrides = self._resolve_compaction_overrides(
+    compaction_strategy=compaction_strategy, tokenizer=tokenizer)
+merged_client_kwargs = dict(client_kwargs <span class="kw">or</span> {})</pre></div></div>
+  <div class="step"><div class="num">2</div><div class="sc"><h4>No compaction → forward as-is</h4>
+    <p>If <span class="mono">overrides</span> is empty (the common path), the base class <strong>touches nothing</strong> and forwards the messages straight to the vendor impl:</p>
+<pre class="code"><span class="kw">if not</span> overrides:
+    <span class="kw">return</span> self._inner_get_response(
+        messages=messages, stream=stream,
+        options=options <span class="kw">or</span> {}, **merged_client_kwargs)</pre></div></div>
+  <div class="step"><div class="num">3</div><div class="sc"><h4>Compaction set → _prepare, then call</h4>
+    <p>If compaction is configured, the base first <span class="mono">await _prepare_messages_for_model_call()</span>
+    (<span class="mono">_clients.py:366</span>) compacts/annotates <strong>in the same list</strong>, then calls the vendor impl.
+    Either way, <span class="mono">_inner_get_response()</span> is called <strong>exactly once</strong> per <span class="mono">get_response</span>.</p></div></div>
+  <div class="step"><div class="num">4</div><div class="sc"><h4>Vendor impl: MAF messages → vendor request</h4>
+    <p>Now inside the subclass's <span class="mono">_inner_get_response()</span> (abstract decl at <span class="mono">_clients.py:415</span>).
+    It first <span class="mono">await self._validate_options(options)</span> (<span class="mono">_clients.py:329</span>), then translates MAF <span class="mono">Message</span> objects into that API's fields:</p>
+<pre class="code"><span class="cm"># OpenAI-compatible shape</span>
+payload = {<span class="st">&quot;model&quot;</span>: <span class="st">&quot;gpt-4o&quot;</span>, <span class="st">&quot;messages&quot;</span>: [
+  {<span class="st">&quot;role&quot;</span>: <span class="st">&quot;system&quot;</span>, <span class="st">&quot;content&quot;</span>: <span class="st">&quot;…&quot;</span>},
+  {<span class="st">&quot;role&quot;</span>: <span class="st">&quot;user&quot;</span>, <span class="st">&quot;content&quot;</span>: <span class="st">&quot;What's the weather in Paris?&quot;</span>}]}</pre></div></div>
+  <div class="step"><div class="num">5</div><div class="sc"><h4>Real network call → vendor JSON</h4>
+    <p>The HTTP request goes out and returns the vendor's <strong>own structure</strong> — every provider names fields differently:</p>
+<pre class="code">{<span class="st">&quot;id&quot;</span>: <span class="st">&quot;chatcmpl-9x…&quot;</span>, <span class="st">&quot;model&quot;</span>: <span class="st">&quot;gpt-4o-2024…&quot;</span>,
+ <span class="st">&quot;choices&quot;</span>: [{<span class="st">&quot;message&quot;</span>: {<span class="st">&quot;content&quot;</span>: <span class="st">&quot;18°C, sunny.&quot;</span>},
+              <span class="st">&quot;finish_reason&quot;</span>: <span class="st">&quot;stop&quot;</span>}],
+ <span class="st">&quot;usage&quot;</span>: {<span class="st">&quot;prompt_tokens&quot;</span>: 42, <span class="st">&quot;completion_tokens&quot;</span>: 9}}</pre></div></div>
+  <div class="step"><div class="num">6</div><div class="sc"><h4>Normalize: vendor JSON → unified ChatResponse</h4>
+    <p>The subclass maps that JSON field-by-field into the framework's unified <span class="mono">ChatResponse</span> (constructor at <span class="mono">_types.py:2122</span>):</p>
+<pre class="code"><span class="kw">return</span> ChatResponse(
+    messages=[Message(<span class="st">&quot;assistant&quot;</span>, [<span class="st">&quot;18°C, sunny.&quot;</span>])],
+    response_id=<span class="st">&quot;chatcmpl-9x…&quot;</span>, model=<span class="st">&quot;gpt-4o-2024…&quot;</span>,
+    finish_reason=<span class="st">&quot;stop&quot;</span>,
+    usage_details=UsageDetails(
+        input_token_count=42, output_token_count=9))</pre></div></div>
+  <div class="step"><div class="num">7</div><div class="sc"><h4>Upper layers only ever see the unified type</h4>
+    <p>That <span class="mono">ChatResponse</span> bubbles straight back up. The upper layers (Agent, tool loop, your code)
+    <strong>only ever see the unified type</strong> — they have no idea whether OpenAI or Foundry is underneath. Swap vendors, change nothing upstream.</p></div></div>
+</div>
+
+<div class="card detail">
+  <div class="tag">🔬 Reading this trace</div>
+  The key is step ⑥: <strong>normalization happens inside the subclass</strong>, not the base. The base
+  <span class="mono">get_response()</span> only does the generic "compact-or-not + forward"; "how to translate that JSON into a
+  <span class="mono">ChatResponse</span>" is left to the subclass that knows the API best. So adding a vendor means <strong>not one line changes in the base</strong>.
+</div>
+
+<h2>Vendor raw JSON → unified ChatResponse fields</h2>
+<p>What exactly did that step-⑥ mapping map? The table below pairs OpenAI-style raw JSON with the framework's unified
+<span class="mono">ChatResponse</span> fields — note the token-count <strong>rename</strong>, the most easily overlooked part of normalization:</p>
+<table class="t">
+  <tr><th>Vendor raw JSON (OpenAI-style)</th><th>Unified ChatResponse field</th><th>Type / note</th></tr>
+  <tr><td class="mono">id</td><td class="mono">response_id</td><td>unique id of this response</td></tr>
+  <tr><td class="mono">model</td><td class="mono">model</td><td>actual model name used</td></tr>
+  <tr><td class="mono">choices[0].message.content</td><td class="mono">messages[0]</td><td>wrapped in a <span class="mono">Message(&quot;assistant&quot;, …)</span></td></tr>
+  <tr><td class="mono">choices[0].message.tool_calls</td><td class="mono">messages[0].contents</td><td>becomes a <span class="mono">function_call</span> <span class="mono">Content</span></td></tr>
+  <tr><td class="mono">choices[0].finish_reason</td><td class="mono">finish_reason</td><td><span class="mono">&quot;stop&quot;/&quot;tool_calls&quot;/&quot;length&quot;</span> (<span class="mono">_types.py:1642</span>)</td></tr>
+  <tr><td class="mono">usage.prompt_tokens</td><td class="mono">usage_details.input_token_count</td><td><strong>field renamed</strong></td></tr>
+  <tr><td class="mono">usage.completion_tokens</td><td class="mono">usage_details.output_token_count</td><td><strong>field renamed</strong></td></tr>
+  <tr><td class="mono">usage.total_tokens</td><td class="mono">usage_details.total_token_count</td><td><span class="mono">UsageDetails</span> (<span class="mono">_types.py:393</span>)</td></tr>
+</table>
+
+<h2>Four-layer onion: what a ChatClient really is</h2>
+<p>Just like the <span class="mono">Agent</span> last lesson, the ChatClient you hold is also several "layers" stacked on top of
+<span class="mono">BaseChatClient</span> via <strong>Python multiple inheritance</strong>. One <span class="mono">get_response()</span> request passes
+<strong>outside-in</strong> through these layers before landing in the vendor's <span class="mono">_inner_get_response()</span>:</p>
+<div class="layers">
+  <div class="layer l-app"><div class="lh"><span class="badge">Outer</span><span class="name">FunctionInvocationLayer</span></div>
+    <div class="ld">Function-calling layer (<span class="mono">_tools.py:2249</span>). <strong>Last lesson's tool loop lives here</strong> — it repeatedly calls <span class="mono">super().get_response()</span> until no new function_call appears.</div></div>
+  <div class="layer l-app"><div class="lh"><span class="badge">Middleware</span><span class="name">ChatMiddlewareLayer</span></div>
+    <div class="ld">Chat-middleware layer (<span class="mono">_middleware.py:1108</span>). Runs your <span class="mono">ChatMiddleware</span>, which can edit the request/response or short-circuit around the real model call.</div></div>
+  <div class="layer l-main"><div class="lh"><span class="badge">Telemetry</span><span class="name">ChatTelemetryLayer</span></div>
+    <div class="ld">Telemetry layer (<span class="mono">observability.py:1354</span>). Opens an OpenTelemetry span per model call, recording latency / tokens / errors.</div></div>
+  <div class="layer l-core"><div class="lh"><span class="badge">Core</span><span class="name">BaseChatClient</span></div>
+    <div class="ld">Abstract base (<span class="mono">_clients.py:217</span>). Defines the public <span class="mono">get_response()</span> + abstract <span class="mono">_inner_get_response()</span> — the one hole vendors must fill.</div></div>
+</div>
+<p>In real code a provider is roughly
+<span class="mono">class XxxChatClient(FunctionInvocationLayer, ChatTelemetryLayer, BaseChatClient)</span>
+(the same MRO appears in the source tests, <span class="mono">test_observability.py:4141</span>; the full four-layer order is documented at <span class="mono">:2939</span>:
+<span class="mono">FunctionInvocationLayer → ChatMiddlewareLayer → ChatTelemetryLayer → BaseChatClient</span>).
+Identical philosophy to the Agent: <strong>capability is decided by "stacked layers", not "runtime flags"</strong> — want a bare client?
+inherit only <span class="mono">BaseChatClient</span>; want the tool loop? stack <span class="mono">FunctionInvocationLayer</span> on top.</p>
+
 <details class="accordion" open>
   <summary><span class="badge-num">1</span> How do providers implement _inner_get_response? <span class="hint">expand</span></summary>
   <div class="acc-body">
@@ -2719,7 +2811,7 @@ to any LLM. You only touch <span class="inline">get_response()</span>; vendor-sp
 <pre class="code">resp.messages       <span class="cm"># list[Message] — model reply messages</span>
 resp.text           <span class="cm"># combined message text (read-only property)</span>
 resp.model          <span class="cm"># actual model name used</span>
-resp.usage_details  <span class="cm"># UsageDetails (prompt_tokens, completion_tokens)</span>
+resp.usage_details  <span class="cm"># UsageDetails (input_token_count, output_token_count, total_token_count)</span>
 resp.finish_reason  <span class="cm"># &quot;stop&quot; / &quot;tool_calls&quot; / &quot;length&quot;</span>
 resp.value          <span class="cm"># generic structured output</span>
 resp.conversation_id  <span class="cm"># conversation state identifier</span></pre></div></div>
@@ -2780,6 +2872,46 @@ resp.conversation_id  <span class="cm"># conversation state identifier</span></p
   </div>
 </details>
 
+<h2>🔍 Real source: the skeleton of get_response</h2>
+<div class="codefile">
+  <div class="cf-head"><span class="dot"></span><span class="path">_clients.py</span><span class="ln">BaseChatClient.get_response (simplified from :482)</span></div>
+<pre class="code"><span class="kw">def</span> <span class="fn">get_response</span>(self, messages, *, stream=<span class="kw">False</span>, options=<span class="kw">None</span>,
+        compaction_strategy=<span class="kw">None</span>, tokenizer=<span class="kw">None</span>,
+        function_invocation_kwargs=<span class="kw">None</span>, client_kwargs=<span class="kw">None</span>):
+    overrides = self._resolve_compaction_overrides(      <span class="cm"># merge compaction settings</span>
+        compaction_strategy=compaction_strategy, tokenizer=tokenizer)
+    merged_client_kwargs = dict(client_kwargs <span class="kw">or</span> {})
+
+    <span class="kw">if not</span> overrides:                                   <span class="cm"># ① no compaction: forward as-is</span>
+        <span class="kw">return</span> self._inner_get_response(
+            messages=messages, stream=stream,
+            options=options <span class="kw">or</span> {}, **merged_client_kwargs)
+
+    <span class="kw">async def</span> <span class="fn">_get_response</span>():                        <span class="cm"># ② compaction: prepare then call</span>
+        prepared = <span class="kw">await</span> self._prepare_messages_for_model_call(
+            messages, **overrides)
+        <span class="kw">return await</span> self._inner_get_response(
+            messages=prepared, stream=<span class="kw">False</span>,
+            options=options <span class="kw">or</span> {}, **merged_client_kwargs)
+    <span class="kw">return</span> _get_response()</pre>
+</div>
+<p>Just two paths: <strong>① no compaction forwards as-is, ② compaction _prepares first, then forwards</strong> — but both call
+<span class="mono">_inner_get_response()</span> <strong>exactly once</strong>. The base <strong>never touches a vendor field</strong>; it hands the whole
+"translate + network + normalize" block to the subclass. That is the line between "shared skeleton" and "vendor extension point":
+the top half (this code) is shared by all; the bottom half (<span class="mono">_inner_get_response</span>) is written per vendor.</p>
+
+<h2>Why collapse everything into one ChatResponse</h2>
+<p>You might ask: since every API returns different JSON, why bother writing a "translation" in the subclass to unify into
+<span class="mono">ChatResponse</span>? Wouldn't passing the vendor dict straight through be simpler? The answer is <strong>keeping the volatile out of the stable</strong>.
+Vendor JSON field names and nesting can change anytime (OpenAI calls tokens <span class="mono">prompt_tokens</span>; the framework calls them
+<span class="mono">input_token_count</span>). If upper layers read vendor fields directly, switching providers — or a provider upgrade — would <strong>ripple through the entire call chain</strong>.</p>
+<p>Normalization locks that volatility into <strong>a single subclass method</strong>: upper layers only ever know the stable
+<span class="mono">ChatResponse.text</span> / <span class="mono">.finish_reason</span> / <span class="mono">.usage_details</span> set. So the Agent's tool loop decides whether to
+continue via <span class="mono">finish_reason==&quot;tool_calls&quot;</span> and <strong>never needs to know which model is underneath</strong> — exactly why L08's
+"swap models, change nothing" promise holds.</p>
+<p>Better still, <span class="mono">.raw_representation</span> keeps the vendor's original response: <strong>unified fields cover 99% of needs, the escape hatch covers the last 1%</strong>.
+You get the cleanliness of strong types without being locked out when you genuinely need a vendor-specific field. This is the classic "narrow interface + escape hatch" trade-off.</p>
+
 <div class="card key">
   <div class="tag">✅ Key points</div>
   <ul>
@@ -2795,7 +2927,54 @@ resp.conversation_id  <span class="cm"># conversation state identifier</span></p
   handles shared logic (retries, middleware triggers); <span class="mono">_inner_get_response</span> only deals with
   "how to talk to that API". Adding a vendor means writing one subclass.
 </div>
-</div></section>
+<div class="selftest">
+<h2>🧪 Self-test - think about the design</h2>
+<div class="quiz">
+  <div class="qn">1. On the <code>BaseChatClient</code> side, where does the translation of vendor-specific JSON into a unified <code>ChatResponse</code> actually happen?</div>
+  <ol class="opts">
+    <li>Handled centrally in the public <code>get_response()</code></li>
+    <li>Inside the <code>ChatOptions</code> TypedDict</li>
+    <li>Inside the subclass's overridden <code>_inner_get_response()</code> (the base touches no vendor field)</li>
+    <li>Inside the Agent's tool loop</li>
+  </ol>
+  <details class="accordion" open>
+    <summary>Show answer &amp; explanation <span class="hint">click to expand</span></summary>
+    <div class="acc-body"><div class="qa"><div class="a"><strong>Answer: C</strong>. The base <code>get_response()</code> (<code>_clients.py:482</code>) only does the generic &quot;compact-or-not + forward&quot;; normalizing vendor JSON field-by-field into <code>ChatResponse</code> lives in the subclass <code>_inner_get_response()</code> that knows the API best. So adding a vendor changes not one line in the base.</div></div></div>
+  </details>
+</div>
+<div class="quiz">
+  <div class="qn">2. Within <strong>one</strong> <code>get_response()</code> call, how many times is the subclass's <code>_inner_get_response()</code> invoked?</div>
+  <ol class="opts">
+    <li>Once per tool call, looping multiple times</li>
+    <li>Zero times; the base returns a cache directly</li>
+    <li>Exactly once — whether via &quot;forward as-is&quot; or &quot;_prepare then forward&quot;</li>
+    <li>Once when streaming, twice when non-streaming</li>
+  </ol>
+  <details class="accordion" open>
+    <summary>Show answer &amp; explanation <span class="hint">click to expand</span></summary>
+    <div class="acc-body"><div class="qa"><div class="a"><strong>Answer: C</strong>. Both branches of <code>get_response()</code> (the <code>if not overrides</code> direct forward, or <code>_prepare_messages_for_model_call</code> then forward) call <code>_inner_get_response()</code> <strong>exactly once</strong>. The repeated model calls of the tool loop live in the outer <code>FunctionInvocationLayer</code>, not the base.</div></div></div>
+  </details>
+</div>
+<div class="quiz">
+  <div class="qn">3. OpenAI raw JSON's <code>usage.prompt_tokens</code> becomes which field after normalization into the unified <code>UsageDetails</code>?</div>
+  <ol class="opts">
+    <li><code>completion_tokens</code></li>
+    <li><code>output_token_count</code></li>
+    <li><code>input_token_count</code></li>
+    <li>Kept as-is: <code>prompt_tokens</code></li>
+  </ol>
+  <details class="accordion" open>
+    <summary>Show answer &amp; explanation <span class="hint">click to expand</span></summary>
+    <div class="acc-body"><div class="qa"><div class="a"><strong>Answer: C</strong>. <code>UsageDetails</code> (<code>_types.py:393</code>) uses the unified <code>input_token_count</code> / <code>output_token_count</code> / <code>total_token_count</code>. This <strong>rename</strong> is the whole point of normalization: upper layers know only the framework's fields, not any one vendor's naming.</div></div></div>
+  </details>
+</div>
+<div class="card spark">
+  <div class="tag">💭 Open questions (no single right answer - just think or try)</div>
+  <ul>
+    <li>Since every API returns different JSON, why does the subclass write an extra &quot;translation&quot; to unify into <code>ChatResponse</code> instead of passing the vendor dict straight through? Argue from &quot;who must change code when you swap vendors&quot;, and explain the role <code>raw_representation</code> plays in this design.</li>
+  </ul>
+</div>
+</div></div></section>
 <section class="print-lesson"><div class="wrap"><div class="lesson-head"><div class="lp">Part 3 · Internals</div><h1><span class="ln">10 ·</span> Tool-Calling Internals</h1></div>
 <p class="lead"><span class="inline">@tool</span> looks like magic from the user side — here we open it up: from a
 Python function to JSON Schema and back through the model's <strong>full round-trip</strong>.</p>

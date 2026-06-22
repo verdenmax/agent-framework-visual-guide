@@ -622,6 +622,94 @@ L09_ZH = r"""
   <tr><td class="mono">_inner_get_response(messages, stream, options)</td><td>基类内部</td><td>同上（由 provider 实现）</td></tr>
 </table>
 
+<h2>追踪一次真实 get_response()：从消息到 ChatResponse</h2>
+<p>骨架讲完了，我们用一次<strong>真实调用</strong>端到端走一遍。假设上层（Agent 或工具循环层）执行
+<span class="mono">client.get_response(messages, options=ChatOptions(model=&quot;gpt-4o&quot;))</span>，
+看请求如何穿过基类、落到厂商实现，再把<strong>厂商专属 JSON</strong> 收敛成统一的 <span class="mono">ChatResponse</span>。</p>
+
+<div class="vflow">
+  <div class="step"><div class="num">1</div><div class="sc"><h4>公共入口：先决定要不要压缩</h4>
+    <p><span class="mono">get_response()</span>（<span class="mono">_clients.py:482</span>）做的第一件事是
+    <span class="mono">_resolve_compaction_overrides()</span>——把「本次调用传入的」与「client 上预设的」compaction 策略合并：</p>
+<pre class="code">overrides = self._resolve_compaction_overrides(
+    compaction_strategy=compaction_strategy, tokenizer=tokenizer)
+merged_client_kwargs = dict(client_kwargs <span class="kw">or</span> {})</pre></div></div>
+  <div class="step"><div class="num">2</div><div class="sc"><h4>无压缩 → 原样直接转发</h4>
+    <p>若 <span class="mono">overrides</span> 为空（最常见路径），基类<strong>什么都不加工</strong>，把消息原封不动转发给厂商实现：</p>
+<pre class="code"><span class="kw">if not</span> overrides:
+    <span class="kw">return</span> self._inner_get_response(
+        messages=messages, stream=stream,
+        options=options <span class="kw">or</span> {}, **merged_client_kwargs)</pre></div></div>
+  <div class="step"><div class="num">3</div><div class="sc"><h4>有压缩 → 先 _prepare 再调</h4>
+    <p>若设了 compaction，基类先 <span class="mono">await _prepare_messages_for_model_call()</span>（<span class="mono">_clients.py:366</span>）
+    在<strong>同一个 list</strong> 上原地压缩 / 标注，再调厂商实现。无论走哪条路，<span class="mono">_inner_get_response()</span> 在一次 <span class="mono">get_response</span> 里<strong>只被调用一次</strong>。</p></div></div>
+  <div class="step"><div class="num">4</div><div class="sc"><h4>厂商实现：MAF 消息 → 厂商请求</h4>
+    <p>进入子类的 <span class="mono">_inner_get_response()</span>（抽象声明在 <span class="mono">_clients.py:415</span>）。它先
+    <span class="mono">await self._validate_options(options)</span>（<span class="mono">_clients.py:329</span>），再把 MAF 的 <span class="mono">Message</span> 列表翻成那家 API 的字段：</p>
+<pre class="code"><span class="cm"># 以 OpenAI 兼容格式为例</span>
+payload = {<span class="st">&quot;model&quot;</span>: <span class="st">&quot;gpt-4o&quot;</span>, <span class="st">&quot;messages&quot;</span>: [
+  {<span class="st">&quot;role&quot;</span>: <span class="st">&quot;system&quot;</span>, <span class="st">&quot;content&quot;</span>: <span class="st">&quot;…&quot;</span>},
+  {<span class="st">&quot;role&quot;</span>: <span class="st">&quot;user&quot;</span>, <span class="st">&quot;content&quot;</span>: <span class="st">&quot;巴黎今天天气如何？&quot;</span>}]}</pre></div></div>
+  <div class="step"><div class="num">5</div><div class="sc"><h4>真实网络调用，拿回厂商 JSON</h4>
+    <p>发出 HTTP 请求，得到厂商<strong>专属结构</strong>的原始响应——每家字段名都不一样：</p>
+<pre class="code">{<span class="st">&quot;id&quot;</span>: <span class="st">&quot;chatcmpl-9x…&quot;</span>, <span class="st">&quot;model&quot;</span>: <span class="st">&quot;gpt-4o-2024…&quot;</span>,
+ <span class="st">&quot;choices&quot;</span>: [{<span class="st">&quot;message&quot;</span>: {<span class="st">&quot;content&quot;</span>: <span class="st">&quot;18°C，晴。&quot;</span>},
+              <span class="st">&quot;finish_reason&quot;</span>: <span class="st">&quot;stop&quot;</span>}],
+ <span class="st">&quot;usage&quot;</span>: {<span class="st">&quot;prompt_tokens&quot;</span>: 42, <span class="st">&quot;completion_tokens&quot;</span>: 9}}</pre></div></div>
+  <div class="step"><div class="num">6</div><div class="sc"><h4>归一化：厂商 JSON → 统一 ChatResponse</h4>
+    <p>子类把上面的 JSON 逐字段映射进框架统一的 <span class="mono">ChatResponse</span>（构造器见 <span class="mono">_types.py:2122</span>）：</p>
+<pre class="code"><span class="kw">return</span> ChatResponse(
+    messages=[Message(<span class="st">&quot;assistant&quot;</span>, [<span class="st">&quot;18°C，晴。&quot;</span>])],
+    response_id=<span class="st">&quot;chatcmpl-9x…&quot;</span>, model=<span class="st">&quot;gpt-4o-2024…&quot;</span>,
+    finish_reason=<span class="st">&quot;stop&quot;</span>,
+    usage_details=UsageDetails(
+        input_token_count=42, output_token_count=9))</pre></div></div>
+  <div class="step"><div class="num">7</div><div class="sc"><h4>上层只看见统一类型</h4>
+    <p>这个 <span class="mono">ChatResponse</span> 一路原样返回。上层（Agent、工具循环、你的代码）<strong>永远只看到统一类型</strong>，
+    完全不知道下面是 OpenAI 还是 Foundry——换厂商，上层零改动。</p></div></div>
+</div>
+
+<div class="card detail">
+  <div class="tag">🔬 读懂这条轨迹</div>
+  关键在第 ⑥ 步：<strong>归一化发生在子类内部</strong>，而不是基类。基类 <span class="mono">get_response()</span> 只管「压不压缩 + 转发」这件通用事，
+  「怎么把那家 JSON 翻成 <span class="mono">ChatResponse</span>」交给最懂那家 API 的子类。于是新增一个厂商，<strong>基类一行都不用改</strong>。
+</div>
+
+<h2>厂商原始 JSON → 统一 ChatResponse 字段</h2>
+<p>第 ⑥ 步那次「逐字段映射」到底映了什么？下表把 OpenAI 风格的原始 JSON 和框架统一的
+<span class="mono">ChatResponse</span> 字段一一对照——注意 token 计数的<strong>改名</strong>，这正是归一化最容易被忽略的细节：</p>
+<table class="t">
+  <tr><th>厂商原始 JSON（OpenAI 风格）</th><th>统一 ChatResponse 字段</th><th>类型 / 说明</th></tr>
+  <tr><td class="mono">id</td><td class="mono">response_id</td><td>本次响应的唯一 ID</td></tr>
+  <tr><td class="mono">model</td><td class="mono">model</td><td>实际使用的模型名</td></tr>
+  <tr><td class="mono">choices[0].message.content</td><td class="mono">messages[0]</td><td>装进一条 <span class="mono">Message(&quot;assistant&quot;, …)</span></td></tr>
+  <tr><td class="mono">choices[0].message.tool_calls</td><td class="mono">messages[0].contents</td><td>转成 <span class="mono">function_call</span> 类型的 <span class="mono">Content</span></td></tr>
+  <tr><td class="mono">choices[0].finish_reason</td><td class="mono">finish_reason</td><td><span class="mono">&quot;stop&quot;/&quot;tool_calls&quot;/&quot;length&quot;</span>（<span class="mono">_types.py:1642</span>）</td></tr>
+  <tr><td class="mono">usage.prompt_tokens</td><td class="mono">usage_details.input_token_count</td><td><strong>字段名变了</strong></td></tr>
+  <tr><td class="mono">usage.completion_tokens</td><td class="mono">usage_details.output_token_count</td><td><strong>字段名变了</strong></td></tr>
+  <tr><td class="mono">usage.total_tokens</td><td class="mono">usage_details.total_token_count</td><td><span class="mono">UsageDetails</span>（<span class="mono">_types.py:393</span>）</td></tr>
+</table>
+
+<h2>四层洋葱：一个 ChatClient 的真身</h2>
+<p>和上一课的 <span class="mono">Agent</span> 一样，你拿到的 ChatClient 也是用 <strong>Python 多继承</strong>把若干「层」叠在
+<span class="mono">BaseChatClient</span> 外面。一次 <span class="mono">get_response()</span> 请求<strong>从外到内</strong>穿过这些层，最后才落到厂商的 <span class="mono">_inner_get_response()</span>：</p>
+<div class="layers">
+  <div class="layer l-app"><div class="lh"><span class="badge">最外</span><span class="name">FunctionInvocationLayer</span></div>
+    <div class="ld">函数调用层（<span class="mono">_tools.py:2249</span>）。<strong>上一课那个工具循环就住在这里</strong>——它反复 <span class="mono">super().get_response()</span> 直到不再出现新的 function_call。</div></div>
+  <div class="layer l-app"><div class="lh"><span class="badge">中间件</span><span class="name">ChatMiddlewareLayer</span></div>
+    <div class="ld">聊天中间件层（<span class="mono">_middleware.py:1108</span>）。跑你注册的 <span class="mono">ChatMiddleware</span>，可在「真正调模型」前后改请求 / 改响应 / 短路。</div></div>
+  <div class="layer l-main"><div class="lh"><span class="badge">遥测</span><span class="name">ChatTelemetryLayer</span></div>
+    <div class="ld">遥测层（<span class="mono">observability.py:1354</span>）。为每次模型调用开一个 OpenTelemetry span，记录耗时 / token / 异常。</div></div>
+  <div class="layer l-core"><div class="lh"><span class="badge">核心</span><span class="name">BaseChatClient</span></div>
+    <div class="ld">抽象基类（<span class="mono">_clients.py:217</span>）。定义公共 <span class="mono">get_response()</span> + 抽象 <span class="mono">_inner_get_response()</span>——厂商唯一要填的洞。</div></div>
+</div>
+<p>真实代码里，一个 provider 大致是
+<span class="mono">class XxxChatClient(FunctionInvocationLayer, ChatTelemetryLayer, BaseChatClient)</span>
+这样多继承组合的（同款 MRO 见源码测试 <span class="mono">test_observability.py:4141</span>；四层完整顺序见 <span class="mono">:2939</span> 文档：
+<span class="mono">FunctionInvocationLayer → ChatMiddlewareLayer → ChatTelemetryLayer → BaseChatClient</span>）。
+和 Agent 的设计如出一辙：<strong>能力靠「叠层」而非「运行时开关」决定</strong>——要裸客户端就只继承
+<span class="mono">BaseChatClient</span>，要工具循环就把 <span class="mono">FunctionInvocationLayer</span> 叠上去。</p>
+
 <details class="accordion">
   <summary><span class="badge-num">1</span> 厂商怎么实现 _inner_get_response? <span class="hint">点击展开详解</span></summary>
   <div class="acc-body">
@@ -669,7 +757,7 @@ L09_ZH = r"""
 <pre class="code">resp.messages       <span class="cm"># list[Message] — 模型回复的消息</span>
 resp.text           <span class="cm"># 所有消息文本拼合（只读属性）</span>
 resp.model          <span class="cm"># 实际使用的模型名</span>
-resp.usage_details  <span class="cm"># UsageDetails（prompt_tokens, completion_tokens）</span>
+resp.usage_details  <span class="cm"># UsageDetails（input_token_count, output_token_count, total_token_count）</span>
 resp.finish_reason  <span class="cm"># &quot;stop&quot; / &quot;tool_calls&quot; / &quot;length&quot;</span>
 resp.value          <span class="cm"># 泛型结构化输出</span>
 resp.conversation_id  <span class="cm"># 会话状态标识</span></pre></div></div>
@@ -730,6 +818,45 @@ resp.conversation_id  <span class="cm"># 会话状态标识</span></pre></div></
   </div>
 </details>
 
+<h2>🔍 真实源码：get_response 的骨架</h2>
+<div class="codefile">
+  <div class="cf-head"><span class="dot"></span><span class="path">_clients.py</span><span class="ln">BaseChatClient.get_response（简化自 :482）</span></div>
+<pre class="code"><span class="kw">def</span> <span class="fn">get_response</span>(self, messages, *, stream=<span class="kw">False</span>, options=<span class="kw">None</span>,
+        compaction_strategy=<span class="kw">None</span>, tokenizer=<span class="kw">None</span>,
+        function_invocation_kwargs=<span class="kw">None</span>, client_kwargs=<span class="kw">None</span>):
+    overrides = self._resolve_compaction_overrides(      <span class="cm"># 合并 compaction 设置</span>
+        compaction_strategy=compaction_strategy, tokenizer=tokenizer)
+    merged_client_kwargs = dict(client_kwargs <span class="kw">or</span> {})
+
+    <span class="kw">if not</span> overrides:                                   <span class="cm"># ① 无压缩：原样转发</span>
+        <span class="kw">return</span> self._inner_get_response(
+            messages=messages, stream=stream,
+            options=options <span class="kw">or</span> {}, **merged_client_kwargs)
+
+    <span class="kw">async def</span> <span class="fn">_get_response</span>():                        <span class="cm"># ② 有压缩：先 prepare 再调</span>
+        prepared = <span class="kw">await</span> self._prepare_messages_for_model_call(
+            messages, **overrides)
+        <span class="kw">return await</span> self._inner_get_response(
+            messages=prepared, stream=<span class="kw">False</span>,
+            options=options <span class="kw">or</span> {}, **merged_client_kwargs)
+    <span class="kw">return</span> _get_response()</pre>
+</div>
+<p>骨架就两条路：<strong>①无压缩直接转发、②有压缩先 <span class="mono">_prepare</span> 再转发</strong>，但两条路<strong>都只调一次</strong>
+<span class="mono">_inner_get_response()</span>。基类自己<strong>不碰任何厂商字段</strong>——它把「翻译 + 网络 + 归一化」整块交给子类。
+这就是「公共骨架」与「厂商扩展点」的分界线：上半截（这段代码）人人共用，下半截（<span class="mono">_inner_get_response</span>）各厂商各写。</p>
+
+<h2>为什么统一成一个 ChatResponse</h2>
+<p>你可能会问：既然每家 API 返回的 JSON 都不一样，为什么非要在子类里多写一道「翻译」、统一成
+<span class="mono">ChatResponse</span>？直接把厂商的 dict 透传上去不是更省事吗？答案是<strong>把「易变」挡在「稳定」外面</strong>。
+厂商的 JSON 字段名、嵌套结构随时可能变（OpenAI 把 token 叫 <span class="mono">prompt_tokens</span>，框架统一叫
+<span class="mono">input_token_count</span>）；如果上层直接读厂商字段，换一家或厂商一升级，<strong>整条调用链都要跟着改</strong>。</p>
+<p>归一化把这种「易变」锁死在<strong>子类的一个方法</strong>里：上层永远只认 <span class="mono">ChatResponse.text</span> /
+<span class="mono">.finish_reason</span> / <span class="mono">.usage_details</span> 这套稳定字段。于是 Agent 的工具循环靠
+<span class="mono">finish_reason==&quot;tool_calls&quot;</span> 判断要不要继续，<strong>根本不需要知道下面是哪家模型</strong>——这正是
+L08 那个「换模型零改动」承诺能成立的底层原因。</p>
+<p>更妙的是 <span class="mono">.raw_representation</span> 仍保留了厂商原始响应：<strong>统一字段满足 99% 需求，逃生舱口满足剩下 1%</strong>。
+你既享受到强类型的整洁，又不会在需要某个厂商专属字段时被框架挡死。这就是「窄接口 + 逃生舱」的经典权衡。</p>
+
 <div class="card key">
   <div class="tag">✅ 关键要点</div>
   <ul>
@@ -774,6 +901,98 @@ to any LLM. You only touch <span class="inline">get_response()</span>; vendor-sp
   <tr><td class="mono">get_response(messages, stream=False)</td><td>Agent / you</td><td><span class="mono">ChatResponse</span> or <span class="mono">AsyncIterator[ChatResponseUpdate]</span></td></tr>
   <tr><td class="mono">_inner_get_response(messages, stream, options)</td><td>base class</td><td>same (implemented by provider)</td></tr>
 </table>
+
+<h2>Tracing a real get_response(): from messages to ChatResponse</h2>
+<p>The skeleton is clear; let's walk one <strong>real call</strong> end to end. Say the upper layer (Agent or the tool loop)
+runs <span class="mono">client.get_response(messages, options=ChatOptions(model=&quot;gpt-4o&quot;))</span>.
+Watch how the request passes through the base class, lands in the vendor implementation, then collapses
+<strong>vendor-specific JSON</strong> into a unified <span class="mono">ChatResponse</span>.</p>
+
+<div class="vflow">
+  <div class="step"><div class="num">1</div><div class="sc"><h4>Public entry: decide whether to compact</h4>
+    <p>The first thing <span class="mono">get_response()</span> (<span class="mono">_clients.py:482</span>) does is
+    <span class="mono">_resolve_compaction_overrides()</span> — merging the per-call strategy with the client-level default:</p>
+<pre class="code">overrides = self._resolve_compaction_overrides(
+    compaction_strategy=compaction_strategy, tokenizer=tokenizer)
+merged_client_kwargs = dict(client_kwargs <span class="kw">or</span> {})</pre></div></div>
+  <div class="step"><div class="num">2</div><div class="sc"><h4>No compaction → forward as-is</h4>
+    <p>If <span class="mono">overrides</span> is empty (the common path), the base class <strong>touches nothing</strong> and forwards the messages straight to the vendor impl:</p>
+<pre class="code"><span class="kw">if not</span> overrides:
+    <span class="kw">return</span> self._inner_get_response(
+        messages=messages, stream=stream,
+        options=options <span class="kw">or</span> {}, **merged_client_kwargs)</pre></div></div>
+  <div class="step"><div class="num">3</div><div class="sc"><h4>Compaction set → _prepare, then call</h4>
+    <p>If compaction is configured, the base first <span class="mono">await _prepare_messages_for_model_call()</span>
+    (<span class="mono">_clients.py:366</span>) compacts/annotates <strong>in the same list</strong>, then calls the vendor impl.
+    Either way, <span class="mono">_inner_get_response()</span> is called <strong>exactly once</strong> per <span class="mono">get_response</span>.</p></div></div>
+  <div class="step"><div class="num">4</div><div class="sc"><h4>Vendor impl: MAF messages → vendor request</h4>
+    <p>Now inside the subclass's <span class="mono">_inner_get_response()</span> (abstract decl at <span class="mono">_clients.py:415</span>).
+    It first <span class="mono">await self._validate_options(options)</span> (<span class="mono">_clients.py:329</span>), then translates MAF <span class="mono">Message</span> objects into that API's fields:</p>
+<pre class="code"><span class="cm"># OpenAI-compatible shape</span>
+payload = {<span class="st">&quot;model&quot;</span>: <span class="st">&quot;gpt-4o&quot;</span>, <span class="st">&quot;messages&quot;</span>: [
+  {<span class="st">&quot;role&quot;</span>: <span class="st">&quot;system&quot;</span>, <span class="st">&quot;content&quot;</span>: <span class="st">&quot;…&quot;</span>},
+  {<span class="st">&quot;role&quot;</span>: <span class="st">&quot;user&quot;</span>, <span class="st">&quot;content&quot;</span>: <span class="st">&quot;What's the weather in Paris?&quot;</span>}]}</pre></div></div>
+  <div class="step"><div class="num">5</div><div class="sc"><h4>Real network call → vendor JSON</h4>
+    <p>The HTTP request goes out and returns the vendor's <strong>own structure</strong> — every provider names fields differently:</p>
+<pre class="code">{<span class="st">&quot;id&quot;</span>: <span class="st">&quot;chatcmpl-9x…&quot;</span>, <span class="st">&quot;model&quot;</span>: <span class="st">&quot;gpt-4o-2024…&quot;</span>,
+ <span class="st">&quot;choices&quot;</span>: [{<span class="st">&quot;message&quot;</span>: {<span class="st">&quot;content&quot;</span>: <span class="st">&quot;18°C, sunny.&quot;</span>},
+              <span class="st">&quot;finish_reason&quot;</span>: <span class="st">&quot;stop&quot;</span>}],
+ <span class="st">&quot;usage&quot;</span>: {<span class="st">&quot;prompt_tokens&quot;</span>: 42, <span class="st">&quot;completion_tokens&quot;</span>: 9}}</pre></div></div>
+  <div class="step"><div class="num">6</div><div class="sc"><h4>Normalize: vendor JSON → unified ChatResponse</h4>
+    <p>The subclass maps that JSON field-by-field into the framework's unified <span class="mono">ChatResponse</span> (constructor at <span class="mono">_types.py:2122</span>):</p>
+<pre class="code"><span class="kw">return</span> ChatResponse(
+    messages=[Message(<span class="st">&quot;assistant&quot;</span>, [<span class="st">&quot;18°C, sunny.&quot;</span>])],
+    response_id=<span class="st">&quot;chatcmpl-9x…&quot;</span>, model=<span class="st">&quot;gpt-4o-2024…&quot;</span>,
+    finish_reason=<span class="st">&quot;stop&quot;</span>,
+    usage_details=UsageDetails(
+        input_token_count=42, output_token_count=9))</pre></div></div>
+  <div class="step"><div class="num">7</div><div class="sc"><h4>Upper layers only ever see the unified type</h4>
+    <p>That <span class="mono">ChatResponse</span> bubbles straight back up. The upper layers (Agent, tool loop, your code)
+    <strong>only ever see the unified type</strong> — they have no idea whether OpenAI or Foundry is underneath. Swap vendors, change nothing upstream.</p></div></div>
+</div>
+
+<div class="card detail">
+  <div class="tag">🔬 Reading this trace</div>
+  The key is step ⑥: <strong>normalization happens inside the subclass</strong>, not the base. The base
+  <span class="mono">get_response()</span> only does the generic "compact-or-not + forward"; "how to translate that JSON into a
+  <span class="mono">ChatResponse</span>" is left to the subclass that knows the API best. So adding a vendor means <strong>not one line changes in the base</strong>.
+</div>
+
+<h2>Vendor raw JSON → unified ChatResponse fields</h2>
+<p>What exactly did that step-⑥ mapping map? The table below pairs OpenAI-style raw JSON with the framework's unified
+<span class="mono">ChatResponse</span> fields — note the token-count <strong>rename</strong>, the most easily overlooked part of normalization:</p>
+<table class="t">
+  <tr><th>Vendor raw JSON (OpenAI-style)</th><th>Unified ChatResponse field</th><th>Type / note</th></tr>
+  <tr><td class="mono">id</td><td class="mono">response_id</td><td>unique id of this response</td></tr>
+  <tr><td class="mono">model</td><td class="mono">model</td><td>actual model name used</td></tr>
+  <tr><td class="mono">choices[0].message.content</td><td class="mono">messages[0]</td><td>wrapped in a <span class="mono">Message(&quot;assistant&quot;, …)</span></td></tr>
+  <tr><td class="mono">choices[0].message.tool_calls</td><td class="mono">messages[0].contents</td><td>becomes a <span class="mono">function_call</span> <span class="mono">Content</span></td></tr>
+  <tr><td class="mono">choices[0].finish_reason</td><td class="mono">finish_reason</td><td><span class="mono">&quot;stop&quot;/&quot;tool_calls&quot;/&quot;length&quot;</span> (<span class="mono">_types.py:1642</span>)</td></tr>
+  <tr><td class="mono">usage.prompt_tokens</td><td class="mono">usage_details.input_token_count</td><td><strong>field renamed</strong></td></tr>
+  <tr><td class="mono">usage.completion_tokens</td><td class="mono">usage_details.output_token_count</td><td><strong>field renamed</strong></td></tr>
+  <tr><td class="mono">usage.total_tokens</td><td class="mono">usage_details.total_token_count</td><td><span class="mono">UsageDetails</span> (<span class="mono">_types.py:393</span>)</td></tr>
+</table>
+
+<h2>Four-layer onion: what a ChatClient really is</h2>
+<p>Just like the <span class="mono">Agent</span> last lesson, the ChatClient you hold is also several "layers" stacked on top of
+<span class="mono">BaseChatClient</span> via <strong>Python multiple inheritance</strong>. One <span class="mono">get_response()</span> request passes
+<strong>outside-in</strong> through these layers before landing in the vendor's <span class="mono">_inner_get_response()</span>:</p>
+<div class="layers">
+  <div class="layer l-app"><div class="lh"><span class="badge">Outer</span><span class="name">FunctionInvocationLayer</span></div>
+    <div class="ld">Function-calling layer (<span class="mono">_tools.py:2249</span>). <strong>Last lesson's tool loop lives here</strong> — it repeatedly calls <span class="mono">super().get_response()</span> until no new function_call appears.</div></div>
+  <div class="layer l-app"><div class="lh"><span class="badge">Middleware</span><span class="name">ChatMiddlewareLayer</span></div>
+    <div class="ld">Chat-middleware layer (<span class="mono">_middleware.py:1108</span>). Runs your <span class="mono">ChatMiddleware</span>, which can edit the request/response or short-circuit around the real model call.</div></div>
+  <div class="layer l-main"><div class="lh"><span class="badge">Telemetry</span><span class="name">ChatTelemetryLayer</span></div>
+    <div class="ld">Telemetry layer (<span class="mono">observability.py:1354</span>). Opens an OpenTelemetry span per model call, recording latency / tokens / errors.</div></div>
+  <div class="layer l-core"><div class="lh"><span class="badge">Core</span><span class="name">BaseChatClient</span></div>
+    <div class="ld">Abstract base (<span class="mono">_clients.py:217</span>). Defines the public <span class="mono">get_response()</span> + abstract <span class="mono">_inner_get_response()</span> — the one hole vendors must fill.</div></div>
+</div>
+<p>In real code a provider is roughly
+<span class="mono">class XxxChatClient(FunctionInvocationLayer, ChatTelemetryLayer, BaseChatClient)</span>
+(the same MRO appears in the source tests, <span class="mono">test_observability.py:4141</span>; the full four-layer order is documented at <span class="mono">:2939</span>:
+<span class="mono">FunctionInvocationLayer → ChatMiddlewareLayer → ChatTelemetryLayer → BaseChatClient</span>).
+Identical philosophy to the Agent: <strong>capability is decided by "stacked layers", not "runtime flags"</strong> — want a bare client?
+inherit only <span class="mono">BaseChatClient</span>; want the tool loop? stack <span class="mono">FunctionInvocationLayer</span> on top.</p>
 
 <details class="accordion">
   <summary><span class="badge-num">1</span> How do providers implement _inner_get_response? <span class="hint">expand</span></summary>
@@ -822,7 +1041,7 @@ to any LLM. You only touch <span class="inline">get_response()</span>; vendor-sp
 <pre class="code">resp.messages       <span class="cm"># list[Message] — model reply messages</span>
 resp.text           <span class="cm"># combined message text (read-only property)</span>
 resp.model          <span class="cm"># actual model name used</span>
-resp.usage_details  <span class="cm"># UsageDetails (prompt_tokens, completion_tokens)</span>
+resp.usage_details  <span class="cm"># UsageDetails (input_token_count, output_token_count, total_token_count)</span>
 resp.finish_reason  <span class="cm"># &quot;stop&quot; / &quot;tool_calls&quot; / &quot;length&quot;</span>
 resp.value          <span class="cm"># generic structured output</span>
 resp.conversation_id  <span class="cm"># conversation state identifier</span></pre></div></div>
@@ -882,6 +1101,46 @@ resp.conversation_id  <span class="cm"># conversation state identifier</span></p
       <span class="mono">TypedDict</span> strikes the best balance between flexibility and type safety.</div></div>
   </div>
 </details>
+
+<h2>🔍 Real source: the skeleton of get_response</h2>
+<div class="codefile">
+  <div class="cf-head"><span class="dot"></span><span class="path">_clients.py</span><span class="ln">BaseChatClient.get_response (simplified from :482)</span></div>
+<pre class="code"><span class="kw">def</span> <span class="fn">get_response</span>(self, messages, *, stream=<span class="kw">False</span>, options=<span class="kw">None</span>,
+        compaction_strategy=<span class="kw">None</span>, tokenizer=<span class="kw">None</span>,
+        function_invocation_kwargs=<span class="kw">None</span>, client_kwargs=<span class="kw">None</span>):
+    overrides = self._resolve_compaction_overrides(      <span class="cm"># merge compaction settings</span>
+        compaction_strategy=compaction_strategy, tokenizer=tokenizer)
+    merged_client_kwargs = dict(client_kwargs <span class="kw">or</span> {})
+
+    <span class="kw">if not</span> overrides:                                   <span class="cm"># ① no compaction: forward as-is</span>
+        <span class="kw">return</span> self._inner_get_response(
+            messages=messages, stream=stream,
+            options=options <span class="kw">or</span> {}, **merged_client_kwargs)
+
+    <span class="kw">async def</span> <span class="fn">_get_response</span>():                        <span class="cm"># ② compaction: prepare then call</span>
+        prepared = <span class="kw">await</span> self._prepare_messages_for_model_call(
+            messages, **overrides)
+        <span class="kw">return await</span> self._inner_get_response(
+            messages=prepared, stream=<span class="kw">False</span>,
+            options=options <span class="kw">or</span> {}, **merged_client_kwargs)
+    <span class="kw">return</span> _get_response()</pre>
+</div>
+<p>Just two paths: <strong>① no compaction forwards as-is, ② compaction _prepares first, then forwards</strong> — but both call
+<span class="mono">_inner_get_response()</span> <strong>exactly once</strong>. The base <strong>never touches a vendor field</strong>; it hands the whole
+"translate + network + normalize" block to the subclass. That is the line between "shared skeleton" and "vendor extension point":
+the top half (this code) is shared by all; the bottom half (<span class="mono">_inner_get_response</span>) is written per vendor.</p>
+
+<h2>Why collapse everything into one ChatResponse</h2>
+<p>You might ask: since every API returns different JSON, why bother writing a "translation" in the subclass to unify into
+<span class="mono">ChatResponse</span>? Wouldn't passing the vendor dict straight through be simpler? The answer is <strong>keeping the volatile out of the stable</strong>.
+Vendor JSON field names and nesting can change anytime (OpenAI calls tokens <span class="mono">prompt_tokens</span>; the framework calls them
+<span class="mono">input_token_count</span>). If upper layers read vendor fields directly, switching providers — or a provider upgrade — would <strong>ripple through the entire call chain</strong>.</p>
+<p>Normalization locks that volatility into <strong>a single subclass method</strong>: upper layers only ever know the stable
+<span class="mono">ChatResponse.text</span> / <span class="mono">.finish_reason</span> / <span class="mono">.usage_details</span> set. So the Agent's tool loop decides whether to
+continue via <span class="mono">finish_reason==&quot;tool_calls&quot;</span> and <strong>never needs to know which model is underneath</strong> — exactly why L08's
+"swap models, change nothing" promise holds.</p>
+<p>Better still, <span class="mono">.raw_representation</span> keeps the vendor's original response: <strong>unified fields cover 99% of needs, the escape hatch covers the last 1%</strong>.
+You get the cleanliness of strong types without being locked out when you genuinely need a vendor-specific field. This is the classic "narrow interface + escape hatch" trade-off.</p>
 
 <div class="card key">
   <div class="tag">✅ Key points</div>

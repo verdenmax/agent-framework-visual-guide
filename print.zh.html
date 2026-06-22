@@ -2639,6 +2639,94 @@ raw = RawAgent(name=<span class="st">&quot;bare&quot;</span>, client=client)</pr
   <tr><td class="mono">_inner_get_response(messages, stream, options)</td><td>基类内部</td><td>同上（由 provider 实现）</td></tr>
 </table>
 
+<h2>追踪一次真实 get_response()：从消息到 ChatResponse</h2>
+<p>骨架讲完了，我们用一次<strong>真实调用</strong>端到端走一遍。假设上层（Agent 或工具循环层）执行
+<span class="mono">client.get_response(messages, options=ChatOptions(model=&quot;gpt-4o&quot;))</span>，
+看请求如何穿过基类、落到厂商实现，再把<strong>厂商专属 JSON</strong> 收敛成统一的 <span class="mono">ChatResponse</span>。</p>
+
+<div class="vflow">
+  <div class="step"><div class="num">1</div><div class="sc"><h4>公共入口：先决定要不要压缩</h4>
+    <p><span class="mono">get_response()</span>（<span class="mono">_clients.py:482</span>）做的第一件事是
+    <span class="mono">_resolve_compaction_overrides()</span>——把「本次调用传入的」与「client 上预设的」compaction 策略合并：</p>
+<pre class="code">overrides = self._resolve_compaction_overrides(
+    compaction_strategy=compaction_strategy, tokenizer=tokenizer)
+merged_client_kwargs = dict(client_kwargs <span class="kw">or</span> {})</pre></div></div>
+  <div class="step"><div class="num">2</div><div class="sc"><h4>无压缩 → 原样直接转发</h4>
+    <p>若 <span class="mono">overrides</span> 为空（最常见路径），基类<strong>什么都不加工</strong>，把消息原封不动转发给厂商实现：</p>
+<pre class="code"><span class="kw">if not</span> overrides:
+    <span class="kw">return</span> self._inner_get_response(
+        messages=messages, stream=stream,
+        options=options <span class="kw">or</span> {}, **merged_client_kwargs)</pre></div></div>
+  <div class="step"><div class="num">3</div><div class="sc"><h4>有压缩 → 先 _prepare 再调</h4>
+    <p>若设了 compaction，基类先 <span class="mono">await _prepare_messages_for_model_call()</span>（<span class="mono">_clients.py:366</span>）
+    在<strong>同一个 list</strong> 上原地压缩 / 标注，再调厂商实现。无论走哪条路，<span class="mono">_inner_get_response()</span> 在一次 <span class="mono">get_response</span> 里<strong>只被调用一次</strong>。</p></div></div>
+  <div class="step"><div class="num">4</div><div class="sc"><h4>厂商实现：MAF 消息 → 厂商请求</h4>
+    <p>进入子类的 <span class="mono">_inner_get_response()</span>（抽象声明在 <span class="mono">_clients.py:415</span>）。它先
+    <span class="mono">await self._validate_options(options)</span>（<span class="mono">_clients.py:329</span>），再把 MAF 的 <span class="mono">Message</span> 列表翻成那家 API 的字段：</p>
+<pre class="code"><span class="cm"># 以 OpenAI 兼容格式为例</span>
+payload = {<span class="st">&quot;model&quot;</span>: <span class="st">&quot;gpt-4o&quot;</span>, <span class="st">&quot;messages&quot;</span>: [
+  {<span class="st">&quot;role&quot;</span>: <span class="st">&quot;system&quot;</span>, <span class="st">&quot;content&quot;</span>: <span class="st">&quot;…&quot;</span>},
+  {<span class="st">&quot;role&quot;</span>: <span class="st">&quot;user&quot;</span>, <span class="st">&quot;content&quot;</span>: <span class="st">&quot;巴黎今天天气如何？&quot;</span>}]}</pre></div></div>
+  <div class="step"><div class="num">5</div><div class="sc"><h4>真实网络调用，拿回厂商 JSON</h4>
+    <p>发出 HTTP 请求，得到厂商<strong>专属结构</strong>的原始响应——每家字段名都不一样：</p>
+<pre class="code">{<span class="st">&quot;id&quot;</span>: <span class="st">&quot;chatcmpl-9x…&quot;</span>, <span class="st">&quot;model&quot;</span>: <span class="st">&quot;gpt-4o-2024…&quot;</span>,
+ <span class="st">&quot;choices&quot;</span>: [{<span class="st">&quot;message&quot;</span>: {<span class="st">&quot;content&quot;</span>: <span class="st">&quot;18°C，晴。&quot;</span>},
+              <span class="st">&quot;finish_reason&quot;</span>: <span class="st">&quot;stop&quot;</span>}],
+ <span class="st">&quot;usage&quot;</span>: {<span class="st">&quot;prompt_tokens&quot;</span>: 42, <span class="st">&quot;completion_tokens&quot;</span>: 9}}</pre></div></div>
+  <div class="step"><div class="num">6</div><div class="sc"><h4>归一化：厂商 JSON → 统一 ChatResponse</h4>
+    <p>子类把上面的 JSON 逐字段映射进框架统一的 <span class="mono">ChatResponse</span>（构造器见 <span class="mono">_types.py:2122</span>）：</p>
+<pre class="code"><span class="kw">return</span> ChatResponse(
+    messages=[Message(<span class="st">&quot;assistant&quot;</span>, [<span class="st">&quot;18°C，晴。&quot;</span>])],
+    response_id=<span class="st">&quot;chatcmpl-9x…&quot;</span>, model=<span class="st">&quot;gpt-4o-2024…&quot;</span>,
+    finish_reason=<span class="st">&quot;stop&quot;</span>,
+    usage_details=UsageDetails(
+        input_token_count=42, output_token_count=9))</pre></div></div>
+  <div class="step"><div class="num">7</div><div class="sc"><h4>上层只看见统一类型</h4>
+    <p>这个 <span class="mono">ChatResponse</span> 一路原样返回。上层（Agent、工具循环、你的代码）<strong>永远只看到统一类型</strong>，
+    完全不知道下面是 OpenAI 还是 Foundry——换厂商，上层零改动。</p></div></div>
+</div>
+
+<div class="card detail">
+  <div class="tag">🔬 读懂这条轨迹</div>
+  关键在第 ⑥ 步：<strong>归一化发生在子类内部</strong>，而不是基类。基类 <span class="mono">get_response()</span> 只管「压不压缩 + 转发」这件通用事，
+  「怎么把那家 JSON 翻成 <span class="mono">ChatResponse</span>」交给最懂那家 API 的子类。于是新增一个厂商，<strong>基类一行都不用改</strong>。
+</div>
+
+<h2>厂商原始 JSON → 统一 ChatResponse 字段</h2>
+<p>第 ⑥ 步那次「逐字段映射」到底映了什么？下表把 OpenAI 风格的原始 JSON 和框架统一的
+<span class="mono">ChatResponse</span> 字段一一对照——注意 token 计数的<strong>改名</strong>，这正是归一化最容易被忽略的细节：</p>
+<table class="t">
+  <tr><th>厂商原始 JSON（OpenAI 风格）</th><th>统一 ChatResponse 字段</th><th>类型 / 说明</th></tr>
+  <tr><td class="mono">id</td><td class="mono">response_id</td><td>本次响应的唯一 ID</td></tr>
+  <tr><td class="mono">model</td><td class="mono">model</td><td>实际使用的模型名</td></tr>
+  <tr><td class="mono">choices[0].message.content</td><td class="mono">messages[0]</td><td>装进一条 <span class="mono">Message(&quot;assistant&quot;, …)</span></td></tr>
+  <tr><td class="mono">choices[0].message.tool_calls</td><td class="mono">messages[0].contents</td><td>转成 <span class="mono">function_call</span> 类型的 <span class="mono">Content</span></td></tr>
+  <tr><td class="mono">choices[0].finish_reason</td><td class="mono">finish_reason</td><td><span class="mono">&quot;stop&quot;/&quot;tool_calls&quot;/&quot;length&quot;</span>（<span class="mono">_types.py:1642</span>）</td></tr>
+  <tr><td class="mono">usage.prompt_tokens</td><td class="mono">usage_details.input_token_count</td><td><strong>字段名变了</strong></td></tr>
+  <tr><td class="mono">usage.completion_tokens</td><td class="mono">usage_details.output_token_count</td><td><strong>字段名变了</strong></td></tr>
+  <tr><td class="mono">usage.total_tokens</td><td class="mono">usage_details.total_token_count</td><td><span class="mono">UsageDetails</span>（<span class="mono">_types.py:393</span>）</td></tr>
+</table>
+
+<h2>四层洋葱：一个 ChatClient 的真身</h2>
+<p>和上一课的 <span class="mono">Agent</span> 一样，你拿到的 ChatClient 也是用 <strong>Python 多继承</strong>把若干「层」叠在
+<span class="mono">BaseChatClient</span> 外面。一次 <span class="mono">get_response()</span> 请求<strong>从外到内</strong>穿过这些层，最后才落到厂商的 <span class="mono">_inner_get_response()</span>：</p>
+<div class="layers">
+  <div class="layer l-app"><div class="lh"><span class="badge">最外</span><span class="name">FunctionInvocationLayer</span></div>
+    <div class="ld">函数调用层（<span class="mono">_tools.py:2249</span>）。<strong>上一课那个工具循环就住在这里</strong>——它反复 <span class="mono">super().get_response()</span> 直到不再出现新的 function_call。</div></div>
+  <div class="layer l-app"><div class="lh"><span class="badge">中间件</span><span class="name">ChatMiddlewareLayer</span></div>
+    <div class="ld">聊天中间件层（<span class="mono">_middleware.py:1108</span>）。跑你注册的 <span class="mono">ChatMiddleware</span>，可在「真正调模型」前后改请求 / 改响应 / 短路。</div></div>
+  <div class="layer l-main"><div class="lh"><span class="badge">遥测</span><span class="name">ChatTelemetryLayer</span></div>
+    <div class="ld">遥测层（<span class="mono">observability.py:1354</span>）。为每次模型调用开一个 OpenTelemetry span，记录耗时 / token / 异常。</div></div>
+  <div class="layer l-core"><div class="lh"><span class="badge">核心</span><span class="name">BaseChatClient</span></div>
+    <div class="ld">抽象基类（<span class="mono">_clients.py:217</span>）。定义公共 <span class="mono">get_response()</span> + 抽象 <span class="mono">_inner_get_response()</span>——厂商唯一要填的洞。</div></div>
+</div>
+<p>真实代码里，一个 provider 大致是
+<span class="mono">class XxxChatClient(FunctionInvocationLayer, ChatTelemetryLayer, BaseChatClient)</span>
+这样多继承组合的（同款 MRO 见源码测试 <span class="mono">test_observability.py:4141</span>；四层完整顺序见 <span class="mono">:2939</span> 文档：
+<span class="mono">FunctionInvocationLayer → ChatMiddlewareLayer → ChatTelemetryLayer → BaseChatClient</span>）。
+和 Agent 的设计如出一辙：<strong>能力靠「叠层」而非「运行时开关」决定</strong>——要裸客户端就只继承
+<span class="mono">BaseChatClient</span>，要工具循环就把 <span class="mono">FunctionInvocationLayer</span> 叠上去。</p>
+
 <details class="accordion" open>
   <summary><span class="badge-num">1</span> 厂商怎么实现 _inner_get_response? <span class="hint">点击展开详解</span></summary>
   <div class="acc-body">
@@ -2686,7 +2774,7 @@ raw = RawAgent(name=<span class="st">&quot;bare&quot;</span>, client=client)</pr
 <pre class="code">resp.messages       <span class="cm"># list[Message] — 模型回复的消息</span>
 resp.text           <span class="cm"># 所有消息文本拼合（只读属性）</span>
 resp.model          <span class="cm"># 实际使用的模型名</span>
-resp.usage_details  <span class="cm"># UsageDetails（prompt_tokens, completion_tokens）</span>
+resp.usage_details  <span class="cm"># UsageDetails（input_token_count, output_token_count, total_token_count）</span>
 resp.finish_reason  <span class="cm"># &quot;stop&quot; / &quot;tool_calls&quot; / &quot;length&quot;</span>
 resp.value          <span class="cm"># 泛型结构化输出</span>
 resp.conversation_id  <span class="cm"># 会话状态标识</span></pre></div></div>
@@ -2747,6 +2835,45 @@ resp.conversation_id  <span class="cm"># 会话状态标识</span></pre></div></
   </div>
 </details>
 
+<h2>🔍 真实源码：get_response 的骨架</h2>
+<div class="codefile">
+  <div class="cf-head"><span class="dot"></span><span class="path">_clients.py</span><span class="ln">BaseChatClient.get_response（简化自 :482）</span></div>
+<pre class="code"><span class="kw">def</span> <span class="fn">get_response</span>(self, messages, *, stream=<span class="kw">False</span>, options=<span class="kw">None</span>,
+        compaction_strategy=<span class="kw">None</span>, tokenizer=<span class="kw">None</span>,
+        function_invocation_kwargs=<span class="kw">None</span>, client_kwargs=<span class="kw">None</span>):
+    overrides = self._resolve_compaction_overrides(      <span class="cm"># 合并 compaction 设置</span>
+        compaction_strategy=compaction_strategy, tokenizer=tokenizer)
+    merged_client_kwargs = dict(client_kwargs <span class="kw">or</span> {})
+
+    <span class="kw">if not</span> overrides:                                   <span class="cm"># ① 无压缩：原样转发</span>
+        <span class="kw">return</span> self._inner_get_response(
+            messages=messages, stream=stream,
+            options=options <span class="kw">or</span> {}, **merged_client_kwargs)
+
+    <span class="kw">async def</span> <span class="fn">_get_response</span>():                        <span class="cm"># ② 有压缩：先 prepare 再调</span>
+        prepared = <span class="kw">await</span> self._prepare_messages_for_model_call(
+            messages, **overrides)
+        <span class="kw">return await</span> self._inner_get_response(
+            messages=prepared, stream=<span class="kw">False</span>,
+            options=options <span class="kw">or</span> {}, **merged_client_kwargs)
+    <span class="kw">return</span> _get_response()</pre>
+</div>
+<p>骨架就两条路：<strong>①无压缩直接转发、②有压缩先 <span class="mono">_prepare</span> 再转发</strong>，但两条路<strong>都只调一次</strong>
+<span class="mono">_inner_get_response()</span>。基类自己<strong>不碰任何厂商字段</strong>——它把「翻译 + 网络 + 归一化」整块交给子类。
+这就是「公共骨架」与「厂商扩展点」的分界线：上半截（这段代码）人人共用，下半截（<span class="mono">_inner_get_response</span>）各厂商各写。</p>
+
+<h2>为什么统一成一个 ChatResponse</h2>
+<p>你可能会问：既然每家 API 返回的 JSON 都不一样，为什么非要在子类里多写一道「翻译」、统一成
+<span class="mono">ChatResponse</span>？直接把厂商的 dict 透传上去不是更省事吗？答案是<strong>把「易变」挡在「稳定」外面</strong>。
+厂商的 JSON 字段名、嵌套结构随时可能变（OpenAI 把 token 叫 <span class="mono">prompt_tokens</span>，框架统一叫
+<span class="mono">input_token_count</span>）；如果上层直接读厂商字段，换一家或厂商一升级，<strong>整条调用链都要跟着改</strong>。</p>
+<p>归一化把这种「易变」锁死在<strong>子类的一个方法</strong>里：上层永远只认 <span class="mono">ChatResponse.text</span> /
+<span class="mono">.finish_reason</span> / <span class="mono">.usage_details</span> 这套稳定字段。于是 Agent 的工具循环靠
+<span class="mono">finish_reason==&quot;tool_calls&quot;</span> 判断要不要继续，<strong>根本不需要知道下面是哪家模型</strong>——这正是
+L08 那个「换模型零改动」承诺能成立的底层原因。</p>
+<p>更妙的是 <span class="mono">.raw_representation</span> 仍保留了厂商原始响应：<strong>统一字段满足 99% 需求，逃生舱口满足剩下 1%</strong>。
+你既享受到强类型的整洁，又不会在需要某个厂商专属字段时被框架挡死。这就是「窄接口 + 逃生舱」的经典权衡。</p>
+
 <div class="card key">
   <div class="tag">✅ 关键要点</div>
   <ul>
@@ -2761,7 +2888,54 @@ resp.conversation_id  <span class="cm"># 会话状态标识</span></pre></div></
   <strong>公共接口 vs 厂商扩展点</strong>一刀切开：<span class="mono">get_response</span> 做通用逻辑（重试、中间件触发），
   <span class="mono">_inner_get_response</span> 只管"怎么和那家 API 通信"。新增厂商只需写一个子类。
 </div>
-</div></section>
+<div class="selftest">
+<h2>🧪 自测 · 想一想为什么这么设计</h2>
+<div class="quiz">
+  <div class="qn">1. 在 <code>BaseChatClient</code> 一侧，把厂商专属 JSON 翻译成统一 <code>ChatResponse</code> 这件事，到底发生在哪里？</div>
+  <ol class="opts">
+    <li>在公共方法 <code>get_response()</code> 里统一处理</li>
+    <li>在 <code>ChatOptions</code> 这个 TypedDict 里</li>
+    <li>在子类覆写的 <code>_inner_get_response()</code> 里（基类不碰任何厂商字段）</li>
+    <li>在 Agent 的工具循环里</li>
+  </ol>
+  <details class="accordion" open>
+    <summary>看答案与解析 <span class="hint">点击展开</span></summary>
+    <div class="acc-body"><div class="qa"><div class="a"><strong>答案：C</strong>。基类 <code>get_response()</code>（<code>_clients.py:482</code>）只做&quot;压不压缩 + 转发&quot;的通用逻辑；把厂商 JSON 逐字段映射成 <code>ChatResponse</code> 的归一化，写在最懂那家 API 的子类 <code>_inner_get_response()</code> 里。所以新增厂商，基类一行都不用改。</div></div></div>
+  </details>
+</div>
+<div class="quiz">
+  <div class="qn">2. 在<strong>一次</strong> <code>get_response()</code> 调用里，子类的 <code>_inner_get_response()</code> 会被调用几次？</div>
+  <ol class="opts">
+    <li>每个工具调用一次，循环多次</li>
+    <li>零次，由基类直接返回缓存</li>
+    <li>恰好一次——无论走「无压缩直接转发」还是「先 <code>_prepare</code> 再转发」</li>
+    <li>流式时一次、非流式时两次</li>
+  </ol>
+  <details class="accordion" open>
+    <summary>看答案与解析 <span class="hint">点击展开</span></summary>
+    <div class="acc-body"><div class="qa"><div class="a"><strong>答案：C</strong>。<code>get_response()</code> 的两条分支（<code>if not overrides</code> 直接转发；否则先 <code>_prepare_messages_for_model_call</code> 再转发）都<strong>只调一次</strong> <code>_inner_get_response()</code>。反复调模型的工具循环在外层的 <code>FunctionInvocationLayer</code>，不在基类。</div></div></div>
+  </details>
+</div>
+<div class="quiz">
+  <div class="qn">3. OpenAI 原始 JSON 里的 <code>usage.prompt_tokens</code>，归一化进统一 <code>UsageDetails</code> 后叫什么？</div>
+  <ol class="opts">
+    <li><code>completion_tokens</code></li>
+    <li><code>output_token_count</code></li>
+    <li><code>input_token_count</code></li>
+    <li>原样保留 <code>prompt_tokens</code></li>
+  </ol>
+  <details class="accordion" open>
+    <summary>看答案与解析 <span class="hint">点击展开</span></summary>
+    <div class="acc-body"><div class="qa"><div class="a"><strong>答案：C</strong>。<code>UsageDetails</code>（<code>_types.py:393</code>）统一用 <code>input_token_count</code> / <code>output_token_count</code> / <code>total_token_count</code>。这个<strong>改名</strong>正是归一化的意义：上层只认框架字段，不被某家厂商的命名绑死。</div></div></div>
+  </details>
+</div>
+<div class="card spark">
+  <div class="tag">💭 发散思考（没有标准答案，动手或动脑想想）</div>
+  <ul>
+    <li>既然每家 API 返回的 JSON 都不同，为什么子类还要多写一道&quot;翻译&quot;、把结果统一成 <code>ChatResponse</code>，而不是把厂商 dict 直接透传给上层？请从&quot;换厂商时谁要改代码&quot;的角度说明，并解释 <code>raw_representation</code> 在这个设计里扮演什么角色。</li>
+  </ul>
+</div>
+</div></div></section>
 <section class="print-lesson"><div class="wrap"><div class="lesson-head"><div class="lp">第三部分 · 内部源码</div><h1><span class="ln">10 ·</span> 工具调用内部</h1></div>
 <p class="lead"><span class="inline">@tool</span> 在用户那一课看起来很"魔法"——这里拆开看它内部做了什么：
 从 Python 函数到 JSON Schema，再到模型来回调用的<strong>完整闭环</strong>。</p>

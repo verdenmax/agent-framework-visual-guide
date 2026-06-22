@@ -498,7 +498,7 @@ def index_page(standalone=False, lesson_prefix=""):
     nav_tag = "" if standalone else f"<script>{NAV_SCRIPT}</script>"
     page_title = f"{SITE_NAME} · 从零理解整个项目"
     desc = ("从零理解整个 Microsoft Agent Framework 项目的中英双语图解教程：宏观结构、"
-            "用户用法、内部源码、自己动手做 Agent。6 部分 27 课，每课配真实代码对应与设计亮点。")
+            "用户用法、内部源码、自己动手做 Agent。8 部分 31 课，每课配真实代码对应与设计亮点。")
     html = f"""<!DOCTYPE html>
 <html lang="zh-CN" data-lang="zh"><head>
 <meta charset="utf-8">

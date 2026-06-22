@@ -5,8 +5,8 @@
 [![📄 English PDF](https://img.shields.io/badge/%F0%9F%93%84%20English%20PDF-Download-b4690e?style=for-the-badge)](https://github.com/verdenmax/agent-framework-visual-guide/releases/latest/download/agent-framework-visual-guide.en.pdf)
 
 ![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)
-![Lessons](https://img.shields.io/badge/lessons-27-blue.svg)
-![Parts](https://img.shields.io/badge/parts-7-9cf.svg)
+![Lessons](https://img.shields.io/badge/lessons-31-blue.svg)
+![Parts](https://img.shields.io/badge/parts-8-9cf.svg)
 ![Built with](https://img.shields.io/badge/built%20with-Python%203-3776AB.svg?logo=python&logoColor=white)
 ![Dependencies](https://img.shields.io/badge/dependencies-none-brightgreen.svg)
 ![Language](https://img.shields.io/badge/docs-%E4%B8%AD%E6%96%87%20%2F%20EN-orange.svg)
@@ -56,6 +56,8 @@ A bilingual (中/EN) visual tutorial for complete beginners, helping you underst
 
 ### 第四部分 · 进阶实战 | Part 4 · Advanced
 15. **读源码 / 调试 / 测试 / 贡献** — uv · poe · 测试 · DevUI
+29. **DevUI 可视化调试** — serve() · 请求 / 消息 / trace 可视化
+30. **可观测性深入** — OpenTelemetry · span 树 · trace / metric
 
 ### 第五部分 · 自己动手做 Agent | Part 5 · Build Your Own
 16. **接入各家模型** — Foundry / AzureOpenAI / OpenAI / Anthropic / Ollama
@@ -63,10 +65,21 @@ A bilingual (中/EN) visual tutorial for complete beginners, helping you underst
 18. **写自己的中间件** — 自定义 Agent / Function middleware
 19. **检查点 · 人在环 · 持久化** — checkpoint · HITL · DurableTask
 20. **端到端实战：多 Agent 工作流** — 把所有零件拼成一个工作流
+28. **记忆后端** — Redis / Mem0 / Cosmos · ContextProvider / HistoryProvider
 
-### 第六部分 · 番外篇 | Part 6 · Bonus
+### 第六部分 · 协议与生态 | Part 6 · Protocols & Ecosystem
+23. **Agent Skills 技能系统** — Skill · InlineSkill · 技能打包与复用
+24. **MCP 工具协议** — MCPTool · stdio / HTTP / websocket
+25. **Foundry 托管 Agent** — ResponsesHostServer · 托管历史 / 检查点 / 审批
+26. **A2A + AG-UI 协议** — Agent 间通信 · Agent ↔ 前端
+27. **评估与时间旅行** — Evaluator · 时间旅行调试
+
+### 第七部分 · 番外篇 | Part 7 · Bonus
 21. **横向对比：AF vs 其他框架** — AF vs LangGraph / AutoGen / SK
 22. **全栈坐标系 & 学习地图** — 编排流派 · 全栈分层 · 你在哪
+
+### 第八部分 · 速查 | Part 8 · Quick Reference
+31. **术语表 · 速查** — 核心术语 · 源码位置 · 概念依赖图
 
 ## 🚀 如何阅读 · How to Read
 
@@ -92,10 +105,10 @@ python -m http.server 8000
 ```
 agent-framework-visual-guide/
 ├── index.html              ← 入口（目录页）
-├── lessons/                ← 27 课图解页面
+├── lessons/                ← 31 课图解页面
 ├── src/                    ← 无依赖的 Python 生成器
 │   ├── shell.py            CSS 设计系统 + 双语切换 + 导航
-│   ├── part1.py … part7.py 各部分课程内容（中 + 英）
+│   ├── part1.py … part8.py 各部分课程内容（中 + 英）
 │   ├── quizzes.py          每课自测题（双语 · 确定性洗牌）
 │   ├── registry.py         课程 → 内容映射
 │   ├── build.py            站点构建

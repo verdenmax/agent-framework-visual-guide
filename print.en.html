@@ -751,14 +751,14 @@ have a <strong>source-navigation map</strong>.</p>
     <div class="qa">
       <div class="q">🧪 Example</div>
       <div class="a">Submodule <span class="mono">__init__.py</span> defers imports with <span class="mono">__getattr__</span>:
-<pre class="code"><span class="cm"># agent_framework/azure/__init__.py (sketch)</span>
+<pre class="code"><span class="cm"># agent_framework/openai/__init__.py (sketch)</span>
 <span class="kw">import</span> importlib
 <span class="kw">from</span> typing <span class="kw">import</span> TYPE_CHECKING
 
 <span class="kw">if</span> TYPE_CHECKING:
-    <span class="kw">from</span> ._chat_client <span class="kw">import</span> AzureOpenAIChatClient
+    <span class="kw">from</span> ._chat_client <span class="kw">import</span> OpenAIChatClient
 
-_LAZY = {<span class="st">"AzureOpenAIChatClient"</span>: <span class="st">"._chat_client"</span>}
+_LAZY = {<span class="st">"OpenAIChatClient"</span>: <span class="st">"._chat_client"</span>}
 
 <span class="kw">def</span> __getattr__(name: str):
     <span class="kw">if</span> name <span class="kw">in</span> _LAZY:
@@ -767,8 +767,8 @@ _LAZY = {<span class="st">"AzureOpenAIChatClient"</span>: <span class="st">"._ch
     <span class="kw">raise</span> AttributeError(name)
 
 __all__ = list(_LAZY)</pre>
-So <span class="mono">import agent_framework</span> doesn't drag in <span class="mono">azure-identity</span>;
-it loads only when you actually touch <span class="mono">AzureOpenAIChatClient</span>.</div>
+So <span class="mono">import agent_framework</span> doesn't drag in the <span class="mono">openai</span> SDK;
+it loads only when you actually touch <span class="mono">OpenAIChatClient</span>.</div>
     </div>
     <div class="qa">
       <div class="q">❓ Why this matters</div>
@@ -1937,7 +1937,7 @@ result = <span class="kw">await</span> agent.run(<span class="st">"What's the we
     </div>
     <div class="qa">
       <div class="q">✅ How MAF does it</div>
-      <div class="a">MAF uses <strong>Pydantic</strong> to auto-generate schemas (see <span class="mono">ToolDefinition.from_function</span> in <span class="mono">python/packages/core/agent_framework/_tools.py</span>):<ul>
+      <div class="a">MAF uses <strong>Pydantic</strong> to auto-generate schemas (see <span class="mono">FunctionTool</span> in <span class="mono">python/packages/core/agent_framework/_tools.py</span>):<ul>
         <li><strong>Type annotations</strong> → <span class="mono">type</span> field (<span class="mono">str</span> → <span class="mono">"string"</span>, <span class="mono">int</span> → <span class="mono">"integer"</span>…).</li>
         <li><strong>Field(description=...)</strong> → <span class="mono">description</span> field.</li>
         <li><strong>Field(..., ge=1, le=10)</strong> → <span class="mono">minimum</span>/<span class="mono">maximum</span> constraints.</li>
@@ -2046,7 +2046,7 @@ result = <span class="kw">await</span> agent.run(<span class="st">"What's the we
     </div>
     <div class="qa">
       <div class="q">✅ How MAF does it</div>
-      <div class="a">MAF's <span class="mono">@tool</span> <strong>supports both sync and async</strong> (see <span class="mono">ToolDefinition.invoke</span> in <span class="mono">python/packages/core/agent_framework/_tools.py</span>):<ul>
+      <div class="a">MAF's <span class="mono">@tool</span> <strong>supports both sync and async</strong> (see <span class="mono">FunctionTool.invoke</span> in <span class="mono">python/packages/core/agent_framework/_tools.py</span>):<ul>
         <li><strong>Sync tools</strong>: framework uses <span class="mono">asyncio.to_thread</span> (or <span class="mono">run_in_executor</span>) to run in thread pool, avoiding blocking.</li>
         <li><strong>Async tools</strong>: framework directly <span class="mono">await</span>s, doesn't block event loop.</li>
         <li><strong>Auto-detection</strong>: <span class="mono">inspect.iscoroutinefunction(...)</span> determines if async.</li>

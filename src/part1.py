@@ -642,14 +642,14 @@ L02_ZH = r"""
     <div class="qa">
       <div class="q">🧪 示例</div>
       <div class="a">子模块 <span class="mono">__init__.py</span> 用 <span class="mono">__getattr__</span> 延迟拉依赖：
-<pre class="code"><span class="cm"># agent_framework/azure/__init__.py（示意）</span>
+<pre class="code"><span class="cm"># agent_framework/openai/__init__.py（示意）</span>
 <span class="kw">import</span> importlib
 <span class="kw">from</span> typing <span class="kw">import</span> TYPE_CHECKING
 
 <span class="kw">if</span> TYPE_CHECKING:
-    <span class="kw">from</span> ._chat_client <span class="kw">import</span> AzureOpenAIChatClient
+    <span class="kw">from</span> ._chat_client <span class="kw">import</span> OpenAIChatClient
 
-_LAZY = {<span class="st">"AzureOpenAIChatClient"</span>: <span class="st">"._chat_client"</span>}
+_LAZY = {<span class="st">"OpenAIChatClient"</span>: <span class="st">"._chat_client"</span>}
 
 <span class="kw">def</span> __getattr__(name: str):
     <span class="kw">if</span> name <span class="kw">in</span> _LAZY:
@@ -658,8 +658,8 @@ _LAZY = {<span class="st">"AzureOpenAIChatClient"</span>: <span class="st">"._ch
     <span class="kw">raise</span> AttributeError(name)
 
 __all__ = list(_LAZY)</pre>
-所以 <span class="mono">import agent_framework</span> 不会拉起 <span class="mono">azure-identity</span>；
-只有真的访问 <span class="mono">AzureOpenAIChatClient</span> 时才装载。</div>
+所以 <span class="mono">import agent_framework</span> 不会拉起 <span class="mono">openai</span> 的 SDK；
+只有真的访问 <span class="mono">OpenAIChatClient</span> 时才装载。</div>
     </div>
     <div class="qa">
       <div class="q">❓ 为什么这件事必要</div>
@@ -873,14 +873,14 @@ have a <strong>source-navigation map</strong>.</p>
     <div class="qa">
       <div class="q">🧪 Example</div>
       <div class="a">Submodule <span class="mono">__init__.py</span> defers imports with <span class="mono">__getattr__</span>:
-<pre class="code"><span class="cm"># agent_framework/azure/__init__.py (sketch)</span>
+<pre class="code"><span class="cm"># agent_framework/openai/__init__.py (sketch)</span>
 <span class="kw">import</span> importlib
 <span class="kw">from</span> typing <span class="kw">import</span> TYPE_CHECKING
 
 <span class="kw">if</span> TYPE_CHECKING:
-    <span class="kw">from</span> ._chat_client <span class="kw">import</span> AzureOpenAIChatClient
+    <span class="kw">from</span> ._chat_client <span class="kw">import</span> OpenAIChatClient
 
-_LAZY = {<span class="st">"AzureOpenAIChatClient"</span>: <span class="st">"._chat_client"</span>}
+_LAZY = {<span class="st">"OpenAIChatClient"</span>: <span class="st">"._chat_client"</span>}
 
 <span class="kw">def</span> __getattr__(name: str):
     <span class="kw">if</span> name <span class="kw">in</span> _LAZY:
@@ -889,8 +889,8 @@ _LAZY = {<span class="st">"AzureOpenAIChatClient"</span>: <span class="st">"._ch
     <span class="kw">raise</span> AttributeError(name)
 
 __all__ = list(_LAZY)</pre>
-So <span class="mono">import agent_framework</span> doesn't drag in <span class="mono">azure-identity</span>;
-it loads only when you actually touch <span class="mono">AzureOpenAIChatClient</span>.</div>
+So <span class="mono">import agent_framework</span> doesn't drag in the <span class="mono">openai</span> SDK;
+it loads only when you actually touch <span class="mono">OpenAIChatClient</span>.</div>
     </div>
     <div class="qa">
       <div class="q">❓ Why this matters</div>

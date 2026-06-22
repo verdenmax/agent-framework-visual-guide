@@ -741,14 +741,14 @@ result = <span class="kw">await</span> agent.run(<span class="st">"先查上海�
     <div class="qa">
       <div class="q">🧪 示例</div>
       <div class="a">子模块 <span class="mono">__init__.py</span> 用 <span class="mono">__getattr__</span> 延迟拉依赖：
-<pre class="code"><span class="cm"># agent_framework/azure/__init__.py（示意）</span>
+<pre class="code"><span class="cm"># agent_framework/openai/__init__.py（示意）</span>
 <span class="kw">import</span> importlib
 <span class="kw">from</span> typing <span class="kw">import</span> TYPE_CHECKING
 
 <span class="kw">if</span> TYPE_CHECKING:
-    <span class="kw">from</span> ._chat_client <span class="kw">import</span> AzureOpenAIChatClient
+    <span class="kw">from</span> ._chat_client <span class="kw">import</span> OpenAIChatClient
 
-_LAZY = {<span class="st">"AzureOpenAIChatClient"</span>: <span class="st">"._chat_client"</span>}
+_LAZY = {<span class="st">"OpenAIChatClient"</span>: <span class="st">"._chat_client"</span>}
 
 <span class="kw">def</span> __getattr__(name: str):
     <span class="kw">if</span> name <span class="kw">in</span> _LAZY:
@@ -757,8 +757,8 @@ _LAZY = {<span class="st">"AzureOpenAIChatClient"</span>: <span class="st">"._ch
     <span class="kw">raise</span> AttributeError(name)
 
 __all__ = list(_LAZY)</pre>
-所以 <span class="mono">import agent_framework</span> 不会拉起 <span class="mono">azure-identity</span>；
-只有真的访问 <span class="mono">AzureOpenAIChatClient</span> 时才装载。</div>
+所以 <span class="mono">import agent_framework</span> 不会拉起 <span class="mono">openai</span> 的 SDK；
+只有真的访问 <span class="mono">OpenAIChatClient</span> 时才装载。</div>
     </div>
     <div class="qa">
       <div class="q">❓ 为什么这件事必要</div>
@@ -1915,7 +1915,7 @@ result = <span class="kw">await</span> agent.run(<span class="st">"What's the we
     </div>
     <div class="qa">
       <div class="q">✅ MAF 的做法与优点</div>
-      <div class="a">MAF 用 <strong>Pydantic</strong> 自动生成 schema（见 <span class="mono">python/packages/core/agent_framework/_tools.py</span> 的 <span class="mono">ToolDefinition.from_function</span>）：<ul>
+      <div class="a">MAF 用 <strong>Pydantic</strong> 自动生成 schema（见 <span class="mono">python/packages/core/agent_framework/_tools.py</span> 的 <span class="mono">FunctionTool</span>）：<ul>
         <li><strong>类型注解</strong> → <span class="mono">type</span> 字段（<span class="mono">str</span> → <span class="mono">"string"</span>，<span class="mono">int</span> → <span class="mono">"integer"</span>……）。</li>
         <li><strong>Field(description=...)</strong> → <span class="mono">description</span> 字段。</li>
         <li><strong>Field(..., ge=1, le=10)</strong> → <span class="mono">minimum</span>/<span class="mono">maximum</span> 约束。</li>
@@ -2024,7 +2024,7 @@ result = <span class="kw">await</span> agent.run(<span class="st">"What's the we
     </div>
     <div class="qa">
       <div class="q">✅ MAF 的做法与优点</div>
-      <div class="a">MAF 的 <span class="mono">@tool</span> <strong>同时支持同步和异步</strong>（见 <span class="mono">python/packages/core/agent_framework/_tools.py</span> 的 <span class="mono">ToolDefinition.invoke</span>）：<ul>
+      <div class="a">MAF 的 <span class="mono">@tool</span> <strong>同时支持同步和异步</strong>（见 <span class="mono">python/packages/core/agent_framework/_tools.py</span> 的 <span class="mono">FunctionTool.invoke</span>）：<ul>
         <li><strong>同步工具</strong>：框架用 <span class="mono">asyncio.to_thread</span>（或 <span class="mono">run_in_executor</span>）在线程池执行，避免阻塞。</li>
         <li><strong>异步工具</strong>：框架直接 <span class="mono">await</span>，不阻塞事件循环。</li>
         <li><strong>自动检测</strong>：<span class="mono">inspect.iscoroutinefunction(...)</span> 判断是否异步。</li>

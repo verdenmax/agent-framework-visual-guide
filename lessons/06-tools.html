@@ -355,7 +355,7 @@ result = <span class="kw">await</span> agent.run(<span class="st">"What's the we
     </div>
     <div class="qa">
       <div class="q">✅ MAF 的做法与优点</div>
-      <div class="a">MAF 用 <strong>Pydantic</strong> 自动生成 schema（见 <span class="mono">python/packages/core/agent_framework/_tools.py</span> 的 <span class="mono">ToolDefinition.from_function</span>）：<ul>
+      <div class="a">MAF 用 <strong>Pydantic</strong> 自动生成 schema（见 <span class="mono">python/packages/core/agent_framework/_tools.py</span> 的 <span class="mono">FunctionTool</span>）：<ul>
         <li><strong>类型注解</strong> → <span class="mono">type</span> 字段（<span class="mono">str</span> → <span class="mono">"string"</span>，<span class="mono">int</span> → <span class="mono">"integer"</span>……）。</li>
         <li><strong>Field(description=...)</strong> → <span class="mono">description</span> 字段。</li>
         <li><strong>Field(..., ge=1, le=10)</strong> → <span class="mono">minimum</span>/<span class="mono">maximum</span> 约束。</li>
@@ -464,7 +464,7 @@ result = <span class="kw">await</span> agent.run(<span class="st">"What's the we
     </div>
     <div class="qa">
       <div class="q">✅ MAF 的做法与优点</div>
-      <div class="a">MAF 的 <span class="mono">@tool</span> <strong>同时支持同步和异步</strong>（见 <span class="mono">python/packages/core/agent_framework/_tools.py</span> 的 <span class="mono">ToolDefinition.invoke</span>）：<ul>
+      <div class="a">MAF 的 <span class="mono">@tool</span> <strong>同时支持同步和异步</strong>（见 <span class="mono">python/packages/core/agent_framework/_tools.py</span> 的 <span class="mono">FunctionTool.invoke</span>）：<ul>
         <li><strong>同步工具</strong>：框架用 <span class="mono">asyncio.to_thread</span>（或 <span class="mono">run_in_executor</span>）在线程池执行，避免阻塞。</li>
         <li><strong>异步工具</strong>：框架直接 <span class="mono">await</span>，不阻塞事件循环。</li>
         <li><strong>自动检测</strong>：<span class="mono">inspect.iscoroutinefunction(...)</span> 判断是否异步。</li>
@@ -696,7 +696,7 @@ result = <span class="kw">await</span> agent.run(<span class="st">"What's the we
     </div>
     <div class="qa">
       <div class="q">✅ How MAF does it</div>
-      <div class="a">MAF uses <strong>Pydantic</strong> to auto-generate schemas (see <span class="mono">ToolDefinition.from_function</span> in <span class="mono">python/packages/core/agent_framework/_tools.py</span>):<ul>
+      <div class="a">MAF uses <strong>Pydantic</strong> to auto-generate schemas (see <span class="mono">FunctionTool</span> in <span class="mono">python/packages/core/agent_framework/_tools.py</span>):<ul>
         <li><strong>Type annotations</strong> → <span class="mono">type</span> field (<span class="mono">str</span> → <span class="mono">"string"</span>, <span class="mono">int</span> → <span class="mono">"integer"</span>…).</li>
         <li><strong>Field(description=...)</strong> → <span class="mono">description</span> field.</li>
         <li><strong>Field(..., ge=1, le=10)</strong> → <span class="mono">minimum</span>/<span class="mono">maximum</span> constraints.</li>
@@ -805,7 +805,7 @@ result = <span class="kw">await</span> agent.run(<span class="st">"What's the we
     </div>
     <div class="qa">
       <div class="q">✅ How MAF does it</div>
-      <div class="a">MAF's <span class="mono">@tool</span> <strong>supports both sync and async</strong> (see <span class="mono">ToolDefinition.invoke</span> in <span class="mono">python/packages/core/agent_framework/_tools.py</span>):<ul>
+      <div class="a">MAF's <span class="mono">@tool</span> <strong>supports both sync and async</strong> (see <span class="mono">FunctionTool.invoke</span> in <span class="mono">python/packages/core/agent_framework/_tools.py</span>):<ul>
         <li><strong>Sync tools</strong>: framework uses <span class="mono">asyncio.to_thread</span> (or <span class="mono">run_in_executor</span>) to run in thread pool, avoiding blocking.</li>
         <li><strong>Async tools</strong>: framework directly <span class="mono">await</span>s, doesn't block event loop.</li>
         <li><strong>Auto-detection</strong>: <span class="mono">inspect.iscoroutinefunction(...)</span> determines if async.</li>

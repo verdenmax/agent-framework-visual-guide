@@ -145,15 +145,15 @@ messages = [
     <div class="qa">
       <div class="q">❓ 为什么这件事必要</div>
       <div class="a">真实业务里消息绝不只是字符串：还有图像、工具调用、工具结果、思维链、引用等"内容块"。
-        裸字典每加一种就要全工程改 if/else；用类型化的 <span class="mono">Contents</span>，
+        裸字典每加一种就要全工程改 if/else；用类型化的 <span class="mono">Content</span>，
         新内容只是<strong>多一个 Content 类型</strong>，老代码完全不动。</div>
     </div>
     <div class="qa">
       <div class="q">✅ MAF 的做法与优点</div>
       <div class="a">见 <span class="mono">agent_framework/_types.py</span>：<span class="mono">Role</span> 是枚举
         （<span class="mono">system / user / assistant / tool</span>），<span class="mono">Message</span>
-        持有 <span class="mono">contents: list[Contents]</span>，<span class="mono">Contents</span> 是
-        <span class="mono">Content</span> 统一类型，用 <span class="mono">Content.from_text()</span> 等工厂方法构造。
+        持有 <span class="mono">contents: list[Content]</span>，<span class="mono">Content</span> 是
+        统一内容类型，用 <span class="mono">Content.from_text()</span> 等工厂方法构造。
         好处：① 静态检查 + 补全；② 多模态 / 工具结果自然容纳；③ Workflow 跨进程序列化零成本。</div>
     </div>
     <div class="qa">
@@ -422,15 +422,15 @@ messages = [
     <div class="qa">
       <div class="q">❓ Why this matters</div>
       <div class="a">Real workloads carry more than strings: images, tool calls, tool results, thinking blocks, citations.
-        Raw dicts force a project-wide if/else rewrite for each new kind; typed <span class="mono">Contents</span>
+        Raw dicts force a project-wide if/else rewrite for each new kind; typed <span class="mono">Content</span>
         means adding a new content type leaves old code untouched.</div>
     </div>
     <div class="qa">
       <div class="q">✅ How MAF does it</div>
       <div class="a">See <span class="mono">agent_framework/_types.py</span>: <span class="mono">Role</span> is an enum
         (<span class="mono">system / user / assistant / tool</span>), <span class="mono">Message</span> holds
-        <span class="mono">contents: list[Contents]</span>, and <span class="mono">Contents</span> is the union of
-        <span class="mono">Content</span> — a unified type built via factory methods like <span class="mono">Content.from_text()</span>.
+        <span class="mono">contents: list[Content]</span>, where <span class="mono">Content</span> is
+        a unified type built via factory methods like <span class="mono">Content.from_text()</span>.
         Wins: ① static checking + completion; ② multimodal &amp; tool results fit naturally;
         ③ free serialization for Workflow cross-process transport.</div>
     </div>
@@ -608,7 +608,7 @@ L02_ZH = r"""
 ├── _clients.py       <span class="cm"># BaseChatClient 抽象基类 + Supports* 协议族</span>
 ├── _tools.py         <span class="cm"># @tool 装饰器、FunctionTool 类</span>
 ├── _middleware.py    <span class="cm"># 中间件管道：trace / retry / 自定义</span>
-├── _types.py         <span class="cm"># Message / Role / Contents 联合类型</span>
+├── _types.py         <span class="cm"># Message / Role / Content 联合类型</span>
 ├── _workflows/       <span class="cm"># 图式编排：节点、边、共享状态、检查点</span>
 ├── observability/    <span class="cm"># OpenTelemetry trace / cost / token 指标</span>
 └── __init__.py       <span class="cm"># 公共 API，决定 from agent_framework import 什么</span></pre></div>
@@ -838,7 +838,7 @@ have a <strong>source-navigation map</strong>.</p>
 ├── _clients.py       <span class="cm"># BaseChatClient ABC + Supports* protocols</span>
 ├── _tools.py         <span class="cm"># @tool decorator, FunctionTool class</span>
 ├── _middleware.py    <span class="cm"># middleware pipeline: trace / retry / custom</span>
-├── _types.py         <span class="cm"># Message / Role / Contents union</span>
+├── _types.py         <span class="cm"># Message / Role / Content union</span>
 ├── _workflows/       <span class="cm"># graph orchestration: nodes, edges, state, checkpoints</span>
 ├── observability/    <span class="cm"># OpenTelemetry traces / cost / token metrics</span>
 └── __init__.py       <span class="cm"># public API — what `from agent_framework import` exposes</span></pre></div>

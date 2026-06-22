@@ -476,15 +476,15 @@ messages = [
     <div class="qa">
       <div class="q">❓ Why this matters</div>
       <div class="a">Real workloads carry more than strings: images, tool calls, tool results, thinking blocks, citations.
-        Raw dicts force a project-wide if/else rewrite for each new kind; typed <span class="mono">Contents</span>
+        Raw dicts force a project-wide if/else rewrite for each new kind; typed <span class="mono">Content</span>
         means adding a new content type leaves old code untouched.</div>
     </div>
     <div class="qa">
       <div class="q">✅ How MAF does it</div>
       <div class="a">See <span class="mono">agent_framework/_types.py</span>: <span class="mono">Role</span> is an enum
         (<span class="mono">system / user / assistant / tool</span>), <span class="mono">Message</span> holds
-        <span class="mono">contents: list[Contents]</span>, and <span class="mono">Contents</span> is the union of
-        <span class="mono">Content</span> — a unified type built via factory methods like <span class="mono">Content.from_text()</span>.
+        <span class="mono">contents: list[Content]</span>, where <span class="mono">Content</span> is
+        a unified type built via factory methods like <span class="mono">Content.from_text()</span>.
         Wins: ① static checking + completion; ② multimodal &amp; tool results fit naturally;
         ③ free serialization for Workflow cross-process transport.</div>
     </div>
@@ -696,7 +696,7 @@ have a <strong>source-navigation map</strong>.</p>
 ├── _clients.py       <span class="cm"># BaseChatClient ABC + Supports* protocols</span>
 ├── _tools.py         <span class="cm"># @tool decorator, FunctionTool class</span>
 ├── _middleware.py    <span class="cm"># middleware pipeline: trace / retry / custom</span>
-├── _types.py         <span class="cm"># Message / Role / Contents union</span>
+├── _types.py         <span class="cm"># Message / Role / Content union</span>
 ├── _workflows/       <span class="cm"># graph orchestration: nodes, edges, state, checkpoints</span>
 ├── observability/    <span class="cm"># OpenTelemetry traces / cost / token metrics</span>
 └── __init__.py       <span class="cm"># public API — what `from agent_framework import` exposes</span></pre></div>

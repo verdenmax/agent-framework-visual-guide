@@ -319,7 +319,7 @@ table.t td.mono, table.t td .mono { font-family: ui-monospace, monospace; font-s
 ├── _clients.py       <span class="cm"># BaseChatClient 抽象基类 + Supports* 协议族</span>
 ├── _tools.py         <span class="cm"># @tool 装饰器、FunctionTool 类</span>
 ├── _middleware.py    <span class="cm"># 中间件管道：trace / retry / 自定义</span>
-├── _types.py         <span class="cm"># Message / Role / Contents 联合类型</span>
+├── _types.py         <span class="cm"># Message / Role / Content 联合类型</span>
 ├── _workflows/       <span class="cm"># 图式编排：节点、边、共享状态、检查点</span>
 ├── observability/    <span class="cm"># OpenTelemetry trace / cost / token 指标</span>
 └── __init__.py       <span class="cm"># 公共 API，决定 from agent_framework import 什么</span></pre></div>
@@ -548,7 +548,7 @@ have a <strong>source-navigation map</strong>.</p>
 ├── _clients.py       <span class="cm"># BaseChatClient ABC + Supports* protocols</span>
 ├── _tools.py         <span class="cm"># @tool decorator, FunctionTool class</span>
 ├── _middleware.py    <span class="cm"># middleware pipeline: trace / retry / custom</span>
-├── _types.py         <span class="cm"># Message / Role / Contents union</span>
+├── _types.py         <span class="cm"># Message / Role / Content union</span>
 ├── _workflows/       <span class="cm"># graph orchestration: nodes, edges, state, checkpoints</span>
 ├── observability/    <span class="cm"># OpenTelemetry traces / cost / token metrics</span>
 └── __init__.py       <span class="cm"># public API — what `from agent_framework import` exposes</span></pre></div>

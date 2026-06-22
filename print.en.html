@@ -3235,22 +3235,22 @@ result = <span class="kw">await</span> workflow.run(<span class="st">&quot;Analy
   <summary><span class="badge-num">4</span> HandoffBuilder deep dive <span class="hint">click to expand</span></summary>
   <div class="acc-body">
     <div class="qa"><div class="q">🧪 Example</div><div class="a">
-<pre class="code"><span class="kw">from</span> agent_framework.orchestrations <span class="kw">import</span> HandoffBuilder, HandoffConfiguration
+<pre class="code"><span class="kw">from</span> agent_framework.orchestrations <span class="kw">import</span> HandoffBuilder
 
-workflow = HandoffBuilder(
-    participants=[
+workflow = (
+    HandoffBuilder(participants=[
         triage_agent,   <span class="cm"># entry Agent</span>
         billing_agent,  <span class="cm"># billing expert</span>
         tech_agent,     <span class="cm"># tech expert</span>
-    ],
-    handoff_configs=[
-        HandoffConfiguration(target=billing_agent, description=<span class="st">&quot;billing issues&quot;</span>),
-        HandoffConfiguration(target=tech_agent, description=<span class="st">&quot;technical problems&quot;</span>),
-    ],
-).build()</pre></div></div>
+    ])
+    .with_start_agent(triage_agent)
+    .add_handoff(triage_agent, [billing_agent], description=<span class="st">&quot;billing issues&quot;</span>)
+    .add_handoff(triage_agent, [tech_agent], description=<span class="st">&quot;technical problems&quot;</span>)
+    .build()
+)</pre></div></div>
     <div class="qa"><div class="q">❓ Why this matters</div><div class="a">In customer-service / expert-routing scenarios, the current Agent judges "this isn't my expertise" and needs
       to <strong>explicitly hand off</strong> to another Agent. Handoff mode lets the Agent itself decide when and to whom — rather than an external scheduler hard-coding routing rules.</div></div>
-    <div class="qa"><div class="q">✅ How MAF does it</div><div class="a"><span class="mono">HandoffConfiguration</span> pairs a <span class="mono">target</span> with a <span class="mono">description</span> for each handoff path.
+    <div class="qa"><div class="q">✅ How MAF does it</div><div class="a">Each <span class="mono">.add_handoff(source, [target], description=...)</span> declares a handoff path with its own description.
       The framework auto-injects a "handoff tool" into the current Agent — calling that tool triggers the switch.
       The receiving Agent gets the full conversation history. If an Agent needs additional user info, it can emit a <span class="mono">HandoffAgentUserRequest</span>.</div></div>
     <div class="qa"><div class="q">🔀 Alternatives</div><div class="a">OpenAI Swarm has a handoff concept too, but via function return values without async or persistence support.

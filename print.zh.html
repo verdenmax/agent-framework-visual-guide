@@ -3194,22 +3194,22 @@ result = <span class="kw">await</span> workflow.run(<span class="st">&quot;Analy
   <summary><span class="badge-num">4</span> HandoffBuilder 深入 <span class="hint">点击展开详解</span></summary>
   <div class="acc-body">
     <div class="qa"><div class="q">🧪 示例</div><div class="a">
-<pre class="code"><span class="kw">from</span> agent_framework.orchestrations <span class="kw">import</span> HandoffBuilder, HandoffConfiguration
+<pre class="code"><span class="kw">from</span> agent_framework.orchestrations <span class="kw">import</span> HandoffBuilder
 
-workflow = HandoffBuilder(
-    participants=[
+workflow = (
+    HandoffBuilder(participants=[
         triage_agent,   <span class="cm"># 入口 Agent</span>
         billing_agent,  <span class="cm"># 计费专家</span>
         tech_agent,     <span class="cm"># 技术专家</span>
-    ],
-    handoff_configs=[
-        HandoffConfiguration(target=billing_agent, description=<span class="st">&quot;billing issues&quot;</span>),
-        HandoffConfiguration(target=tech_agent, description=<span class="st">&quot;technical problems&quot;</span>),
-    ],
-).build()</pre></div></div>
+    ])
+    .with_start_agent(triage_agent)
+    .add_handoff(triage_agent, [billing_agent], description=<span class="st">&quot;billing issues&quot;</span>)
+    .add_handoff(triage_agent, [tech_agent], description=<span class="st">&quot;technical problems&quot;</span>)
+    .build()
+)</pre></div></div>
     <div class="qa"><div class="q">❓ 为什么这件事必要</div><div class="a">在客服/专家路由场景中，当前 Agent 判断"这个问题我不擅长"后需要<strong>显式交接</strong>给另一个 Agent。
       Handoff 模式让 Agent 自己决定交接时机和目标，而不是由外部调度器硬编码路由规则。</div></div>
-    <div class="qa"><div class="q">✅ MAF 的做法与优点</div><div class="a"><span class="mono">HandoffConfiguration</span> 用 <span class="mono">target</span> + <span class="mono">description</span> 描述每条交接路径。
+    <div class="qa"><div class="q">✅ MAF 的做法与优点</div><div class="a">每个 <span class="mono">.add_handoff(source, [target], description=...)</span> 声明一条带描述的交接路径。
       框架会自动给当前 Agent 注入一个"交接工具"——Agent 调用该工具即触发切换。
       被交接的 Agent 会收到完整对话历史。如果 Agent 想让用户提供额外信息，可以发出 <span class="mono">HandoffAgentUserRequest</span>。</div></div>
     <div class="qa"><div class="q">🔀 还有什么其他方案</div><div class="a">OpenAI Swarm 也有 handoff 概念，但通过函数返回值实现，不支持异步和持久化。

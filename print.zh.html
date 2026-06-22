@@ -223,6 +223,17 @@ table.t td.mono, table.t td .mono { font-family: ui-monospace, monospace; font-s
   background:var(--accent); color:#fff; border-radius:10px; font-size:.9rem; font-weight:650;
   box-shadow:var(--shadow); transition:.15s; }
 .pdf-btn:hover { background:var(--accent-ink); transform:translateY(-1px); }
+/* self-test quizzes (appended to each lesson by quizzes.render) */
+.selftest { margin: 2.2rem 0 0; border-top: 2px dashed var(--line); padding-top: 1.2rem; }
+.selftest > h2 { margin-top: .2rem; }
+.quiz { background: var(--panel); border: 1px solid var(--line); border-left: 4px solid var(--blue);
+  border-radius: 12px; padding: .9rem 1.1rem; margin: 1rem 0; box-shadow: var(--shadow); }
+.quiz .qn { font-weight: 650; }
+.quiz ol.opts { list-style: upper-alpha; margin: .55rem 0 .6rem 1.5rem; padding: 0; }
+.quiz ol.opts li { margin: .3rem 0; padding-left: .15rem; }
+.quiz details.accordion { margin: .5rem 0 0; }
+.selftest code { font-family: ui-monospace, monospace; font-size: .9em; color: var(--accent-ink);
+  background: var(--accent-soft); padding: 0 .28em; border-radius: 4px; }
 
 /* ===== print / PDF overrides ===== */
 @page { size: A4; margin: 15mm 14mm 16mm; }
@@ -265,7 +276,7 @@ h2, h3, h4 { break-after: avoid; }
   <h1>Agent Framework 图解教程</h1>
   <div class="sub">从零理解整个项目 · 宏观 → 用法 → 源码 → 自己动手做 Agent</div>
   <div class="meta">共 27 课 · 6 个部分 · 每课配真实代码对应与设计亮点<br>
-    生成日期 2026-06-09 · verdenmax · MIT License</div>
+    生成日期 2026-06-22 · verdenmax · MIT License</div>
 </section>
 <section class="print-toc"><div class="wrap"><h2>目录</h2>
 <div class="tp">第一部分 · 宏观全景</div>
@@ -583,7 +594,41 @@ result = <span class="kw">await</span> agent.run(<span class="st">"先查上海�
   把"换模型只改一行"做成默认体验：<strong>ChatClient 是厂商无关的统一抽象</strong>，
   Agent / 工具 / 工作流全部构建在它之上，于是<strong>可移植性</strong>从第一行代码就免费获得。
 </div>
-</div></section>
+<div class="selftest">
+<h2>🧪 自测 · 想一想为什么这么设计</h2>
+<div class="quiz">
+  <div class="qn">1. Agent Framework 把“换一家模型厂商”变成基本只改一行代码。这主要靠的是什么设计？</div>
+  <ol class="opts">
+    <li>它把所有厂商的代码复制进你的项目</li>
+    <li>它帮你自动训练模型</li>
+    <li>统一的 ChatClient 抽象把厂商差异挡在同一接口后面</li>
+    <li>它只支持一家厂商</li>
+  </ol>
+  <details class="accordion" open>
+    <summary>看答案与解析 <span class="hint">点击展开</span></summary>
+    <div class="acc-body"><div class="qa"><div class="a"><strong>答案：C</strong>。Agent 依赖抽象的 ChatClient，而非具体厂商 SDK；换厂商只是换一个 ChatClient 实现，Agent 与工具/记忆逻辑都不动——这正是“面向接口”的取舍。</div></div></div>
+  </details>
+</div>
+<div class="quiz">
+  <div class="qn">2. 下面哪一项**不是** Agent Framework 想替你抹平的“上生产”麻烦？</div>
+  <ol class="opts">
+    <li>可观测性（OpenTelemetry）</li>
+    <li>检查点与人在环审批</li>
+    <li>替你决定该用哪个机器学习算法训练模型</li>
+    <li>持久化 / 可恢复的工作流</li>
+  </ol>
+  <details class="accordion" open>
+    <summary>看答案与解析 <span class="hint">点击展开</span></summary>
+    <div class="acc-body"><div class="qa"><div class="a"><strong>答案：C</strong>。Agent Framework 负责模型“周边”的工程管道（编排、可观测、持久化、审批），**不**负责训练模型本身——训练不在它的职责范围。</div></div></div>
+  </details>
+</div>
+<div class="card spark">
+  <div class="tag">💭 发散思考（没有标准答案，动手或动脑想想）</div>
+  <ul>
+    <li>假设你已经用某厂商 SDK 直接写了一个聊天脚本。请列出迁移到 Agent Framework 后，你认为最先会“消失”的三段样板代码，并说明各自由框架的哪个概念接管（ChatClient / Message / @tool / Workflow 任选）。</li>
+  </ul>
+</div>
+</div></div></section>
 <section class="print-lesson"><div class="wrap"><div class="lesson-head"><div class="lp">第一部分 · 宏观全景</div><h1><span class="ln">02 ·</span> Monorepo 全景</h1></div>
 <p class="lead">MAF 是一个 <strong>monorepo</strong>：一个仓库里同时放着 <strong>Python</strong> 和 <strong>.NET</strong>
 两套实现，外加文档、声明式 Agent 和 schema。理解了目录结构，你就有了一张<strong>源码导航地图</strong>。</p>

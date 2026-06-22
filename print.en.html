@@ -223,6 +223,17 @@ table.t td.mono, table.t td .mono { font-family: ui-monospace, monospace; font-s
   background:var(--accent); color:#fff; border-radius:10px; font-size:.9rem; font-weight:650;
   box-shadow:var(--shadow); transition:.15s; }
 .pdf-btn:hover { background:var(--accent-ink); transform:translateY(-1px); }
+/* self-test quizzes (appended to each lesson by quizzes.render) */
+.selftest { margin: 2.2rem 0 0; border-top: 2px dashed var(--line); padding-top: 1.2rem; }
+.selftest > h2 { margin-top: .2rem; }
+.quiz { background: var(--panel); border: 1px solid var(--line); border-left: 4px solid var(--blue);
+  border-radius: 12px; padding: .9rem 1.1rem; margin: 1rem 0; box-shadow: var(--shadow); }
+.quiz .qn { font-weight: 650; }
+.quiz ol.opts { list-style: upper-alpha; margin: .55rem 0 .6rem 1.5rem; padding: 0; }
+.quiz ol.opts li { margin: .3rem 0; padding-left: .15rem; }
+.quiz details.accordion { margin: .5rem 0 0; }
+.selftest code { font-family: ui-monospace, monospace; font-size: .9em; color: var(--accent-ink);
+  background: var(--accent-soft); padding: 0 .28em; border-radius: 4px; }
 
 /* ===== print / PDF overrides ===== */
 @page { size: A4; margin: 15mm 14mm 16mm; }
@@ -265,7 +276,7 @@ h2, h3, h4 { break-after: avoid; }
   <h1>Agent Framework Visual Guide</h1>
   <div class="sub">Understand the whole project from scratch · Big picture → Usage → Internals → Build your own</div>
   <div class="meta">27 lessons · 6 parts · real source-code references in every lesson<br>
-    Generated 2026-06-09 · verdenmax · MIT License</div>
+    Generated 2026-06-22 · verdenmax · MIT License</div>
 </section>
 <section class="print-toc"><div class="wrap"><h2>Table of Contents</h2>
 <div class="tp">Part 1 · Big Picture</div>
@@ -590,7 +601,41 @@ result = <span class="kw">await</span> agent.run(<span class="st">"Check Shangha
   "Switch models with one line" is the default: the <strong>ChatClient is a vendor-agnostic abstraction</strong>,
   and agents / tools / workflows are all built on top — so <strong>portability</strong> is free from line one.
 </div>
-</div></section>
+<div class="selftest">
+<h2>🧪 Self-test - think about the design</h2>
+<div class="quiz">
+  <div class="qn">1. Agent Framework makes 'switch model vendor' basically a one-line change. Which design mainly enables that?</div>
+  <ol class="opts">
+    <li>It copies every vendor's code into your project</li>
+    <li>It trains the model for you</li>
+    <li>A uniform ChatClient abstraction hides vendor differences behind one interface</li>
+    <li>It supports only one vendor</li>
+  </ol>
+  <details class="accordion" open>
+    <summary>Show answer &amp; explanation <span class="hint">click to expand</span></summary>
+    <div class="acc-body"><div class="qa"><div class="a"><strong>Answer: C</strong>. An Agent depends on the abstract ChatClient, not a concrete vendor SDK; switching vendors just swaps a ChatClient implementation while agent/tool/memory logic stays put - the classic 'program to an interface' tradeoff.</div></div></div>
+  </details>
+</div>
+<div class="quiz">
+  <div class="qn">2. Which is **not** one of the production headaches Agent Framework aims to smooth over?</div>
+  <ol class="opts">
+    <li>Observability (OpenTelemetry)</li>
+    <li>Checkpointing and human-in-the-loop approval</li>
+    <li>Choosing which ML algorithm to train your model with</li>
+    <li>Durable / resumable workflows</li>
+  </ol>
+  <details class="accordion" open>
+    <summary>Show answer &amp; explanation <span class="hint">click to expand</span></summary>
+    <div class="acc-body"><div class="qa"><div class="a"><strong>Answer: C</strong>. Agent Framework owns the engineering plumbing *around* the model (orchestration, observability, durability, approval); it does **not** train the model itself - training is out of scope.</div></div></div>
+  </details>
+</div>
+<div class="card spark">
+  <div class="tag">💭 Open questions (no single right answer - just think or try)</div>
+  <ul>
+    <li>Suppose you already wrote a chat script directly against a vendor SDK. List the three pieces of boilerplate you expect to 'disappear' first after moving to Agent Framework, and say which framework concept (ChatClient / Message / @tool / Workflow) takes over each.</li>
+  </ul>
+</div>
+</div></div></section>
 <section class="print-lesson"><div class="wrap"><div class="lesson-head"><div class="lp">Part 1 · Big Picture</div><h1><span class="ln">02 ·</span> Monorepo Tour</h1></div>
 <p class="lead">MAF is a <strong>monorepo</strong>: one repository holds both the <strong>Python</strong> and
 <strong>.NET</strong> implementations, plus docs, declarative agents and schemas. Learn the layout and you

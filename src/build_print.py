@@ -18,6 +18,7 @@ ROOT = os.path.abspath(os.path.join(HERE, ".."))
 sys.path.insert(0, HERE)
 
 import shell  # noqa: E402
+import quizzes  # noqa: E402
 from registry import CONTENT  # noqa: E402
 
 PRINT_CSS = r"""
@@ -104,7 +105,7 @@ def build_print(lang):
 
     lessons = []
     for idx, (fname, title, part) in enumerate(shell.PAGES):
-        content_html = CONTENT[fname][lang]
+        content_html = CONTENT[fname][lang] + quizzes.render(fname, lang)
         content_html = content_html.replace(
             '<details class="accordion">', '<details class="accordion" open>'
         )

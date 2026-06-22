@@ -2486,6 +2486,7 @@ session = agent.create_session()
   Short-term history (Session) and long-term searchable memory (ContextProvider) are <strong>two layers</strong>:
   the former is a simple pass-through, the latter is pluggable. Use just Session for small needs, add a Provider for
   big ones — complexity is pay-as-you-go.
+  <br>To swap memory for real backends like Redis / Mem0 / Cosmos, see <a href="28-memory-backends.html">Lesson 28 · Memory Backends</a>.
 </div>
 <div class="selftest">
 <h2>🧪 Self-test - think about the design</h2>
@@ -3779,6 +3780,7 @@ with <strong>zero changes to Agent or ChatClient source</strong>. That is the me
   <div class="tag">💡 Design highlight</div>
   <strong>Three granularities × onion model</strong>: you can intercept "every LLM call" (ChatMiddleware) without
   touching tool execution, or intercept tool execution without touching LLM — concerns are fully separated.
+  <br>Want to write your own from scratch? See <a href="18-custom-middleware.html">Lesson 18 · Writing Your Own Middleware</a>.
 </div>
 <div class="selftest">
 <h2>🧪 Self-test - think about the design</h2>
@@ -4104,6 +4106,7 @@ state = result.get_final_state()        <span class="cm"># WorkflowRunState.IDLE
   <div class="tag">💡 Design highlight</div>
   <strong>Message-driven</strong>: nodes pass "messages", not function return values — so they naturally support
   async, fan-out/fan-in, and you can add conditions or switches on the edges.
+  <br>To put workflows to work end-to-end, see <a href="20-capstone.html">Lesson 20 · Capstone</a>.
 </div>
 <div class="selftest">
 <h2>🧪 Self-test - think about the design</h2>
@@ -4443,6 +4446,7 @@ The conductor generates a <span class="mono">MagenticProgressLedger</span> track
   <div class="tag">💡 Design highlight</div>
   <strong>Orchestration = pre-wired Workflow topology</strong>: you declare intent with a Builder, the framework
   draws the right graph. Need a more complex topology? Use <span class="mono">WorkflowBuilder</span> directly.
+  <br>See how these patterns compose into a full app in <a href="20-capstone.html">Lesson 20 · Capstone</a>.
 </div>
 <div class="selftest">
 <h2>🧪 Self-test - think about the design</h2>
@@ -4763,6 +4767,7 @@ so these spans feed straight into Jaeger, Grafana Tempo, or any OTLP backend wit
   <div class="tag">💡 Design highlight</div>
   <strong>Observability is built in</strong>, not bolted on — the framework auto-attaches spans to key operations.
   Zero extra code to see "how many model calls this run made, tokens per call, tool latency".
+  <br>For the production deep-dive into trace / metric / log, see <a href="30-observability.html">Lesson 30 · Observability Deep-Dive</a>.
 </div>
 <div class="selftest">
 <h2>🧪 Self-test - think about the design</h2>
@@ -5288,7 +5293,7 @@ serve(entities=[agent], auto_open=<span class="kw">True</span>)   <span class="c
 </div>
 </div></div></section>
 <section class="print-lesson"><div class="wrap"><div class="lesson-head"><div class="lp">Part 4 · Advanced</div><h1><span class="ln">17 ·</span> Observability Deep-Dive</h1></div>
-<p class="lead">In Lesson 14 you met "streaming + the span tree"&mdash;observability seen from the <strong>streaming</strong> angle. This lesson flips it: with <strong>observability</strong> as the lead,
+<p class="lead">In <a href="14-streaming-observability.html">Lesson 14</a> you met "streaming + the span tree"&mdash;observability seen from the <strong>streaming</strong> angle. This lesson flips it: with <strong>observability</strong> as the lead,
 it shows how Agent Framework turns every run into queryable <strong>trace / metric / log</strong>, and how in production you use it to pinpoint latency, failures and cost.</p>
 
 <div class="card analogy">
@@ -6003,7 +6008,7 @@ Current limitation: complex routing logic in workflows is best expressed in code
 </div>
 </div></div></section>
 <section class="print-lesson"><div class="wrap"><div class="lesson-head"><div class="lp">Part 5 · Build Your Own</div><h1><span class="ln">20 ·</span> Writing Your Own Middleware</h1></div>
-<p class="lead">Lesson 11 explained what middleware <em>is</em>; this lesson teaches you to
+<p class="lead"><a href="11-middleware.html">Lesson 11</a> explained what middleware <em>is</em>; this lesson teaches you to
 <strong>write your own</strong> — from scratch to working.</p>
 
 <div class="card analogy">

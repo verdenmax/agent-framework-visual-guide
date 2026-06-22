@@ -681,7 +681,7 @@ serve(entities=[agent], auto_open=<span class="kw">True</span>)   <span class="c
 
 # ---------------------------------------------------------------------------
 L30_ZH = r"""
-<p class="lead">第 14 课你已见过「流式 + span 树」的合体——那是从<strong>流式</strong>视角顺带认识可观测。本课反过来：以<strong>可观测</strong>为主角，
+<p class="lead"><a href="14-streaming-observability.html">第 14 课</a>你已见过「流式 + span 树」的合体——那是从<strong>流式</strong>视角顺带认识可观测。本课反过来：以<strong>可观测</strong>为主角，
 讲清 Agent Framework 怎么把每一次运行变成可查询的 <strong>trace / metric / log</strong>，以及生产里你靠它定位延迟、失败和成本。</p>
 
 <div class="card analogy">
@@ -837,7 +837,7 @@ configure_otel_providers(
 """
 
 L30_EN = r"""
-<p class="lead">In Lesson 14 you met "streaming + the span tree"&mdash;observability seen from the <strong>streaming</strong> angle. This lesson flips it: with <strong>observability</strong> as the lead,
+<p class="lead">In <a href="14-streaming-observability.html">Lesson 14</a> you met "streaming + the span tree"&mdash;observability seen from the <strong>streaming</strong> angle. This lesson flips it: with <strong>observability</strong> as the lead,
 it shows how Agent Framework turns every run into queryable <strong>trace / metric / log</strong>, and how in production you use it to pinpoint latency, failures and cost.</p>
 
 <div class="card analogy">

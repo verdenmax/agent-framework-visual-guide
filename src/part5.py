@@ -844,7 +844,7 @@ Current limitation: complex routing logic in workflows is best expressed in code
 
 # ---------------------------------------------------------------------------
 L18_ZH = r"""
-<p class="lead">第 11 课讲了中间件<em>是什么</em>；本课教你<strong>写一个自己的</strong>——从零到能用。</p>
+<p class="lead"><a href="11-middleware.html">第 11 课</a>讲了中间件<em>是什么</em>；本课教你<strong>写一个自己的</strong>——从零到能用。</p>
 
 <div class="card analogy">
   <div class="tag">🧱 生活类比</div>
@@ -1052,7 +1052,7 @@ logger = logging.getLogger(__name__)
 """
 
 L18_EN = r"""
-<p class="lead">Lesson 11 explained what middleware <em>is</em>; this lesson teaches you to
+<p class="lead"><a href="11-middleware.html">Lesson 11</a> explained what middleware <em>is</em>; this lesson teaches you to
 <strong>write your own</strong> — from scratch to working.</p>
 
 <div class="card analogy">

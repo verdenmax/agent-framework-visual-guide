@@ -2092,6 +2092,7 @@ session = agent.create_session()
   <div class="tag">💡 设计亮点</div>
   把"短期对话历史"（Session）和"长期可检索记忆"（ContextProvider）<strong>分成两层</strong>：
   前者简单透传，后者可插拔。需求小就只用 Session，需求大再加 Provider，复杂度按需付费。
+  <br>想把记忆换成 Redis / Mem0 / Cosmos 等真正的后端，见<a href="28-memory-backends.html">第 28 课 · 记忆后端</a>。
 </div>
 """
 
@@ -2396,5 +2397,6 @@ session = agent.create_session()
   Short-term history (Session) and long-term searchable memory (ContextProvider) are <strong>two layers</strong>:
   the former is a simple pass-through, the latter is pluggable. Use just Session for small needs, add a Provider for
   big ones — complexity is pay-as-you-go.
+  <br>To swap memory for real backends like Redis / Mem0 / Cosmos, see <a href="28-memory-backends.html">Lesson 28 · Memory Backends</a>.
 </div>
 """

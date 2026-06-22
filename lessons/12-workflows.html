@@ -536,6 +536,7 @@ state = result.get_final_state()        <span class="cm"># WorkflowRunState.IDLE
   <div class="tag">💡 设计亮点</div>
   <strong>消息驱动</strong>：节点之间传递的是"消息"而非函数调用返回值——
   这意味着节点天然支持异步、fan-out/fan-in，且可在边上加条件/开关。
+  <br>把工作流真正端到端用起来，见<a href="20-capstone.html">第 20 课 · 端到端实战</a>。
 </div>
 <div class="selftest">
 <h2>🧪 自测 · 想一想为什么这么设计</h2>
@@ -861,6 +862,7 @@ state = result.get_final_state()        <span class="cm"># WorkflowRunState.IDLE
   <div class="tag">💡 Design highlight</div>
   <strong>Message-driven</strong>: nodes pass "messages", not function return values — so they naturally support
   async, fan-out/fan-in, and you can add conditions or switches on the edges.
+  <br>To put workflows to work end-to-end, see <a href="20-capstone.html">Lesson 20 · Capstone</a>.
 </div>
 <div class="selftest">
 <h2>🧪 Self-test - think about the design</h2>

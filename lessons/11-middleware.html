@@ -531,6 +531,7 @@ first = create_next_handler(0)
   <div class="tag">💡 设计亮点</div>
   <strong>三层粒度 × 洋葱模型</strong>：你可以只拦截"每次 LLM 调用"（ChatMiddleware）而不碰工具执行，
   或只拦截工具执行而不碰 LLM——关注点彻底分离。
+  <br>想从零写一个自己的中间件？见<a href="18-custom-middleware.html">第 18 课 · 写自己的中间件</a>。
 </div>
 <div class="selftest">
 <h2>🧪 自测 · 想一想为什么这么设计</h2>
@@ -848,6 +849,7 @@ with <strong>zero changes to Agent or ChatClient source</strong>. That is the me
   <div class="tag">💡 Design highlight</div>
   <strong>Three granularities × onion model</strong>: you can intercept "every LLM call" (ChatMiddleware) without
   touching tool execution, or intercept tool execution without touching LLM — concerns are fully separated.
+  <br>Want to write your own from scratch? See <a href="18-custom-middleware.html">Lesson 18 · Writing Your Own Middleware</a>.
 </div>
 <div class="selftest">
 <h2>🧪 Self-test - think about the design</h2>

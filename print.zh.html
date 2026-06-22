@@ -2460,6 +2460,7 @@ session = agent.create_session()
   <div class="tag">💡 设计亮点</div>
   把"短期对话历史"（Session）和"长期可检索记忆"（ContextProvider）<strong>分成两层</strong>：
   前者简单透传，后者可插拔。需求小就只用 Session，需求大再加 Provider，复杂度按需付费。
+  <br>想把记忆换成 Redis / Mem0 / Cosmos 等真正的后端，见<a href="28-memory-backends.html">第 28 课 · 记忆后端</a>。
 </div>
 <div class="selftest">
 <h2>🧪 自测 · 想一想为什么这么设计</h2>
@@ -3736,6 +3737,7 @@ first = create_next_handler(0)
   <div class="tag">💡 设计亮点</div>
   <strong>三层粒度 × 洋葱模型</strong>：你可以只拦截"每次 LLM 调用"（ChatMiddleware）而不碰工具执行，
   或只拦截工具执行而不碰 LLM——关注点彻底分离。
+  <br>想从零写一个自己的中间件？见<a href="18-custom-middleware.html">第 18 课 · 写自己的中间件</a>。
 </div>
 <div class="selftest">
 <h2>🧪 自测 · 想一想为什么这么设计</h2>
@@ -4057,6 +4059,7 @@ state = result.get_final_state()        <span class="cm"># WorkflowRunState.IDLE
   <div class="tag">💡 设计亮点</div>
   <strong>消息驱动</strong>：节点之间传递的是"消息"而非函数调用返回值——
   这意味着节点天然支持异步、fan-out/fan-in，且可在边上加条件/开关。
+  <br>把工作流真正端到端用起来，见<a href="20-capstone.html">第 20 课 · 端到端实战</a>。
 </div>
 <div class="selftest">
 <h2>🧪 自测 · 想一想为什么这么设计</h2>
@@ -4393,6 +4396,7 @@ workflow = MagenticBuilder(
   <div class="tag">💡 设计亮点</div>
   <strong>编排模式 = 预置拓扑的 Workflow</strong>：你用 Builder 声明意图，框架帮你画出正确的图。
   需要更复杂的拓扑？直接用 <span class="mono">WorkflowBuilder</span> 手画。
+  <br>这些编排模式如何组成一个完整应用，见<a href="20-capstone.html">第 20 课 · 端到端实战</a>。
 </div>
 <div class="selftest">
 <h2>🧪 自测 · 想一想为什么这么设计</h2>
@@ -4712,6 +4716,7 @@ workflow.run (parent span)
   <div class="tag">💡 设计亮点</div>
   <strong>可观测性是内置的</strong>，不是你自己加的——框架自动在关键操作上挂 span，
   零额外代码就能看到"这次 run 调了几次模型、每次多少 token、工具花了多久"。
+  <br>想深入到生产级的 trace / metric / log 排查，见<a href="30-observability.html">第 30 课 · 可观测性深入</a>。
 </div>
 <div class="selftest">
 <h2>🧪 自测 · 想一想为什么这么设计</h2>
@@ -5236,7 +5241,7 @@ serve(entities=[agent], auto_open=<span class="kw">True</span>)   <span class="c
 </div>
 </div></div></section>
 <section class="print-lesson"><div class="wrap"><div class="lesson-head"><div class="lp">第四部分 · 进阶实战</div><h1><span class="ln">17 ·</span> 可观测性深入</h1></div>
-<p class="lead">第 14 课你已见过「流式 + span 树」的合体——那是从<strong>流式</strong>视角顺带认识可观测。本课反过来：以<strong>可观测</strong>为主角，
+<p class="lead"><a href="14-streaming-observability.html">第 14 课</a>你已见过「流式 + span 树」的合体——那是从<strong>流式</strong>视角顺带认识可观测。本课反过来：以<strong>可观测</strong>为主角，
 讲清 Agent Framework 怎么把每一次运行变成可查询的 <strong>trace / metric / log</strong>，以及生产里你靠它定位延迟、失败和成本。</p>
 
 <div class="card analogy">
@@ -5949,7 +5954,7 @@ workflow:
 </div>
 </div></div></section>
 <section class="print-lesson"><div class="wrap"><div class="lesson-head"><div class="lp">第五部分 · 自己动手做 Agent</div><h1><span class="ln">20 ·</span> 写自己的中间件</h1></div>
-<p class="lead">第 11 课讲了中间件<em>是什么</em>；本课教你<strong>写一个自己的</strong>——从零到能用。</p>
+<p class="lead"><a href="11-middleware.html">第 11 课</a>讲了中间件<em>是什么</em>；本课教你<strong>写一个自己的</strong>——从零到能用。</p>
 
 <div class="card analogy">
   <div class="tag">🧱 生活类比</div>

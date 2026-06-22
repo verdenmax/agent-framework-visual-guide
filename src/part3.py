@@ -1957,6 +1957,7 @@ first = create_next_handler(0)
   <div class="tag">💡 设计亮点</div>
   <strong>三层粒度 × 洋葱模型</strong>：你可以只拦截"每次 LLM 调用"（ChatMiddleware）而不碰工具执行，
   或只拦截工具执行而不碰 LLM——关注点彻底分离。
+  <br>想从零写一个自己的中间件？见<a href="18-custom-middleware.html">第 18 课 · 写自己的中间件</a>。
 </div>
 """
 
@@ -2228,6 +2229,7 @@ with <strong>zero changes to Agent or ChatClient source</strong>. That is the me
   <div class="tag">💡 Design highlight</div>
   <strong>Three granularities × onion model</strong>: you can intercept "every LLM call" (ChatMiddleware) without
   touching tool execution, or intercept tool execution without touching LLM — concerns are fully separated.
+  <br>Want to write your own from scratch? See <a href="18-custom-middleware.html">Lesson 18 · Writing Your Own Middleware</a>.
 </div>
 """
 
@@ -2504,6 +2506,7 @@ state = result.get_final_state()        <span class="cm"># WorkflowRunState.IDLE
   <div class="tag">💡 设计亮点</div>
   <strong>消息驱动</strong>：节点之间传递的是"消息"而非函数调用返回值——
   这意味着节点天然支持异步、fan-out/fan-in，且可在边上加条件/开关。
+  <br>把工作流真正端到端用起来，见<a href="20-capstone.html">第 20 课 · 端到端实战</a>。
 </div>
 """
 
@@ -2783,6 +2786,7 @@ state = result.get_final_state()        <span class="cm"># WorkflowRunState.IDLE
   <div class="tag">💡 Design highlight</div>
   <strong>Message-driven</strong>: nodes pass "messages", not function return values — so they naturally support
   async, fan-out/fan-in, and you can add conditions or switches on the edges.
+  <br>To put workflows to work end-to-end, see <a href="20-capstone.html">Lesson 20 · Capstone</a>.
 </div>
 """
 
@@ -3074,6 +3078,7 @@ workflow = MagenticBuilder(
   <div class="tag">💡 设计亮点</div>
   <strong>编排模式 = 预置拓扑的 Workflow</strong>：你用 Builder 声明意图，框架帮你画出正确的图。
   需要更复杂的拓扑？直接用 <span class="mono">WorkflowBuilder</span> 手画。
+  <br>这些编排模式如何组成一个完整应用，见<a href="20-capstone.html">第 20 课 · 端到端实战</a>。
 </div>
 """
 
@@ -3367,6 +3372,7 @@ The conductor generates a <span class="mono">MagenticProgressLedger</span> track
   <div class="tag">💡 Design highlight</div>
   <strong>Orchestration = pre-wired Workflow topology</strong>: you declare intent with a Builder, the framework
   draws the right graph. Need a more complex topology? Use <span class="mono">WorkflowBuilder</span> directly.
+  <br>See how these patterns compose into a full app in <a href="20-capstone.html">Lesson 20 · Capstone</a>.
 </div>
 """
 
@@ -3641,6 +3647,7 @@ workflow.run (parent span)
   <div class="tag">💡 设计亮点</div>
   <strong>可观测性是内置的</strong>，不是你自己加的——框架自动在关键操作上挂 span，
   零额外代码就能看到"这次 run 调了几次模型、每次多少 token、工具花了多久"。
+  <br>想深入到生产级的 trace / metric / log 排查，见<a href="30-observability.html">第 30 课 · 可观测性深入</a>。
 </div>
 """
 
@@ -3915,5 +3922,6 @@ so these spans feed straight into Jaeger, Grafana Tempo, or any OTLP backend wit
   <div class="tag">💡 Design highlight</div>
   <strong>Observability is built in</strong>, not bolted on — the framework auto-attaches spans to key operations.
   Zero extra code to see "how many model calls this run made, tokens per call, tool latency".
+  <br>For the production deep-dive into trace / metric / log, see <a href="30-observability.html">Lesson 30 · Observability Deep-Dive</a>.
 </div>
 """

@@ -1724,6 +1724,40 @@ MAF 有<strong>三层</strong>中间件，每层包裹不同粒度的操作。</
 <p><strong>重点</strong>：<span class="inline">await call_next()</span> <strong>不传任何参数</strong>——它调用下一层或最终执行。
 执行结果挂在 <span class="mono">context.result</span> 上。</p>
 
+<h2>追踪一次真实请求：三层中间件如何交错</h2>
+<p>三层是<strong>不同粒度</strong>，一次 <span class="mono">agent.run(&quot;北京天气?&quot;)</span>（带一个工具、需要一轮工具调用）里，它们会<strong>交错触发</strong>。
+假设你注册了：1 个 <span class="mono">AgentMiddleware</span>（日志）、1 个 <span class="mono">ChatMiddleware</span>（计 token）、1 个 <span class="mono">FunctionMiddleware</span>（工具审计）。看它们的 before/after 如何嵌套：</p>
+
+<div class="vflow">
+  <div class="step"><div class="num">1</div><div class="sc"><h4>Agent 层 before（最外，整轮一次）</h4>
+    <p><span class="mono">AgentMiddleware.process</span> 在 <span class="mono">call_next()</span> 前执行：<span class="mono">log(&quot;run 开始&quot;)</span>，然后 <span class="mono">await call_next()</span> 把控制权交给内层。</p></div></div>
+  <div class="step"><div class="num">2</div><div class="sc"><h4>Chat 层 before（第 1 次 LLM 调用）</h4>
+    <p>run 内部第一次调模型，<span class="mono">ChatMiddleware.process</span> 被触发；<span class="mono">await call_next()</span> 真正发出请求。</p></div></div>
+  <div class="step"><div class="num">3</div><div class="sc"><h4>Chat 层 after（第 1 次）</h4>
+    <p>模型回 <span class="mono">function_call</span>。<span class="mono">ctx.result</span> 此刻是这次 <span class="mono">ChatResponse</span>，计 token 中间件累加它的 <span class="mono">usage_details</span>。Chat 层这次结束。</p></div></div>
+  <div class="step"><div class="num">4</div><div class="sc"><h4>Function 层 before/after（执行工具）</h4>
+    <p>框架要执行 <span class="mono">get_weather</span>，<span class="mono">FunctionMiddleware.process</span> 被触发：before 记下&quot;即将调用 get_weather&quot;，<span class="mono">await call_next()</span> 跑真正的函数，after 记下返回值。</p></div></div>
+  <div class="step"><div class="num">5</div><div class="sc"><h4>Chat 层 before/after（第 2 次 LLM 调用）</h4>
+    <p>带着工具结果再问一次模型——<span class="mono">ChatMiddleware</span> <strong>第二次</strong>被触发（同一次 run 内！），这次拿到最终文本。</p></div></div>
+  <div class="step"><div class="num">6</div><div class="sc"><h4>Agent 层 after（最外，整轮一次）</h4>
+    <p>控制权一路退回最外层，<span class="mono">AgentMiddleware</span> 的 <span class="mono">call_next()</span> 之后继续执行：此刻 <span class="mono">ctx.result</span> 是<strong>整轮</strong>的 <span class="mono">AgentResponse</span>，日志记下&quot;run 结束&quot;。</p></div></div>
+</div>
+
+<div class="card detail">
+  <div class="tag">🔬 读懂这条轨迹</div>
+  关键洞察：<strong>越内层、触发越频繁</strong>。一次 <span class="mono">run()</span> 里 <span class="mono">AgentMiddleware</span> 只触发 <strong>1 次</strong>，
+  而 <span class="mono">ChatMiddleware</span> 触发了 <strong>2 次</strong>（两轮模型调用）、<span class="mono">FunctionMiddleware</span> 触发了 <strong>1 次</strong>（一个工具）。
+  所以&quot;统计整轮耗时&quot;要放 Agent 层，&quot;给每次模型调用限流&quot;要放 Chat 层，&quot;给每个工具加审批&quot;要放 Function 层——<strong>选错层，粒度就错了</strong>。
+</div>
+
+<h2>三层粒度对照</h2>
+<table class="t">
+  <tr><th>中间件</th><th>包裹什么</th><th>context 类型</th><th>一次 run 触发</th><th>典型用途</th></tr>
+  <tr><td class="mono">AgentMiddleware</td><td>整个 <span class="mono">agent.run()</span></td><td class="mono">AgentContext（:93）</td><td>1 次</td><td>全局日志、鉴权、整轮重试</td></tr>
+  <tr><td class="mono">ChatMiddleware</td><td>每次 LLM 调用</td><td class="mono">ChatContext（:377）</td><td>N 次（每轮模型调用）</td><td>token 计数、限流、响应缓存</td></tr>
+  <tr><td class="mono">FunctionMiddleware</td><td>每次工具执行</td><td class="mono">FunctionInvocationContext（:204）</td><td>M 次（每个工具调用）</td><td>工具审批、参数校验、沙箱</td></tr>
+</table>
+
 <details class="accordion">
   <summary><span class="badge-num">1</span> 也可以用装饰器写法 <span class="hint">点击展开详解</span></summary>
   <div class="acc-body">
@@ -1844,7 +1878,7 @@ ctx.result      <span class="cm"># 函数执行结果</span></pre></div></div>
     <span class="kw">async def</span> <span class="fn">process</span>(self, ctx, call_next):
         <span class="kw">await</span> call_next()
         usage = ctx.result.usage_details
-        ctx.metadata[<span class="st">"total_tokens"</span>] = usage.prompt_tokens + usage.completion_tokens
+        ctx.metadata[<span class="st">"total_tokens"</span>] = usage[<span class="st">"input_token_count"</span>] + usage[<span class="st">"output_token_count"</span>]
 
 <span class="cm"># 3. 限流中间件（ChatMiddleware）</span>
 <span class="kw">class</span> <span class="fn">RateLimiter</span>(ChatMiddleware):
@@ -1863,6 +1897,52 @@ ctx.result      <span class="cm"># 函数执行结果</span></pre></div></div>
       在 Agent 类里加 hook 方法（不够灵活）。MAF 的中间件管线是最标准的横切关注点解决方案。</div></div>
   </div>
 </details>
+
+<h2>🔍 真实源码：洋葱是怎么用闭包搭出来的</h2>
+<div class="codefile">
+  <div class="cf-head"><span class="dot"></span><span class="path">_middleware.py</span><span class="ln">AgentMiddlewarePipeline.execute（简化自 :880）</span></div>
+<pre class="code"><span class="kw">def</span> <span class="fn">create_next_handler</span>(index):
+    <span class="kw">if</span> index &gt;= len(self._middleware):       <span class="cm"># 到底了 → 跑真正的执行</span>
+        <span class="kw">async def</span> <span class="fn">final_wrapper</span>():
+            context.result = <span class="kw">await</span> final_handler(context)
+        <span class="kw">return</span> final_wrapper
+
+    <span class="kw">async def</span> <span class="fn">current_handler</span>():            <span class="cm"># 这一层：把「下一层」当 call_next 传进去</span>
+        <span class="kw">await</span> self._middleware[index].process(
+            context, create_next_handler(index + 1))
+    <span class="kw">return</span> current_handler
+
+first = create_next_handler(0)
+<span class="kw">with</span> contextlib.suppress(MiddlewareTermination):  <span class="cm"># 短路出口</span>
+    <span class="kw">await</span> first()
+<span class="kw">return</span> context.result</pre>
+</div>
+<p>洋葱不是某个魔法类，而是<strong>递归闭包</strong>搭出来的：<span class="mono">create_next_handler(index)</span> 为第 <span class="mono">index</span> 层
+生成一个 <span class="mono">call_next</span>，它内部又调用 <span class="mono">create_next_handler(index+1)</span>——一层套一层，直到 <span class="mono">index</span> 越界，
+返回 <span class="mono">final_wrapper</span>（真正干活、设 <span class="mono">context.result</span>）。每层的 <span class="mono">process</span> 收到的 <span class="mono">call_next</span> 就是&quot;剩下所有内层&quot;。</p>
+<p>两个设计后果直接可见：①<strong>结果走 <span class="mono">context.result</span></strong>，不靠返回值层层上传，所以三层签名能完全统一；
+②<strong>短路靠 <span class="mono">MiddlewareTermination</span></strong>（<span class="mono">_middleware.py:72</span>）：任何一层 <span class="mono">raise</span> 它，异常一路冒到 <span class="mono">execute()</span> 被
+<span class="mono">contextlib.suppress</span> 吞掉，剩余的 after 阶段全部跳过——干净地提前结束整条管线。</p>
+
+<h2>为什么用洋葱，而不是一个回调列表</h2>
+<p>最容易想到的横切方案是 Express.js 式的<strong>线性回调</strong>：每个中间件拿到 <span class="mono">next</span>，调一下就轮到下一个。
+它的问题是只有&quot;进去前&quot;那一刻好做事，&quot;出来后&quot;很别扭——你拿不到一个能 <span class="mono">await</span> 的「内层整体」，
+也就没法把它包进 <span class="mono">try/finally</span>、<span class="mono">try/except</span> 或一个循环里。</p>
+<p>MAF 的洋葱把&quot;剩下所有内层&quot;浓缩成<strong>一个无参的 <span class="mono">await call_next()</span></strong>。这一下子解锁了四种控制流，全写在<strong>同一个函数体</strong>里：</p>
+<table class="t">
+  <tr><th>你怎么写</th><th>效果</th><th>例子</th></tr>
+  <tr><td class="mono">await call_next()</td><td>正常穿透</td><td>记日志</td></tr>
+  <tr><td>不调 <span class="mono">call_next()</span>，直接设 <span class="mono">ctx.result</span></td><td><strong>短路</strong>：内层与真正执行都不跑</td><td>命中缓存直接返回</td></tr>
+  <tr><td class="mono">try: await call_next() finally: …</td><td>无论成败都收尾</td><td>释放信号量（限流）</td></tr>
+  <tr><td class="mono">for _ in range(n): await call_next()</td><td><strong>多次</strong>调用内层</td><td>重试（见 <span class="mono">_middleware.py:487</span> 的 RetryMiddleware 示例）</td></tr>
+</table>
+<p>把内层当成<strong>一等公民的可等待调用</strong>，正是洋葱比线性回调强的根本原因：调 0 次（短路）、1 次（正常）、N 次（重试）都行，
+而且 before 与 after 的逻辑挨在一起，<strong>代码局部性</strong>极好。三层中间件、类/装饰器两种写法，最终都被
+<span class="mono">create_next_handler</span> 这套闭包统一成同一种洋葱——这就是&quot;一个机制，处处复用&quot;。</p>
+<p>一个最实用的短路场景是<strong>护栏 / 审批</strong>：在 <span class="mono">call_next()</span> <em>之前</em>检查输入，不合规就直接
+<span class="mono">raise MiddlewareTermination(&quot;Validation failed&quot;)</span>（框架内部正是这么用的，见 <span class="mono">_middleware.py:238</span>）。
+因为异常在内层真正执行<strong>之前</strong>抛出，那次昂贵的模型调用 / 工具执行<strong>根本不会发生</strong>——你用十几行中间件就实现了&quot;先审后跑&quot;，
+且<strong>无需改动 Agent 或 ChatClient 一行源码</strong>。这正是本课开头那句承诺&quot;横切地加逻辑&quot;能落地的机制底座。</p>
 
 <div class="card key">
   <div class="tag">✅ 关键要点</div>
@@ -1914,6 +1994,41 @@ ChatClient source</strong>. MAF has <strong>three layers</strong>, each wrapping
 </div>
 <p><strong>Key</strong>: <span class="inline">await call_next()</span> takes <strong>no arguments</strong> — it invokes the
 next layer or the final execution. The result lives on <span class="mono">context.result</span>.</p>
+
+<h2>Tracing a real request: how the three layers interleave</h2>
+<p>The three layers are <strong>different granularities</strong>, so within one <span class="mono">agent.run(&quot;weather in Beijing?&quot;)</span>
+(one tool, one tool-call round) they <strong>interleave</strong>. Say you registered: one <span class="mono">AgentMiddleware</span> (logging),
+one <span class="mono">ChatMiddleware</span> (token counting), one <span class="mono">FunctionMiddleware</span> (tool auditing). Watch how their before/after nest:</p>
+
+<div class="vflow">
+  <div class="step"><div class="num">1</div><div class="sc"><h4>Agent layer before (outermost, once per run)</h4>
+    <p><span class="mono">AgentMiddleware.process</span> runs before <span class="mono">call_next()</span>: <span class="mono">log(&quot;run start&quot;)</span>, then <span class="mono">await call_next()</span> hands control inward.</p></div></div>
+  <div class="step"><div class="num">2</div><div class="sc"><h4>Chat layer before (1st LLM call)</h4>
+    <p>The run makes its first model call; <span class="mono">ChatMiddleware.process</span> fires; <span class="mono">await call_next()</span> sends the actual request.</p></div></div>
+  <div class="step"><div class="num">3</div><div class="sc"><h4>Chat layer after (1st)</h4>
+    <p>The model returns a <span class="mono">function_call</span>. <span class="mono">ctx.result</span> is now this <span class="mono">ChatResponse</span>; the token middleware accumulates its <span class="mono">usage_details</span>. This Chat pass ends.</p></div></div>
+  <div class="step"><div class="num">4</div><div class="sc"><h4>Function layer before/after (run the tool)</h4>
+    <p>The framework executes <span class="mono">get_weather</span>; <span class="mono">FunctionMiddleware.process</span> fires: before notes &quot;about to call get_weather&quot;, <span class="mono">await call_next()</span> runs the real function, after notes the return value.</p></div></div>
+  <div class="step"><div class="num">5</div><div class="sc"><h4>Chat layer before/after (2nd LLM call)</h4>
+    <p>With the tool result, the model is asked again — <span class="mono">ChatMiddleware</span> fires a <strong>second</strong> time (within the same run!), now yielding the final text.</p></div></div>
+  <div class="step"><div class="num">6</div><div class="sc"><h4>Agent layer after (outermost, once per run)</h4>
+    <p>Control unwinds back out; <span class="mono">AgentMiddleware</span> resumes after its <span class="mono">call_next()</span>: now <span class="mono">ctx.result</span> is the <strong>whole-run</strong> <span class="mono">AgentResponse</span>, and the log notes &quot;run done&quot;.</p></div></div>
+</div>
+
+<div class="card detail">
+  <div class="tag">🔬 Reading this trace</div>
+  Key insight: <strong>the deeper the layer, the more often it fires</strong>. In one <span class="mono">run()</span>, <span class="mono">AgentMiddleware</span> fires <strong>once</strong>,
+  while <span class="mono">ChatMiddleware</span> fired <strong>twice</strong> (two model calls) and <span class="mono">FunctionMiddleware</span> fired <strong>once</strong> (one tool).
+  So &quot;measure whole-run latency&quot; belongs in the Agent layer, &quot;rate-limit each model call&quot; in the Chat layer, &quot;approve each tool&quot; in the Function layer — <strong>pick the wrong layer and your granularity is wrong</strong>.
+</div>
+
+<h2>Three granularities compared</h2>
+<table class="t">
+  <tr><th>Middleware</th><th>Wraps what</th><th>Context type</th><th>Fires per run</th><th>Typical use</th></tr>
+  <tr><td class="mono">AgentMiddleware</td><td>the whole <span class="mono">agent.run()</span></td><td class="mono">AgentContext (:93)</td><td>once</td><td>global logging, auth, whole-run retry</td></tr>
+  <tr><td class="mono">ChatMiddleware</td><td>each LLM call</td><td class="mono">ChatContext (:377)</td><td>N times (per model call)</td><td>token counting, rate-limit, response cache</td></tr>
+  <tr><td class="mono">FunctionMiddleware</td><td>each tool execution</td><td class="mono">FunctionInvocationContext (:204)</td><td>M times (per tool call)</td><td>tool approval, arg validation, sandbox</td></tr>
+</table>
 
 <details class="accordion">
   <summary><span class="badge-num">1</span> Decorator shortcut <span class="hint">expand</span></summary>
@@ -2036,7 +2151,7 @@ ctx.result      <span class="cm"># function execution result</span></pre></div><
     <span class="kw">async def</span> <span class="fn">process</span>(self, ctx, call_next):
         <span class="kw">await</span> call_next()
         usage = ctx.result.usage_details
-        ctx.metadata[<span class="st">"total_tokens"</span>] = usage.prompt_tokens + usage.completion_tokens
+        ctx.metadata[<span class="st">"total_tokens"</span>] = usage[<span class="st">"input_token_count"</span>] + usage[<span class="st">"output_token_count"</span>]
 
 <span class="cm"># 3. Rate-limit middleware (ChatMiddleware)</span>
 <span class="kw">class</span> <span class="fn">RateLimiter</span>(ChatMiddleware):
@@ -2055,6 +2170,50 @@ ctx.result      <span class="cm"># function execution result</span></pre></div><
       hook methods in the Agent class (not flexible enough). MAF's middleware pipeline is the standard cross-cutting concern solution.</div></div>
   </div>
 </details>
+
+<h2>🔍 Real source: how the onion is built from closures</h2>
+<div class="codefile">
+  <div class="cf-head"><span class="dot"></span><span class="path">_middleware.py</span><span class="ln">AgentMiddlewarePipeline.execute (simplified from :880)</span></div>
+<pre class="code"><span class="kw">def</span> <span class="fn">create_next_handler</span>(index):
+    <span class="kw">if</span> index &gt;= len(self._middleware):       <span class="cm"># bottomed out → run the real execution</span>
+        <span class="kw">async def</span> <span class="fn">final_wrapper</span>():
+            context.result = <span class="kw">await</span> final_handler(context)
+        <span class="kw">return</span> final_wrapper
+
+    <span class="kw">async def</span> <span class="fn">current_handler</span>():            <span class="cm"># this layer: pass &quot;the next layer&quot; in as call_next</span>
+        <span class="kw">await</span> self._middleware[index].process(
+            context, create_next_handler(index + 1))
+    <span class="kw">return</span> current_handler
+
+first = create_next_handler(0)
+<span class="kw">with</span> contextlib.suppress(MiddlewareTermination):  <span class="cm"># short-circuit exit</span>
+    <span class="kw">await</span> first()
+<span class="kw">return</span> context.result</pre>
+</div>
+<p>The onion isn't a magic class — it's built from <strong>recursive closures</strong>: <span class="mono">create_next_handler(index)</span> produces a
+<span class="mono">call_next</span> for layer <span class="mono">index</span>, which itself calls <span class="mono">create_next_handler(index+1)</span> — nesting until <span class="mono">index</span> runs off the end,
+returning <span class="mono">final_wrapper</span> (the real work that sets <span class="mono">context.result</span>). Each layer's <span class="mono">process</span> receives a <span class="mono">call_next</span> that <em>is</em> &quot;all the inner layers&quot;.</p>
+<p>Two design consequences are immediately visible: ① <strong>the result travels on <span class="mono">context.result</span></strong>, not via return values bubbling up — which is why all three signatures can be identical;
+② <strong>short-circuit is via <span class="mono">MiddlewareTermination</span></strong> (<span class="mono">_middleware.py:72</span>): any layer can <span class="mono">raise</span> it, the exception bubbles up to <span class="mono">execute()</span> and is swallowed by
+<span class="mono">contextlib.suppress</span>, skipping all remaining after-stages — a clean early exit for the whole pipeline.</p>
+
+<h2>Why an onion, not a list of callbacks</h2>
+<p>The obvious cross-cutting design is an Express.js-style <strong>linear callback</strong>: each middleware gets <span class="mono">next</span>, calls it, and the next one runs.
+The problem is only the &quot;before&quot; moment is easy; the &quot;after&quot; is awkward — you have no single <span class="mono">await</span>-able &quot;inner whole&quot; to wrap in <span class="mono">try/finally</span>, <span class="mono">try/except</span>, or a loop.</p>
+<p>MAF's onion compresses &quot;all the inner layers&quot; into <strong>one no-arg <span class="mono">await call_next()</span></strong>. That unlocks four control flows, all in the <strong>same function body</strong>:</p>
+<table class="t">
+  <tr><th>How you write it</th><th>Effect</th><th>Example</th></tr>
+  <tr><td class="mono">await call_next()</td><td>normal pass-through</td><td>logging</td></tr>
+  <tr><td>skip <span class="mono">call_next()</span>, set <span class="mono">ctx.result</span></td><td><strong>short-circuit</strong>: inner layers and real execution never run</td><td>return a cache hit</td></tr>
+  <tr><td class="mono">try: await call_next() finally: …</td><td>clean up regardless of outcome</td><td>release a semaphore (rate-limit)</td></tr>
+  <tr><td class="mono">for _ in range(n): await call_next()</td><td>call the inner whole <strong>multiple</strong> times</td><td>retry (see the RetryMiddleware example, <span class="mono">_middleware.py:487</span>)</td></tr>
+</table>
+<p>Treating the inner whole as a <strong>first-class awaitable</strong> is exactly why the onion beats a linear callback list: call it 0 times (short-circuit), once (normal), or N times (retry) — and before/after logic sits together for great <strong>code locality</strong>.
+Three layers, class or decorator form — all are unified by the same <span class="mono">create_next_handler</span> closures into one onion: &quot;one mechanism, reused everywhere&quot;.</p>
+<p>The most practical short-circuit is a <strong>guardrail / approval</strong>: check the input <em>before</em> <span class="mono">call_next()</span> and, if non-compliant, just
+<span class="mono">raise MiddlewareTermination(&quot;Validation failed&quot;)</span> (exactly how the framework uses it internally — see <span class="mono">_middleware.py:238</span>).
+Because the exception is raised <strong>before</strong> the inner execution, that expensive model call / tool run <strong>never happens</strong> — a dozen lines of middleware gives you &quot;validate, then run&quot;,
+with <strong>zero changes to Agent or ChatClient source</strong>. That is the mechanism backing this lesson's opening promise of adding logic &quot;cross-cuttingly&quot;.</p>
 
 <div class="card key">
   <div class="tag">✅ Key points</div>

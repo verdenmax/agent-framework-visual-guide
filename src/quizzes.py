@@ -289,6 +289,79 @@ QUIZZES = {
             },
         ],
     },
+    "11-middleware.html": {
+        "mcq": [
+            {
+                "q": {
+                    "zh": "一次 Agent 运行里发生了 <strong>2 次 LLM 调用 + 1 次工具执行</strong>，三层中间件的 <code>process()</code> 各跑几次？",
+                    "en": "In one agent run with <strong>2 LLM calls + 1 tool execution</strong>, how many times does each of the three middleware layers' <code>process()</code> run?",
+                },
+                "opts": [
+                    {
+                        "zh": "AgentMiddleware 1 次、ChatMiddleware 2 次、FunctionMiddleware 1 次",
+                        "en": "AgentMiddleware 1×, ChatMiddleware 2×, FunctionMiddleware 1×",
+                    },
+                    {"zh": "三层都只跑 1 次", "en": "All three run exactly once"},
+                    {"zh": "三层都跑 3 次（2+1）", "en": "All three run 3× (2+1)"},
+                    {"zh": "AgentMiddleware 跟着每次 LLM 调用跑 2 次", "en": "AgentMiddleware runs 2× — once per LLM call"},
+                ],
+                "answer": 0,
+                "why": {
+                    "zh": "三层的<strong>粒度互相独立</strong>：<code>AgentMiddleware</code> 包整次运行（1 次）、<code>ChatMiddleware</code> 包每次 LLM 调用（2 次）、<code>FunctionMiddleware</code> 包每次工具执行（1 次）。这正是&quot;三粒度&quot;的意义——你能只拦 LLM 调用而不碰工具，反之亦然。",
+                    "en": "The three granularities are <strong>independent</strong>: <code>AgentMiddleware</code> wraps the whole run (1×), <code>ChatMiddleware</code> wraps each LLM call (2×), <code>FunctionMiddleware</code> wraps each tool execution (1×). That's the point of &quot;three granularities&quot; — you can intercept LLM calls without touching tools, and vice-versa.",
+                },
+            },
+            {
+                "q": {
+                    "zh": "MAF 中间件里的 <code>await call_next()</code> 有什么特别之处？",
+                    "en": "What is special about <code>await call_next()</code> in a MAF middleware?",
+                },
+                "opts": [
+                    {
+                        "zh": "它<strong>不收参数、也不返回值</strong>；结果走共享的 <code>context</code>（如 <code>context.result</code>）",
+                        "en": "It takes <strong>no args and returns nothing</strong>; the result flows via the shared <code>context</code> (e.g. <code>context.result</code>)",
+                    },
+                    {"zh": "必须把请求传进去：<code>call_next(request)</code>", "en": "You must pass the request in: <code>call_next(request)</code>"},
+                    {
+                        "zh": "它返回 <code>ChatResponse</code>，你得从 <code>process()</code> 把它 return 出去",
+                        "en": "It returns the <code>ChatResponse</code>, which you must return from <code>process()</code>",
+                    },
+                    {"zh": "只有 <code>AgentMiddleware</code> 能调用它", "en": "Only <code>AgentMiddleware</code> may call it"},
+                ],
+                "answer": 0,
+                "why": {
+                    "zh": "签名统一为 <code>process(self, context, call_next)</code>，<code>call_next</code> 无参、返回 <code>None</code>；一切数据都挂在共享 <code>context</code> 上（最内层的 <code>final_wrapper</code> 把真正结果写进 <code>context.result</code>，见 <code>_middleware.py:880</code>）。正因如此，三种中间件的签名才能完全一致。",
+                    "en": "The unified signature is <code>process(self, context, call_next)</code>; <code>call_next</code> is no-arg and returns <code>None</code>. All data rides on the shared <code>context</code> (the innermost <code>final_wrapper</code> writes the real result into <code>context.result</code>, see <code>_middleware.py:880</code>). That's exactly why all three middleware signatures can be identical.",
+                },
+            },
+            {
+                "q": {
+                    "zh": "一个中间件想<strong>短路</strong>，让昂贵的内层 LLM/工具执行根本不发生，怎么做？",
+                    "en": "How does a middleware <strong>short-circuit</strong> so the expensive inner LLM/tool execution never happens?",
+                },
+                "opts": [
+                    {
+                        "zh": "不调用 <code>call_next()</code>（可顺手设 <code>context.result</code>），或在它之前 <code>raise MiddlewareTermination</code>",
+                        "en": "Don't call <code>call_next()</code> (optionally set <code>context.result</code>), or <code>raise MiddlewareTermination</code> before it",
+                    },
+                    {"zh": "从 <code>process()</code> 返回 <code>False</code>", "en": "Return <code>False</code> from <code>process()</code>"},
+                    {"zh": "调用 <code>context.cancel()</code>", "en": "Call <code>context.cancel()</code>"},
+                    {"zh": "<code>raise StopIteration</code>", "en": "<code>raise StopIteration</code>"},
+                ],
+                "answer": 0,
+                "why": {
+                    "zh": "内层整体只在你 <code>await call_next()</code> 时才运行——不调用它即短路（常顺手把 <code>context.result</code> 设成缓存值）。或 <code>raise MiddlewareTermination</code>（<code>_middleware.py:72</code>），<code>execute()</code> 用 <code>contextlib.suppress</code> 吞掉它、跳过余下阶段。框架内部正是这样用：<code>raise MiddlewareTermination(&quot;Validation failed&quot;)</code>（<code>_middleware.py:238</code>）。",
+                    "en": "The inner whole only runs when you <code>await call_next()</code> — skip it to short-circuit (often setting <code>context.result</code> to a cached value). Or <code>raise MiddlewareTermination</code> (<code>_middleware.py:72</code>), which <code>execute()</code> swallows via <code>contextlib.suppress</code>, skipping remaining stages. The framework does exactly this internally: <code>raise MiddlewareTermination(&quot;Validation failed&quot;)</code> (<code>_middleware.py:238</code>).",
+                },
+            },
+        ],
+        "open": [
+            {
+                "zh": "把<strong>洋葱模型</strong>（无参 <code>await call_next()</code>）和 Express 式的<strong>线性回调链</strong>对比一下：把&quot;内层整体&quot;当成一等可 await 对象，解锁了线性 <code>next()</code> 很难做的哪些控制流？请分别给出&quot;短路&quot;、&quot;<code>try/finally</code> 清理&quot;、&quot;重试&quot;各一个具体例子。",
+                "en": "Contrast the <strong>onion model</strong> (no-arg <code>await call_next()</code>) with an Express-style <strong>linear callback list</strong>. Treating &quot;the inner whole&quot; as a first-class awaitable unlocks which control flows that a linear <code>next()</code> makes awkward? Give one concrete example each for short-circuit, <code>try/finally</code> cleanup, and retry.",
+            },
+        ],
+    },
 }
 
 

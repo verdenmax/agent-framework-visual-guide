@@ -2166,6 +2166,76 @@ QUIZZES = {
             },
         ],
     },
+    "31-glossary.html": {
+        "mcq": [
+            {
+                "q": {
+                    "zh": "按本课的「概念依赖图」，下面哪条依赖方向是<strong>对的</strong>？",
+                    "en": "Per this lesson's concept dependency map, which dependency direction is <strong>correct</strong>?",
+                },
+                "opts": [
+                    {
+                        "zh": "Agent 建立在 ChatClient 之上，ChatClient 又建立在 Message / Content 这块基石之上",
+                        "en": "Agent builds on ChatClient, and ChatClient builds on the Message / Content bedrock",
+                    },
+                    {"zh": "Message 建立在 Workflow 之上", "en": "Message builds on Workflow"},
+                    {"zh": "ChatClient 建立在编排器（Sequential 等）之上", "en": "ChatClient builds on the orchestrators (Sequential, etc.)"},
+                    {"zh": "OpenTelemetry 是其他所有概念的基石", "en": "OpenTelemetry is the bedrock of every other concept"},
+                ],
+                "answer": 0,
+                "why": {
+                    "zh": "依赖图从下往上：<strong>Message/Content</strong>（基石）→ <strong>ChatClient</strong>（通道）→ <strong>Agent</strong>（主体）→ 编排 → 生态 → 运维。上层站在下层之上，所以 Agent 依赖 ChatClient、ChatClient 依赖消息原子；Workflow/OTel 都在上层，不可能是基石。",
+                    "en": "The map reads bottom-up: <strong>Message/Content</strong> (bedrock) → <strong>ChatClient</strong> (channel) → <strong>Agent</strong> (core) → orchestration → ecosystem → ops. Upper layers stand on lower ones, so Agent depends on ChatClient and ChatClient on the message atoms; Workflow/OTel sit on top and can't be the bedrock.",
+                },
+            },
+            {
+                "q": {
+                    "zh": "你想确认「跨会话记忆」相关的类到底在哪个文件——速查表的<strong>哪一列</strong>直接给你答案？",
+                    "en": "You want to confirm which file holds the &quot;cross-session memory&quot; classes&mdash;which <strong>column</strong> of the reference gives you that directly?",
+                },
+                "opts": [
+                    {
+                        "zh": "「源码位置」列：<span class=\"mono\">_sessions.py:348 / :410</span>（ContextProvider / HistoryProvider）",
+                        "en": "The &quot;source location&quot; column: <span class=\"mono\">_sessions.py:348 / :410</span> (ContextProvider / HistoryProvider)",
+                    },
+                    {"zh": "「一句话定义」列", "en": "The &quot;one-line definition&quot; column"},
+                    {"zh": "「所属课」列——它只给课号不给文件", "en": "The &quot;lesson&quot; column&mdash;it only gives a lesson number, not a file"},
+                    {"zh": "速查表不含文件信息，得自己翻源码", "en": "The reference has no file info; you must dig through source yourself"},
+                ],
+                "answer": 0,
+                "why": {
+                    "zh": "速查表每行三列：一句话定义（是什么）、<strong>源码位置</strong>（去哪 grep，已核对行号）、所属课（看完整推演）。要「哪个文件第几行」，直接读源码位置列：记忆相关是 <span class=\"mono\">_sessions.py</span> 的 ContextProvider（:348）与 HistoryProvider（:410）。",
+                    "en": "Each row has three columns: one-line definition (what), <strong>source location</strong> (where to grep, line numbers verified), and lesson (full walkthrough). For &quot;which file/line&quot;, read the source-location column: memory lives in <span class=\"mono\">_sessions.py</span> as ContextProvider (:348) and HistoryProvider (:410).",
+                },
+            },
+            {
+                "q": {
+                    "zh": "本课说「所有东西最终化简为消息进、消息出」。这句话最直接支撑下面哪个判断？",
+                    "en": "This lesson says &quot;everything reduces to messages in, messages out&quot;. Which claim does that most directly support?",
+                },
+                "opts": [
+                    {
+                        "zh": "正因为各层共享 <span class=\"mono\">Message</span> 这一统一数据契约，Agent、工作流、A2A 协议才能彼此拼接",
+                        "en": "Because all layers share the single <span class=\"mono\">Message</span> data contract, Agents, workflows, and the A2A protocol can compose together",
+                    },
+                    {"zh": "每一层都得用各自不同的数据结构，互不兼容", "en": "Each layer must use its own incompatible data structure"},
+                    {"zh": "消息只在第 4 课出现，后面就用不到了", "en": "Messages only appear in L4 and are unused afterward"},
+                    {"zh": "工作流不传递消息，只传递函数指针", "en": "Workflows pass function pointers, not messages"},
+                ],
+                "answer": 0,
+                "why": {
+                    "zh": "统一的 Message 契约是「可组合性」的根源：上层只要遵守「收消息、发消息」，就能无缝接到下层。这也是为什么读懂第 4 课的 Message，后面所有课都更轻松——它是贯穿全栈的那条数据主线。",
+                    "en": "The unified Message contract is the root of composability: as long as an upper layer honors &quot;take messages, emit messages&quot;, it plugs into the layer below. That's why getting L4's Message makes every later lesson easier&mdash;it's the data spine running through the whole stack.",
+                },
+            },
+        ],
+        "open": [
+            {
+                "zh": "合上这张速查表，凭记忆<strong>默写概念依赖图</strong>：从基石到运维，至少写出 6 层，每层放对应术语，并用箭头标出「谁建立在谁之上」。然后挑一层，说说如果抽掉它，上面哪些层会塌、为什么。",
+                "en": "Close this reference and <strong>redraw the concept dependency map from memory</strong>: from bedrock to ops, write at least 6 layers, place the right terms in each, and use arrows to mark &quot;who stands on whom&quot;. Then pick one layer and explain which layers above would collapse if you removed it, and why.",
+            },
+        ],
+    },
 }
 
 

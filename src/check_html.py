@@ -33,7 +33,7 @@ MAX_LESSON = 31  # planned final lesson count; cross-refs may point forward
 MIN_CONTENT = 80  # min chars of zh/en source content per lesson
 
 PRE_INLINE = ("span", "strong", "b", "em", "u", "a")
-SOFT_EXEMPT = set()  # lessons exempt from soft content-density checks (e.g. glossary)
+SOFT_EXEMPT = {"31-glossary.html"}  # lessons exempt from soft content-density checks (e.g. glossary)
 
 # Visual-block density (soft): containers that count as a "diagram/table".
 DIAGRAM_CLASSES = ("layers", "vflow", "flow", "cols", "macro")

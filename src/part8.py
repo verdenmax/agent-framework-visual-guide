@@ -991,3 +991,255 @@ so usually you pass nothing and configure via the environment. For finer control
   your Agent code has no idea it's being observed, yet emits a complete trace conforming to the OpenTelemetry GenAI conventions. On or off is a single line at startup.
 </div>
 """
+
+L31_ZH = r"""
+<p class="lead">前面 30 课，我们从「Agent 是什么」一路走到记忆后端、可观测性、协议生态。这一课<strong>不教新东西</strong>——它是整本书的<strong>速查表与地图</strong>：把散落各课的核心术语收进一张表，每个词配上<strong>一句话定义、真实源码位置、所属课</strong>，再画出它们之间的<strong>依赖关系</strong>。卡壳时回这里，一眼定位。</p>
+
+<div class="card analogy">
+  <div class="tag">🗺️ 生活类比</div>
+  走完一条长线路后，你会拿到一张<strong>地图 + 图例</strong>：每个地名（术语）有坐标（源码位置）、属于哪一段路（所属课），地图还画出<strong>哪条路通哪条路</strong>（概念依赖）。这一课就是这张图——不带你重走，而是让你<strong>随时找回任何一个点</strong>。
+</div>
+
+<h2>怎么用这张速查表</h2>
+<p>每张表三列信息：<strong>一句话定义</strong>（这词到底指什么）、<strong>源码位置</strong>（去真实仓库 grep 哪个文件、第几行——所有行号均已核对）、<strong>所属课</strong>（点进去看完整推演）。术语按"你会在何处遇到它"分成六组，从最贴近用户到最偏运维。</p>
+
+<h2>① 用户层：你每天直接打交道的</h2>
+<table class="t">
+  <tr><th>术语</th><th>一句话定义</th><th>源码位置</th><th>所属课</th></tr>
+  <tr><td class="mono">Agent / BaseAgent</td><td>把"模型 + 工具 + 指令"打包成一个能 <span class="mono">run()</span> 的对象；BaseAgent 是抽象基类，Agent 是默认实现</td><td class="mono">_agents.py:314 / :1584</td><td><a href="08-agent-internals.html">8 课</a></td></tr>
+  <tr><td class="mono">ChatClient / BaseChatClient</td><td>与某家模型对话的统一通道：发消息、收消息。Agent 靠它"说话"</td><td class="mono">_clients.py:217</td><td><a href="09-chatclient-internals.html">9 课</a></td></tr>
+  <tr><td class="mono">Message</td><td>对话的基本单位，带一个 <span class="mono">role</span> 和一串 <span class="mono">contents</span></td><td class="mono">_types.py:1672</td><td><a href="04-messages.html">4 课</a></td></tr>
+  <tr><td class="mono">Content</td><td>消息里的内容块（文本 / 工具调用 / 结果 / 图片…），用 <span class="mono">Content.from_text()</span> 等构造</td><td class="mono">_types.py:455</td><td><a href="04-messages.html">4 课</a></td></tr>
+  <tr><td class="mono">Role</td><td>消息角色（system / user / assistant / tool），本质是带语义的字符串</td><td class="mono">_types.py:1620</td><td><a href="04-messages.html">4 课</a></td></tr>
+  <tr><td class="mono">@tool / FunctionTool</td><td>把普通 Python 函数包成 Agent 能调用的工具；<span class="mono">@tool</span> 是装饰器，FunctionTool 是包装结果</td><td class="mono">_tools.py:1145 / :240</td><td><a href="06-tools.html">6 课</a></td></tr>
+</table>
+
+<h2>② 内部机制：一次 run 背后</h2>
+<table class="t">
+  <tr><th>术语</th><th>一句话定义</th><th>源码位置</th><th>所属课</th></tr>
+  <tr><td>run 生命周期</td><td>一次 <span class="mono">run()</span>：组消息 → 问模型 →（要调工具就执行 → 回填 → 再问）→ 出 AgentResponse</td><td class="mono">_agents.py:1584</td><td><a href="03-lifecycle.html">3 课</a></td></tr>
+  <tr><td>FunctionCall / Result</td><td>工具调用的"请求"与"返回"，作为 Content 装在消息的 <span class="mono">contents</span> 里</td><td class="mono">_types.py:455</td><td><a href="10-tool-internals.html">10 课</a></td></tr>
+  <tr><td class="mono">AgentResponse / Update</td><td>run 的结果对象；流式时是一连串 <span class="mono">Update</span> 增量，逐个拼成最终答复</td><td class="mono">_types.py:2530 / :2782</td><td><a href="14-streaming-observability.html">14 课</a></td></tr>
+  <tr><td>Middleware（三类）</td><td>包在调用外的拦截层：Agent / Function / Chat 三种粒度，可改输入、改输出、短路</td><td class="mono">_middleware.py:469 / :528 / :592</td><td><a href="11-middleware.html">11 课</a></td></tr>
+</table>
+
+<h2>③ 工作流与编排：让多个步骤协作</h2>
+<table class="t">
+  <tr><th>术语</th><th>一句话定义</th><th>源码位置</th><th>所属课</th></tr>
+  <tr><td class="mono">Workflow</td><td>把多个步骤连成的<strong>有向图</strong>，按边驱动数据流转</td><td class="mono">_workflows/_workflow.py:206</td><td><a href="12-workflows.html">12 课</a></td></tr>
+  <tr><td class="mono">Executor</td><td>图里的一个<strong>节点</strong>：一个 Agent，或一段自定义逻辑</td><td class="mono">_workflows/_executor.py:30</td><td><a href="12-workflows.html">12 课</a></td></tr>
+  <tr><td class="mono">Edge</td><td>节点间的连线，决定消息往哪条路流</td><td class="mono">_workflows/_edge.py:76</td><td><a href="12-workflows.html">12 课</a></td></tr>
+  <tr><td class="mono">WorkflowBuilder</td><td>链式 API 搭出 Workflow；检查点也在这里用 <span class="mono">checkpoint_storage=</span> 传入</td><td class="mono">_workflows/_workflow_builder.py:53</td><td><a href="12-workflows.html">12 课</a></td></tr>
+  <tr><td class="mono">WorkflowContext</td><td>节点拿到的运行时上下文：往下游发消息、产出输出</td><td class="mono">_workflows/_workflow_context.py:207</td><td><a href="12-workflows.html">12 课</a></td></tr>
+  <tr><td>编排器 5 式</td><td>现成的多 Agent 图：Sequential / Concurrent / GroupChat / Handoff / Magentic</td><td class="mono">orchestrations/_sequential.py:63 等</td><td><a href="13-orchestration.html">13 课</a></td></tr>
+</table>
+
+<h2>④ 记忆与会话：跨轮、跨会话记住事情</h2>
+<table class="t">
+  <tr><th>术语</th><th>一句话定义</th><th>源码位置</th><th>所属课</th></tr>
+  <tr><td class="mono">ContextProvider</td><td>在 run <strong>之前</strong>往上下文注入东西（如检索到的相关记忆）；钩子是 <span class="mono">before_run()</span></td><td class="mono">_sessions.py:348</td><td><a href="07-sessions-memory.html">7 课</a></td></tr>
+  <tr><td class="mono">HistoryProvider</td><td>ContextProvider 的子类，专管整段对话历史的<strong>加载与保存</strong></td><td class="mono">_sessions.py:410</td><td><a href="07-sessions-memory.html">7 课</a></td></tr>
+  <tr><td class="mono">RedisContextProvider</td><td>把上下文 / 历史落到 Redis 的后端实现</td><td class="mono">agent_framework_redis/_context_provider.py:44</td><td><a href="28-memory-backends.html">28 课</a></td></tr>
+  <tr><td class="mono">Mem0ContextProvider</td><td>用 Mem0 托管"长期记忆"的后端实现</td><td class="mono">agent_framework_mem0/_context_provider.py:36</td><td><a href="28-memory-backends.html">28 课</a></td></tr>
+  <tr><td class="mono">CosmosHistoryProvider</td><td>用 Azure Cosmos DB 存对话历史的后端实现</td><td class="mono">agent_framework_azure_cosmos/_history_provider.py:36</td><td><a href="28-memory-backends.html">28 课</a></td></tr>
+</table>
+
+<h2>⑤ 生态与协议：与外部世界对接</h2>
+<table class="t">
+  <tr><th>术语</th><th>一句话定义</th><th>源码位置</th><th>所属课</th></tr>
+  <tr><td class="mono">Skill</td><td>可打包 / 复用的能力单元（含脚本、资源、frontmatter）；Skill 是抽象基类</td><td class="mono">_skills.py:492 / :729</td><td><a href="23-skills.html">23 课</a></td></tr>
+  <tr><td class="mono">MCPTool</td><td>通过 MCP 协议接入的外部工具（stdio / HTTP / websocket 三种传输）</td><td class="mono">_mcp.py:263</td><td><a href="24-mcp.html">24 课</a></td></tr>
+  <tr><td class="mono">ResponsesHostServer</td><td>把 Agent 跑在 Foundry，由托管层接管历史 / 检查点 / 审批存储</td><td class="mono">foundry_hosting/_responses.py:341</td><td><a href="25-hosted-agents.html">25 课</a></td></tr>
+  <tr><td class="mono">A2AAgent / AGUI</td><td>Agent 间通信（A2A）与 Agent↔前端（AG-UI）的标准协议接入</td><td class="mono">agent_framework_a2a/_agent.py:154 · agent_framework_ag_ui/_agent.py:66</td><td><a href="26-a2a-agui.html">26 课</a></td></tr>
+  <tr><td class="mono">AgentFactory</td><td>声明式：从 YAML 描述实例化出 Agent</td><td class="mono">agent_framework_declarative/_loader.py:141</td><td><a href="17-declarative.html">17 课</a></td></tr>
+</table>
+
+<h2>⑥ 运维与质量：让它可靠、可调、可信</h2>
+<table class="t">
+  <tr><th>术语</th><th>一句话定义</th><th>源码位置</th><th>所属课</th></tr>
+  <tr><td class="mono">WorkflowCheckpoint / CheckpointStorage</td><td>把工作流每个超步的状态存档，失败可从最近检查点恢复</td><td class="mono">_workflows/_checkpoint.py:31 / :119</td><td><a href="19-durability-hitl.html">19 课</a></td></tr>
+  <tr><td class="mono">RequestInfoMixin</td><td>人在回路（HITL）的底座：让执行<strong>暂停</strong>、向人/外部要信息再继续</td><td class="mono">_workflows/_request_info_mixin.py:29</td><td><a href="19-durability-hitl.html">19 课</a></td></tr>
+  <tr><td class="mono">Evaluator</td><td>对 Agent 输出做评估的协议（质量 / 正确性 / 安全）</td><td class="mono">_evaluation.py:683</td><td><a href="27-eval-timetravel.html">27 课</a></td></tr>
+  <tr><td class="mono">configure_otel_providers</td><td>一次性接上 OpenTelemetry，之后 trace / metric 自动产出</td><td class="mono">observability.py:1151</td><td><a href="30-observability.html">30 课</a></td></tr>
+  <tr><td class="mono">serve()（DevUI）</td><td>一行起本地可视化调试服务，浏览器里看每一步</td><td class="mono">agent_framework_devui/__init__.py:89</td><td><a href="29-devui.html">29 课</a></td></tr>
+</table>
+
+<h2>概念依赖图：谁建立在谁之上</h2>
+<p>从下往上读：上层的每个概念都<strong>站在下层之上</strong>。看不懂上层时，往下退一层往往就通了。</p>
+<div class="layers">
+  <div class="layer l-core"><div class="lh"><span class="badge">基石</span><span class="name">Message · Content · Role</span></div><div class="ld">一切的原子：模型的输入输出都是消息，消息里装 Content（文本 / 工具调用 / 结果）。（<a href="04-messages.html">4 课</a>）</div></div>
+  <div class="layer l-main"><div class="lh"><span class="badge">通道</span><span class="name">ChatClient</span></div><div class="ld">把消息发给某家模型、收回消息。Agent 靠它说话。（<a href="09-chatclient-internals.html">9 课</a>）</div></div>
+  <div class="layer l-main"><div class="lh"><span class="badge">主体</span><span class="name">Agent + Tools + Middleware</span></div><div class="ld">run 循环：模型决定调工具 → 执行 → 回填 → 再问模型，中间件层层包裹。（<a href="08-agent-internals.html">8</a> / <a href="10-tool-internals.html">10</a> / <a href="11-middleware.html">11 课</a>）</div></div>
+  <div class="layer l-part"><div class="lh"><span class="badge">编排</span><span class="name">Workflow · Executor · Edge · 编排器</span></div><div class="ld">多个 Agent / 步骤组成图，按边流转；五种现成编排是封装好的图。（<a href="12-workflows.html">12</a> / <a href="13-orchestration.html">13 课</a>）</div></div>
+  <div class="layer l-part"><div class="lh"><span class="badge">记忆</span><span class="name">ContextProvider · HistoryProvider</span></div><div class="ld">run 前注入上下文、run 后存历史；Redis / Mem0 / Cosmos 是后端。（<a href="07-sessions-memory.html">7</a> / <a href="28-memory-backends.html">28 课</a>）</div></div>
+  <div class="layer l-app"><div class="lh"><span class="badge">生态</span><span class="name">Skill · MCP · A2A / AG-UI · 托管</span></div><div class="ld">对外：标准化工具（MCP）、Agent 间通信（A2A）、前端（AG-UI）、云托管（Foundry）。（<a href="23-skills.html">23</a>–<a href="26-a2a-agui.html">26 课</a>）</div></div>
+  <div class="layer l-app"><div class="lh"><span class="badge">运维</span><span class="name">Checkpoint · HITL · Eval · OTel · DevUI</span></div><div class="ld">让它可靠、可调、可信：存档 / 人审 / 评估 / 追踪 / 可视化。（<a href="19-durability-hitl.html">19</a> / <a href="27-eval-timetravel.html">27</a> / <a href="29-devui.html">29</a> / <a href="30-observability.html">30 课</a>）</div></div>
+</div>
+
+<h2>一次 run 的最小依赖链</h2>
+<div class="flow">
+  <div class="node"><div class="nt">Message 进</div><div class="nd">用户输入</div></div>
+  <div class="arrow">→</div>
+  <div class="node"><div class="nt">Agent.run</div><div class="nd">+ Middleware</div></div>
+  <div class="arrow">→</div>
+  <div class="node hl"><div class="nt">ChatClient</div><div class="nd">问模型</div></div>
+  <div class="arrow">→</div>
+  <div class="node"><div class="nt">Tool 执行</div><div class="nd">FunctionCall / Result</div></div>
+  <div class="arrow">→</div>
+  <div class="node"><div class="nt">Message 出</div><div class="nd">AgentResponse</div></div>
+</div>
+
+<h2>反向索引：带着问题找课</h2>
+<table class="t">
+  <tr><th>我想…</th><th>去这一课</th></tr>
+  <tr><td>搞清一次 <span class="mono">run()</span> 到底发生了什么</td><td><a href="03-lifecycle.html">3 课</a> · <a href="08-agent-internals.html">8 课</a></td></tr>
+  <tr><td>让 Agent 调用我的函数 / 外部工具</td><td><a href="06-tools.html">6 课</a> · <a href="24-mcp.html">24 课</a></td></tr>
+  <tr><td>让 Agent 记住跨会话的事</td><td><a href="07-sessions-memory.html">7 课</a> · <a href="28-memory-backends.html">28 课</a></td></tr>
+  <tr><td>在每次调用前后插一段自己的逻辑</td><td><a href="11-middleware.html">11 课</a> · <a href="18-custom-middleware.html">18 课</a></td></tr>
+  <tr><td>让多个 Agent 协作完成一个任务</td><td><a href="12-workflows.html">12 课</a> · <a href="13-orchestration.html">13 课</a></td></tr>
+  <tr><td>失败能恢复、关键步骤要人审批</td><td><a href="19-durability-hitl.html">19 课</a></td></tr>
+  <tr><td>看清 Agent 跑的每一步 / 排查线上慢</td><td><a href="29-devui.html">29 课</a> · <a href="30-observability.html">30 课</a></td></tr>
+  <tr><td>评估 Agent 输出好不好</td><td><a href="27-eval-timetravel.html">27 课</a></td></tr>
+</table>
+
+<div class="card key">
+  <div class="tag">✅ 关键要点</div>
+  <ul>
+    <li>整个框架是<strong>分层</strong>的：Message/Content 是基石，往上依次是 ChatClient → Agent → 编排 → 生态 → 运维。</li>
+    <li>每个术语都能 grep 到<strong>真实源码位置</strong>（本表行号已核对），看不懂概念就去读那几行。</li>
+    <li>记不住时用<strong>反向索引</strong>：从"我想做什么"出发，直接跳到对应课。</li>
+    <li>这一课是<strong>地图不是教程</strong>——它的价值在你回来查的那一刻。</li>
+  </ul>
+</div>
+
+<div class="card spark">
+  <div class="tag">💡 设计亮点</div>
+  <strong>所有东西最终都化简为"消息进、消息出"。</strong>无论 Agent、工作流、还是跨机器的 A2A 协议，底层流动的都是 Message。正是这条统一的"数据契约"，让上面这么多层能彼此拼接——这也是为什么读懂第 4 课的 Message，后面 27 课都会更轻松。
+</div>
+"""
+
+L31_EN = r"""
+<p class="lead">Across the previous 30 lessons we went from "what is an Agent" all the way to memory backends, observability, and the protocol ecosystem. This lesson teaches <strong>nothing new</strong>—it is the whole guide's <strong>quick-reference and map</strong>: every core term collected into one place, each with a <strong>one-line definition, a real source location, and its home lesson</strong>, plus a picture of how they <strong>depend on each other</strong>. When you get stuck, come back here and locate anything at a glance.</p>
+
+<div class="card analogy">
+  <div class="tag">🗺️ Analogy</div>
+  After finishing a long trail you get a <strong>map + legend</strong>: every place name (term) has coordinates (source location) and a trail segment it belongs to (home lesson), and the map also draws <strong>which path connects to which</strong> (concept dependencies). This lesson is that map—it doesn't re-walk the trail, it lets you <strong>find any single point again, any time</strong>.
+</div>
+
+<h2>How to read this reference</h2>
+<p>Every table has three columns: a <strong>one-line definition</strong> (what the term actually means), a <strong>source location</strong> (which file and line to grep in the real repo—every line number has been verified), and its <strong>home lesson</strong> (click in for the full walkthrough). Terms are grouped into six buckets by "where you'll meet them", from closest-to-user to most ops-facing.</p>
+
+<h2>① User layer: what you touch every day</h2>
+<table class="t">
+  <tr><th>Term</th><th>One-line definition</th><th>Source location</th><th>Lesson</th></tr>
+  <tr><td class="mono">Agent / BaseAgent</td><td>Bundles "model + tools + instructions" into an object you can <span class="mono">run()</span>; BaseAgent is the abstract base, Agent the default impl</td><td class="mono">_agents.py:314 / :1584</td><td><a href="08-agent-internals.html">L8</a></td></tr>
+  <tr><td class="mono">ChatClient / BaseChatClient</td><td>The uniform channel for talking to one model provider: send messages, get messages back. An Agent "speaks" through it</td><td class="mono">_clients.py:217</td><td><a href="09-chatclient-internals.html">L9</a></td></tr>
+  <tr><td class="mono">Message</td><td>The basic unit of a conversation, carrying a <span class="mono">role</span> and a list of <span class="mono">contents</span></td><td class="mono">_types.py:1672</td><td><a href="04-messages.html">L4</a></td></tr>
+  <tr><td class="mono">Content</td><td>A content block inside a message (text / tool call / result / image…), built via <span class="mono">Content.from_text()</span> etc.</td><td class="mono">_types.py:455</td><td><a href="04-messages.html">L4</a></td></tr>
+  <tr><td class="mono">Role</td><td>The message role (system / user / assistant / tool)—essentially a semantic string</td><td class="mono">_types.py:1620</td><td><a href="04-messages.html">L4</a></td></tr>
+  <tr><td class="mono">@tool / FunctionTool</td><td>Wraps a plain Python function into a tool the Agent can call; <span class="mono">@tool</span> is the decorator, FunctionTool the wrapper result</td><td class="mono">_tools.py:1145 / :240</td><td><a href="06-tools.html">L6</a></td></tr>
+</table>
+
+<h2>② Internals: behind one run</h2>
+<table class="t">
+  <tr><th>Term</th><th>One-line definition</th><th>Source location</th><th>Lesson</th></tr>
+  <tr><td>run lifecycle</td><td>One <span class="mono">run()</span>: assemble messages → ask model → (if tools needed, execute → feed back → ask again) → emit AgentResponse</td><td class="mono">_agents.py:1584</td><td><a href="03-lifecycle.html">L3</a></td></tr>
+  <tr><td>FunctionCall / Result</td><td>The "request" and "return" of a tool call, carried as Content in the message's <span class="mono">contents</span></td><td class="mono">_types.py:455</td><td><a href="10-tool-internals.html">L10</a></td></tr>
+  <tr><td class="mono">AgentResponse / Update</td><td>The result object of a run; while streaming it's a series of <span class="mono">Update</span> deltas assembled into the final reply</td><td class="mono">_types.py:2530 / :2782</td><td><a href="14-streaming-observability.html">L14</a></td></tr>
+  <tr><td>Middleware (3 kinds)</td><td>Interception layers wrapping a call: Agent / Function / Chat granularity—can rewrite input, rewrite output, or short-circuit</td><td class="mono">_middleware.py:469 / :528 / :592</td><td><a href="11-middleware.html">L11</a></td></tr>
+</table>
+
+<h2>③ Workflows &amp; orchestration: many steps cooperating</h2>
+<table class="t">
+  <tr><th>Term</th><th>One-line definition</th><th>Source location</th><th>Lesson</th></tr>
+  <tr><td class="mono">Workflow</td><td>A <strong>directed graph</strong> wiring multiple steps, driving data along its edges</td><td class="mono">_workflows/_workflow.py:206</td><td><a href="12-workflows.html">L12</a></td></tr>
+  <tr><td class="mono">Executor</td><td>A <strong>node</strong> in the graph: an Agent, or a piece of custom logic</td><td class="mono">_workflows/_executor.py:30</td><td><a href="12-workflows.html">L12</a></td></tr>
+  <tr><td class="mono">Edge</td><td>A connection between nodes, deciding which path a message flows down</td><td class="mono">_workflows/_edge.py:76</td><td><a href="12-workflows.html">L12</a></td></tr>
+  <tr><td class="mono">WorkflowBuilder</td><td>The chained API that builds a Workflow; checkpointing is wired here via <span class="mono">checkpoint_storage=</span></td><td class="mono">_workflows/_workflow_builder.py:53</td><td><a href="12-workflows.html">L12</a></td></tr>
+  <tr><td class="mono">WorkflowContext</td><td>The runtime context a node receives: send messages downstream, yield outputs</td><td class="mono">_workflows/_workflow_context.py:207</td><td><a href="12-workflows.html">L12</a></td></tr>
+  <tr><td>5 orchestrators</td><td>Ready-made multi-Agent graphs: Sequential / Concurrent / GroupChat / Handoff / Magentic</td><td class="mono">orchestrations/_sequential.py:63 etc.</td><td><a href="13-orchestration.html">L13</a></td></tr>
+</table>
+
+<h2>④ Memory &amp; sessions: remembering across turns</h2>
+<table class="t">
+  <tr><th>Term</th><th>One-line definition</th><th>Source location</th><th>Lesson</th></tr>
+  <tr><td class="mono">ContextProvider</td><td>Injects things into context <strong>before</strong> a run (e.g. retrieved memories); the hook is <span class="mono">before_run()</span></td><td class="mono">_sessions.py:348</td><td><a href="07-sessions-memory.html">L7</a></td></tr>
+  <tr><td class="mono">HistoryProvider</td><td>A ContextProvider subclass dedicated to <strong>loading and saving</strong> the whole conversation history</td><td class="mono">_sessions.py:410</td><td><a href="07-sessions-memory.html">L7</a></td></tr>
+  <tr><td class="mono">RedisContextProvider</td><td>Backend impl that persists context / history to Redis</td><td class="mono">agent_framework_redis/_context_provider.py:44</td><td><a href="28-memory-backends.html">L28</a></td></tr>
+  <tr><td class="mono">Mem0ContextProvider</td><td>Backend impl that manages "long-term memory" via Mem0</td><td class="mono">agent_framework_mem0/_context_provider.py:36</td><td><a href="28-memory-backends.html">L28</a></td></tr>
+  <tr><td class="mono">CosmosHistoryProvider</td><td>Backend impl that stores conversation history in Azure Cosmos DB</td><td class="mono">agent_framework_azure_cosmos/_history_provider.py:36</td><td><a href="28-memory-backends.html">L28</a></td></tr>
+</table>
+
+<h2>⑤ Ecosystem &amp; protocols: connecting to the outside world</h2>
+<table class="t">
+  <tr><th>Term</th><th>One-line definition</th><th>Source location</th><th>Lesson</th></tr>
+  <tr><td class="mono">Skill</td><td>A packageable / reusable capability unit (scripts, resources, frontmatter); Skill is the abstract base</td><td class="mono">_skills.py:492 / :729</td><td><a href="23-skills.html">L23</a></td></tr>
+  <tr><td class="mono">MCPTool</td><td>An external tool wired in via the MCP protocol (stdio / HTTP / websocket transports)</td><td class="mono">_mcp.py:263</td><td><a href="24-mcp.html">L24</a></td></tr>
+  <tr><td class="mono">ResponsesHostServer</td><td>Runs an Agent on Foundry, with the host taking over history / checkpoints / approval storage</td><td class="mono">foundry_hosting/_responses.py:341</td><td><a href="25-hosted-agents.html">L25</a></td></tr>
+  <tr><td class="mono">A2AAgent / AGUI</td><td>Standard-protocol entry points for Agent-to-Agent (A2A) and Agent↔frontend (AG-UI)</td><td class="mono">agent_framework_a2a/_agent.py:154 · agent_framework_ag_ui/_agent.py:66</td><td><a href="26-a2a-agui.html">L26</a></td></tr>
+  <tr><td class="mono">AgentFactory</td><td>Declarative: instantiate an Agent from a YAML description</td><td class="mono">agent_framework_declarative/_loader.py:141</td><td><a href="17-declarative.html">L17</a></td></tr>
+</table>
+
+<h2>⑥ Ops &amp; quality: reliable, debuggable, trustworthy</h2>
+<table class="t">
+  <tr><th>Term</th><th>One-line definition</th><th>Source location</th><th>Lesson</th></tr>
+  <tr><td class="mono">WorkflowCheckpoint / CheckpointStorage</td><td>Snapshots a workflow's state at each superstep; on failure, resume from the latest checkpoint</td><td class="mono">_workflows/_checkpoint.py:31 / :119</td><td><a href="19-durability-hitl.html">L19</a></td></tr>
+  <tr><td class="mono">RequestInfoMixin</td><td>The base for human-in-the-loop (HITL): let execution <strong>pause</strong>, ask a human/external for info, then continue</td><td class="mono">_workflows/_request_info_mixin.py:29</td><td><a href="19-durability-hitl.html">L19</a></td></tr>
+  <tr><td class="mono">Evaluator</td><td>A protocol for evaluating Agent output (quality / correctness / safety)</td><td class="mono">_evaluation.py:683</td><td><a href="27-eval-timetravel.html">L27</a></td></tr>
+  <tr><td class="mono">configure_otel_providers</td><td>Wire up OpenTelemetry once; traces / metrics then flow automatically</td><td class="mono">observability.py:1151</td><td><a href="30-observability.html">L30</a></td></tr>
+  <tr><td class="mono">serve() (DevUI)</td><td>One line to start a local visual-debugging server and watch every step in the browser</td><td class="mono">agent_framework_devui/__init__.py:89</td><td><a href="29-devui.html">L29</a></td></tr>
+</table>
+
+<h2>Concept dependency map: who stands on whom</h2>
+<p>Read bottom-up: every upper concept <strong>stands on the one below</strong>. When an upper layer confuses you, dropping down one layer often unblocks it.</p>
+<div class="layers">
+  <div class="layer l-core"><div class="lh"><span class="badge">Bedrock</span><span class="name">Message · Content · Role</span></div><div class="ld">The atoms of everything: a model's input and output are messages, and messages carry Content (text / tool call / result). (<a href="04-messages.html">L4</a>)</div></div>
+  <div class="layer l-main"><div class="lh"><span class="badge">Channel</span><span class="name">ChatClient</span></div><div class="ld">Sends messages to a model provider and gets messages back. An Agent talks through it. (<a href="09-chatclient-internals.html">L9</a>)</div></div>
+  <div class="layer l-main"><div class="lh"><span class="badge">Core</span><span class="name">Agent + Tools + Middleware</span></div><div class="ld">The run loop: model decides to call a tool → execute → feed back → ask again, wrapped layer by layer in middleware. (<a href="08-agent-internals.html">L8</a> / <a href="10-tool-internals.html">L10</a> / <a href="11-middleware.html">L11</a>)</div></div>
+  <div class="layer l-part"><div class="lh"><span class="badge">Orchestration</span><span class="name">Workflow · Executor · Edge · orchestrators</span></div><div class="ld">Multiple Agents / steps form a graph, flowing along edges; the five ready-made orchestrators are pre-packaged graphs. (<a href="12-workflows.html">L12</a> / <a href="13-orchestration.html">L13</a>)</div></div>
+  <div class="layer l-part"><div class="lh"><span class="badge">Memory</span><span class="name">ContextProvider · HistoryProvider</span></div><div class="ld">Inject context before a run, store history after; Redis / Mem0 / Cosmos are the backends. (<a href="07-sessions-memory.html">L7</a> / <a href="28-memory-backends.html">L28</a>)</div></div>
+  <div class="layer l-app"><div class="lh"><span class="badge">Ecosystem</span><span class="name">Skill · MCP · A2A / AG-UI · hosting</span></div><div class="ld">Outward-facing: standardized tools (MCP), Agent-to-Agent (A2A), frontends (AG-UI), cloud hosting (Foundry). (<a href="23-skills.html">L23</a>–<a href="26-a2a-agui.html">L26</a>)</div></div>
+  <div class="layer l-app"><div class="lh"><span class="badge">Ops</span><span class="name">Checkpoint · HITL · Eval · OTel · DevUI</span></div><div class="ld">Make it reliable, debuggable, trustworthy: snapshot / human-review / evaluate / trace / visualize. (<a href="19-durability-hitl.html">L19</a> / <a href="27-eval-timetravel.html">L27</a> / <a href="29-devui.html">L29</a> / <a href="30-observability.html">L30</a>)</div></div>
+</div>
+
+<h2>The minimal dependency chain of one run</h2>
+<div class="flow">
+  <div class="node"><div class="nt">Message in</div><div class="nd">user input</div></div>
+  <div class="arrow">→</div>
+  <div class="node"><div class="nt">Agent.run</div><div class="nd">+ Middleware</div></div>
+  <div class="arrow">→</div>
+  <div class="node hl"><div class="nt">ChatClient</div><div class="nd">ask model</div></div>
+  <div class="arrow">→</div>
+  <div class="node"><div class="nt">Tool exec</div><div class="nd">FunctionCall / Result</div></div>
+  <div class="arrow">→</div>
+  <div class="node"><div class="nt">Message out</div><div class="nd">AgentResponse</div></div>
+</div>
+
+<h2>Reverse index: find a lesson from a question</h2>
+<table class="t">
+  <tr><th>I want to…</th><th>Go to</th></tr>
+  <tr><td>understand what actually happens in one <span class="mono">run()</span></td><td><a href="03-lifecycle.html">L3</a> · <a href="08-agent-internals.html">L8</a></td></tr>
+  <tr><td>let the Agent call my function / external tools</td><td><a href="06-tools.html">L6</a> · <a href="24-mcp.html">L24</a></td></tr>
+  <tr><td>make the Agent remember across sessions</td><td><a href="07-sessions-memory.html">L7</a> · <a href="28-memory-backends.html">L28</a></td></tr>
+  <tr><td>insert my own logic before/after each call</td><td><a href="11-middleware.html">L11</a> · <a href="18-custom-middleware.html">L18</a></td></tr>
+  <tr><td>make multiple Agents cooperate on a task</td><td><a href="12-workflows.html">L12</a> · <a href="13-orchestration.html">L13</a></td></tr>
+  <tr><td>recover from failure, require human approval</td><td><a href="19-durability-hitl.html">L19</a></td></tr>
+  <tr><td>see every step / debug a slow production run</td><td><a href="29-devui.html">L29</a> · <a href="30-observability.html">L30</a></td></tr>
+  <tr><td>evaluate whether the Agent's output is good</td><td><a href="27-eval-timetravel.html">L27</a></td></tr>
+</table>
+
+<div class="card key">
+  <div class="tag">✅ Key points</div>
+  <ul>
+    <li>The whole framework is <strong>layered</strong>: Message/Content is bedrock, then ChatClient → Agent → orchestration → ecosystem → ops on top.</li>
+    <li>Every term greps to a <strong>real source location</strong> (line numbers in this table are verified)—when a concept is unclear, go read those lines.</li>
+    <li>Can't recall something? Use the <strong>reverse index</strong>: start from "what I want to do" and jump straight to the lesson.</li>
+    <li>This lesson is a <strong>map, not a tutorial</strong>—its value is the moment you come back to look something up.</li>
+  </ul>
+</div>
+
+<div class="card spark">
+  <div class="tag">💡 Design insight</div>
+  <strong>Everything ultimately reduces to "messages in, messages out".</strong> Whether it's an Agent, a workflow, or the cross-machine A2A protocol, what flows underneath is always a Message. It's this single unified "data contract" that lets so many layers compose—which is also why, once you truly get the Message in L4, every lesson up to L27 gets easier.
+</div>
+"""

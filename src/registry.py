@@ -44,4 +44,5 @@ CONTENT = {
     "27-eval-timetravel.html": {"zh": part7.L27_ZH, "en": part7.L27_EN},
     "21-vs-others.html": {"zh": part6.L21_ZH, "en": part6.L21_EN},
     "22-stack-map.html": {"zh": part6.L22_ZH, "en": part6.L22_EN},
+    "31-glossary.html": {"zh": part8.L31_ZH, "en": part8.L31_EN},
 }

@@ -63,6 +63,7 @@ P4 = {"zh": "第四部分 · 进阶实战", "en": "Part 4 · Advanced"}
 P5 = {"zh": "第五部分 · 自己动手做 Agent", "en": "Part 5 · Build Your Own"}
 P6 = {"zh": "第六部分 · 协议与生态", "en": "Part 6 · Protocols & Ecosystem"}
 P7 = {"zh": "第七部分 · 番外篇", "en": "Part 7 · Bonus"}
+P8 = {"zh": "第八部分 · 速查", "en": "Part 8 · Quick Reference"}
 
 PAGES = [
     ("01-what-is-agent-framework.html", {"zh": "Agent Framework 是什么", "en": "What is Agent Framework"}, P1),
@@ -95,6 +96,7 @@ PAGES = [
     ("27-eval-timetravel.html", {"zh": "评估与时间旅行", "en": "Evaluation & Time-Travel"}, P6),
     ("21-vs-others.html", {"zh": "横向对比：AF vs 其他框架", "en": "AF vs Other Frameworks"}, P7),
     ("22-stack-map.html", {"zh": "全栈坐标系 & 学习地图", "en": "Full-Stack Map & Learning Path"}, P7),
+    ("31-glossary.html", {"zh": "术语表 · 速查", "en": "Glossary & Quick Reference"}, P8),
 ]
 
 INDEX_FILE = "index.html"
@@ -465,6 +467,7 @@ SUBTITLES = {
     "27-eval-timetravel.html": {"zh": "Evaluator · Workflow replay", "en": "Evaluator · Workflow replay"},
     "21-vs-others.html": {"zh": "AF vs LangGraph / AutoGen / SK", "en": "AF vs LangGraph / AutoGen / SK"},
     "22-stack-map.html": {"zh": "编排流派 · 全栈分层 · 你在哪", "en": "orchestration schools · stack layers · you are here"},
+    "31-glossary.html": {"zh": "核心术语 · 源码位置 · 概念索引", "en": "core terms · source locations · concept index"},
 }
 
 

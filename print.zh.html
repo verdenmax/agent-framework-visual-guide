@@ -421,7 +421,7 @@ r = client.messages.create(model=<span class="st">"claude-3-7-sonnet"</span>, ma
 换成 MAF 之后，只换一个 client，其余代码不动：
 <pre class="code"><span class="kw">from</span> agent_framework <span class="kw">import</span> Agent
 <span class="kw">from</span> agent_framework.openai <span class="kw">import</span> OpenAIChatClient
-<span class="cm"># from agent_framework.anthropic import AnthropicChatClient  # 改这一行就够了</span>
+<span class="cm"># from agent_framework.anthropic import AnthropicClient  # 改这一行就够了</span>
 agent = Agent(client=OpenAIChatClient(model=<span class="st">"gpt-4o"</span>), instructions=<span class="st">"…"</span>)
 <span class="kw">await</span> agent.run(<span class="st">"你好"</span>)</pre></div>
     </div>
@@ -436,7 +436,7 @@ agent = Agent(client=OpenAIChatClient(model=<span class="st">"gpt-4o"</span>), i
       <div class="q">✅ MAF 的做法与优点</div>
       <div class="a">MAF 把所有厂商抽象成统一的 <span class="mono">ChatClient</span> 接口，
         <span class="mono">FoundryChatClient</span> / <span class="mono">OpenAIChatClient</span> /
-        <span class="mono">AnthropicChatClient</span> / <span class="mono">OllamaChatClient</span> 全部实现同一组方法
+        <span class="mono">AnthropicClient</span> / <span class="mono">OllamaChatClient</span> 全部实现同一组方法
         （<span class="mono">get_response()</span> / <span class="mono">get_streaming_response()</span>）。
         Agent、工具、工作流只依赖接口，"换一行 import"即可切换厂商。</div>
     </div>
@@ -496,7 +496,7 @@ messages = [
   <div class="acc-body">
     <div class="qa">
       <div class="q">🧪 示例</div>
-      <div class="a">裸 function calling vs MAF 的 <span class="mono">@ai_function</span>：
+      <div class="a">裸 function calling vs MAF 的 <span class="mono">@tool</span>：
 <pre class="code"><span class="cm"># 裸 SDK：自己写 schema、自己 dispatch、自己回灌</span>
 tools = [{
   <span class="st">"type"</span>: <span class="st">"function"</span>,
@@ -508,9 +508,9 @@ tools = [{
 <span class="cm"># 后续：解析 tool_calls → 找函数 → 调用 → 把结果塞回 messages → 再发一次……</span>
 
 <span class="cm"># MAF：装饰器自动生成 schema，自动跑循环</span>
-<span class="kw">from</span> agent_framework <span class="kw">import</span> ai_function
+<span class="kw">from</span> agent_framework <span class="kw">import</span> tool
 
-<span class="kw">@ai_function</span>
+<span class="kw">@tool</span>
 <span class="kw">def</span> get_weather(city: str) -&gt; str:
     <span class="st">"返回城市天气。"</span>
     <span class="kw">return</span> f<span class="st">"{city} 今天 23°C"</span>
@@ -525,7 +525,7 @@ agent = Agent(client=client, tools=[get_weather])</pre></div>
     </div>
     <div class="qa">
       <div class="q">✅ MAF 的做法与优点</div>
-      <div class="a"><span class="mono">@ai_function</span>（见 <span class="mono">_tools.py</span>）借助
+      <div class="a"><span class="mono">@tool</span>（见 <span class="mono">_tools.py</span>）借助
         <span class="mono">inspect</span> + 类型注解生成 JSON Schema，自动注入到 ChatClient 请求；
         模型返回 <span class="mono">FunctionCallContent</span> 时，Agent 在<strong>同一个循环</strong>里
         执行函数、把 <span class="mono">FunctionResultContent</span> 追加回消息，再次请求模型——你不用写一行胶水。</div>
@@ -684,8 +684,8 @@ result = <span class="kw">await</span> agent.run(<span class="st">"先查上海�
       <div class="a">core 一个文件一个职责，地图大致如下：
 <pre class="code">python/packages/core/agent_framework/
 ├── _agents.py        <span class="cm"># Agent 类、run() 循环、DEFAULT_MAX_ITERATIONS</span>
-├── _clients.py       <span class="cm"># ChatClient 抽象基类 + 内置 OpenAI 实现</span>
-├── _tools.py         <span class="cm"># @ai_function 装饰器、AIFunction、ToolProtocol</span>
+├── _clients.py       <span class="cm"># BaseChatClient 抽象基类 + Supports* 协议族</span>
+├── _tools.py         <span class="cm"># @tool 装饰器、FunctionTool 类</span>
 ├── _middleware.py    <span class="cm"># 中间件管道：trace / retry / 自定义</span>
 ├── _types.py         <span class="cm"># Message / Role / Contents 联合类型</span>
 ├── _workflows/       <span class="cm"># 图式编排：节点、边、共享状态、检查点</span>
@@ -701,7 +701,7 @@ result = <span class="kw">await</span> agent.run(<span class="st">"先查上海�
     <div class="qa">
       <div class="q">✅ MAF 的做法与优点</div>
       <div class="a">所有抽象统一从 <span class="mono">agent_framework</span> 导出（<span class="mono">Agent</span>、
-        <span class="mono">Message</span>、<span class="mono">ai_function</span>、
+        <span class="mono">Message</span>、<span class="mono">tool</span>、
         <span class="mono">WorkflowBuilder</span>……）；文件命名以 <span class="mono">_</span> 前缀表示"内部"，
         通过 <span class="mono">__init__.py</span> 的 <span class="mono">__all__</span> 再暴露——
         重构内部不影响用户代码。</div>
@@ -819,7 +819,7 @@ agent = Agent(
   <tr><td class="mono">Agent</td><td class="mono">ChatClientAgent</td><td>Agent 实体（带循环）</td></tr>
   <tr><td class="mono">ChatClient</td><td class="mono">IChatClient</td><td>厂商无关客户端</td></tr>
   <tr><td class="mono">Message / Role</td><td class="mono">Message / ChatRole</td><td>类型化消息</td></tr>
-  <tr><td class="mono">@ai_function</td><td class="mono">[Description] + AIFunctionFactory</td><td>把函数转成工具</td></tr>
+  <tr><td class="mono">@tool</td><td class="mono">[Description] + AIFunctionFactory</td><td>把函数转成工具</td></tr>
   <tr><td class="mono">_workflows/</td><td class="mono">Microsoft.Agents.AI.Workflows</td><td>图式编排</td></tr>
   <tr><td class="mono">observability/</td><td class="mono">Microsoft.Extensions.AI.Telemetry</td><td>OTel 集成</td></tr>
   <tr><td class="mono">agent.run() / .run_stream()</td><td class="mono">RunAsync() / RunStreamingAsync()</td><td>同步与流式入口</td></tr>
@@ -1038,7 +1038,7 @@ print(result.text)
 <span class="cm">   → ChatClient 抛出 ChatClientError</span>
 
 <span class="cm"># 2) 工具函数抛异常</span>
-<span class="kw">@ai_function</span>
+<span class="kw">@tool</span>
 <span class="kw">def</span> get_weather(city: str) -&gt; str:
     <span class="kw">raise</span> RuntimeError(<span class="st">"weather API down"</span>)
 <span class="cm">   → Agent 捕获后包成 FunctionResultContent(error=...)</span>

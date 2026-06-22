@@ -443,7 +443,7 @@ print(result.text)
 <span class="cm">   → ChatClient 抛出 ChatClientError</span>
 
 <span class="cm"># 2) 工具函数抛异常</span>
-<span class="kw">@ai_function</span>
+<span class="kw">@tool</span>
 <span class="kw">def</span> get_weather(city: str) -&gt; str:
     <span class="kw">raise</span> RuntimeError(<span class="st">"weather API down"</span>)
 <span class="cm">   → Agent 捕获后包成 FunctionResultContent(error=...)</span>
@@ -670,7 +670,7 @@ print(result.text)
 <span class="cm">   → ChatClient raises ChatClientError</span>
 
 <span class="cm"># 2) Tool function raises</span>
-<span class="kw">@ai_function</span>
+<span class="kw">@tool</span>
 <span class="kw">def</span> get_weather(city: str) -&gt; str:
     <span class="kw">raise</span> RuntimeError(<span class="st">"weather API down"</span>)
 <span class="cm">   → Agent wraps it as FunctionResultContent(error=...),</span>

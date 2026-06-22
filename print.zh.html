@@ -4639,16 +4639,18 @@ Agent 不再只有工具，还有<strong>知识库</strong>。</p>
 <h2>定义一个技能</h2>
 <div class="codefile">
   <div class="cf-head"><span class="dot"></span><span class="path">代码定义技能</span></div>
-<pre><span class="kw">from</span> agent_framework <span class="kw">import</span> InlineSkill, InlineSkillResource
+<pre><span class="kw">from</span> agent_framework <span class="kw">import</span> InlineSkill, InlineSkillResource, SkillFrontmatter
 
 skill = InlineSkill(
-    name=<span class="st">"company-policies"</span>,
-    description=<span class="st">"Company HR policies and guidelines"</span>,
+    frontmatter=SkillFrontmatter(
+        name=<span class="st">"company-policies"</span>,
+        description=<span class="st">"Company HR policies and guidelines"</span>,
+    ),
+    instructions=<span class="st">"回答员工问题时应用以下 HR 政策。"</span>,
     resources=[
         InlineSkillResource(
             name=<span class="st">"leave-policy"</span>,
             content=<span class="st">"Employees get 20 days PTO per year..."</span>,
-            mime_type=<span class="st">"text/plain"</span>,
         ),
     ],
 )</pre>
@@ -4661,7 +4663,7 @@ skill = InlineSkill(
       <div class="q">🧪 示例</div>
       <div class="a">技能可以从三种来源加载：
 <pre class="code"><span class="cm"># 1. 代码内联定义（InlineSkill）</span>
-skill = InlineSkill(name=<span class="st">"..."</span>, resources=[...])
+skill = InlineSkill(frontmatter=..., instructions=...)
 
 <span class="cm"># 2. 文件系统加载（文件夹里放 .md/.py 等）</span>
 <span class="cm"># samples/02-agents/skills/file_based_skill/</span>

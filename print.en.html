@@ -4688,16 +4688,18 @@ Agents get not just tools but <strong>knowledge bases</strong>.</p>
 <h2>Define a skill</h2>
 <div class="codefile">
   <div class="cf-head"><span class="dot"></span><span class="path">code-defined skill</span></div>
-<pre><span class="kw">from</span> agent_framework <span class="kw">import</span> InlineSkill, InlineSkillResource
+<pre><span class="kw">from</span> agent_framework <span class="kw">import</span> InlineSkill, InlineSkillResource, SkillFrontmatter
 
 skill = InlineSkill(
-    name=<span class="st">"company-policies"</span>,
-    description=<span class="st">"Company HR policies and guidelines"</span>,
+    frontmatter=SkillFrontmatter(
+        name=<span class="st">"company-policies"</span>,
+        description=<span class="st">"Company HR policies and guidelines"</span>,
+    ),
+    instructions=<span class="st">"Apply these HR policies when answering employee questions."</span>,
     resources=[
         InlineSkillResource(
             name=<span class="st">"leave-policy"</span>,
             content=<span class="st">"Employees get 20 days PTO per year..."</span>,
-            mime_type=<span class="st">"text/plain"</span>,
         ),
     ],
 )</pre>
@@ -4710,7 +4712,7 @@ skill = InlineSkill(
       <div class="q">🧪 Example</div>
       <div class="a">Skills can be loaded from three sources:
 <pre class="code"><span class="cm"># 1. Inline (InlineSkill)</span>
-skill = InlineSkill(name=<span class="st">"..."</span>, resources=[...])
+skill = InlineSkill(frontmatter=..., instructions=...)
 
 <span class="cm"># 2. File system (folder with .md/.py files)</span>
 <span class="cm"># samples/02-agents/skills/file_based_skill/</span>

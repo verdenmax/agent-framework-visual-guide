@@ -299,6 +299,23 @@ uv run poe typing <span class="cm"># pyright 类型检查</span></pre></div></di
   <tr><td>读代码规范</td><td class="mono">CODING_STANDARD.md · AGENTS.md</td></tr>
 </table>
 
+<h2>开发闭环：改 → 验 → 调 → 提</h2>
+<div class="flow">
+  <div class="node"><div class="nt">clone</div><div class="nd">git clone</div></div>
+  <div class="arrow">→</div>
+  <div class="node"><div class="nt">装依赖</div><div class="nd">uv sync</div></div>
+  <div class="arrow">→</div>
+  <div class="node hl"><div class="nt">改代码</div><div class="nd">edit packages/core</div></div>
+  <div class="arrow">→</div>
+  <div class="node"><div class="nt">本地验证</div><div class="nd">poe format · lint · typing · test</div></div>
+  <div class="arrow">→</div>
+  <div class="node"><div class="nt">DevUI 调试</div><div class="nd">浏览器看消息 / 工具流</div></div>
+  <div class="arrow">→</div>
+  <div class="node"><div class="nt">提 PR</div><div class="nd">CI 跑同一套 poe</div></div>
+</div>
+<p>这是一个<strong>闭环</strong>：<span class="mono">poe typing</span> / <span class="mono">poe test</span> 或 DevUI 一旦报问题，就回到“改代码”再验一遍。
+关键在于<strong>本地跑的 poe 任务和 CI 完全一致</strong>——所以“本地全绿”基本等于“CI 大概率绿”，能在推送前就拦下大多数问题。</p>
+
 <details class="accordion">
   <summary><span class="badge-num">1</span> uv 为什么比 pip 好 <span class="hint">点击展开详解</span></summary>
   <div class="acc-body">
@@ -481,7 +498,54 @@ cat AGENTS.md</pre>
   <strong>一条命令装好一切</strong>：<span class="mono">uv sync --all-packages</span> 装整个 monorepo 的所有包，
   包括 provider、lab、DevUI——你拿到的是完整的开发环境，不是阉割版。
 </div>
+<div class="selftest">
+<h2>🧪 自测 · 想一想为什么这么设计</h2>
+<div class="quiz">
+  <div class="qn">1. 为什么 MAF 让<strong>本地开发</strong>和 <strong>CI</strong> 都通过同一套 <code>uv run poe &lt;task&gt;</code> 命令跑质量门？</div>
+  <ol class="opts">
+    <li>任务定义在 <code>pyproject.toml</code> 里、本地与 CI 完全一致——“本地全绿”基本等于“CI 大概率绿”，新人也只需记几条命令</li>
+    <li>因为 poe 能让被测代码运行得更快</li>
+    <li>因为 uv 本身不支持运行测试</li>
+    <li>因为 CI 环境里不能直接调用 pytest</li>
+  </ol>
+  <details class="accordion">
+    <summary>看答案与解析 <span class="hint">点击展开</span></summary>
+    <div class="acc-body"><div class="qa"><div class="a"><strong>答案：A</strong>。poe（poethepoet）把每个质量门定义成 <code>[tool.poe.tasks]</code> 里的一条命令，本地和 CI 跑<strong>完全相同</strong>的东西——可复现、低心智负担。<code>poe lint</code> / <code>poe typing</code> / <code>poe test</code> 一条对应一个门。</div></div></div>
+  </details>
 </div>
+<div class="quiz">
+  <div class="qn">2. MAF 用 <code>uv sync</code>（带 <code>uv.lock</code> 的 workspace）来装依赖，而不是一堆 <code>pip install -r requirements.txt</code>，主要因为？</div>
+  <ol class="opts">
+    <li>uv 会在装依赖时顺便帮你写好代码</li>
+    <li>因为 pip 在所有系统上都已被禁用</li>
+    <li>因为 uv 一次只能装一个包，更安全</li>
+    <li>锁定文件能精确锁住每个传递依赖、保证可复现，workspace 模式还能一条命令原子装好整个 monorepo 的多个包</li>
+  </ol>
+  <details class="accordion">
+    <summary>看答案与解析 <span class="hint">点击展开</span></summary>
+    <div class="acc-body"><div class="qa"><div class="a"><strong>答案：D</strong>。可复现构建需要 lockfile（pip 本身没有内置锁定），monorepo 需要 workspace 一次装好相互依赖的多个本地包；uv 又快，能显著省下 CI 时间。</div></div></div>
+  </details>
+</div>
+<div class="quiz">
+  <div class="qn">3. 你想在<strong>本地</strong>跑一遍类型检查（MyPy + Pyright）再提 PR。正确的命令是？</div>
+  <ol class="opts">
+    <li><code>uv run poe mypy-only</code></li>
+    <li><code>uv run poe typing</code></li>
+    <li><code>python -m typing</code></li>
+    <li><code>uv run poe typecheck</code></li>
+  </ol>
+  <details class="accordion">
+    <summary>看答案与解析 <span class="hint">点击展开</span></summary>
+    <div class="acc-body"><div class="qa"><div class="a"><strong>答案：B</strong>。真实任务名是 <code>poe typing</code>（底层同时跑 MyPy 和 Pyright），并没有 <code>typecheck</code> 这个任务。提 PR 前的本地门通常是 <code>poe lint</code> → <code>poe typing</code> → <code>poe test</code>；而 DevUI 用来“看得见”地调试消息 / 工具 / 中间件流，是纯 CLI 看不到的中间态。</div></div></div>
+  </details>
+</div>
+<div class="card spark">
+  <div class="tag">💭 发散思考（没有标准答案，动手或动脑想想）</div>
+  <ul>
+    <li>你要给 <code>packages/core</code> 修一个小 bug。请照本课的“开发闭环”写出从 clone 到提 PR 前你会<strong>依次</strong>敲的命令，并说说 DevUI 在这个闭环里替代了哪种“低效的调试方式”、为什么它对调试 Agent 特别有用。</li>
+  </ul>
+</div>
+</div></div>
 <div class="i18n" data-lang="en">
 <p class="lead">Want to read MAF source, run tests, debug, contribute PRs? This lesson sets up the environment
 and walks through the developer workflow.</p>
@@ -517,6 +581,23 @@ uv run poe typing <span class="cm"># pyright</span></pre></div></div>
   <tr><td>DevUI</td><td class="mono">packages/devui/</td></tr>
   <tr><td>Coding standards</td><td class="mono">CODING_STANDARD.md · AGENTS.md</td></tr>
 </table>
+
+<h2>The dev loop: edit → verify → debug → submit</h2>
+<div class="flow">
+  <div class="node"><div class="nt">clone</div><div class="nd">git clone</div></div>
+  <div class="arrow">→</div>
+  <div class="node"><div class="nt">install</div><div class="nd">uv sync</div></div>
+  <div class="arrow">→</div>
+  <div class="node hl"><div class="nt">edit</div><div class="nd">packages/core</div></div>
+  <div class="arrow">→</div>
+  <div class="node"><div class="nt">verify locally</div><div class="nd">poe format · lint · typing · test</div></div>
+  <div class="arrow">→</div>
+  <div class="node"><div class="nt">debug in DevUI</div><div class="nd">see message / tool flow</div></div>
+  <div class="arrow">→</div>
+  <div class="node"><div class="nt">open PR</div><div class="nd">CI runs the same poe</div></div>
+</div>
+<p>It's a <strong>loop</strong>: the moment <span class="mono">poe typing</span> / <span class="mono">poe test</span> or DevUI flags something, you go back to &quot;edit&quot; and verify again.
+The key is that <strong>the poe tasks you run locally are identical to CI</strong> - so &quot;green locally&quot; basically means &quot;green in CI&quot;, catching most issues before you ever push.</p>
 
 <details class="accordion">
   <summary><span class="badge-num">1</span> Why uv over pip <span class="hint">expand</span></summary>
@@ -700,7 +781,54 @@ cat AGENTS.md</pre>
   <strong>One command installs everything</strong>: <span class="mono">uv sync --all-packages</span> installs the
   entire monorepo — all providers, lab, DevUI — giving you the full dev environment, not a stripped-down one.
 </div>
+<div class="selftest">
+<h2>🧪 Self-test - think about the design</h2>
+<div class="quiz">
+  <div class="qn">1. Why does MAF run quality gates through the same <code>uv run poe &lt;task&gt;</code> commands both <strong>locally</strong> and in <strong>CI</strong>?</div>
+  <ol class="opts">
+    <li>Tasks live in <code>pyproject.toml</code> and are identical locally and in CI - so &quot;green locally&quot; basically means &quot;green in CI&quot;, and newcomers only memorize a few commands</li>
+    <li>Because poe makes the code under test run faster</li>
+    <li>Because uv itself cannot run tests</li>
+    <li>Because pytest cannot be invoked directly in CI</li>
+  </ol>
+  <details class="accordion">
+    <summary>Show answer &amp; explanation <span class="hint">click to expand</span></summary>
+    <div class="acc-body"><div class="qa"><div class="a"><strong>Answer: A</strong>. poe (poethepoet) defines each gate as a command under <code>[tool.poe.tasks]</code>, so local and CI run the <strong>exact same</strong> thing - reproducible and low cognitive load. <code>poe lint</code> / <code>poe typing</code> / <code>poe test</code> map one-to-one to gates.</div></div></div>
+  </details>
 </div>
+<div class="quiz">
+  <div class="qn">2. MAF installs deps with <code>uv sync</code> (a workspace backed by <code>uv.lock</code>) instead of several <code>pip install -r requirements.txt</code>. Mainly because?</div>
+  <ol class="opts">
+    <li>uv writes your code for you while installing</li>
+    <li>Because pip is disabled on all systems</li>
+    <li>Because uv can only install one package at a time, which is safer</li>
+    <li>The lockfile pins every transitive dependency for reproducibility, and workspace mode atomically installs all packages of the monorepo in one command</li>
+  </ol>
+  <details class="accordion">
+    <summary>Show answer &amp; explanation <span class="hint">click to expand</span></summary>
+    <div class="acc-body"><div class="qa"><div class="a"><strong>Answer: D</strong>. Reproducible builds need a lockfile (pip has no built-in locking), and a monorepo needs a workspace to install several inter-dependent local packages at once; uv is also fast, saving real CI time.</div></div></div>
+  </details>
+</div>
+<div class="quiz">
+  <div class="qn">3. You want to run type checking (MyPy + Pyright) <strong>locally</strong> before opening a PR. The correct command is?</div>
+  <ol class="opts">
+    <li><code>uv run poe mypy-only</code></li>
+    <li><code>uv run poe typing</code></li>
+    <li><code>python -m typing</code></li>
+    <li><code>uv run poe typecheck</code></li>
+  </ol>
+  <details class="accordion">
+    <summary>Show answer &amp; explanation <span class="hint">click to expand</span></summary>
+    <div class="acc-body"><div class="qa"><div class="a"><strong>Answer: B</strong>. The real task is <code>poe typing</code> (it runs both MyPy and Pyright underneath); there is no <code>typecheck</code> task. The pre-PR local gate is usually <code>poe lint</code> → <code>poe typing</code> → <code>poe test</code>; DevUI is for <em>visually</em> debugging message / tool / middleware flow you can't see from the CLI.</div></div></div>
+  </details>
+</div>
+<div class="card spark">
+  <div class="tag">💭 Open questions (no single right answer - just think or try)</div>
+  <ul>
+    <li>You're fixing a small bug in <code>packages/core</code>. Following this lesson's &quot;dev loop&quot;, write the commands you'd run <strong>in order</strong> from clone to just-before-PR, and explain which &quot;inefficient debugging habit&quot; DevUI replaces in that loop and why it's especially useful for debugging Agents.</li>
+  </ul>
+</div>
+</div></div>
   <div class="footnav"><a class="prev" href="14-streaming-observability.html"><div class="dir"><span class="i18n" data-lang="zh">← 上一课</span><span class="i18n" data-lang="en">← Prev</span></div><div class="ttl"><span class="i18n" data-lang="zh">流式与可观测性</span><span class="i18n" data-lang="en">Streaming & Observability</span></div></a><a class="next" href="16-providers.html"><div class="dir"><span class="i18n" data-lang="zh">下一课 →</span><span class="i18n" data-lang="en">Next →</span></div><div class="ttl"><span class="i18n" data-lang="zh">接入各家模型</span><span class="i18n" data-lang="en">Model Providers</span></div></a></div>
 </div>
 

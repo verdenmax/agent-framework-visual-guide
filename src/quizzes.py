@@ -886,6 +886,91 @@ QUIZZES = {
             },
         ],
     },
+    "15-contributing.html": {
+        "mcq": [
+            {
+                "q": {
+                    "zh": "为什么 MAF 让<strong>本地开发</strong>和 <strong>CI</strong> 都通过同一套 <code>uv run poe &lt;task&gt;</code> 命令跑质量门？",
+                    "en": "Why does MAF run quality gates through the same <code>uv run poe &lt;task&gt;</code> commands both <strong>locally</strong> and in <strong>CI</strong>?",
+                },
+                "opts": [
+                    {
+                        "zh": "任务定义在 <code>pyproject.toml</code> 里、本地与 CI 完全一致——“本地全绿”基本等于“CI 大概率绿”，新人也只需记几条命令",
+                        "en": "Tasks live in <code>pyproject.toml</code> and are identical locally and in CI - so &quot;green locally&quot; basically means &quot;green in CI&quot;, and newcomers only memorize a few commands",
+                    },
+                    {
+                        "zh": "因为 poe 能让被测代码运行得更快",
+                        "en": "Because poe makes the code under test run faster",
+                    },
+                    {
+                        "zh": "因为 CI 环境里不能直接调用 pytest",
+                        "en": "Because pytest cannot be invoked directly in CI",
+                    },
+                    {
+                        "zh": "因为 uv 本身不支持运行测试",
+                        "en": "Because uv itself cannot run tests",
+                    },
+                ],
+                "answer": 0,
+                "why": {
+                    "zh": "poe（poethepoet）把每个质量门定义成 <code>[tool.poe.tasks]</code> 里的一条命令，本地和 CI 跑<strong>完全相同</strong>的东西——可复现、低心智负担。<code>poe lint</code> / <code>poe typing</code> / <code>poe test</code> 一条对应一个门。",
+                    "en": "poe (poethepoet) defines each gate as a command under <code>[tool.poe.tasks]</code>, so local and CI run the <strong>exact same</strong> thing - reproducible and low cognitive load. <code>poe lint</code> / <code>poe typing</code> / <code>poe test</code> map one-to-one to gates.",
+                },
+            },
+            {
+                "q": {
+                    "zh": "MAF 用 <code>uv sync</code>（带 <code>uv.lock</code> 的 workspace）来装依赖，而不是一堆 <code>pip install -r requirements.txt</code>，主要因为？",
+                    "en": "MAF installs deps with <code>uv sync</code> (a workspace backed by <code>uv.lock</code>) instead of several <code>pip install -r requirements.txt</code>. Mainly because?",
+                },
+                "opts": [
+                    {
+                        "zh": "锁定文件能精确锁住每个传递依赖、保证可复现，workspace 模式还能一条命令原子装好整个 monorepo 的多个包",
+                        "en": "The lockfile pins every transitive dependency for reproducibility, and workspace mode atomically installs all packages of the monorepo in one command",
+                    },
+                    {
+                        "zh": "uv 会在装依赖时顺便帮你写好代码",
+                        "en": "uv writes your code for you while installing",
+                    },
+                    {
+                        "zh": "因为 pip 在所有系统上都已被禁用",
+                        "en": "Because pip is disabled on all systems",
+                    },
+                    {
+                        "zh": "因为 uv 一次只能装一个包，更安全",
+                        "en": "Because uv can only install one package at a time, which is safer",
+                    },
+                ],
+                "answer": 0,
+                "why": {
+                    "zh": "可复现构建需要 lockfile（pip 本身没有内置锁定），monorepo 需要 workspace 一次装好相互依赖的多个本地包；uv 又快，能显著省下 CI 时间。",
+                    "en": "Reproducible builds need a lockfile (pip has no built-in locking), and a monorepo needs a workspace to install several inter-dependent local packages at once; uv is also fast, saving real CI time.",
+                },
+            },
+            {
+                "q": {
+                    "zh": "你想在<strong>本地</strong>跑一遍类型检查（MyPy + Pyright）再提 PR。正确的命令是？",
+                    "en": "You want to run type checking (MyPy + Pyright) <strong>locally</strong> before opening a PR. The correct command is?",
+                },
+                "opts": [
+                    {"zh": "<code>uv run poe typing</code>", "en": "<code>uv run poe typing</code>"},
+                    {"zh": "<code>uv run poe typecheck</code>", "en": "<code>uv run poe typecheck</code>"},
+                    {"zh": "<code>uv run poe mypy-only</code>", "en": "<code>uv run poe mypy-only</code>"},
+                    {"zh": "<code>python -m typing</code>", "en": "<code>python -m typing</code>"},
+                ],
+                "answer": 0,
+                "why": {
+                    "zh": "真实任务名是 <code>poe typing</code>（底层同时跑 MyPy 和 Pyright），并没有 <code>typecheck</code> 这个任务。提 PR 前的本地门通常是 <code>poe lint</code> → <code>poe typing</code> → <code>poe test</code>；而 DevUI 用来“看得见”地调试消息 / 工具 / 中间件流，是纯 CLI 看不到的中间态。",
+                    "en": "The real task is <code>poe typing</code> (it runs both MyPy and Pyright underneath); there is no <code>typecheck</code> task. The pre-PR local gate is usually <code>poe lint</code> → <code>poe typing</code> → <code>poe test</code>; DevUI is for <em>visually</em> debugging message / tool / middleware flow you can't see from the CLI.",
+                },
+            },
+        ],
+        "open": [
+            {
+                "zh": "你要给 <code>packages/core</code> 修一个小 bug。请照本课的“开发闭环”写出从 clone 到提 PR 前你会<strong>依次</strong>敲的命令，并说说 DevUI 在这个闭环里替代了哪种“低效的调试方式”、为什么它对调试 Agent 特别有用。",
+                "en": "You're fixing a small bug in <code>packages/core</code>. Following this lesson's &quot;dev loop&quot;, write the commands you'd run <strong>in order</strong> from clone to just-before-PR, and explain which &quot;inefficient debugging habit&quot; DevUI replaces in that loop and why it's especially useful for debugging Agents.",
+            },
+        ],
+    },
     "23-skills.html": {
         "mcq": [
             {

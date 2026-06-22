@@ -35,6 +35,23 @@ uv run poe typing <span class="cm"># pyright 类型检查</span></pre></div></di
   <tr><td>读代码规范</td><td class="mono">CODING_STANDARD.md · AGENTS.md</td></tr>
 </table>
 
+<h2>开发闭环：改 → 验 → 调 → 提</h2>
+<div class="flow">
+  <div class="node"><div class="nt">clone</div><div class="nd">git clone</div></div>
+  <div class="arrow">→</div>
+  <div class="node"><div class="nt">装依赖</div><div class="nd">uv sync</div></div>
+  <div class="arrow">→</div>
+  <div class="node hl"><div class="nt">改代码</div><div class="nd">edit packages/core</div></div>
+  <div class="arrow">→</div>
+  <div class="node"><div class="nt">本地验证</div><div class="nd">poe format · lint · typing · test</div></div>
+  <div class="arrow">→</div>
+  <div class="node"><div class="nt">DevUI 调试</div><div class="nd">浏览器看消息 / 工具流</div></div>
+  <div class="arrow">→</div>
+  <div class="node"><div class="nt">提 PR</div><div class="nd">CI 跑同一套 poe</div></div>
+</div>
+<p>这是一个<strong>闭环</strong>：<span class="mono">poe typing</span> / <span class="mono">poe test</span> 或 DevUI 一旦报问题，就回到“改代码”再验一遍。
+关键在于<strong>本地跑的 poe 任务和 CI 完全一致</strong>——所以“本地全绿”基本等于“CI 大概率绿”，能在推送前就拦下大多数问题。</p>
+
 <details class="accordion">
   <summary><span class="badge-num">1</span> uv 为什么比 pip 好 <span class="hint">点击展开详解</span></summary>
   <div class="acc-body">
@@ -254,6 +271,23 @@ uv run poe typing <span class="cm"># pyright</span></pre></div></div>
   <tr><td>DevUI</td><td class="mono">packages/devui/</td></tr>
   <tr><td>Coding standards</td><td class="mono">CODING_STANDARD.md · AGENTS.md</td></tr>
 </table>
+
+<h2>The dev loop: edit → verify → debug → submit</h2>
+<div class="flow">
+  <div class="node"><div class="nt">clone</div><div class="nd">git clone</div></div>
+  <div class="arrow">→</div>
+  <div class="node"><div class="nt">install</div><div class="nd">uv sync</div></div>
+  <div class="arrow">→</div>
+  <div class="node hl"><div class="nt">edit</div><div class="nd">packages/core</div></div>
+  <div class="arrow">→</div>
+  <div class="node"><div class="nt">verify locally</div><div class="nd">poe format · lint · typing · test</div></div>
+  <div class="arrow">→</div>
+  <div class="node"><div class="nt">debug in DevUI</div><div class="nd">see message / tool flow</div></div>
+  <div class="arrow">→</div>
+  <div class="node"><div class="nt">open PR</div><div class="nd">CI runs the same poe</div></div>
+</div>
+<p>It's a <strong>loop</strong>: the moment <span class="mono">poe typing</span> / <span class="mono">poe test</span> or DevUI flags something, you go back to &quot;edit&quot; and verify again.
+The key is that <strong>the poe tasks you run locally are identical to CI</strong> - so &quot;green locally&quot; basically means &quot;green in CI&quot;, catching most issues before you ever push.</p>
 
 <details class="accordion">
   <summary><span class="badge-num">1</span> Why uv over pip <span class="hint">expand</span></summary>

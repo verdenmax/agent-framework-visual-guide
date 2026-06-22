@@ -4841,6 +4841,23 @@ uv run poe typing <span class="cm"># pyright</span></pre></div></div>
   <tr><td>Coding standards</td><td class="mono">CODING_STANDARD.md · AGENTS.md</td></tr>
 </table>
 
+<h2>The dev loop: edit → verify → debug → submit</h2>
+<div class="flow">
+  <div class="node"><div class="nt">clone</div><div class="nd">git clone</div></div>
+  <div class="arrow">→</div>
+  <div class="node"><div class="nt">install</div><div class="nd">uv sync</div></div>
+  <div class="arrow">→</div>
+  <div class="node hl"><div class="nt">edit</div><div class="nd">packages/core</div></div>
+  <div class="arrow">→</div>
+  <div class="node"><div class="nt">verify locally</div><div class="nd">poe format · lint · typing · test</div></div>
+  <div class="arrow">→</div>
+  <div class="node"><div class="nt">debug in DevUI</div><div class="nd">see message / tool flow</div></div>
+  <div class="arrow">→</div>
+  <div class="node"><div class="nt">open PR</div><div class="nd">CI runs the same poe</div></div>
+</div>
+<p>It's a <strong>loop</strong>: the moment <span class="mono">poe typing</span> / <span class="mono">poe test</span> or DevUI flags something, you go back to &quot;edit&quot; and verify again.
+The key is that <strong>the poe tasks you run locally are identical to CI</strong> - so &quot;green locally&quot; basically means &quot;green in CI&quot;, catching most issues before you ever push.</p>
+
 <details class="accordion" open>
   <summary><span class="badge-num">1</span> Why uv over pip <span class="hint">expand</span></summary>
   <div class="acc-body">
@@ -5023,7 +5040,54 @@ cat AGENTS.md</pre>
   <strong>One command installs everything</strong>: <span class="mono">uv sync --all-packages</span> installs the
   entire monorepo — all providers, lab, DevUI — giving you the full dev environment, not a stripped-down one.
 </div>
-</div></section>
+<div class="selftest">
+<h2>🧪 Self-test - think about the design</h2>
+<div class="quiz">
+  <div class="qn">1. Why does MAF run quality gates through the same <code>uv run poe &lt;task&gt;</code> commands both <strong>locally</strong> and in <strong>CI</strong>?</div>
+  <ol class="opts">
+    <li>Tasks live in <code>pyproject.toml</code> and are identical locally and in CI - so &quot;green locally&quot; basically means &quot;green in CI&quot;, and newcomers only memorize a few commands</li>
+    <li>Because poe makes the code under test run faster</li>
+    <li>Because uv itself cannot run tests</li>
+    <li>Because pytest cannot be invoked directly in CI</li>
+  </ol>
+  <details class="accordion" open>
+    <summary>Show answer &amp; explanation <span class="hint">click to expand</span></summary>
+    <div class="acc-body"><div class="qa"><div class="a"><strong>Answer: A</strong>. poe (poethepoet) defines each gate as a command under <code>[tool.poe.tasks]</code>, so local and CI run the <strong>exact same</strong> thing - reproducible and low cognitive load. <code>poe lint</code> / <code>poe typing</code> / <code>poe test</code> map one-to-one to gates.</div></div></div>
+  </details>
+</div>
+<div class="quiz">
+  <div class="qn">2. MAF installs deps with <code>uv sync</code> (a workspace backed by <code>uv.lock</code>) instead of several <code>pip install -r requirements.txt</code>. Mainly because?</div>
+  <ol class="opts">
+    <li>uv writes your code for you while installing</li>
+    <li>Because pip is disabled on all systems</li>
+    <li>Because uv can only install one package at a time, which is safer</li>
+    <li>The lockfile pins every transitive dependency for reproducibility, and workspace mode atomically installs all packages of the monorepo in one command</li>
+  </ol>
+  <details class="accordion" open>
+    <summary>Show answer &amp; explanation <span class="hint">click to expand</span></summary>
+    <div class="acc-body"><div class="qa"><div class="a"><strong>Answer: D</strong>. Reproducible builds need a lockfile (pip has no built-in locking), and a monorepo needs a workspace to install several inter-dependent local packages at once; uv is also fast, saving real CI time.</div></div></div>
+  </details>
+</div>
+<div class="quiz">
+  <div class="qn">3. You want to run type checking (MyPy + Pyright) <strong>locally</strong> before opening a PR. The correct command is?</div>
+  <ol class="opts">
+    <li><code>uv run poe mypy-only</code></li>
+    <li><code>uv run poe typing</code></li>
+    <li><code>python -m typing</code></li>
+    <li><code>uv run poe typecheck</code></li>
+  </ol>
+  <details class="accordion" open>
+    <summary>Show answer &amp; explanation <span class="hint">click to expand</span></summary>
+    <div class="acc-body"><div class="qa"><div class="a"><strong>Answer: B</strong>. The real task is <code>poe typing</code> (it runs both MyPy and Pyright underneath); there is no <code>typecheck</code> task. The pre-PR local gate is usually <code>poe lint</code> → <code>poe typing</code> → <code>poe test</code>; DevUI is for <em>visually</em> debugging message / tool / middleware flow you can't see from the CLI.</div></div></div>
+  </details>
+</div>
+<div class="card spark">
+  <div class="tag">💭 Open questions (no single right answer - just think or try)</div>
+  <ul>
+    <li>You're fixing a small bug in <code>packages/core</code>. Following this lesson's &quot;dev loop&quot;, write the commands you'd run <strong>in order</strong> from clone to just-before-PR, and explain which &quot;inefficient debugging habit&quot; DevUI replaces in that loop and why it's especially useful for debugging Agents.</li>
+  </ul>
+</div>
+</div></div></section>
 <section class="print-lesson"><div class="wrap"><div class="lesson-head"><div class="lp">Part 5 · Build Your Own</div><h1><span class="ln">16 ·</span> Model Providers</h1></div>
 <p class="lead">MAF's ChatClient is vendor-agnostic — but you pick a concrete vendor to <strong>connect a model</strong>.
 This lesson surveys the main provider packages and shows the <strong>import-to-run path</strong>.</p>

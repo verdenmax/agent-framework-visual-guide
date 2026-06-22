@@ -22,7 +22,7 @@ cd agent-framework/python</pre></div></div>
 uv run poe test     <span class="cm"># 跑所有单元测试</span>
 uv run poe lint     <span class="cm"># Ruff lint</span>
 uv run poe format   <span class="cm"># Ruff format</span>
-uv run poe typecheck <span class="cm"># pyright 类型检查</span></pre></div></div>
+uv run poe typing <span class="cm"># pyright 类型检查</span></pre></div></div>
 </div>
 
 <h2>关键文件导航</h2>
@@ -74,7 +74,7 @@ cd packages/core && uv run poe test  <span class="cm"># 单包测试</span></pre
 <pre class="code">uv run poe test      <span class="cm"># 运行 pytest</span>
 uv run poe lint      <span class="cm"># ruff check（快速 linter）</span>
 uv run poe format    <span class="cm"># ruff format（格式化）</span>
-uv run poe typecheck <span class="cm"># pyright（类型检查）</span></pre>
+uv run poe typing <span class="cm"># pyright（类型检查）</span></pre>
         单包运行：
 <pre class="code">cd packages/core
 uv run poe test  <span class="cm"># 只测 core 包</span></pre></div>
@@ -173,7 +173,7 @@ uv run python main.py</pre>
       <div class="q">🧪 示例</div>
       <div class="a">分支命名：<span class="inline">feature/my-change</span> 或 <span class="inline">fix/issue-123</span>。
         本地运行质量门：
-<pre class="code">uv run poe lint && uv run poe typecheck && uv run poe test</pre>
+<pre class="code">uv run poe lint && uv run poe typing && uv run poe test</pre>
         阅读代码规范：
 <pre class="code">cat CODING_STANDARD.md
 cat AGENTS.md</pre>
@@ -208,7 +208,7 @@ cat AGENTS.md</pre>
     <li>依赖管理用 <span class="mono">uv</span>；日常任务用 <span class="mono">uv run poe &lt;task&gt;</span>。</li>
     <li>核心在 <span class="mono">packages/core</span>，测试在 <span class="mono">packages/core/tests</span>。</li>
     <li>DevUI 提供浏览器调试界面，方便快速迭代。</li>
-    <li>提 PR 前先在本地跑通 lint/typecheck/test。</li>
+    <li>提 PR 前先在本地跑通 lint/typing/test。</li>
   </ul>
 </div>
 
@@ -242,7 +242,7 @@ cd agent-framework/python</pre></div></div>
 uv run poe test     <span class="cm"># unit tests</span>
 uv run poe lint     <span class="cm"># Ruff lint</span>
 uv run poe format   <span class="cm"># Ruff format</span>
-uv run poe typecheck <span class="cm"># pyright</span></pre></div></div>
+uv run poe typing <span class="cm"># pyright</span></pre></div></div>
 </div>
 
 <h2>Key file navigation</h2>
@@ -294,7 +294,7 @@ cd packages/core && uv run poe test  <span class="cm"># test single package</spa
 <pre class="code">uv run poe test      <span class="cm"># run pytest</span>
 uv run poe lint      <span class="cm"># ruff check (fast linter)</span>
 uv run poe format    <span class="cm"># ruff format</span>
-uv run poe typecheck <span class="cm"># pyright (type checker)</span></pre>
+uv run poe typing <span class="cm"># pyright (type checker)</span></pre>
         Run for one package:
 <pre class="code">cd packages/core
 uv run poe test  <span class="cm"># test core only</span></pre></div>
@@ -393,7 +393,7 @@ uv run python main.py</pre>
       <div class="q">🧪 Example</div>
       <div class="a">Branch naming: <span class="inline">feature/my-change</span> or <span class="inline">fix/issue-123</span>.
         Run quality gates locally:
-<pre class="code">uv run poe lint && uv run poe typecheck && uv run poe test</pre>
+<pre class="code">uv run poe lint && uv run poe typing && uv run poe test</pre>
         Read style rules:
 <pre class="code">cat CODING_STANDARD.md
 cat AGENTS.md</pre>
@@ -428,7 +428,7 @@ cat AGENTS.md</pre>
     <li>Dependency management: <span class="mono">uv</span>; daily tasks: <span class="mono">uv run poe &lt;task&gt;</span>.</li>
     <li>Core is in <span class="mono">packages/core</span>; tests in <span class="mono">packages/core/tests</span>.</li>
     <li>DevUI gives a browser-based debug interface for fast iteration.</li>
-    <li>Before submitting PR, run lint/typecheck/test locally.</li>
+    <li>Before submitting PR, run lint/typing/test locally.</li>
   </ul>
 </div>
 

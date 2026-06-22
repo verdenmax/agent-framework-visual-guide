@@ -362,6 +362,76 @@ QUIZZES = {
             },
         ],
     },
+    "12-workflows.html": {
+        "mcq": [
+            {
+                "q": {
+                    "zh": "在 <code>writer → reviewer</code> 图里，<code>writer</code> 调了 <code>ctx.send_message(draft)</code> 之后，<code>reviewer</code> 什么时候才第一次被唤起？",
+                    "en": "In the <code>writer → reviewer</code> graph, after <code>writer</code> calls <code>ctx.send_message(draft)</code>, when is <code>reviewer</code> first invoked?",
+                },
+                "opts": [
+                    {
+                        "zh": "在<strong>下一个超步</strong>——消息要等本超步结束、在边界统一投递后才送达",
+                        "en": "On the <strong>next superstep</strong> — the message is delivered only at the boundary after this superstep ends",
+                    },
+                    {"zh": "在 <code>send_message</code> 那一行<strong>同步</strong>立即调用", "en": "<strong>Synchronously</strong>, right on the <code>send_message</code> line"},
+                    {"zh": "只有当你显式调用 <code>reviewer.run()</code> 时", "en": "Only when you explicitly call <code>reviewer.run()</code>"},
+                    {"zh": "永远不会——<code>send_message</code> 只是写日志", "en": "Never — <code>send_message</code> only writes a log"},
+                ],
+                "answer": 0,
+                "why": {
+                    "zh": "Workflow 是 Pregel 式<strong>超步</strong>引擎：<code>send_message</code> 把消息缓冲到边上，引擎在<strong>超步边界</strong>统一投递并存检查点，下游节点要到下一超步才被唤起。这正是同一超步里多个节点能安全并行的前提（它们看不到彼此本步的输出）。",
+                    "en": "A Workflow is a Pregel-style <strong>superstep</strong> engine: <code>send_message</code> buffers the message on the edge, the engine delivers everything at the <strong>superstep boundary</strong> (and checkpoints), and the downstream node is invoked only on the next superstep. That's exactly why nodes in one superstep can parallelize safely — they can't see each other's output from that step.",
+                },
+            },
+            {
+                "q": {
+                    "zh": "与第 8 课的<strong>单 Agent 工具循环</strong>相比，Workflow 图最核心的额外能力来自哪里？",
+                    "en": "Compared with the <strong>single-agent tool loop</strong> from Lesson 8, where does a Workflow graph's most essential extra power come from?",
+                },
+                "opts": [
+                    {
+                        "zh": "每个超步边界都<strong>存检查点</strong>，于是可恢复、可并发、可暂停等人工输入",
+                        "en": "It <strong>checkpoints</strong> at every superstep boundary — so it's resumable, concurrent, and can pause for human input",
+                    },
+                    {"zh": "它换用了更快的模型", "en": "It swaps in a faster model"},
+                    {"zh": "它把消息列表压缩得更小", "en": "It compresses the message list smaller"},
+                    {"zh": "它去掉了对 ChatClient 的依赖", "en": "It removes the dependency on a ChatClient"},
+                ],
+                "answer": 0,
+                "why": {
+                    "zh": "单 Agent 循环把状态全放在一个内存消息列表里：简单、低延迟，但<strong>崩溃即丢失</strong>、天然串行。图把状态显式化为节点+边+超步，在边界存档——这才解锁了断点续跑、fan-out 并发、以及 <code>ctx.request_info()</code> 这类人在环暂停。代价是你得先把流程画成图。",
+                    "en": "The single-agent loop keeps all state in one in-memory message list: simple and low-latency, but <strong>lost on crash</strong> and inherently serial. The graph makes state explicit as nodes+edges+supersteps and checkpoints at boundaries — unlocking resume-after-crash, fan-out concurrency, and human-in-the-loop pauses via <code>ctx.request_info()</code>. The cost is having to draw the flow first.",
+                },
+            },
+            {
+                "q": {
+                    "zh": "<code>WorkflowBuilder(...).add_edge(a, b).build()</code> 里，<code>build()</code> 主要负责什么？",
+                    "en": "In <code>WorkflowBuilder(...).add_edge(a, b).build()</code>, what is <code>build()</code> mainly responsible for?",
+                },
+                "opts": [
+                    {
+                        "zh": "<strong>构建期校验</strong>（起始节点已设、图连通、相邻类型兼容）并返回<strong>不可变</strong>的 <code>Workflow</code>",
+                        "en": "<strong>Build-time validation</strong> (start set, graph connected, adjacent types compatible) and returning an <strong>immutable</strong> <code>Workflow</code>",
+                    },
+                    {"zh": "真正运行图、把结果打印出来", "en": "Actually running the graph and printing the result"},
+                    {"zh": "训练一个新模型", "en": "Training a new model"},
+                    {"zh": "把所有节点合并成一个大函数", "en": "Merging all nodes into one big function"},
+                ],
+                "answer": 0,
+                "why": {
+                    "zh": "<code>build()</code>（<code>_workflow_builder.py:725</code>）把校验放在<strong>构建期</strong>：类型不兼容、图不连通会立刻抛 <code>WorkflowValidationError</code>，而不是等你 <code>run()</code> 到一半才炸。它返回一个不可变 <code>Workflow</code>，可被重复 <code>run()</code>。注意起始节点是构造器参数 <code>start_executor=</code>，并没有 <code>set_start_executor()</code> 方法。",
+                    "en": "<code>build()</code> (<code>_workflow_builder.py:725</code>) puts validation at <strong>build time</strong>: incompatible types or a disconnected graph raise <code>WorkflowValidationError</code> immediately, instead of blowing up halfway through <code>run()</code>. It returns an immutable <code>Workflow</code> you can <code>run()</code> repeatedly. Note the start node is the constructor arg <code>start_executor=</code>; there is no <code>set_start_executor()</code> method.",
+                },
+            },
+        ],
+        "open": [
+            {
+                "zh": "设计一张<strong>三节点</strong> fan-out/fan-in 图：<code>splitter</code> 把任务分给 <code>worker_a</code> 和 <code>worker_b</code> 并行处理，再由 <code>merger</code> 汇总。请数一数这张图至少需要几个超步、<code>worker_a/worker_b</code> 会在<strong>同一个超步</strong>被唤起吗，以及如果 <code>worker_b</code> 中途崩溃，引擎能从哪个超步恢复？",
+                "en": "Design a <strong>three-node</strong> fan-out/fan-in graph: <code>splitter</code> dispatches work to <code>worker_a</code> and <code>worker_b</code> in parallel, then <code>merger</code> aggregates. Count how many supersteps this needs at minimum, decide whether <code>worker_a/worker_b</code> are invoked in the <strong>same superstep</strong>, and reason about which superstep the engine could resume from if <code>worker_b</code> crashes midway.",
+            },
+        ],
+    },
 }
 
 

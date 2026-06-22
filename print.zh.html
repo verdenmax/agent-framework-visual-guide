@@ -5771,6 +5771,131 @@ skill = InlineSkill(
 )</pre>
 </div>
 
+<h2>追踪一个 Skill 的装载与调用</h2>
+<p>抽象讲完，我们端到端走一遍：一个 HR 助理 Agent 挂了一个 <span class="mono">company-policies</span> 技能，
+用户问<strong>「我一年有几天年假？」</strong>。关键在于——技能<strong>不是</strong>一上来就把整本员工手册塞进 prompt，
+而是按<strong>渐进式披露（progressive disclosure）</strong>三步走：先<strong>广告</strong>标题、用时才<strong>装载</strong>正文、需要时再<strong>读取</strong>资源
+（<span class="mono">_skills.py:19</span> 的模块注释正是这么写的）。</p>
+
+<div class="codefile">
+  <div class="cf-head"><span class="dot"></span><span class="path">挂载技能</span></div>
+<pre><span class="kw">from</span> agent_framework <span class="kw">import</span> Agent, InlineSkill, InlineSkillResource, SkillFrontmatter, SkillsProvider
+
+skill = InlineSkill(
+    frontmatter=SkillFrontmatter(name=<span class="st">"company-policies"</span>,
+                                 description=<span class="st">"公司 HR 政策与员工手册"</span>),
+    instructions=<span class="st">"回答员工问题时，引用对应的 HR 政策资源。"</span>,
+    resources=[InlineSkillResource(name=<span class="st">"leave-policy"</span>,
+                                   content=<span class="st">"全职员工每年 20 天带薪年假，按工龄每满 3 年 +1 天……"</span>)],
+)
+agent = Agent(client=client, context_providers=SkillsProvider([skill]))   <span class="cm"># 技能 = 一个 ContextProvider</span>
+reply = <span class="kw">await</span> agent.run(<span class="st">"我一年有几天年假？"</span>)</pre>
+</div>
+
+<div class="vflow">
+  <div class="step"><div class="num">0</div><div class="sc"><h4>注册：技能即上下文提供者</h4>
+    <p><span class="mono">SkillsProvider</span>（<span class="mono">_skills.py:1719</span>）是一个 <span class="mono">ContextProvider</span>。
+    它<strong>不</strong>把正文塞进系统提示，只在每次 <span class="mono">run()</span> 前参与「组装上下文」这一步——和你在<a href="07-sessions-memory.html">第 7 课</a>见过的记忆注入是同一套机制。</p></div></div>
+  <div class="step"><div class="num">1</div><div class="sc"><h4>广告（Advertise）：只注入「标题页」</h4>
+    <p>provider 把每个技能的 <strong>name + description</strong> 包进 <span class="mono">&lt;available_skills&gt;</span> 注入系统提示，
+    约 <strong>~100 token/技能</strong>（<span class="mono">_skills.py:1732</span>）。模型此刻只知道「有一个 company-policies 技能」，<strong>看不到正文</strong>。</p>
+<pre class="code"><span class="cm"># 注入到 system prompt 的内容（节选）</span>
+&lt;available_skills&gt;
+  &lt;skill name=<span class="st">"company-policies"</span>
+         description=<span class="st">"公司 HR 政策与员工手册"</span>/&gt;
+&lt;/available_skills&gt;
+<span class="cm"># 提示还告诉模型：用 load_skill 取指令、用 read_skill_resource 读资源</span></pre></div></div>
+  <div class="step"><div class="num">2</div><div class="sc"><h4>模型决策：这题对口 → 调 load_skill</h4>
+    <p>「年假」与 company-policies 的 description 对口，模型<strong>自己</strong>发起一次工具调用
+    <span class="mono">load_skill(skill_name="company-policies")</span>——装不装载由模型决定，不是框架硬塞。</p></div></div>
+  <div class="step"><div class="num">3</div><div class="sc"><h4>装载（Load）：合成正文回灌</h4>
+    <p>框架执行 <span class="mono">load_skill</span> 工具 → 调 <span class="mono">skill.get_content()</span>（<span class="mono">_skills.py:782</span>）→
+    返回一段合成的 XML 正文（含 instructions + 资源/脚本清单）注入对话。此刻模型才「看见」指令。</p></div></div>
+  <div class="step"><div class="num">4</div><div class="sc"><h4>按需读资源（Read resource）</h4>
+    <p>正文里列出了 <span class="mono">leave-policy</span> 资源，模型再调
+    <span class="mono">read_skill_resource(...)</span> → 返回 <span class="mono">InlineSkillResource.content</span>（「20 天……按工龄递增」）。</p>
+<pre class="code">FunctionCallContent(name=<span class="st">"read_skill_resource"</span>,
+                    arguments={<span class="st">"skill_name"</span>: <span class="st">"company-policies"</span>,
+                               <span class="st">"resource_name"</span>: <span class="st">"leave-policy"</span>})
+<span class="cm"># → "全职员工每年 20 天带薪年假，按工龄每满 3 年 +1 天……"</span></pre></div></div>
+  <div class="step"><div class="num">5</div><div class="sc"><h4>（可选）执行脚本：run_skill_script</h4>
+    <p>若技能带了脚本（如「按入职日期算今年应休天数」），模型调 <span class="mono">run_skill_script</span>。
+    若 provider 设 <span class="mono">require_script_approval=True</span>（<span class="mono">_skills.py:2160</span>），此处先<strong>插入人工审批</strong>再执行。</p></div></div>
+  <div class="step"><div class="num">6</div><div class="sc"><h4>产出：综合指令 + 资源作答</h4>
+    <p>模型把 instructions（「引用对应政策」）和资源内容拼起来，回答「20 天起，按工龄递增……」。
+    整轮里，<strong>员工手册的全文从未一次性进入 context</strong>。</p></div></div>
+</div>
+
+<div class="card detail">
+  <div class="tag">🔬 读懂这条轨迹</div>
+  三个常被忽略的点：①<strong>广告 ≠ 装载</strong>——平时只花 ~100 token 挂个「标题」，正文与资源都到<em>用时</em>才进 context，
+  这正是技能能「挂很多、却不撑爆上下文」的根因；②<strong>装载由模型驱动</strong>——<span class="mono">load_skill</span> / <span class="mono">read_skill_resource</span>
+  是框架注入的<strong>工具</strong>（<span class="mono">_skills.py:2128</span>），模型像调别的工具一样调它们；③<strong>脚本可加审批闸</strong>——
+  可执行代码默认 <span class="mono">never_require</span>，设 <span class="mono">require_script_approval=True</span> 即变 <span class="mono">always_require</span>，把「危险动作」交人把关。
+</div>
+
+<h2>技能由什么组成</h2>
+<p>把上面用到的对象拆开看，一个技能就是<strong>四层</strong>叠起来的——元信息在最上（决定「要不要装载」），正文和资源在下（装载后才看得见）：</p>
+<div class="layers">
+  <div class="layer l-core"><div class="lh"><span class="badge">L1</span><span class="name">SkillFrontmatter</span></div>
+    <div class="ld">发现用的元信息：<span class="mono">name</span> / <span class="mono">description</span> / <span class="mono">license</span> / <span class="mono">compatibility</span> / <span class="mono">allowed_tools</span>（<span class="mono">_skills.py:557</span>）。<strong>只有这层进「广告」。</strong></div></div>
+  <div class="layer l-main"><div class="lh"><span class="badge">指令</span><span class="name">instructions</span></div>
+    <div class="ld">技能的「操作手册」正文——告诉模型该怎么做。装载（<span class="mono">load_skill</span>）后才注入。</div></div>
+  <div class="layer l-part"><div class="lh"><span class="badge">资源</span><span class="name">resources[]</span></div>
+    <div class="ld"><span class="mono">InlineSkillResource</span>：只读知识，可为静态 <span class="mono">content</span> 或动态 <span class="mono">function</span>（<span class="mono">_skills.py:121</span>）。<span class="mono">read_skill_resource</span> 按需取。</div></div>
+  <div class="layer l-app"><div class="lh"><span class="badge">脚本</span><span class="name">scripts[]</span></div>
+    <div class="ld"><span class="mono">InlineSkillScript</span>：可执行代码（<span class="mono">_skills.py:315</span>），通过 <span class="mono">run_skill_script</span> 运行，可挂审批闸。</div></div>
+</div>
+
+<p>这四层对应渐进式披露的三段「流量阀」——左边便宜（一直在），越往右越贵（按需触发）：</p>
+<div class="flow">
+  <div class="node hl"><div class="nt">Advertise</div><div class="nd">name+desc · ~100 token</div></div>
+  <div class="arrow">→</div>
+  <div class="node"><div class="nt">load_skill</div><div class="nd">注入 instructions 正文</div></div>
+  <div class="arrow">→</div>
+  <div class="node"><div class="nt">read_skill_resource</div><div class="nd">按名取资源内容</div></div>
+  <div class="arrow">→</div>
+  <div class="node"><div class="nt">run_skill_script</div><div class="nd">（可选）执行脚本 · 可审批</div></div>
+</div>
+
+<h2>🔍 真实源码：三个对象怎么搭起来</h2>
+<div class="codefile">
+  <div class="cf-head"><span class="dot"></span><span class="path">_skills.py</span><span class="ln">InlineSkill / SkillFrontmatter / SkillsProvider（简化自 :729 / :557 / :1719）</span></div>
+<pre class="code"><span class="kw">class</span> <span class="fn">SkillFrontmatter</span>:                          <span class="cm"># :557 —— L1 发现用元信息</span>
+    <span class="kw">def</span> <span class="fn">__init__</span>(self, *, name, description,
+                 license=<span class="kw">None</span>, compatibility=<span class="kw">None</span>,
+                 allowed_tools=<span class="kw">None</span>, metadata=<span class="kw">None</span>):
+        _validate_skill_name(name)                  <span class="cm"># 名字限小写字母/数字/连字符</span>
+        ...
+
+<span class="kw">class</span> <span class="fn">InlineSkill</span>(Skill):                          <span class="cm"># :729 —— 代码内联技能</span>
+    <span class="kw">def</span> <span class="fn">__init__</span>(self, *, frontmatter: SkillFrontmatter,
+                 instructions: str, resources=<span class="kw">None</span>, scripts=<span class="kw">None</span>): ...
+    <span class="kw">async def</span> <span class="fn">get_content</span>(self) -&gt; str:            <span class="cm"># :782 —— 合成 XML 正文（带缓存）</span>
+        <span class="kw">return</span> _build_skill_content(name, description,
+                   instructions, resources, scripts)
+
+<span class="kw">class</span> <span class="fn">SkillsProvider</span>(ContextProvider):           <span class="cm"># :1719 —— 把技能接到 Agent</span>
+    <span class="cm"># 每次 run 前：注入 &lt;available_skills&gt; 系统提示，</span>
+    <span class="cm"># 并挂上 load_skill / read_skill_resource / run_skill_script 三个工具（:2128）</span></pre>
+</div>
+<p>三者职责分得很干净：<span class="mono">SkillFrontmatter</span> 只管「怎么被发现」，<span class="mono">InlineSkill</span> 管「正文与资源放哪」，
+<span class="mono">SkillsProvider</span> 管「怎么接到 Agent 的上下文与工具上」。注意 <span class="mono">SkillsProvider</span> 继承 <span class="mono">ContextProvider</span>——
+技能复用的是第 7 课那套「上下文注入」机制，并非另起炉灶。</p>
+
+<h2>为什么把「技能」做成声明式资源</h2>
+<p>最朴素的做法是把知识直接写进 <span class="mono">instructions</span>（系统提示）。能跑，但有四笔隐性成本，技能正是来抵这几笔账的：</p>
+<table class="t">
+  <tr><th>维度</th><th>知识硬塞进 prompt</th><th>Agent Skills（声明式）</th></tr>
+  <tr><td><strong>Token 成本</strong></td><td>每次请求都背着<strong>全部</strong>知识，越加越贵</td><td>平时只广告 ~100 token/技能，<strong>用时才装载</strong>正文与资源</td></tr>
+  <tr><td><strong>可维护</strong></td><td>知识与指令糊成一坨，改一处要通读全文</td><td>每个技能有独立 <span class="mono">name/description/version</span>，可单独更新</td></tr>
+  <tr><td><strong>可组合</strong></td><td>难以跨 Agent 共享，复制粘贴满天飞</td><td><span class="mono">AggregatingSkillsSource</span> 聚合多源，<span class="mono">Filtering/Deduplicating</span> 过滤去重</td></tr>
+  <tr><td><strong>安全</strong></td><td>来源不清，易把不可信内容当指令</td><td>文件技能元信息<strong>先 XML 转义再注入</strong>，资源读取防路径穿越（<span class="mono">_skills.py:39</span>）</td></tr>
+</table>
+<p>一句话：<strong>把「知识」从「指令」里拆出来，按需付费</strong>。当你只有一两句固定背景时，写进 instructions 反而最省事——
+技能的价值要在「知识多、会变、需复用、要管权限」的场景才真正兑现。这与
+<a href="24-mcp.html">下一课的 MCP</a> 恰是一对：技能管「你的私有知识怎么声明」，MCP 管「外部工具怎么标准化接入」。</p>
+
 <details class="accordion" open>
   <summary><span class="badge-num">1</span> 技能的三种来源 <span class="hint">点击展开详解</span></summary>
   <div class="acc-body">
@@ -5925,7 +6050,54 @@ source = AggregatingSkillsSource(sources=[
   <strong>知识和代码被统一抽象成"技能"</strong>——不再散落在 instructions、ContextProvider、工具各处。
   一个技能模块可以独立分发、版本控制、跨 Agent 复用。
 </div>
-</div></section>
+<div class="selftest">
+<h2>🧪 自测 · 想一想为什么这么设计</h2>
+<div class="quiz">
+  <div class="qn">1. 当 <code>SkillsProvider</code> “广告”一个技能时，<strong>最先</strong>进入系统提示的是什么？</div>
+  <ol class="opts">
+    <li>技能里所有脚本的源代码</li>
+    <li>什么都不注入，模型自己去文件系统找</li>
+    <li>整个技能正文加上所有资源全文</li>
+    <li>只有技能的 <code>name</code> + <code>description</code>（约 ~100 token），正文要等 <code>load_skill</code> 才装载</li>
+  </ol>
+  <details class="accordion" open>
+    <summary>看答案与解析 <span class="hint">点击展开</span></summary>
+    <div class="acc-body"><div class="qa"><div class="a"><strong>答案：D</strong>。这就是<strong>渐进式披露</strong>：<code>_skills.py:1732</code> 注释写明每个技能广告约 ~100 token，只放 name+description；模型据此判断“这题对不对口”，对口才调 <code>load_skill</code> 把合成正文（<code>get_content()</code>，<code>:782</code>）装进来，资源再用 <code>read_skill_resource</code> 按需取。这样挂很多技能也不会一次性撑爆 context。</div></div></div>
+  </details>
+</div>
+<div class="quiz">
+  <div class="qn">2. 技能（Skill）和普通工具（tool）最本质的区别是？</div>
+  <ol class="opts">
+    <li>工具<strong>执行动作</strong>；技能提供<strong>知识</strong>（指令 + 资源 + 可选脚本），按需装载进上下文</li>
+    <li>技能只能用一次，工具能反复用</li>
+    <li>技能更快，工具更慢</li>
+    <li>两者完全一样，只是命名不同</li>
+  </ol>
+  <details class="accordion" open>
+    <summary>看答案与解析 <span class="hint">点击展开</span></summary>
+    <div class="acc-body"><div class="qa"><div class="a"><strong>答案：A</strong>。工具是“锤子”——被调用时去<strong>做</strong>一件事（查天气、发邮件）。技能是“操作手册”——把<strong>领域知识</strong>声明成可发现、可装载的模块。技能甚至通过 <code>load_skill</code>/<code>read_skill_resource</code>/<code>run_skill_script</code> 三个框架注入的工具来暴露自己；所以技能不是工具的替代，而是给模型“先学会怎么做、再动手”的那一层。</div></div></div>
+  </details>
+</div>
+<div class="quiz">
+  <div class="qn">3. <code>SkillFrontmatter</code>（<code>name</code>/<code>description</code> 等）的主要作用是？</div>
+  <ol class="opts">
+    <li>存放技能要执行的全部脚本代码</li>
+    <li>配置 Agent 用哪个模型厂商</li>
+    <li><strong>发现用的 L1 元信息</strong>：被广告进系统提示，让模型决定要不要 <code>load_skill</code></li>
+    <li>记录对话历史</li>
+  </ol>
+  <details class="accordion" open>
+    <summary>看答案与解析 <span class="hint">点击展开</span></summary>
+    <div class="acc-body"><div class="qa"><div class="a"><strong>答案：C</strong>。<code>_skills.py:557</code> 把 frontmatter 称为“L1 discovery metadata”——它是技能的“目录卡片”：name 要符合命名规则（小写字母/数字/连字符），description 让模型判断对口与否。只有这一层进“广告”，正文与资源都在更贵的后续步骤按需装载。把元信息单列，正是声明式技能能低成本被发现的前提。</div></div></div>
+  </details>
+</div>
+<div class="card spark">
+  <div class="tag">💭 发散思考（没有标准答案，动手或动脑想想）</div>
+  <ul>
+    <li>为你的领域设计一个技能（如“发票合规检查”）：(1) 哪些内容应放进 <code>instructions</code>、哪些做成 <code>InlineSkillResource</code> 资源、哪些适合做成需审批的 <code>InlineSkillScript</code> 脚本？(2) 如果把这些知识全塞进系统提示，会在 token 成本、可维护性、复用性上分别付出什么代价？(3) 你会在什么时刻设 <code>require_script_approval=True</code>？</li>
+  </ul>
+</div>
+</div></div></section>
 <section class="print-lesson"><div class="wrap"><div class="lesson-head"><div class="lp">第六部分 · 协议与生态</div><h1><span class="ln">22 ·</span> MCP 工具协议</h1></div>
 <p class="lead"><strong>MCP（Model Context Protocol）</strong>是连接工具/资源到 LLM 的<strong>开放标准</strong>——
 MAF 既能<strong>调用</strong> MCP 服务器上的工具，也能把 Agent 自身<strong>暴露为</strong> MCP 服务器。</p>

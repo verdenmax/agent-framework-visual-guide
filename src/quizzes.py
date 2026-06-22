@@ -569,6 +569,76 @@ QUIZZES = {
             },
         ],
     },
+    "23-skills.html": {
+        "mcq": [
+            {
+                "q": {
+                    "zh": "当 <code>SkillsProvider</code> “广告”一个技能时，<strong>最先</strong>进入系统提示的是什么？",
+                    "en": "When a <code>SkillsProvider</code> “advertises” a skill, what enters the system prompt <strong>first</strong>?",
+                },
+                "opts": [
+                    {
+                        "zh": "只有技能的 <code>name</code> + <code>description</code>（约 ~100 token），正文要等 <code>load_skill</code> 才装载",
+                        "en": "Only the skill's <code>name</code> + <code>description</code> (~100 tokens); the body is loaded later via <code>load_skill</code>",
+                    },
+                    {"zh": "整个技能正文加上所有资源全文", "en": "The entire skill body plus every resource in full"},
+                    {"zh": "技能里所有脚本的源代码", "en": "The source code of every script in the skill"},
+                    {"zh": "什么都不注入，模型自己去文件系统找", "en": "Nothing is injected; the model goes to the filesystem itself"},
+                ],
+                "answer": 0,
+                "why": {
+                    "zh": "这就是<strong>渐进式披露</strong>：<code>_skills.py:1732</code> 注释写明每个技能广告约 ~100 token，只放 name+description；模型据此判断“这题对不对口”，对口才调 <code>load_skill</code> 把合成正文（<code>get_content()</code>，<code>:782</code>）装进来，资源再用 <code>read_skill_resource</code> 按需取。这样挂很多技能也不会一次性撑爆 context。",
+                    "en": "That's <strong>progressive disclosure</strong>: the comment at <code>_skills.py:1732</code> says each skill is advertised at ~100 tokens — just name+description. The model uses that to judge relevance, and only then calls <code>load_skill</code> to pull in the synthesized body (<code>get_content()</code>, <code>:782</code>), with resources fetched on demand via <code>read_skill_resource</code>. So many attached skills never blow the context at once.",
+                },
+            },
+            {
+                "q": {
+                    "zh": "技能（Skill）和普通工具（tool）最本质的区别是？",
+                    "en": "What is the most essential difference between a Skill and an ordinary tool?",
+                },
+                "opts": [
+                    {
+                        "zh": "工具<strong>执行动作</strong>；技能提供<strong>知识</strong>（指令 + 资源 + 可选脚本），按需装载进上下文",
+                        "en": "A tool <strong>performs an action</strong>; a skill supplies <strong>knowledge</strong> (instructions + resources + optional scripts) loaded into context on demand",
+                    },
+                    {"zh": "技能更快，工具更慢", "en": "Skills are faster, tools are slower"},
+                    {"zh": "技能只能用一次，工具能反复用", "en": "A skill can be used once, a tool many times"},
+                    {"zh": "两者完全一样，只是命名不同", "en": "They are identical, just named differently"},
+                ],
+                "answer": 0,
+                "why": {
+                    "zh": "工具是“锤子”——被调用时去<strong>做</strong>一件事（查天气、发邮件）。技能是“操作手册”——把<strong>领域知识</strong>声明成可发现、可装载的模块。技能甚至通过 <code>load_skill</code>/<code>read_skill_resource</code>/<code>run_skill_script</code> 三个框架注入的工具来暴露自己；所以技能不是工具的替代，而是给模型“先学会怎么做、再动手”的那一层。",
+                    "en": "A tool is a “hammer” — when called it <strong>does</strong> something (get weather, send mail). A skill is an “operating manual” — it declares <strong>domain knowledge</strong> as a discoverable, loadable module. A skill even exposes itself through three framework-injected tools (<code>load_skill</code>/<code>read_skill_resource</code>/<code>run_skill_script</code>); so a skill doesn't replace tools — it's the layer that lets the model “learn how, then act”.",
+                },
+            },
+            {
+                "q": {
+                    "zh": "<code>SkillFrontmatter</code>（<code>name</code>/<code>description</code> 等）的主要作用是？",
+                    "en": "What is <code>SkillFrontmatter</code> (<code>name</code>/<code>description</code>, etc.) mainly for?",
+                },
+                "opts": [
+                    {
+                        "zh": "<strong>发现用的 L1 元信息</strong>：被广告进系统提示，让模型决定要不要 <code>load_skill</code>",
+                        "en": "<strong>L1 discovery metadata</strong>: advertised into the system prompt so the model can decide whether to <code>load_skill</code>",
+                    },
+                    {"zh": "存放技能要执行的全部脚本代码", "en": "It stores all the script code the skill will run"},
+                    {"zh": "配置 Agent 用哪个模型厂商", "en": "It configures which model vendor the Agent uses"},
+                    {"zh": "记录对话历史", "en": "It records the conversation history"},
+                ],
+                "answer": 0,
+                "why": {
+                    "zh": "<code>_skills.py:557</code> 把 frontmatter 称为“L1 discovery metadata”——它是技能的“目录卡片”：name 要符合命名规则（小写字母/数字/连字符），description 让模型判断对口与否。只有这一层进“广告”，正文与资源都在更贵的后续步骤按需装载。把元信息单列，正是声明式技能能低成本被发现的前提。",
+                    "en": "<code>_skills.py:557</code> calls the frontmatter “L1 discovery metadata” — the skill's “catalog card”: the name must follow the rules (lowercase letters/digits/hyphens), and the description lets the model judge relevance. Only this layer is advertised; the body and resources load on demand in the pricier later steps. Splitting metadata out is exactly what lets a declarative skill be discovered cheaply.",
+                },
+            },
+        ],
+        "open": [
+            {
+                "zh": "为你的领域设计一个技能（如“发票合规检查”）：(1) 哪些内容应放进 <code>instructions</code>、哪些做成 <code>InlineSkillResource</code> 资源、哪些适合做成需审批的 <code>InlineSkillScript</code> 脚本？(2) 如果把这些知识全塞进系统提示，会在 token 成本、可维护性、复用性上分别付出什么代价？(3) 你会在什么时刻设 <code>require_script_approval=True</code>？",
+                "en": "Design a skill for your domain (e.g. “invoice compliance check”): (1) what belongs in <code>instructions</code>, what should be an <code>InlineSkillResource</code>, and what fits an approval-gated <code>InlineSkillScript</code>? (2) If you instead crammed all of it into the system prompt, what would you pay in token cost, maintainability, and reuse? (3) When would you set <code>require_script_approval=True</code>?",
+            },
+        ],
+    },
 }
 
 

@@ -5829,6 +5829,135 @@ skill = InlineSkill(
 )</pre>
 </div>
 
+<h2>Trace one skill being loaded and used</h2>
+<p>Enough abstraction — let's walk it end to end: an HR-assistant Agent carries a <span class="mono">company-policies</span> skill,
+and a user asks <strong>"How many days of annual leave do I get?"</strong>. The key idea: a skill does <strong>not</strong>
+dump the whole employee handbook into the prompt up front. It follows <strong>progressive disclosure</strong> in three steps —
+first <strong>advertise</strong> the title, <strong>load</strong> the body only when needed, then <strong>read</strong> resources on demand
+(exactly as the module comment at <span class="mono">_skills.py:19</span> describes).</p>
+
+<div class="codefile">
+  <div class="cf-head"><span class="dot"></span><span class="path">attach the skill</span></div>
+<pre><span class="kw">from</span> agent_framework <span class="kw">import</span> Agent, InlineSkill, InlineSkillResource, SkillFrontmatter, SkillsProvider
+
+skill = InlineSkill(
+    frontmatter=SkillFrontmatter(name=<span class="st">"company-policies"</span>,
+                                 description=<span class="st">"Company HR policies and handbook"</span>),
+    instructions=<span class="st">"When answering employee questions, cite the matching HR policy resource."</span>,
+    resources=[InlineSkillResource(name=<span class="st">"leave-policy"</span>,
+                                   content=<span class="st">"Full-time staff get 20 days PTO/year, +1 day per 3 years tenure..."</span>)],
+)
+agent = Agent(client=client, context_providers=SkillsProvider([skill]))   <span class="cm"># a skill = a ContextProvider</span>
+reply = <span class="kw">await</span> agent.run(<span class="st">"How many days of annual leave do I get?"</span>)</pre>
+</div>
+
+<div class="vflow">
+  <div class="step"><div class="num">0</div><div class="sc"><h4>Register: a skill is a context provider</h4>
+    <p><span class="mono">SkillsProvider</span> (<span class="mono">_skills.py:1719</span>) is a <span class="mono">ContextProvider</span>.
+    It does <strong>not</strong> stuff the body into the system prompt; it only joins the "assemble context" step before each
+    <span class="mono">run()</span> — the same mechanism as memory injection from <a href="07-sessions-memory.html">Lesson 7</a>.</p></div></div>
+  <div class="step"><div class="num">1</div><div class="sc"><h4>Advertise: inject only the "title page"</h4>
+    <p>The provider wraps each skill's <strong>name + description</strong> into <span class="mono">&lt;available_skills&gt;</span> and injects it into the
+    system prompt — about <strong>~100 tokens/skill</strong> (<span class="mono">_skills.py:1732</span>). Right now the model only knows
+    "there is a company-policies skill" and <strong>cannot see the body</strong>.</p>
+<pre class="code"><span class="cm"># what lands in the system prompt (excerpt)</span>
+&lt;available_skills&gt;
+  &lt;skill name=<span class="st">"company-policies"</span>
+         description=<span class="st">"Company HR policies and handbook"</span>/&gt;
+&lt;/available_skills&gt;
+<span class="cm"># the prompt also tells the model: use load_skill for instructions, read_skill_resource for resources</span></pre></div></div>
+  <div class="step"><div class="num">2</div><div class="sc"><h4>Model decides: this matches → call load_skill</h4>
+    <p>"Annual leave" matches the company-policies description, so the model <strong>itself</strong> issues a tool call
+    <span class="mono">load_skill(skill_name="company-policies")</span> — whether to load is the model's choice, not forced by the framework.</p></div></div>
+  <div class="step"><div class="num">3</div><div class="sc"><h4>Load: synthesize the body and feed it back</h4>
+    <p>The framework runs the <span class="mono">load_skill</span> tool → calls <span class="mono">skill.get_content()</span> (<span class="mono">_skills.py:782</span>) →
+    returns a synthesized XML body (instructions + a list of resources/scripts) into the conversation. Only now does the model "see" the instructions.</p></div></div>
+  <div class="step"><div class="num">4</div><div class="sc"><h4>Read a resource on demand</h4>
+    <p>The body lists a <span class="mono">leave-policy</span> resource, so the model calls
+    <span class="mono">read_skill_resource(...)</span> → returns <span class="mono">InlineSkillResource.content</span> ("20 days... increasing with tenure").</p>
+<pre class="code">FunctionCallContent(name=<span class="st">"read_skill_resource"</span>,
+                    arguments={<span class="st">"skill_name"</span>: <span class="st">"company-policies"</span>,
+                               <span class="st">"resource_name"</span>: <span class="st">"leave-policy"</span>})
+<span class="cm"># -> "Full-time staff get 20 days PTO/year, +1 day per 3 years tenure..."</span></pre></div></div>
+  <div class="step"><div class="num">5</div><div class="sc"><h4>(Optional) run a script: run_skill_script</h4>
+    <p>If the skill ships a script (e.g. "compute days owed this year from the hire date"), the model calls <span class="mono">run_skill_script</span>.
+    If the provider sets <span class="mono">require_script_approval=True</span> (<span class="mono">_skills.py:2160</span>), a <strong>human approval</strong> is inserted before it runs.</p></div></div>
+  <div class="step"><div class="num">6</div><div class="sc"><h4>Produce: answer from instructions + resource</h4>
+    <p>The model combines the instructions ("cite the matching policy") with the resource content and answers "20 days, increasing with tenure...".
+    Across the whole turn, <strong>the full handbook never entered the context at once</strong>.</p></div></div>
+</div>
+
+<div class="card detail">
+  <div class="tag">🔬 Reading this trace</div>
+  Three easily missed points: ① <strong>advertise &ne; load</strong> — normally you spend only ~100 tokens on a "title"; the body and resources enter
+  context only <em>when used</em>, which is exactly why you can attach many skills without blowing the context window; ② <strong>loading is model-driven</strong> —
+  <span class="mono">load_skill</span> / <span class="mono">read_skill_resource</span> are <strong>tools</strong> the framework injects (<span class="mono">_skills.py:2128</span>), and the model calls them like any other tool;
+  ③ <strong>scripts can gate on approval</strong> — executable code defaults to <span class="mono">never_require</span>; set <span class="mono">require_script_approval=True</span> to flip it to
+  <span class="mono">always_require</span> and put a human in front of "dangerous" actions.
+</div>
+
+<h2>What a skill is made of</h2>
+<p>Pulling apart the objects above, a skill is <strong>four layers</strong> stacked up — metadata on top (decides "load or not"), body and resources below (visible only after loading):</p>
+<div class="layers">
+  <div class="layer l-core"><div class="lh"><span class="badge">L1</span><span class="name">SkillFrontmatter</span></div>
+    <div class="ld">Discovery metadata: <span class="mono">name</span> / <span class="mono">description</span> / <span class="mono">license</span> / <span class="mono">compatibility</span> / <span class="mono">allowed_tools</span> (<span class="mono">_skills.py:557</span>). <strong>Only this layer is advertised.</strong></div></div>
+  <div class="layer l-main"><div class="lh"><span class="badge">instr</span><span class="name">instructions</span></div>
+    <div class="ld">The skill's "operating manual" body — tells the model how to act. Injected only after <span class="mono">load_skill</span>.</div></div>
+  <div class="layer l-part"><div class="lh"><span class="badge">res</span><span class="name">resources[]</span></div>
+    <div class="ld"><span class="mono">InlineSkillResource</span>: read-only knowledge, either static <span class="mono">content</span> or a dynamic <span class="mono">function</span> (<span class="mono">_skills.py:121</span>). Fetched on demand via <span class="mono">read_skill_resource</span>.</div></div>
+  <div class="layer l-app"><div class="lh"><span class="badge">script</span><span class="name">scripts[]</span></div>
+    <div class="ld"><span class="mono">InlineSkillScript</span>: executable code (<span class="mono">_skills.py:315</span>), run via <span class="mono">run_skill_script</span>, optionally behind an approval gate.</div></div>
+</div>
+
+<p>These four layers map onto progressive disclosure's three "flow valves" — cheap on the left (always present), pricier toward the right (triggered on demand):</p>
+<div class="flow">
+  <div class="node hl"><div class="nt">Advertise</div><div class="nd">name+desc · ~100 tokens</div></div>
+  <div class="arrow">→</div>
+  <div class="node"><div class="nt">load_skill</div><div class="nd">inject instructions body</div></div>
+  <div class="arrow">→</div>
+  <div class="node"><div class="nt">read_skill_resource</div><div class="nd">fetch resource by name</div></div>
+  <div class="arrow">→</div>
+  <div class="node"><div class="nt">run_skill_script</div><div class="nd">(optional) run script · approvable</div></div>
+</div>
+
+<h2>🔍 Real source: how the three objects fit together</h2>
+<div class="codefile">
+  <div class="cf-head"><span class="dot"></span><span class="path">_skills.py</span><span class="ln">InlineSkill / SkillFrontmatter / SkillsProvider (simplified from :729 / :557 / :1719)</span></div>
+<pre class="code"><span class="kw">class</span> <span class="fn">SkillFrontmatter</span>:                          <span class="cm"># :557 -- L1 discovery metadata</span>
+    <span class="kw">def</span> <span class="fn">__init__</span>(self, *, name, description,
+                 license=<span class="kw">None</span>, compatibility=<span class="kw">None</span>,
+                 allowed_tools=<span class="kw">None</span>, metadata=<span class="kw">None</span>):
+        _validate_skill_name(name)                  <span class="cm"># lowercase letters/digits/hyphens only</span>
+        ...
+
+<span class="kw">class</span> <span class="fn">InlineSkill</span>(Skill):                          <span class="cm"># :729 -- code-defined skill</span>
+    <span class="kw">def</span> <span class="fn">__init__</span>(self, *, frontmatter: SkillFrontmatter,
+                 instructions: str, resources=<span class="kw">None</span>, scripts=<span class="kw">None</span>): ...
+    <span class="kw">async def</span> <span class="fn">get_content</span>(self) -&gt; str:            <span class="cm"># :782 -- synthesize XML body (cached)</span>
+        <span class="kw">return</span> _build_skill_content(name, description,
+                   instructions, resources, scripts)
+
+<span class="kw">class</span> <span class="fn">SkillsProvider</span>(ContextProvider):           <span class="cm"># :1719 -- wire skills into the Agent</span>
+    <span class="cm"># before each run: inject the &lt;available_skills&gt; system prompt, and</span>
+    <span class="cm"># attach the load_skill / read_skill_resource / run_skill_script tools (:2128)</span></pre>
+</div>
+<p>The responsibilities split cleanly: <span class="mono">SkillFrontmatter</span> owns "how it is discovered", <span class="mono">InlineSkill</span> owns "where the body and resources live",
+and <span class="mono">SkillsProvider</span> owns "how it wires into the Agent's context and tools". Note <span class="mono">SkillsProvider</span> subclasses <span class="mono">ContextProvider</span> —
+skills reuse the same "context injection" mechanism from Lesson 7, not a parallel one.</p>
+
+<h2>Why make a "skill" a declarative resource</h2>
+<p>The naive approach is to write knowledge straight into <span class="mono">instructions</span> (the system prompt). It works, but carries four hidden costs that skills exist to offset:</p>
+<table class="t">
+  <tr><th>Dimension</th><th>Knowledge hardcoded in the prompt</th><th>Agent Skills (declarative)</th></tr>
+  <tr><td><strong>Token cost</strong></td><td>Every request carries <strong>all</strong> the knowledge; cost grows as you add more</td><td>Only ~100 tokens/skill advertised; the body and resources are <strong>loaded only when used</strong></td></tr>
+  <tr><td><strong>Maintainable</strong></td><td>Knowledge and instructions congeal into one blob; one edit means re-reading it all</td><td>Each skill has its own <span class="mono">name/description/version</span> and can be updated alone</td></tr>
+  <tr><td><strong>Composable</strong></td><td>Hard to share across Agents; copy-paste everywhere</td><td><span class="mono">AggregatingSkillsSource</span> merges sources; <span class="mono">Filtering/Deduplicating</span> trim and dedupe</td></tr>
+  <tr><td><strong>Secure</strong></td><td>Murky provenance; easy to treat untrusted text as instructions</td><td>File-skill metadata is <strong>XML-escaped before injection</strong>; resource reads guard against path traversal (<span class="mono">_skills.py:39</span>)</td></tr>
+</table>
+<p>In one line: <strong>separate "knowledge" from "instructions" and pay only on demand</strong>. When you have just a sentence or two of fixed background,
+writing it into instructions is actually simplest — skills pay off in the "lots of knowledge, it changes, needs reuse, needs permissioning" scenarios.
+This pairs with <a href="24-mcp.html">the next lesson on MCP</a>: skills govern "how your private knowledge is declared", MCP governs "how external tools are standardized in".</p>
+
 <details class="accordion" open>
   <summary><span class="badge-num">1</span> Three skill sources <span class="hint">expand</span></summary>
   <div class="acc-body">
@@ -5984,7 +6113,54 @@ source = AggregatingSkillsSource(sources=[
   <strong>Knowledge and code unified as "skills"</strong> — no longer scattered across instructions, ContextProviders
   and tools. A skill module can be independently distributed, version-controlled and reused across Agents.
 </div>
-</div></section>
+<div class="selftest">
+<h2>🧪 Self-test - think about the design</h2>
+<div class="quiz">
+  <div class="qn">1. When a <code>SkillsProvider</code> “advertises” a skill, what enters the system prompt <strong>first</strong>?</div>
+  <ol class="opts">
+    <li>The source code of every script in the skill</li>
+    <li>Nothing is injected; the model goes to the filesystem itself</li>
+    <li>The entire skill body plus every resource in full</li>
+    <li>Only the skill's <code>name</code> + <code>description</code> (~100 tokens); the body is loaded later via <code>load_skill</code></li>
+  </ol>
+  <details class="accordion" open>
+    <summary>Show answer &amp; explanation <span class="hint">click to expand</span></summary>
+    <div class="acc-body"><div class="qa"><div class="a"><strong>Answer: D</strong>. That's <strong>progressive disclosure</strong>: the comment at <code>_skills.py:1732</code> says each skill is advertised at ~100 tokens — just name+description. The model uses that to judge relevance, and only then calls <code>load_skill</code> to pull in the synthesized body (<code>get_content()</code>, <code>:782</code>), with resources fetched on demand via <code>read_skill_resource</code>. So many attached skills never blow the context at once.</div></div></div>
+  </details>
+</div>
+<div class="quiz">
+  <div class="qn">2. What is the most essential difference between a Skill and an ordinary tool?</div>
+  <ol class="opts">
+    <li>A tool <strong>performs an action</strong>; a skill supplies <strong>knowledge</strong> (instructions + resources + optional scripts) loaded into context on demand</li>
+    <li>A skill can be used once, a tool many times</li>
+    <li>Skills are faster, tools are slower</li>
+    <li>They are identical, just named differently</li>
+  </ol>
+  <details class="accordion" open>
+    <summary>Show answer &amp; explanation <span class="hint">click to expand</span></summary>
+    <div class="acc-body"><div class="qa"><div class="a"><strong>Answer: A</strong>. A tool is a “hammer” — when called it <strong>does</strong> something (get weather, send mail). A skill is an “operating manual” — it declares <strong>domain knowledge</strong> as a discoverable, loadable module. A skill even exposes itself through three framework-injected tools (<code>load_skill</code>/<code>read_skill_resource</code>/<code>run_skill_script</code>); so a skill doesn't replace tools — it's the layer that lets the model “learn how, then act”.</div></div></div>
+  </details>
+</div>
+<div class="quiz">
+  <div class="qn">3. What is <code>SkillFrontmatter</code> (<code>name</code>/<code>description</code>, etc.) mainly for?</div>
+  <ol class="opts">
+    <li>It stores all the script code the skill will run</li>
+    <li>It configures which model vendor the Agent uses</li>
+    <li><strong>L1 discovery metadata</strong>: advertised into the system prompt so the model can decide whether to <code>load_skill</code></li>
+    <li>It records the conversation history</li>
+  </ol>
+  <details class="accordion" open>
+    <summary>Show answer &amp; explanation <span class="hint">click to expand</span></summary>
+    <div class="acc-body"><div class="qa"><div class="a"><strong>Answer: C</strong>. <code>_skills.py:557</code> calls the frontmatter “L1 discovery metadata” — the skill's “catalog card”: the name must follow the rules (lowercase letters/digits/hyphens), and the description lets the model judge relevance. Only this layer is advertised; the body and resources load on demand in the pricier later steps. Splitting metadata out is exactly what lets a declarative skill be discovered cheaply.</div></div></div>
+  </details>
+</div>
+<div class="card spark">
+  <div class="tag">💭 Open questions (no single right answer - just think or try)</div>
+  <ul>
+    <li>Design a skill for your domain (e.g. “invoice compliance check”): (1) what belongs in <code>instructions</code>, what should be an <code>InlineSkillResource</code>, and what fits an approval-gated <code>InlineSkillScript</code>? (2) If you instead crammed all of it into the system prompt, what would you pay in token cost, maintainability, and reuse? (3) When would you set <code>require_script_approval=True</code>?</li>
+  </ul>
+</div>
+</div></div></section>
 <section class="print-lesson"><div class="wrap"><div class="lesson-head"><div class="lp">Part 6 · Protocols & Ecosystem</div><h1><span class="ln">22 ·</span> MCP Tool Protocol</h1></div>
 <p class="lead"><strong>MCP (Model Context Protocol)</strong> is the <strong>open standard</strong> for connecting tools and
 resources to LLMs — MAF can both <strong>call</strong> MCP servers and <strong>expose</strong> an Agent as one.</p>

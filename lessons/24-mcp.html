@@ -3,16 +3,16 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>22 · MCP 工具协议 — MCP Tool Protocol · Agent Framework 图解教程 · Visual Guide</title>
-<meta name="description" content="第五部分 · 自己动手做 Agent｜MCP 工具协议（MCP Tool Protocol）：面向新手的 Agent Framework 图解教程，配真实源码对应与设计亮点。">
+<meta name="description" content="第六部分 · 协议与生态｜MCP 工具协议（MCP Tool Protocol）：面向新手的 Agent Framework 图解教程，配真实源码对应与设计亮点。">
 <meta name="theme-color" content="#0078d4">
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml;base64,PHN2ZyB4bWxucz0naHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmcnIHZpZXdCb3g9JzAgMCAzMiAzMic+PHJlY3Qgd2lkdGg9JzMyJyBoZWlnaHQ9JzMyJyByeD0nNycgZmlsbD0nIzAwNzhkNCcvPjx0ZXh0IHg9JzE2JyB5PScyMicgZm9udC1mYW1pbHk9J3N5c3RlbS11aSxzYW5zLXNlcmlmJyBmb250LXNpemU9JzEzJyBmb250LXdlaWdodD0nNzAwJyBmaWxsPScjZmZmJyB0ZXh0LWFuY2hvcj0nbWlkZGxlJz5BRjwvdGV4dD48L3N2Zz4=">
 <meta property="og:type" content="article">
 <meta property="og:site_name" content="Agent Framework 图解教程 · Visual Guide">
 <meta property="og:title" content="22 · MCP 工具协议 — MCP Tool Protocol · Agent Framework 图解教程 · Visual Guide">
-<meta property="og:description" content="第五部分 · 自己动手做 Agent｜MCP 工具协议（MCP Tool Protocol）：面向新手的 Agent Framework 图解教程，配真实源码对应与设计亮点。">
+<meta property="og:description" content="第六部分 · 协议与生态｜MCP 工具协议（MCP Tool Protocol）：面向新手的 Agent Framework 图解教程，配真实源码对应与设计亮点。">
 <meta name="twitter:card" content="summary">
 <meta name="twitter:title" content="22 · MCP 工具协议 — MCP Tool Protocol · Agent Framework 图解教程 · Visual Guide">
-<meta name="twitter:description" content="第五部分 · 自己动手做 Agent｜MCP 工具协议（MCP Tool Protocol）：面向新手的 Agent Framework 图解教程，配真实源码对应与设计亮点。">
+<meta name="twitter:description" content="第六部分 · 协议与生态｜MCP 工具协议（MCP Tool Protocol）：面向新手的 Agent Framework 图解教程，配真实源码对应与设计亮点。">
 <script>try{var l=localStorage.getItem('af-guide-lang')||'zh';document.documentElement.setAttribute('data-lang',l);}catch(e){}</script>
 <style>
 * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -235,13 +235,24 @@ table.t td.mono, table.t td .mono { font-family: ui-monospace, monospace; font-s
   background:var(--accent); color:#fff; border-radius:10px; font-size:.9rem; font-weight:650;
   box-shadow:var(--shadow); transition:.15s; }
 .pdf-btn:hover { background:var(--accent-ink); transform:translateY(-1px); }
+/* self-test quizzes (appended to each lesson by quizzes.render) */
+.selftest { margin: 2.2rem 0 0; border-top: 2px dashed var(--line); padding-top: 1.2rem; }
+.selftest > h2 { margin-top: .2rem; }
+.quiz { background: var(--panel); border: 1px solid var(--line); border-left: 4px solid var(--blue);
+  border-radius: 12px; padding: .9rem 1.1rem; margin: 1rem 0; box-shadow: var(--shadow); }
+.quiz .qn { font-weight: 650; }
+.quiz ol.opts { list-style: upper-alpha; margin: .55rem 0 .6rem 1.5rem; padding: 0; }
+.quiz ol.opts li { margin: .3rem 0; padding-left: .15rem; }
+.quiz details.accordion { margin: .5rem 0 0; }
+.selftest code { font-family: ui-monospace, monospace; font-size: .9em; color: var(--accent-ink);
+  background: var(--accent-soft); padding: 0 .28em; border-radius: 4px; }
 </style>
 </head><body>
 <div class="topbar">
   <div class="topbar-inner">
     <a class="home" href="../index.html">📘 <span class="i18n" data-lang="zh">Agent Framework 图解教程 · </span><span class="i18n" data-lang="en">Agent Framework Visual Guide · </span><b><span class="i18n" data-lang="zh">目录</span><span class="i18n" data-lang="en">Contents</span></b></a>
     <div class="pills">
-      <span class="pill"><span class="i18n" data-lang="zh">第五部分 · 自己动手做 Agent</span><span class="i18n" data-lang="en">Part 5 · Build Your Own</span></span>
+      <span class="pill"><span class="i18n" data-lang="zh">第六部分 · 协议与生态</span><span class="i18n" data-lang="en">Part 6 · Protocols & Ecosystem</span></span>
       <span class="pill">22 / 27</span>
       <span class="langtoggle">EN</span>
     </div>
@@ -250,7 +261,7 @@ table.t td.mono, table.t td .mono { font-family: ui-monospace, monospace; font-s
 </div>
 <div class="wrap">
   <div class="hero">
-    <div class="part"><span class="i18n" data-lang="zh">第五部分 · 自己动手做 Agent</span><span class="i18n" data-lang="en">Part 5 · Build Your Own</span></div>
+    <div class="part"><span class="i18n" data-lang="zh">第六部分 · 协议与生态</span><span class="i18n" data-lang="en">Part 6 · Protocols & Ecosystem</span></div>
     <h1><span class="i18n" data-lang="zh">MCP 工具协议</span><span class="i18n" data-lang="en">MCP Tool Protocol</span></h1>
   </div>
   <div class="i18n" data-lang="zh">

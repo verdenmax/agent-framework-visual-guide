@@ -275,7 +275,7 @@ h2, h3, h4 { break-after: avoid; }
   <div class="emoji">📘</div>
   <h1>Agent Framework 图解教程</h1>
   <div class="sub">从零理解整个项目 · 宏观 → 用法 → 源码 → 自己动手做 Agent</div>
-  <div class="meta">共 27 课 · 6 个部分 · 每课配真实代码对应与设计亮点<br>
+  <div class="meta">共 27 课 · 7 个部分 · 每课配真实代码对应与设计亮点<br>
     生成日期 2026-06-22 · verdenmax · MIT License</div>
 </section>
 <section class="print-toc"><div class="wrap"><h2>目录</h2>
@@ -313,13 +313,16 @@ h2, h3, h4 { break-after: avoid; }
 <li value="18">写自己的中间件</li>
 <li value="19">检查点 · 人在环 · 持久化</li>
 <li value="20">端到端实战：多 Agent 工作流</li>
+</ol>
+<div class="tp">第六部分 · 协议与生态</div>
+<ol>
 <li value="21">Agent Skills 技能系统</li>
 <li value="22">MCP 工具协议</li>
 <li value="23">Foundry 托管 Agent</li>
 <li value="24">A2A + AG-UI 协议</li>
 <li value="25">评估与时间旅行</li>
 </ol>
-<div class="tp">第六部分 · 番外篇</div>
+<div class="tp">第七部分 · 番外篇</div>
 <ol>
 <li value="26">横向对比：AF vs 其他框架</li>
 <li value="27">全栈坐标系 & 学习地图</li>
@@ -4608,7 +4611,7 @@ logging.basicConfig(level=logging.INFO)</pre>
   这就是"从原型到生产"的体验。
 </div>
 </div></section>
-<section class="print-lesson"><div class="wrap"><div class="lesson-head"><div class="lp">第五部分 · 自己动手做 Agent</div><h1><span class="ln">21 ·</span> Agent Skills 技能系统</h1></div>
+<section class="print-lesson"><div class="wrap"><div class="lesson-head"><div class="lp">第六部分 · 协议与生态</div><h1><span class="ln">21 ·</span> Agent Skills 技能系统</h1></div>
 <p class="lead"><strong>Agent Skills（技能）</strong>让你把领域知识打包成可发现、可复用的模块——
 Agent 不再只有工具，还有<strong>知识库</strong>。</p>
 
@@ -4801,7 +4804,7 @@ source = AggregatingSkillsSource(sources=[
   一个技能模块可以独立分发、版本控制、跨 Agent 复用。
 </div>
 </div></section>
-<section class="print-lesson"><div class="wrap"><div class="lesson-head"><div class="lp">第五部分 · 自己动手做 Agent</div><h1><span class="ln">22 ·</span> MCP 工具协议</h1></div>
+<section class="print-lesson"><div class="wrap"><div class="lesson-head"><div class="lp">第六部分 · 协议与生态</div><h1><span class="ln">22 ·</span> MCP 工具协议</h1></div>
 <p class="lead"><strong>MCP（Model Context Protocol）</strong>是连接工具/资源到 LLM 的<strong>开放标准</strong>——
 MAF 既能<strong>调用</strong> MCP 服务器上的工具，也能把 Agent 自身<strong>暴露为</strong> MCP 服务器。</p>
 
@@ -5003,7 +5006,7 @@ MCPStdioTool(name=<span class="st">"fs"</span>, command=<span class="st">"npx"</
   实现从本地开发到标准化分发的平滑过渡。
 </div>
 </div></section>
-<section class="print-lesson"><div class="wrap"><div class="lesson-head"><div class="lp">第五部分 · 自己动手做 Agent</div><h1><span class="ln">23 ·</span> Foundry 托管 Agent</h1></div>
+<section class="print-lesson"><div class="wrap"><div class="lesson-head"><div class="lp">第六部分 · 协议与生态</div><h1><span class="ln">23 ·</span> Foundry 托管 Agent</h1></div>
 <p class="lead"><strong>Foundry 托管 Agent</strong>——只需 ~2 行额外代码，就能把本地 Agent 部署到 Azure AI Foundry 云端，
 获得自动伸缩、会话管理和企业级监控。</p>
 
@@ -5193,7 +5196,7 @@ server = InvocationsHostServer(agent=agent)
   这意味着同一个 Agent 既能本地调试，又能一键上云。
 </div>
 </div></section>
-<section class="print-lesson"><div class="wrap"><div class="lesson-head"><div class="lp">第五部分 · 自己动手做 Agent</div><h1><span class="ln">24 ·</span> A2A + AG-UI 协议</h1></div>
+<section class="print-lesson"><div class="wrap"><div class="lesson-head"><div class="lp">第六部分 · 协议与生态</div><h1><span class="ln">24 ·</span> A2A + AG-UI 协议</h1></div>
 <p class="lead"><strong>A2A（Agent-to-Agent）</strong>让 Agent 作为服务暴露给其他 Agent 调用；
 <strong>AG-UI</strong>让 Agent 与前端 UI 实时结构化通信——两个协议合力打通"Agent ↔ Agent"和"Agent ↔ 用户界面"。</p>
 
@@ -5391,7 +5394,7 @@ add_agent_framework_fastapi_endpoint(app, ag_ui_agent)
   每个都是可选的薄适配层——Agent 核心逻辑写一次，按需插上不同的"通信插头"。
 </div>
 </div></section>
-<section class="print-lesson"><div class="wrap"><div class="lesson-head"><div class="lp">第五部分 · 自己动手做 Agent</div><h1><span class="ln">25 ·</span> 评估与时间旅行</h1></div>
+<section class="print-lesson"><div class="wrap"><div class="lesson-head"><div class="lp">第六部分 · 协议与生态</div><h1><span class="ln">25 ·</span> 评估与时间旅行</h1></div>
 <p class="lead"><strong>Evaluation（评估）</strong>系统化测试 Agent 输出质量；
 <strong>Time-travel（时间旅行）</strong>通过检查点回放调试工作流——两者合力让 Agent 从"能跑"进化到"可靠"。</p>
 
@@ -5617,7 +5620,7 @@ results = <span class="kw">await</span> evaluate_agent(agent=agent, queries=[...
   一个 <span class="mono">checkpoint_id</span> 参数 = 从任意断点恢复执行，逐步诊断问题。
 </div>
 </div></section>
-<section class="print-lesson"><div class="wrap"><div class="lesson-head"><div class="lp">第六部分 · 番外篇</div><h1><span class="ln">26 ·</span> 横向对比：AF vs 其他框架</h1></div>
+<section class="print-lesson"><div class="wrap"><div class="lesson-head"><div class="lp">第七部分 · 番外篇</div><h1><span class="ln">26 ·</span> 横向对比：AF vs 其他框架</h1></div>
 <p class="lead">Agent 框架不止 MAF 一个。本课横向对比四大框架，帮你建立<strong>全局坐标</strong>。</p>
 
 <div class="card analogy">
@@ -5808,7 +5811,7 @@ SK:        ~25k  (企业用户基数大)</pre>
   预置编排是糖，底层 Workflow 是引擎，两者可以混用。
 </div>
 </div></section>
-<section class="print-lesson"><div class="wrap"><div class="lesson-head"><div class="lp">第六部分 · 番外篇</div><h1><span class="ln">27 ·</span> 全栈坐标系 & 学习地图</h1></div>
+<section class="print-lesson"><div class="wrap"><div class="lesson-head"><div class="lp">第七部分 · 番外篇</div><h1><span class="ln">27 ·</span> 全栈坐标系 & 学习地图</h1></div>
 <p class="lead">最后一课，缩放镜头：把 MAF 放进<strong>AI 全栈</strong>的坐标系里——
 看看你现在在哪，隔壁层还有什么值得学。</p>
 

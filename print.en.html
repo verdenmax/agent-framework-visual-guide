@@ -275,7 +275,7 @@ h2, h3, h4 { break-after: avoid; }
   <div class="emoji">📘</div>
   <h1>Agent Framework Visual Guide</h1>
   <div class="sub">Understand the whole project from scratch · Big picture → Usage → Internals → Build your own</div>
-  <div class="meta">27 lessons · 6 parts · real source-code references in every lesson<br>
+  <div class="meta">27 lessons · 7 parts · real source-code references in every lesson<br>
     Generated 2026-06-22 · verdenmax · MIT License</div>
 </section>
 <section class="print-toc"><div class="wrap"><h2>Table of Contents</h2>
@@ -313,13 +313,16 @@ h2, h3, h4 { break-after: avoid; }
 <li value="18">Writing Your Own Middleware</li>
 <li value="19">Checkpointing, HITL & Durability</li>
 <li value="20">Capstone: A Multi-Agent Workflow</li>
+</ol>
+<div class="tp">Part 6 · Protocols & Ecosystem</div>
+<ol>
 <li value="21">Agent Skills</li>
 <li value="22">MCP Tool Protocol</li>
 <li value="23">Foundry Hosted Agents</li>
 <li value="24">A2A & AG-UI Protocols</li>
 <li value="25">Evaluation & Time-Travel</li>
 </ol>
-<div class="tp">Part 6 · Bonus</div>
+<div class="tp">Part 7 · Bonus</div>
 <ol>
 <li value="26">AF vs Other Frameworks</li>
 <li value="27">Full-Stack Map & Learning Path</li>
@@ -4657,7 +4660,7 @@ Checklist of gaps from demo to production.
   approvals, each step adds only a few lines. That's the "prototype to production" experience.
 </div>
 </div></section>
-<section class="print-lesson"><div class="wrap"><div class="lesson-head"><div class="lp">Part 5 · Build Your Own</div><h1><span class="ln">21 ·</span> Agent Skills</h1></div>
+<section class="print-lesson"><div class="wrap"><div class="lesson-head"><div class="lp">Part 6 · Protocols & Ecosystem</div><h1><span class="ln">21 ·</span> Agent Skills</h1></div>
 <p class="lead"><strong>Agent Skills</strong> let you package domain knowledge into discoverable, reusable modules —
 Agents get not just tools but <strong>knowledge bases</strong>.</p>
 
@@ -4851,7 +4854,7 @@ source = AggregatingSkillsSource(sources=[
   and tools. A skill module can be independently distributed, version-controlled and reused across Agents.
 </div>
 </div></section>
-<section class="print-lesson"><div class="wrap"><div class="lesson-head"><div class="lp">Part 5 · Build Your Own</div><h1><span class="ln">22 ·</span> MCP Tool Protocol</h1></div>
+<section class="print-lesson"><div class="wrap"><div class="lesson-head"><div class="lp">Part 6 · Protocols & Ecosystem</div><h1><span class="ln">22 ·</span> MCP Tool Protocol</h1></div>
 <p class="lead"><strong>MCP (Model Context Protocol)</strong> is the <strong>open standard</strong> for connecting tools and
 resources to LLMs — MAF can both <strong>call</strong> MCP servers and <strong>expose</strong> an Agent as one.</p>
 
@@ -5054,7 +5057,7 @@ MCPStdioTool(name=<span class="st">"fs"</span>, command=<span class="st">"npx"</
   a smooth transition from local development to standardised distribution.
 </div>
 </div></section>
-<section class="print-lesson"><div class="wrap"><div class="lesson-head"><div class="lp">Part 5 · Build Your Own</div><h1><span class="ln">23 ·</span> Foundry Hosted Agents</h1></div>
+<section class="print-lesson"><div class="wrap"><div class="lesson-head"><div class="lp">Part 6 · Protocols & Ecosystem</div><h1><span class="ln">23 ·</span> Foundry Hosted Agents</h1></div>
 <p class="lead"><strong>Foundry Hosted Agents</strong> — with ~2 extra lines of code, deploy your local Agent to Azure AI
 Foundry cloud and get auto-scaling, session management and enterprise monitoring for free.</p>
 
@@ -5247,7 +5250,7 @@ server = InvocationsHostServer(agent=agent)
   The same Agent works locally for debugging and goes live with one line.
 </div>
 </div></section>
-<section class="print-lesson"><div class="wrap"><div class="lesson-head"><div class="lp">Part 5 · Build Your Own</div><h1><span class="ln">24 ·</span> A2A & AG-UI Protocols</h1></div>
+<section class="print-lesson"><div class="wrap"><div class="lesson-head"><div class="lp">Part 6 · Protocols & Ecosystem</div><h1><span class="ln">24 ·</span> A2A & AG-UI Protocols</h1></div>
 <p class="lead"><strong>A2A (Agent-to-Agent)</strong> exposes an Agent as a service for other Agents to call;
 <strong>AG-UI</strong> gives Agents a structured real-time channel to the frontend —
 together they connect "Agent ↔ Agent" and "Agent ↔ User Interface".</p>
@@ -5449,7 +5452,7 @@ add_agent_framework_fastapi_endpoint(app, ag_ui_agent)
   Each is an optional thin adapter — write Agent logic once, plug in whichever "communication socket" you need.
 </div>
 </div></section>
-<section class="print-lesson"><div class="wrap"><div class="lesson-head"><div class="lp">Part 5 · Build Your Own</div><h1><span class="ln">25 ·</span> Evaluation & Time-Travel</h1></div>
+<section class="print-lesson"><div class="wrap"><div class="lesson-head"><div class="lp">Part 6 · Protocols & Ecosystem</div><h1><span class="ln">25 ·</span> Evaluation & Time-Travel</h1></div>
 <p class="lead"><strong>Evaluation</strong> systematically tests Agent output quality;
 <strong>Time-travel</strong> replays workflow runs from checkpoints for debugging —
 together they take Agents from "it runs" to "it's reliable".</p>
@@ -5677,7 +5680,7 @@ results = <span class="kw">await</span> evaluate_agent(agent=agent, queries=[...
   One <span class="mono">checkpoint_id</span> parameter = resume from any breakpoint, diagnosing issues step by step.
 </div>
 </div></section>
-<section class="print-lesson"><div class="wrap"><div class="lesson-head"><div class="lp">Part 6 · Bonus</div><h1><span class="ln">26 ·</span> AF vs Other Frameworks</h1></div>
+<section class="print-lesson"><div class="wrap"><div class="lesson-head"><div class="lp">Part 7 · Bonus</div><h1><span class="ln">26 ·</span> AF vs Other Frameworks</h1></div>
 <p class="lead">MAF isn't the only agent framework. This lesson compares four major ones to give you
 <strong>global coordinates</strong>.</p>
 
@@ -5872,7 +5875,7 @@ SK:        ~25k  (large enterprise user base)</pre>
   between LangGraph and AutoGen. Prebuilt orchestrations are sugar; the underlying Workflow is the engine. Mix freely.
 </div>
 </div></section>
-<section class="print-lesson"><div class="wrap"><div class="lesson-head"><div class="lp">Part 6 · Bonus</div><h1><span class="ln">27 ·</span> Full-Stack Map & Learning Path</h1></div>
+<section class="print-lesson"><div class="wrap"><div class="lesson-head"><div class="lp">Part 7 · Bonus</div><h1><span class="ln">27 ·</span> Full-Stack Map & Learning Path</h1></div>
 <p class="lead">Final lesson — zoom out: place MAF in the <strong>AI full-stack</strong> coordinate system and see
 what's worth learning next door.</p>
 

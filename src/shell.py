@@ -61,7 +61,8 @@ P2 = {"zh": "第二部分 · 用户视角", "en": "Part 2 · User's View"}
 P3 = {"zh": "第三部分 · 内部源码", "en": "Part 3 · Internals"}
 P4 = {"zh": "第四部分 · 进阶实战", "en": "Part 4 · Advanced"}
 P5 = {"zh": "第五部分 · 自己动手做 Agent", "en": "Part 5 · Build Your Own"}
-P6 = {"zh": "第六部分 · 番外篇", "en": "Part 6 · Bonus"}
+P6 = {"zh": "第六部分 · 协议与生态", "en": "Part 6 · Protocols & Ecosystem"}
+P7 = {"zh": "第七部分 · 番外篇", "en": "Part 7 · Bonus"}
 
 PAGES = [
     ("01-what-is-agent-framework.html", {"zh": "Agent Framework 是什么", "en": "What is Agent Framework"}, P1),
@@ -84,13 +85,13 @@ PAGES = [
     ("18-custom-middleware.html", {"zh": "写自己的中间件", "en": "Writing Your Own Middleware"}, P5),
     ("19-durability-hitl.html", {"zh": "检查点 · 人在环 · 持久化", "en": "Checkpointing, HITL & Durability"}, P5),
     ("20-capstone.html", {"zh": "端到端实战：多 Agent 工作流", "en": "Capstone: A Multi-Agent Workflow"}, P5),
-    ("23-skills.html", {"zh": "Agent Skills 技能系统", "en": "Agent Skills"}, P5),
-    ("24-mcp.html", {"zh": "MCP 工具协议", "en": "MCP Tool Protocol"}, P5),
-    ("25-hosted-agents.html", {"zh": "Foundry 托管 Agent", "en": "Foundry Hosted Agents"}, P5),
-    ("26-a2a-agui.html", {"zh": "A2A + AG-UI 协议", "en": "A2A & AG-UI Protocols"}, P5),
-    ("27-eval-timetravel.html", {"zh": "评估与时间旅行", "en": "Evaluation & Time-Travel"}, P5),
-    ("21-vs-others.html", {"zh": "横向对比：AF vs 其他框架", "en": "AF vs Other Frameworks"}, P6),
-    ("22-stack-map.html", {"zh": "全栈坐标系 & 学习地图", "en": "Full-Stack Map & Learning Path"}, P6),
+    ("23-skills.html", {"zh": "Agent Skills 技能系统", "en": "Agent Skills"}, P6),
+    ("24-mcp.html", {"zh": "MCP 工具协议", "en": "MCP Tool Protocol"}, P6),
+    ("25-hosted-agents.html", {"zh": "Foundry 托管 Agent", "en": "Foundry Hosted Agents"}, P6),
+    ("26-a2a-agui.html", {"zh": "A2A + AG-UI 协议", "en": "A2A & AG-UI Protocols"}, P6),
+    ("27-eval-timetravel.html", {"zh": "评估与时间旅行", "en": "Evaluation & Time-Travel"}, P6),
+    ("21-vs-others.html", {"zh": "横向对比：AF vs 其他框架", "en": "AF vs Other Frameworks"}, P7),
+    ("22-stack-map.html", {"zh": "全栈坐标系 & 学习地图", "en": "Full-Stack Map & Learning Path"}, P7),
 ]
 
 INDEX_FILE = "index.html"

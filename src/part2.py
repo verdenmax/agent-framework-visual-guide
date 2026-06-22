@@ -1890,8 +1890,7 @@ result2 = <span class="kw">await</span> agent.run(<span class="st">"我叫什么
 
 <span class="cm"># 创建一个记忆提供者：在每次 run 前注入相关记忆</span>
 memory_provider = MemoryContextProvider(
-    memory_store=...,  <span class="cm"># 向量数据库 / Redis / 其他存储</span>
-    relevance_threshold=0.7
+    store=...,  <span class="cm"># MemoryStore：记忆存储后端（向量库 / Redis 等）</span>
 )
 
 agent = Agent(
@@ -1924,9 +1923,9 @@ session2 = agent.create_session()
     <div class="qa">
       <div class="q">✅ MAF 的做法与优点</div>
       <div class="a"><span class="mono">ContextProvider</span> 接口（见 <span class="mono">python/packages/core/agent_framework/</span>）：<ul>
-        <li><strong>在每次 run 前调用</strong>：Agent 执行时，遍历 <span class="mono">context_providers</span> 列表，调用每个 provider 的 <span class="mono">provide_context(...)</span>。</li>
-        <li><strong>返回消息 / 内容</strong>：provider 可返回 <span class="mono">Message</span> 列表（注入历史对话）、<span class="mono">Content</span> 列表（注入文档片段）、或修改 system prompt。</li>
-        <li><strong>内置实现</strong>：<span class="mono">MemoryContextProvider</span>（向量检索记忆）、<span class="mono">InMemoryHistoryProvider</span>（跨会话历史）、<span class="mono">DocumentContextProvider</span>（文档 RAG）。</li>
+        <li><strong>在每次 run 前调用</strong>：Agent 执行时，遍历 <span class="mono">context_providers</span> 列表，调用每个 provider 的 <span class="mono">before_run(...)</span>。</li>
+        <li><strong>注入上下文</strong>：provider 在 <span class="mono">before_run</span> 里向 <span class="mono">SessionContext</span> 添加 <span class="mono">Message</span>（历史对话）、<span class="mono">Content</span>（文档片段）、指令或工具。</li>
+        <li><strong>内置实现</strong>：<span class="mono">MemoryContextProvider</span>（向量检索记忆）、<span class="mono">InMemoryHistoryProvider</span>（跨会话历史）、<span class="mono">FileHistoryProvider</span>（文件持久化历史）。</li>
         <li><strong>可组合</strong>：多个 provider 按顺序执行，可同时用记忆 + 文档检索 + 用户偏好。</li>
       </ul>
       这种设计让上下文逻辑<strong>解耦</strong>，Agent 不关心"记忆从哪来"，只管"有这些上下文"。</div>
@@ -2194,8 +2193,7 @@ result2 = <span class="kw">await</span> agent.run(<span class="st">"What's my na
 
 <span class="cm"># Create a memory provider: injects relevant memories before each run</span>
 memory_provider = MemoryContextProvider(
-    memory_store=...,  <span class="cm"># vector DB / Redis / other storage</span>
-    relevance_threshold=0.7
+    store=...,  <span class="cm"># MemoryStore: the memory storage backend (vector DB / Redis / etc.)</span>
 )
 
 agent = Agent(
@@ -2228,9 +2226,9 @@ session2 = agent.create_session()
     <div class="qa">
       <div class="q">✅ How MAF does it</div>
       <div class="a"><span class="mono">ContextProvider</span> interface (see <span class="mono">python/packages/core/agent_framework/</span>):<ul>
-        <li><strong>Called before each run</strong>: Agent execution iterates through <span class="mono">context_providers</span> list, calls each provider's <span class="mono">provide_context(...)</span>.</li>
-        <li><strong>Returns messages / content</strong>: provider can return <span class="mono">Message</span> lists (inject history), <span class="mono">Content</span> lists (inject doc snippets), or modify system prompt.</li>
-        <li><strong>Built-in implementations</strong>: <span class="mono">MemoryContextProvider</span> (vector retrieval memory), <span class="mono">InMemoryHistoryProvider</span> (cross-session history), <span class="mono">DocumentContextProvider</span> (doc RAG).</li>
+        <li><strong>Called before each run</strong>: Agent execution iterates through <span class="mono">context_providers</span> list, calls each provider's <span class="mono">before_run(...)</span>.</li>
+        <li><strong>Injects context</strong>: in <span class="mono">before_run</span> the provider adds <span class="mono">Message</span>s (history), <span class="mono">Content</span> (doc snippets), instructions, or tools to the <span class="mono">SessionContext</span>.</li>
+        <li><strong>Built-in implementations</strong>: <span class="mono">MemoryContextProvider</span> (vector retrieval memory), <span class="mono">InMemoryHistoryProvider</span> (cross-session history), <span class="mono">FileHistoryProvider</span> (file-backed history).</li>
         <li><strong>Composable</strong>: multiple providers execute in order, can use memory + doc retrieval + user preferences together.</li>
       </ul>
       This design <strong>decouples</strong> context logic; Agent doesn't care "where memory comes from", only "have this context".</div>

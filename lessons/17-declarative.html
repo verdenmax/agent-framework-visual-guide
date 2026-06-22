@@ -284,6 +284,18 @@ tools:
 <p>框架的 <span class="mono">declarative</span> 包读这个 YAML，自动构造出 <span class="mono">Agent</span> 实例。
 适合快速原型和版本控制。</p>
 
+<h2>从 YAML 到运行的一条龙</h2>
+<div class="flow">
+  <div class="node"><div class="nt">my_agent.yaml</div><div class="nd">name / instructions / tools</div></div>
+  <div class="arrow">→</div>
+  <div class="node"><div class="nt">AgentFactory</div><div class="nd">create_agent_from_yaml_path</div></div>
+  <div class="arrow">→</div>
+  <div class="node hl"><div class="nt">Agent 实例</div><div class="nd">和手写的完全一样</div></div>
+  <div class="arrow">→</div>
+  <div class="node"><div class="nt">agent.run(…)</div><div class="nd">照常调用</div></div>
+</div>
+<p>关键洞察：YAML 只是<strong>另一种构造方式</strong>。<span class="mono">AgentFactory</span> 解析完配置吐出的，和你用 <span class="mono">Agent(client=…, tools=…)</span> 手写出来的<strong>是同一类对象</strong>——所以下游的 <span class="mono">run()</span>、工具、中间件全都照旧。配置与代码<strong>同构</strong>，你才能在两种风格间自由切换。</p>
+
 <details class="accordion">
   <summary><span class="badge-num">1</span> 完整 YAML schema <span class="hint">点击展开详解</span></summary>
   <div class="acc-body">
@@ -437,7 +449,54 @@ workflow:
   <strong>"配置即 Agent"</strong>：改 YAML 就能调整行为，不用改代码、不用重编译。
   这降低了非开发者参与 Agent 设计的门槛。
 </div>
+<div class="selftest">
+<h2>🧪 自测 · 想一想为什么这么设计</h2>
+<div class="quiz">
+  <div class="qn">1. 用 <code>AgentFactory</code> 从 YAML 造出来的 Agent，和你手写 <code>Agent(client=…, tools=…)</code> 造出来的相比？</div>
+  <ol class="opts">
+    <li>必须用专门的 <code>yaml_run()</code> 才能跑</li>
+    <li>是<strong>同一类对象</strong>，下游 <code>run()</code> / 工具 / 中间件用法完全一样</li>
+    <li>性能更差，因为每次调用都要重新解析 YAML</li>
+    <li>是个受限的“只读”Agent，不能调用工具</li>
+  </ol>
+  <details class="accordion">
+    <summary>看答案与解析 <span class="hint">点击展开</span></summary>
+    <div class="acc-body"><div class="qa"><div class="a"><strong>答案：B</strong>。声明式只是<strong>另一种构造路径</strong>：<code>AgentFactory</code> 解析后产出标准 <code>Agent</code> 实例。配置与代码同构，所以两种风格可以自由切换，下游一切照旧。</div></div></div>
+  </details>
 </div>
+<div class="quiz">
+  <div class="qn">2. 把 Agent 定义放进 YAML（而不是写死在 <code>.py</code> 里）最主要的好处是？</div>
+  <ol class="opts">
+    <li>YAML 可以定义无限多工具</li>
+    <li>YAML 跑起来比 Python 快</li>
+    <li>YAML 能绕过工具审批</li>
+    <li>配置变成<strong>数据</strong>：非开发者也能改、能进版本控制 diff、能按环境换文件，全程不碰代码</li>
+  </ol>
+  <details class="accordion">
+    <summary>看答案与解析 <span class="hint">点击展开</span></summary>
+    <div class="acc-body"><div class="qa"><div class="a"><strong>答案：D</strong>。声明式把“做什么”和“怎么跑”解耦。配置即数据 → 可审计、可版本化、可由非工程师维护；<code>create_agent_from_yaml_path</code> 一行就能加载。</div></div></div>
+  </details>
+</div>
+<div class="quiz">
+  <div class="qn">3. 从 YAML 文件加载一个 Agent，MAF 里<strong>真实</strong>的调用是哪个？</div>
+  <ol class="opts">
+    <li><code>AgentFactory().create_agent_from_yaml_path("my_agent.yaml")</code></li>
+    <li><code>AgentFactory.load_agent("my_agent.yaml")</code></li>
+    <li><code>Agent.from_yaml("my_agent.yaml")</code></li>
+    <li><code>declarative.parse("my_agent.yaml")</code></li>
+  </ol>
+  <details class="accordion">
+    <summary>看答案与解析 <span class="hint">点击展开</span></summary>
+    <div class="acc-body"><div class="qa"><div class="a"><strong>答案：A</strong>。真实 API 是 <code>from agent_framework.declarative import AgentFactory</code>，再调 <code>create_agent_from_yaml_path(...)</code>（不是 <code>load_agent</code>）。<code>AgentFactory(bindings={...})</code> 的 <code>bindings</code> 还能把 YAML 里的工具 / 客户端名字绑定到真实对象。</div></div></div>
+  </details>
+</div>
+<div class="card spark">
+  <div class="tag">💭 发散思考（没有标准答案，动手或动脑想想）</div>
+  <ul>
+    <li>你的团队想让产品经理也能改 Agent 的 <code>instructions</code> 而不用发版。请说说声明式 YAML 怎么支撑这个流程，以及 YAML 里写的 <code>tools: [get_weather]</code> 最终是怎么变成一个可调用工具的（谁负责把名字解析、绑定到真实函数）。</li>
+  </ul>
+</div>
+</div></div>
 <div class="i18n" data-lang="en">
 <p class="lead">Don't want to write code? Define an Agent in <strong>YAML</strong> — name, instructions, tools
 and model all in a config file.</p>
@@ -459,6 +518,18 @@ tools:
 </div>
 <p>The <span class="mono">declarative</span> package reads this YAML and auto-constructs an <span class="mono">Agent</span>.
 Great for rapid prototyping and version control.</p>
+
+<h2>From YAML to running, end to end</h2>
+<div class="flow">
+  <div class="node"><div class="nt">my_agent.yaml</div><div class="nd">name / instructions / tools</div></div>
+  <div class="arrow">→</div>
+  <div class="node"><div class="nt">AgentFactory</div><div class="nd">create_agent_from_yaml_path</div></div>
+  <div class="arrow">→</div>
+  <div class="node hl"><div class="nt">Agent instance</div><div class="nd">identical to hand-written</div></div>
+  <div class="arrow">→</div>
+  <div class="node"><div class="nt">agent.run(…)</div><div class="nd">called as usual</div></div>
+</div>
+<p>Key insight: YAML is just <strong>another way to construct</strong>. What <span class="mono">AgentFactory</span> emits after parsing is <strong>the same kind of object</strong> you'd build by hand with <span class="mono">Agent(client=…, tools=…)</span> - so downstream <span class="mono">run()</span>, tools and middleware all work unchanged. Config and code are <strong>isomorphic</strong>, which is what lets you move freely between the two styles.</p>
 
 <details class="accordion">
   <summary><span class="badge-num">1</span> Complete YAML schema <span class="hint">expand</span></summary>
@@ -613,7 +684,54 @@ Current limitation: complex routing logic in workflows is best expressed in code
   <strong>"Config is an Agent"</strong>: tweak YAML to change behavior, no code changes, no recompilation.
   This lowers the barrier for non-developers to participate in Agent design.
 </div>
+<div class="selftest">
+<h2>🧪 Self-test - think about the design</h2>
+<div class="quiz">
+  <div class="qn">1. How does an Agent built from YAML via <code>AgentFactory</code> compare to one you hand-build with <code>Agent(client=…, tools=…)</code>?</div>
+  <ol class="opts">
+    <li>It can only run via a special <code>yaml_run()</code></li>
+    <li>It's the <strong>same kind of object</strong>; downstream <code>run()</code> / tools / middleware all behave identically</li>
+    <li>It's slower because it re-parses the YAML on every call</li>
+    <li>It's a restricted &quot;read-only&quot; Agent that can't call tools</li>
+  </ol>
+  <details class="accordion">
+    <summary>Show answer &amp; explanation <span class="hint">click to expand</span></summary>
+    <div class="acc-body"><div class="qa"><div class="a"><strong>Answer: B</strong>. Declarative is just <strong>another construction path</strong>: <code>AgentFactory</code> parses and emits a standard <code>Agent</code> instance. Config and code are isomorphic, so the two styles are interchangeable and everything downstream is unchanged.</div></div></div>
+  </details>
 </div>
+<div class="quiz">
+  <div class="qn">2. What's the main benefit of putting the Agent definition in YAML instead of hard-coding it in <code>.py</code>?</div>
+  <ol class="opts">
+    <li>YAML can define unlimited tools</li>
+    <li>YAML runs faster than Python</li>
+    <li>YAML can bypass tool approval</li>
+    <li>Config becomes <strong>data</strong>: non-developers can edit it, it diffs in version control, and you can swap files per environment - all without touching code</li>
+  </ol>
+  <details class="accordion">
+    <summary>Show answer &amp; explanation <span class="hint">click to expand</span></summary>
+    <div class="acc-body"><div class="qa"><div class="a"><strong>Answer: D</strong>. Declarative decouples &quot;what&quot; from &quot;how it runs&quot;. Config-as-data means it's auditable, versionable and editable by non-engineers; <code>create_agent_from_yaml_path</code> loads it in one line.</div></div></div>
+  </details>
+</div>
+<div class="quiz">
+  <div class="qn">3. What is the <strong>real</strong> call to load an Agent from a YAML file in MAF?</div>
+  <ol class="opts">
+    <li><code>AgentFactory().create_agent_from_yaml_path("my_agent.yaml")</code></li>
+    <li><code>AgentFactory.load_agent("my_agent.yaml")</code></li>
+    <li><code>Agent.from_yaml("my_agent.yaml")</code></li>
+    <li><code>declarative.parse("my_agent.yaml")</code></li>
+  </ol>
+  <details class="accordion">
+    <summary>Show answer &amp; explanation <span class="hint">click to expand</span></summary>
+    <div class="acc-body"><div class="qa"><div class="a"><strong>Answer: A</strong>. The real API is <code>from agent_framework.declarative import AgentFactory</code>, then <code>create_agent_from_yaml_path(...)</code> (not <code>load_agent</code>). <code>AgentFactory(bindings={...})</code> also binds tool / client names in the YAML to real objects.</div></div></div>
+  </details>
+</div>
+<div class="card spark">
+  <div class="tag">💭 Open questions (no single right answer - just think or try)</div>
+  <ul>
+    <li>Your team wants PMs to edit an Agent's <code>instructions</code> without shipping a release. Explain how declarative YAML supports that workflow, and how <code>tools: [get_weather]</code> in the YAML becomes a callable tool (who resolves the name and binds it to the real function).</li>
+  </ul>
+</div>
+</div></div>
   <div class="footnav"><a class="prev" href="16-providers.html"><div class="dir"><span class="i18n" data-lang="zh">← 上一课</span><span class="i18n" data-lang="en">← Prev</span></div><div class="ttl"><span class="i18n" data-lang="zh">接入各家模型</span><span class="i18n" data-lang="en">Model Providers</span></div></a><a class="next" href="18-custom-middleware.html"><div class="dir"><span class="i18n" data-lang="zh">下一课 →</span><span class="i18n" data-lang="en">Next →</span></div><div class="ttl"><span class="i18n" data-lang="zh">写自己的中间件</span><span class="i18n" data-lang="en">Writing Your Own Middleware</span></div></a></div>
 </div>
 

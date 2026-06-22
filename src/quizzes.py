@@ -971,6 +971,450 @@ QUIZZES = {
             },
         ],
     },
+    "16-providers.html": {
+        "mcq": [
+            {
+                "q": {
+                    "zh": "为什么把模型厂商从 OpenAI 换成 Anthropic，通常只改“实例化 ChatClient”那一两行，下游 Agent 代码却不用动？",
+                    "en": "Why does switching the model vendor from OpenAI to Anthropic usually touch only the one or two &quot;instantiate the ChatClient&quot; lines, leaving downstream Agent code unchanged?",
+                },
+                "opts": [
+                    {
+                        "zh": "<code>as_agent()</code> / <code>run()</code> 这层接口是厂商无关的，provider 包只负责把自家 API 适配成同一套 ChatClient 抽象",
+                        "en": "The <code>as_agent()</code> / <code>run()</code> layer is vendor-agnostic; each provider package only adapts its own API to the same ChatClient abstraction",
+                    },
+                    {
+                        "zh": "因为所有厂商的 HTTP API 格式本来就完全一样",
+                        "en": "Because every vendor's HTTP API format is already identical",
+                    },
+                    {
+                        "zh": "因为 MAF 会在运行时自动翻译你的 prompt",
+                        "en": "Because MAF auto-translates your prompt at runtime",
+                    },
+                    {
+                        "zh": "因为 Agent 代码里其实写死了 OpenAI",
+                        "en": "Because the Agent code is actually hard-wired to OpenAI",
+                    },
+                ],
+                "answer": 0,
+                "why": {
+                    "zh": "ChatClient 是一道<strong>抽象边界</strong>：每个 provider 包实现同一套接口，Agent 只依赖抽象。所以“构造 ChatClient”以上随厂商变，以下全部复用——换厂商是局部改动。",
+                    "en": "ChatClient is an <strong>abstraction boundary</strong>: each provider package implements the same interface and the Agent depends only on the abstraction. So everything above &quot;construct the ChatClient&quot; varies by vendor and everything below is reused - switching vendors is a local change.",
+                },
+            },
+            {
+                "q": {
+                    "zh": "MAF 用<strong>同一个</strong> <code>OpenAIChatClient</code> 同时接 OpenAI 和 Azure OpenAI（靠 <code>base_url</code> / 认证区分），而不是做两个类。为什么？",
+                    "en": "MAF uses <strong>one</strong> <code>OpenAIChatClient</code> for both OpenAI and Azure OpenAI (distinguished by <code>base_url</code> / credentials) instead of two classes. Why?",
+                },
+                "opts": [
+                    {
+                        "zh": "两者底层 wire protocol 相同，只是 endpoint / 认证不同——一个类加参数比两个近乎重复的类更好维护",
+                        "en": "They share the same underlying wire protocol and differ only in endpoint / auth - one parameterized class is easier to maintain than two near-duplicate classes",
+                    },
+                    {
+                        "zh": "因为 Azure OpenAI 没有自己的 SDK",
+                        "en": "Because Azure OpenAI has no SDK of its own",
+                    },
+                    {
+                        "zh": "因为 OpenAI 和 Azure 是同一家公司",
+                        "en": "Because OpenAI and Azure are the same company",
+                    },
+                    {
+                        "zh": "因为 MAF 其实不支持 Azure OpenAI",
+                        "en": "Because MAF doesn't actually support Azure OpenAI",
+                    },
+                ],
+                "answer": 0,
+                "why": {
+                    "zh": "两种部署协议一致，差别只在 endpoint 和 credential。用一个类 + 参数化，比维护两个几乎重复的类更省心——这也呼应“厂商无关”：连同一厂商的两种部署都收敛到同一接口。",
+                    "en": "The two deployments speak the same protocol and differ only in endpoint and credential. One parameterized class beats maintaining two near-identical ones - and it echoes &quot;vendor-agnostic&quot;: even one vendor's two deployments converge on the same interface.",
+                },
+            },
+            {
+                "q": {
+                    "zh": "接入 Anthropic Claude 时，MAF 里<strong>真实</strong>的 ChatClient 类名是哪个？",
+                    "en": "When connecting Anthropic Claude, what is the <strong>real</strong> ChatClient class name in MAF?",
+                },
+                "opts": [
+                    {"zh": "<code>AnthropicClient</code>", "en": "<code>AnthropicClient</code>"},
+                    {"zh": "<code>AnthropicChatClient</code>", "en": "<code>AnthropicChatClient</code>"},
+                    {"zh": "<code>ClaudeChatClient</code>", "en": "<code>ClaudeChatClient</code>"},
+                    {"zh": "<code>AnthropicAgent</code>", "en": "<code>AnthropicAgent</code>"},
+                ],
+                "answer": 0,
+                "why": {
+                    "zh": "真实类名是 <code>AnthropicClient</code>（不是 <code>AnthropicChatClient</code>），从 <code>agent_framework.anthropic</code> 导入；而 OpenAI 那个才叫 <code>OpenAIChatClient</code>。命名不完全统一是真实情况——按包里的真名来，别想当然套 <code>*ChatClient</code>。",
+                    "en": "The real class is <code>AnthropicClient</code> (not <code>AnthropicChatClient</code>), imported from <code>agent_framework.anthropic</code>; OpenAI's is the one called <code>OpenAIChatClient</code>. Naming isn't perfectly uniform - use the real name from the package rather than assuming a <code>*ChatClient</code> suffix.",
+                },
+            },
+        ],
+        "open": [
+            {
+                "zh": "请用真实类名分别写出“接入 OpenAI”和“接入 Anthropic”的 import + 实例化两行代码，然后指出：如果一个已经写好的 <code>agent.run(...)</code> 业务函数要在两家之间切换，哪些行会变、哪些行完全不变，并解释这背后是哪条设计原则。",
+                "en": "Using the real class names, write the import + instantiation lines for &quot;connect OpenAI&quot; and &quot;connect Anthropic&quot;. Then say, for an already-written <code>agent.run(...)</code> business function that must switch between the two, which lines change and which stay identical - and which design principle explains that.",
+            },
+        ],
+    },
+    "17-declarative.html": {
+        "mcq": [
+            {
+                "q": {
+                    "zh": "用 <code>AgentFactory</code> 从 YAML 造出来的 Agent，和你手写 <code>Agent(client=…, tools=…)</code> 造出来的相比？",
+                    "en": "How does an Agent built from YAML via <code>AgentFactory</code> compare to one you hand-build with <code>Agent(client=…, tools=…)</code>?",
+                },
+                "opts": [
+                    {
+                        "zh": "是<strong>同一类对象</strong>，下游 <code>run()</code> / 工具 / 中间件用法完全一样",
+                        "en": "It's the <strong>same kind of object</strong>; downstream <code>run()</code> / tools / middleware all behave identically",
+                    },
+                    {
+                        "zh": "是个受限的“只读”Agent，不能调用工具",
+                        "en": "It's a restricted &quot;read-only&quot; Agent that can't call tools",
+                    },
+                    {
+                        "zh": "必须用专门的 <code>yaml_run()</code> 才能跑",
+                        "en": "It can only run via a special <code>yaml_run()</code>",
+                    },
+                    {
+                        "zh": "性能更差，因为每次调用都要重新解析 YAML",
+                        "en": "It's slower because it re-parses the YAML on every call",
+                    },
+                ],
+                "answer": 0,
+                "why": {
+                    "zh": "声明式只是<strong>另一种构造路径</strong>：<code>AgentFactory</code> 解析后产出标准 <code>Agent</code> 实例。配置与代码同构，所以两种风格可以自由切换，下游一切照旧。",
+                    "en": "Declarative is just <strong>another construction path</strong>: <code>AgentFactory</code> parses and emits a standard <code>Agent</code> instance. Config and code are isomorphic, so the two styles are interchangeable and everything downstream is unchanged.",
+                },
+            },
+            {
+                "q": {
+                    "zh": "把 Agent 定义放进 YAML（而不是写死在 <code>.py</code> 里）最主要的好处是？",
+                    "en": "What's the main benefit of putting the Agent definition in YAML instead of hard-coding it in <code>.py</code>?",
+                },
+                "opts": [
+                    {
+                        "zh": "配置变成<strong>数据</strong>：非开发者也能改、能进版本控制 diff、能按环境换文件，全程不碰代码",
+                        "en": "Config becomes <strong>data</strong>: non-developers can edit it, it diffs in version control, and you can swap files per environment - all without touching code",
+                    },
+                    {
+                        "zh": "YAML 跑起来比 Python 快",
+                        "en": "YAML runs faster than Python",
+                    },
+                    {
+                        "zh": "YAML 能绕过工具审批",
+                        "en": "YAML can bypass tool approval",
+                    },
+                    {
+                        "zh": "YAML 可以定义无限多工具",
+                        "en": "YAML can define unlimited tools",
+                    },
+                ],
+                "answer": 0,
+                "why": {
+                    "zh": "声明式把“做什么”和“怎么跑”解耦。配置即数据 → 可审计、可版本化、可由非工程师维护；<code>create_agent_from_yaml_path</code> 一行就能加载。",
+                    "en": "Declarative decouples &quot;what&quot; from &quot;how it runs&quot;. Config-as-data means it's auditable, versionable and editable by non-engineers; <code>create_agent_from_yaml_path</code> loads it in one line.",
+                },
+            },
+            {
+                "q": {
+                    "zh": "从 YAML 文件加载一个 Agent，MAF 里<strong>真实</strong>的调用是哪个？",
+                    "en": "What is the <strong>real</strong> call to load an Agent from a YAML file in MAF?",
+                },
+                "opts": [
+                    {
+                        "zh": "<code>AgentFactory().create_agent_from_yaml_path(\"my_agent.yaml\")</code>",
+                        "en": "<code>AgentFactory().create_agent_from_yaml_path(\"my_agent.yaml\")</code>",
+                    },
+                    {
+                        "zh": "<code>AgentFactory.load_agent(\"my_agent.yaml\")</code>",
+                        "en": "<code>AgentFactory.load_agent(\"my_agent.yaml\")</code>",
+                    },
+                    {
+                        "zh": "<code>Agent.from_yaml(\"my_agent.yaml\")</code>",
+                        "en": "<code>Agent.from_yaml(\"my_agent.yaml\")</code>",
+                    },
+                    {
+                        "zh": "<code>declarative.parse(\"my_agent.yaml\")</code>",
+                        "en": "<code>declarative.parse(\"my_agent.yaml\")</code>",
+                    },
+                ],
+                "answer": 0,
+                "why": {
+                    "zh": "真实 API 是 <code>from agent_framework.declarative import AgentFactory</code>，再调 <code>create_agent_from_yaml_path(...)</code>（不是 <code>load_agent</code>）。<code>AgentFactory(bindings={...})</code> 的 <code>bindings</code> 还能把 YAML 里的工具 / 客户端名字绑定到真实对象。",
+                    "en": "The real API is <code>from agent_framework.declarative import AgentFactory</code>, then <code>create_agent_from_yaml_path(...)</code> (not <code>load_agent</code>). <code>AgentFactory(bindings={...})</code> also binds tool / client names in the YAML to real objects.",
+                },
+            },
+        ],
+        "open": [
+            {
+                "zh": "你的团队想让产品经理也能改 Agent 的 <code>instructions</code> 而不用发版。请说说声明式 YAML 怎么支撑这个流程，以及 YAML 里写的 <code>tools: [get_weather]</code> 最终是怎么变成一个可调用工具的（谁负责把名字解析、绑定到真实函数）。",
+                "en": "Your team wants PMs to edit an Agent's <code>instructions</code> without shipping a release. Explain how declarative YAML supports that workflow, and how <code>tools: [get_weather]</code> in the YAML becomes a callable tool (who resolves the name and binds it to the real function).",
+            },
+        ],
+    },
+    "18-custom-middleware.html": {
+        "mcq": [
+            {
+                "q": {
+                    "zh": "要把 Chat、Function、Agent 三种中间件挂到一个 Agent 上，正确方式是？",
+                    "en": "To attach Chat, Function and Agent middleware to one Agent, the correct way is?",
+                },
+                "opts": [
+                    {
+                        "zh": "全部放进同一个 <code>middleware=[...]</code> 列表，框架按基类自动分流到对应层",
+                        "en": "Put them all in one <code>middleware=[...]</code> list; the framework routes each to the right layer by its base class",
+                    },
+                    {
+                        "zh": "分别用 <code>chat_middleware=</code> / <code>function_middleware=</code> / <code>agent_middleware=</code> 三个参数",
+                        "en": "Use three separate params: <code>chat_middleware=</code> / <code>function_middleware=</code> / <code>agent_middleware=</code>",
+                    },
+                    {
+                        "zh": "每种中间件各建一个 Agent",
+                        "en": "Build a separate Agent for each middleware kind",
+                    },
+                    {
+                        "zh": "一个 Agent 只能挂一个中间件",
+                        "en": "An Agent can hold only one middleware",
+                    },
+                ],
+                "answer": 0,
+                "why": {
+                    "zh": "<code>Agent(...)</code> / <code>as_agent(...)</code> 只有<strong>一个</strong> <code>middleware=</code> 参数，框架按基类（<code>ChatMiddleware</code> / <code>FunctionMiddleware</code> / <code>AgentMiddleware</code>）分类路由。一个口子、可混放，组合更自由。（<code>chat_middleware</code> / <code>function_middleware</code> 其实是给普通函数<em>打标记</em>的装饰器，不是构造参数。）",
+                    "en": "<code>Agent(...)</code> / <code>as_agent(...)</code> takes a <strong>single</strong> <code>middleware=</code> param and routes by base class (<code>ChatMiddleware</code> / <code>FunctionMiddleware</code> / <code>AgentMiddleware</code>). One slot, mixable, more composable. (<code>chat_middleware</code> / <code>function_middleware</code> are actually <em>decorators</em> that mark plain functions, not constructor params.)",
+                },
+            },
+            {
+                "q": {
+                    "zh": "中间件里 <code>await call_next()</code> <strong>之后</strong>的代码什么时候跑？为什么结果要从 <code>context.result</code> 取，而不是 <code>call_next()</code> 的返回值？",
+                    "en": "When does code <strong>after</strong> <code>await call_next()</code> run, and why is the result read from <code>context.result</code> instead of <code>call_next()</code>'s return value?",
+                },
+                "opts": [
+                    {
+                        "zh": "在内层执行完、响应“出站”时跑；结果挂在共享 <code>context</code> 上，方便前后两端和多个中间件读写同一份状态",
+                        "en": "It runs as the response travels &quot;out&quot;, after the inner layers finish; the result lives on the shared <code>context</code> so both ends and multiple middleware read/write one state",
+                    },
+                    {
+                        "zh": "永远不跑，<code>call_next()</code> 之后是死代码",
+                        "en": "It never runs; code after <code>call_next()</code> is dead code",
+                    },
+                    {
+                        "zh": "在请求“进站”之前跑",
+                        "en": "It runs before the request goes &quot;in&quot;",
+                    },
+                    {
+                        "zh": "<code>call_next()</code> 会直接 <code>return</code> 最终字符串",
+                        "en": "<code>call_next()</code> directly returns the final string",
+                    },
+                ],
+                "answer": 0,
+                "why": {
+                    "zh": "<code>call_next()</code> 是分界线：之前=进站，之后=出站（洋葱模型）。结果放 <code>context</code> 而非返回值，让任意层都能读改同一份上下文（改写输出、记录耗时…），也让<strong>无参</strong>的 <code>call_next()</code> 把整条链串起来。",
+                    "en": "<code>call_next()</code> is the dividing line: before = inbound, after = outbound (the onion). Putting the result on <code>context</code> rather than a return value lets any layer read/modify one shared context (rewrite output, record timing…) and lets the <strong>argument-free</strong> <code>call_next()</code> chain the whole pipeline.",
+                },
+            },
+            {
+                "q": {
+                    "zh": "用 <code>middleware=[A, B]</code> 挂两个中间件，执行顺序是？",
+                    "en": "With <code>middleware=[A, B]</code>, what is the execution order?",
+                },
+                "opts": [
+                    {
+                        "zh": "<code>A.before → B.before → 真正调用 → B.after → A.after</code>（先进后出，A 在最外层）",
+                        "en": "<code>A.before → B.before → real call → B.after → A.after</code> (first-in, last-out; A is outermost)",
+                    },
+                    {
+                        "zh": "A 整个跑完，再从头跑 B",
+                        "en": "A runs fully, then B runs from scratch",
+                    },
+                    {
+                        "zh": "<code>B.before → A.before → 调用 → A.after → B.after</code>",
+                        "en": "<code>B.before → A.before → call → A.after → B.after</code>",
+                    },
+                    {
+                        "zh": "顺序是随机的",
+                        "en": "The order is random",
+                    },
+                ],
+                "answer": 0,
+                "why": {
+                    "zh": "列表里<strong>越靠前越在外层</strong>（洋葱皮）：最先进、最后出。顺序会改变语义——比如“重试”包在“日志”外面还是里面，决定了失败重试会不会被重复记日志，所以顺序是显式可控的。",
+                    "en": "Earlier in the list = further outside (onion skin): first in, last out. Order changes semantics - e.g. whether &quot;retry&quot; wraps &quot;logging&quot; or vice versa decides if retried failures get logged twice - so order is explicit and controllable.",
+                },
+            },
+        ],
+        "open": [
+            {
+                "zh": "你要加一个“计费”中间件：统计每次调用的 token 用量并上报。请说说你会继承哪个基类、在 <code>call_next()</code> 前后分别做什么，以及把它放在 <code>middleware=</code> 列表的<strong>靠前还是靠后</strong>会怎样影响它统计到的范围（比如会不会把重试产生的额外调用也算进去）。",
+                "en": "You're adding a &quot;billing&quot; middleware that records each call's token usage and reports it. Say which base class you'd subclass, what you'd do before vs after <code>call_next()</code>, and how placing it <strong>earlier vs later</strong> in the <code>middleware=</code> list changes what it measures (e.g. whether extra calls from retries get counted).",
+            },
+        ],
+    },
+    "19-durability-hitl.html": {
+        "mcq": [
+            {
+                "q": {
+                    "zh": "Workflow 在哪里自动存检查点，这有什么用？",
+                    "en": "Where does a Workflow auto-save checkpoints, and what's the point?",
+                },
+                "opts": [
+                    {
+                        "zh": "在每个 <strong>superstep 边界</strong>存档；崩溃后能从最近存档续跑，不必从头重来",
+                        "en": "At every <strong>superstep boundary</strong>; after a crash it resumes from the latest save instead of restarting from scratch",
+                    },
+                    {
+                        "zh": "在每生成一个 token 后都存一次",
+                        "en": "After every single token is generated",
+                    },
+                    {
+                        "zh": "只在 <code>workflow.run</code> 返回后存一次",
+                        "en": "Only once, after <code>workflow.run</code> returns",
+                    },
+                    {
+                        "zh": "从不自动存，必须手动调 <code>save()</code>",
+                        "en": "Never automatically; you must call <code>save()</code> by hand",
+                    },
+                ],
+                "answer": 0,
+                "why": {
+                    "zh": "superstep 是 workflow 的批处理边界，天然是一致性快照点。存档内容=Agent 状态 + 消息历史 + 当前步；10 步在第 5 步挂了能从第 5 步起，省时间也省 LLM token。",
+                    "en": "A superstep is the workflow's batch boundary - a natural consistency snapshot point. A save holds Agent state + message history + current step; a 10-step run that dies at step 5 resumes from step 5, saving time and LLM tokens.",
+                },
+            },
+            {
+                "q": {
+                    "zh": "关于检查点的<strong>持久化后端</strong>，下面哪个说法正确？",
+                    "en": "Regarding the <strong>persistent backend</strong> for checkpoints, which statement is correct?",
+                },
+                "opts": [
+                    {
+                        "zh": "工作流检查点用 <code>FileCheckpointStorage</code>（核心）或 <code>CosmosCheckpointStorage</code>（azure-cosmos 包）；Redis 包是给上下文 / 历史记忆用的，不是 checkpoint 后端",
+                        "en": "Workflow checkpoints use <code>FileCheckpointStorage</code> (core) or <code>CosmosCheckpointStorage</code> (azure-cosmos package); the Redis package is for context / history memory, not a checkpoint backend",
+                    },
+                    {
+                        "zh": "Redis 是默认的检查点后端",
+                        "en": "Redis is the default checkpoint backend",
+                    },
+                    {
+                        "zh": "只有内存一种后端，无法持久化",
+                        "en": "There's only an in-memory backend; persistence is impossible",
+                    },
+                    {
+                        "zh": "切换后端必须重写整个 workflow",
+                        "en": "Switching backends requires rewriting the whole workflow",
+                    },
+                ],
+                "answer": 0,
+                "why": {
+                    "zh": "真实情况：核心提供 <code>InMemory</code> / <code>File</code>，<code>agent-framework-azure-cosmos</code> 提供 <code>Cosmos</code>。Redis 包导出的是 <code>RedisContextProvider</code> / <code>RedisHistoryProvider</code>（记忆 / 历史），属于<strong>另一条</strong>持久化轴。切后端只改“构造 storage”那一行，<code>checkpoint_storage=</code> 接口不变。",
+                    "en": "Reality: core ships <code>InMemory</code> / <code>File</code>; <code>agent-framework-azure-cosmos</code> ships <code>Cosmos</code>. The Redis package exports <code>RedisContextProvider</code> / <code>RedisHistoryProvider</code> (memory / history) - a <strong>different</strong> durability axis. Switching backends is a one-line change to constructing <code>storage</code>; the <code>checkpoint_storage=</code> interface stays the same.",
+                },
+            },
+            {
+                "q": {
+                    "zh": "MAF 的“人在环”(HITL) 在哪<strong>两个</strong>层面提供暂停点？",
+                    "en": "At which <strong>two</strong> levels does MAF's human-in-the-loop (HITL) offer pause points?",
+                },
+                "opts": [
+                    {
+                        "zh": "工具层 <code>approval_mode=\"always_require\"</code> + 工作流层 <code>request_info</code>",
+                        "en": "Tool level <code>approval_mode=\"always_require\"</code> + workflow level <code>request_info</code>",
+                    },
+                    {
+                        "zh": "只有工具层",
+                        "en": "Only the tool level",
+                    },
+                    {
+                        "zh": "只有 UI 层弹窗",
+                        "en": "Only a UI-level popup",
+                    },
+                    {
+                        "zh": "靠 <code>time.sleep</code> 轮询",
+                        "en": "By polling with <code>time.sleep</code>",
+                    },
+                ],
+                "answer": 0,
+                "why": {
+                    "zh": "两条路：单个工具调用前要审批（<code>approval_mode</code>），或工作流节点用 <code>request_info</code> 暂停、发问、等回答。共同点是把“等人”变成一等状态——配合检查点，甚至能在崩溃恢复后继续等那次审批。",
+                    "en": "Two routes: require approval before a single tool call (<code>approval_mode</code>), or have a workflow node <code>request_info</code> to pause, ask and await a reply. Both make &quot;waiting on a human&quot; a first-class state - combined with checkpointing, the pending approval can even survive a crash-and-resume.",
+                },
+            },
+        ],
+        "open": [
+            {
+                "zh": "一个 10 步、含一次人工审批的工作流，跑到第 6 步进程崩了。结合<strong>检查点 + 持久化后端 + 人在环</strong>，说说重启后它怎么恢复到正确状态、那次审批的结果会不会丢，以及你会选 <code>File</code> 还是 <code>Cosmos</code> 后端、为什么。",
+                "en": "A 10-step workflow with one human approval crashes at step 6. Using <strong>checkpointing + persistent backend + HITL</strong>, explain how it recovers to the correct state on restart, whether that approval result is lost, and whether you'd pick the <code>File</code> or <code>Cosmos</code> backend and why.",
+            },
+        ],
+    },
+    "20-capstone.html": {
+        "mcq": [
+            {
+                "q": {
+                    "zh": "capstone 把 provider / 工具 / 中间件 / 编排 / 检查点拼到一起，最能体现 MAF 的哪个设计？",
+                    "en": "The capstone assembles provider / tools / middleware / orchestration / checkpointing. Which MAF design does that best illustrate?",
+                },
+                "opts": [
+                    {
+                        "zh": "这些能力彼此<strong>正交</strong>：各自独立、接口稳定，所以能像乐高一样自由组合，不用互相改代码",
+                        "en": "These capabilities are <strong>orthogonal</strong>: independent with stable interfaces, so they compose like LEGO without changing each other's code",
+                    },
+                    {
+                        "zh": "必须按固定顺序写死，换一个就全崩",
+                        "en": "They must be wired in a fixed order; swap one and everything breaks",
+                    },
+                    {
+                        "zh": "所有功能其实都是一个大类",
+                        "en": "All the features are really one giant class",
+                    },
+                    {
+                        "zh": "只有买企业版才能组合",
+                        "en": "Composition only works in the enterprise edition",
+                    },
+                ],
+                "answer": 0,
+                "why": {
+                    "zh": "每个零件都通过稳定接口暴露（<code>ChatClient</code>、<code>@tool</code>、<code>middleware=</code>、<code>*Builder</code>、<code>checkpoint_storage=</code>）。正交即可组合：加中间件不影响编排，换 provider 不影响工具。capstone 的价值就是把这点看清。",
+                    "en": "Each brick is exposed via a stable interface (<code>ChatClient</code>, <code>@tool</code>, <code>middleware=</code>, <code>*Builder</code>, <code>checkpoint_storage=</code>). Orthogonal means composable: adding middleware doesn't affect orchestration, swapping providers doesn't affect tools. The capstone makes that visible.",
+                },
+            },
+            {
+                "q": {
+                    "zh": "在 writer → reviewer 的 <code>SequentialBuilder</code> 工作流里，检查点是怎么接进去的？",
+                    "en": "In the writer → reviewer <code>SequentialBuilder</code> workflow, how does checkpointing get wired in?",
+                },
+                "opts": [
+                    {
+                        "zh": "把 <code>storage</code> 传给 <code>SequentialBuilder(participants=[…], checkpoint_storage=storage)</code>，工作流在 superstep 边界自动存",
+                        "en": "Pass <code>storage</code> to <code>SequentialBuilder(participants=[…], checkpoint_storage=storage)</code>; the workflow auto-saves at superstep boundaries",
+                    },
+                    {
+                        "zh": "在每个 Agent 的 <code>run()</code> 里手动 <code>save</code>",
+                        "en": "Manually <code>save</code> inside each Agent's <code>run()</code>",
+                    },
+                    {
+                        "zh": "检查点必须用一个单独的 <code>with</code> 语句包住",
+                        "en": "Checkpointing must be wrapped in a separate <code>with</code> block",
+                    },
+                    {
+                        "zh": "Sequential 工作流不支持检查点",
+                        "en": "Sequential workflows don't support checkpointing",
+                    },
+                ],
+                "answer": 0,
+                "why": {
+                    "zh": "检查点是 Builder 的一个参数，由<strong>编排层</strong>统一负责存档；Agent 本身不用关心持久化。这正是分层组合：Agent 管“想”，Builder 管“编排 + 存档”——各司其职，互不渗透。",
+                    "en": "Checkpointing is a Builder parameter; the <strong>orchestration layer</strong> owns saving, and the Agent need not know about persistence. That's layered composition: the Agent &quot;thinks&quot;, the Builder handles &quot;orchestration + saving&quot; - separate concerns that don't leak into each other.",
+                },
+            },
+        ],
+        "open": [
+            {
+                "zh": "给这个 writer → reviewer 工作流再加一个“事实核查”Agent，并要求在 reviewer 之前先过核查。请说说你会怎么改 <code>participants</code>、是否需要改动 writer / reviewer 自身的代码，以及为什么这种扩展通常是“再加一块乐高”而不是“重构”——它印证了哪条设计原则？",
+                "en": "Add a &quot;fact-check&quot; Agent to the writer → reviewer workflow, required to run before the reviewer. Say how you'd change <code>participants</code>, whether you must edit the writer / reviewer code itself, and why this is usually &quot;adding one more LEGO brick&quot; rather than &quot;refactoring&quot; - which design principle does that confirm?",
+            },
+        ],
+    },
     "23-skills.html": {
         "mcq": [
             {

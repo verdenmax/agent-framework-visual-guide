@@ -22,6 +22,18 @@ L16_ZH = r"""
 </table>
 <p>全部用法一样：实例化 ChatClient → <span class="mono">client.as_agent(…)</span> → <span class="mono">agent.run(…)</span>。</p>
 
+<h2>从 import 到 run：所有 provider 同一条路</h2>
+<div class="flow">
+  <div class="node"><div class="nt">import</div><div class="nd">选一个 provider 包</div></div>
+  <div class="arrow">→</div>
+  <div class="node"><div class="nt">实例化</div><div class="nd">XxxChatClient(model=…)</div></div>
+  <div class="arrow">→</div>
+  <div class="node hl"><div class="nt">.as_agent(…)</div><div class="nd">厂商无关</div></div>
+  <div class="arrow">→</div>
+  <div class="node"><div class="nt">agent.run(…)</div><div class="nd">厂商无关</div></div>
+</div>
+<p>只有前两个框会随厂商变（包名 + ChatClient 类）；后两个框<strong>对所有 provider 完全一样</strong>。这就是“万能插座”：换插头不用换电器——把 OpenAI 换成 Anthropic，下游 Agent 代码一行不改。</p>
+
 <details class="accordion">
   <summary><span class="badge-num">1</span> FoundryChatClient 配置 <span class="hint">点击展开详解</span></summary>
   <div class="acc-body">
@@ -241,6 +253,18 @@ This lesson surveys the main provider packages and shows the <strong>import-to-r
   <tr><td>AWS Bedrock</td><td class="mono">agent-framework-bedrock</td><td class="mono">BedrockChatClient</td></tr>
 </table>
 <p>Same pattern for all: instantiate ChatClient → <span class="mono">client.as_agent(…)</span> → <span class="mono">agent.run(…)</span>.</p>
+
+<h2>From import to run: one path for every provider</h2>
+<div class="flow">
+  <div class="node"><div class="nt">import</div><div class="nd">pick a provider package</div></div>
+  <div class="arrow">→</div>
+  <div class="node"><div class="nt">instantiate</div><div class="nd">XxxChatClient(model=…)</div></div>
+  <div class="arrow">→</div>
+  <div class="node hl"><div class="nt">.as_agent(…)</div><div class="nd">vendor-agnostic</div></div>
+  <div class="arrow">→</div>
+  <div class="node"><div class="nt">agent.run(…)</div><div class="nd">vendor-agnostic</div></div>
+</div>
+<p>Only the first two boxes change per vendor (package name + ChatClient class); the last two are <strong>identical for every provider</strong>. That's the &quot;universal socket&quot;: swap the plug, keep the appliance - switch OpenAI for Anthropic and the downstream Agent code doesn't change a line.</p>
 
 <details class="accordion">
   <summary><span class="badge-num">1</span> FoundryChatClient configuration <span class="hint">expand</span></summary>
@@ -462,6 +486,18 @@ tools:
 <p>框架的 <span class="mono">declarative</span> 包读这个 YAML，自动构造出 <span class="mono">Agent</span> 实例。
 适合快速原型和版本控制。</p>
 
+<h2>从 YAML 到运行的一条龙</h2>
+<div class="flow">
+  <div class="node"><div class="nt">my_agent.yaml</div><div class="nd">name / instructions / tools</div></div>
+  <div class="arrow">→</div>
+  <div class="node"><div class="nt">AgentFactory</div><div class="nd">create_agent_from_yaml_path</div></div>
+  <div class="arrow">→</div>
+  <div class="node hl"><div class="nt">Agent 实例</div><div class="nd">和手写的完全一样</div></div>
+  <div class="arrow">→</div>
+  <div class="node"><div class="nt">agent.run(…)</div><div class="nd">照常调用</div></div>
+</div>
+<p>关键洞察：YAML 只是<strong>另一种构造方式</strong>。<span class="mono">AgentFactory</span> 解析完配置吐出的，和你用 <span class="mono">Agent(client=…, tools=…)</span> 手写出来的<strong>是同一类对象</strong>——所以下游的 <span class="mono">run()</span>、工具、中间件全都照旧。配置与代码<strong>同构</strong>，你才能在两种风格间自由切换。</p>
+
 <details class="accordion">
   <summary><span class="badge-num">1</span> 完整 YAML schema <span class="hint">点击展开详解</span></summary>
   <div class="acc-body">
@@ -638,6 +674,18 @@ tools:
 </div>
 <p>The <span class="mono">declarative</span> package reads this YAML and auto-constructs an <span class="mono">Agent</span>.
 Great for rapid prototyping and version control.</p>
+
+<h2>From YAML to running, end to end</h2>
+<div class="flow">
+  <div class="node"><div class="nt">my_agent.yaml</div><div class="nd">name / instructions / tools</div></div>
+  <div class="arrow">→</div>
+  <div class="node"><div class="nt">AgentFactory</div><div class="nd">create_agent_from_yaml_path</div></div>
+  <div class="arrow">→</div>
+  <div class="node hl"><div class="nt">Agent instance</div><div class="nd">identical to hand-written</div></div>
+  <div class="arrow">→</div>
+  <div class="node"><div class="nt">agent.run(…)</div><div class="nd">called as usual</div></div>
+</div>
+<p>Key insight: YAML is just <strong>another way to construct</strong>. What <span class="mono">AgentFactory</span> emits after parsing is <strong>the same kind of object</strong> you'd build by hand with <span class="mono">Agent(client=…, tools=…)</span> - so downstream <span class="mono">run()</span>, tools and middleware all work unchanged. Config and code are <strong>isomorphic</strong>, which is what lets you move freely between the two styles.</p>
 
 <details class="accordion">
   <summary><span class="badge-num">1</span> Complete YAML schema <span class="hint">expand</span></summary>
@@ -822,7 +870,25 @@ L18_ZH = r"""
                 <span class="kw">if</span> attempt == self.max_retries - <span class="nb">1</span>:
                     <span class="kw">raise</span></pre>
 </div>
-<p>挂到 Agent 上：<span class="inline">Agent(client=client, chat_middleware=[RetryChatMiddleware(3)])</span>。</p>
+<p>挂到 Agent 上：<span class="inline">Agent(client=client, middleware=[RetryChatMiddleware(3)])</span>。</p>
+
+<h2>请求在中间件里穿行（洋葱模型）</h2>
+<div class="flow">
+  <div class="node"><div class="nt">run()</div><div class="nd">发起请求</div></div>
+  <div class="arrow">→</div>
+  <div class="node"><div class="nt">Retry.before</div><div class="nd">call_next() 之前</div></div>
+  <div class="arrow">→</div>
+  <div class="node"><div class="nt">Logging.before</div><div class="nd">记录输入</div></div>
+  <div class="arrow">→</div>
+  <div class="node hl"><div class="nt">真正的调用</div><div class="nd">LLM / 工具</div></div>
+  <div class="arrow">→</div>
+  <div class="node"><div class="nt">Logging.after</div><div class="nd">记录输出 / 耗时</div></div>
+  <div class="arrow">→</div>
+  <div class="node"><div class="nt">Retry.after</div><div class="nd">失败则重试</div></div>
+  <div class="arrow">→</div>
+  <div class="node"><div class="nt">result</div><div class="nd">context.result</div></div>
+</div>
+<p><span class="mono">await call_next()</span> 是分界线：它<strong>之前</strong>的代码在请求“进站”时跑，<strong>之后</strong>的代码在响应“出站”时跑——所以同一个中间件能同时包住前后两端（洋葱皮）。列表里<strong>越靠前的中间件越在外层</strong>：最先进、最后出。</p>
 
 <details class="accordion">
   <summary><span class="badge-num">1</span> 完整的日志中间件 <span class="hint">点击展开详解</span></summary>
@@ -975,7 +1041,7 @@ logger = logging.getLogger(__name__)
   <ul>
     <li>继承 <span class="mono">*Middleware</span>，实现 <span class="mono">process(self, context, call_next)</span>。</li>
     <li><span class="mono">await call_next()</span> 无参；结果在 <span class="mono">context.result</span>。</li>
-    <li>用 <span class="mono">Agent(middleware=…, chat_middleware=…, function_middleware=…)</span> 挂载。</li>
+    <li>用 <span class="mono">Agent(client=client, middleware=[…])</span> 挂载——同一个列表里可混放 Chat / Function / Agent 三类，框架按基类自动分流。</li>
   </ul>
 </div>
 
@@ -1014,7 +1080,25 @@ L18_EN = r"""
                 <span class="kw">if</span> attempt == self.max_retries - <span class="nb">1</span>:
                     <span class="kw">raise</span></pre>
 </div>
-<p>Attach to an Agent: <span class="inline">Agent(client=client, chat_middleware=[RetryChatMiddleware(3)])</span>.</p>
+<p>Attach to an Agent: <span class="inline">Agent(client=client, middleware=[RetryChatMiddleware(3)])</span>.</p>
+
+<h2>A request travels through the middleware (onion model)</h2>
+<div class="flow">
+  <div class="node"><div class="nt">run()</div><div class="nd">request starts</div></div>
+  <div class="arrow">→</div>
+  <div class="node"><div class="nt">Retry.before</div><div class="nd">before call_next()</div></div>
+  <div class="arrow">→</div>
+  <div class="node"><div class="nt">Logging.before</div><div class="nd">log input</div></div>
+  <div class="arrow">→</div>
+  <div class="node hl"><div class="nt">the real call</div><div class="nd">LLM / tool</div></div>
+  <div class="arrow">→</div>
+  <div class="node"><div class="nt">Logging.after</div><div class="nd">log output / timing</div></div>
+  <div class="arrow">→</div>
+  <div class="node"><div class="nt">Retry.after</div><div class="nd">retry on failure</div></div>
+  <div class="arrow">→</div>
+  <div class="node"><div class="nt">result</div><div class="nd">context.result</div></div>
+</div>
+<p><span class="mono">await call_next()</span> is the dividing line: code <strong>before</strong> it runs as the request goes &quot;in&quot;, code <strong>after</strong> it runs as the response comes &quot;out&quot; - so one middleware wraps both ends (the onion skin). <strong>Earlier middleware in the list sits further outside</strong>: first in, last out.</p>
 
 <details class="accordion">
   <summary><span class="badge-num">1</span> Complete logging middleware <span class="hint">expand</span></summary>
@@ -1167,7 +1251,7 @@ On failure: log error, optionally retry, optionally return fallback. Pattern: ca
   <ul>
     <li>Subclass <span class="mono">*Middleware</span>; implement <span class="mono">process(self, context, call_next)</span>.</li>
     <li><span class="mono">await call_next()</span> takes no args; result is on <span class="mono">context.result</span>.</li>
-    <li>Attach via <span class="mono">Agent(middleware=…, chat_middleware=…, function_middleware=…)</span>.</li>
+    <li>Attach via <span class="mono">Agent(client=client, middleware=[…])</span> - one list can mix Chat / Function / Agent middleware; the framework routes each by its base class.</li>
   </ul>
 </div>
 
@@ -1192,11 +1276,27 @@ L19_ZH = r"""
 
 <h2>检查点（Checkpoint）</h2>
 <p>Workflow 在每个 superstep 边界自动存档。默认用 <span class="mono">InMemoryCheckpointStorage</span>；
-生产换成持久化存储（如 Redis、Cosmos）。崩溃后重启，从最近存档恢复。</p>
+生产换成持久化存储（如本地 <span class="mono">FileCheckpointStorage</span> 或云端 <span class="mono">CosmosCheckpointStorage</span>）。崩溃后重启，从最近存档恢复。</p>
 
 <h2>人在环（HITL）</h2>
 <p>工具可设置 <span class="mono">approval_mode="always_require"</span>，执行前暂停等人确认。
 工作流层面也有 <span class="mono">request_info</span> 机制：节点暂停、发问、等回答再继续。</p>
+
+<h2>一条带存档与暂停的时间线</h2>
+<div class="flow">
+  <div class="node"><div class="nt">superstep 1</div><div class="nd">Writer 跑完</div></div>
+  <div class="arrow">→</div>
+  <div class="node"><div class="nt">💾 存档</div><div class="nd">superstep 边界</div></div>
+  <div class="arrow">→</div>
+  <div class="node"><div class="nt">⏸ 人在环</div><div class="nd">approval / request_info</div></div>
+  <div class="arrow">→</div>
+  <div class="node"><div class="nt">superstep 2</div><div class="nd">Reviewer 跑</div></div>
+  <div class="arrow">→</div>
+  <div class="node"><div class="nt">💥 崩溃</div><div class="nd">进程挂了</div></div>
+  <div class="arrow">→</div>
+  <div class="node hl"><div class="nt">↺ 续跑</div><div class="nd">从最近存档恢复</div></div>
+</div>
+<p>三件事各管一段：<strong>检查点</strong>在每个 superstep 边界自动存档；<strong>人在环</strong>在关键节点把流程<em>暂停</em>等人；<strong>持久化后端</strong>（File / Cosmos）决定存档放哪、崩溃后还能不能找回。注意 <strong>Redis 包是给上下文 / 历史记忆用的，不是工作流检查点</strong>。</p>
 
 <details class="accordion">
   <summary><span class="badge-num">1</span> InMemoryCheckpointStorage 示例 <span class="hint">点击展开详解</span></summary>
@@ -1294,7 +1394,7 @@ answer = <span class="kw">await</span> request_info(<span class="st">&quot;Shoul
 </details>
 
 <details class="accordion">
-  <summary><span class="badge-num">4</span> Redis/Cosmos 持久化存储 <span class="hint">点击展开详解</span></summary>
+  <summary><span class="badge-num">4</span> File / Cosmos 持久化存储 <span class="hint">点击展开详解</span></summary>
   <div class="acc-body">
     <div class="qa">
       <div class="q">🧪 示例</div>
@@ -1321,7 +1421,7 @@ workflow = SequentialBuilder(
     </div>
     <div class="qa">
       <div class="q">❓ 为什么这件事必要</div>
-      <div class="a">内存存储快但易失。Redis 提供速度 + 持久性；Cosmos 提供全球分布 + 强一致性。</div>
+      <div class="a">内存存储快但易失。<span class="mono">FileCheckpointStorage</span> 提供零依赖的本地持久化；<span class="mono">CosmosCheckpointStorage</span> 提供全球分布 + 强一致性。（Redis 包提供的是上下文 / 历史记忆，不是工作流检查点。）</div>
     </div>
     <div class="qa">
       <div class="q">✅ MAF 的做法与优点</div>
@@ -1329,7 +1429,7 @@ workflow = SequentialBuilder(
     </div>
     <div class="qa">
       <div class="q">🔀 还有什么其他方案</div>
-      <div class="a">PostgreSQL、DynamoDB、S3。MAF 提供 Redis 和 Cosmos 包；社区可以添加其他。</div>
+      <div class="a">PostgreSQL、DynamoDB、S3。检查点方面，MAF 核心自带 File、<span class="mono">agent-framework-azure-cosmos</span> 提供 Cosmos；Redis 包走的是上下文 / 历史记忆这条轴，社区可再补其他后端。</div>
     </div>
   </div>
 </details>
@@ -1363,11 +1463,27 @@ critical steps</strong> (HITL), <strong>resume after crashes</strong> (durabilit
 
 <h2>Checkpoints</h2>
 <p>Workflows auto-save at each superstep boundary. Default: <span class="mono">InMemoryCheckpointStorage</span>;
-swap to persistent storage (Redis, Cosmos) for production. After a crash, restart and resume from the latest save.</p>
+swap to persistent storage (local <span class="mono">FileCheckpointStorage</span> or cloud <span class="mono">CosmosCheckpointStorage</span>) for production. After a crash, restart and resume from the latest save.</p>
 
 <h2>Human-in-the-Loop (HITL)</h2>
 <p>Tools can set <span class="mono">approval_mode="always_require"</span> to pause for human confirmation.
 At the workflow level, <span class="mono">request_info</span> lets a node pause, ask a question, and wait for a reply.</p>
+
+<h2>A timeline with saves and pauses</h2>
+<div class="flow">
+  <div class="node"><div class="nt">superstep 1</div><div class="nd">Writer finishes</div></div>
+  <div class="arrow">→</div>
+  <div class="node"><div class="nt">💾 save</div><div class="nd">superstep boundary</div></div>
+  <div class="arrow">→</div>
+  <div class="node"><div class="nt">⏸ HITL</div><div class="nd">approval / request_info</div></div>
+  <div class="arrow">→</div>
+  <div class="node"><div class="nt">superstep 2</div><div class="nd">Reviewer runs</div></div>
+  <div class="arrow">→</div>
+  <div class="node"><div class="nt">💥 crash</div><div class="nd">process dies</div></div>
+  <div class="arrow">→</div>
+  <div class="node hl"><div class="nt">↺ resume</div><div class="nd">from latest save</div></div>
+</div>
+<p>Each concern owns a slice: <strong>checkpointing</strong> auto-saves at every superstep boundary; <strong>HITL</strong> <em>pauses</em> the flow at key nodes to wait for a human; the <strong>persistent backend</strong> (File / Cosmos) decides where saves live and whether you can recover after a crash. Note that <strong>the Redis package is for context / history memory, not workflow checkpoints</strong>.</p>
 
 <details class="accordion">
   <summary><span class="badge-num">1</span> InMemoryCheckpointStorage example <span class="hint">expand</span></summary>
@@ -1465,7 +1581,7 @@ Durability guarantees: state survives process restarts, supports long waits (hou
 </details>
 
 <details class="accordion">
-  <summary><span class="badge-num">4</span> Redis/Cosmos persistent storage <span class="hint">expand</span></summary>
+  <summary><span class="badge-num">4</span> File / Cosmos persistent storage <span class="hint">expand</span></summary>
   <div class="acc-body">
     <div class="qa">
       <div class="q">🧪 Example</div>
@@ -1492,7 +1608,7 @@ Switching backends is a one-line change. All checkpoint APIs stay the same.
     </div>
     <div class="qa">
       <div class="q">❓ Why this matters</div>
-      <div class="a">In-memory storage is fast but volatile. Redis gives speed + persistence; Cosmos gives global distribution + strong consistency.</div>
+      <div class="a">In-memory storage is fast but volatile. <span class="mono">FileCheckpointStorage</span> gives zero-dependency local persistence; <span class="mono">CosmosCheckpointStorage</span> gives global distribution + strong consistency. (The Redis package provides context / history memory, not workflow checkpoints.)</div>
     </div>
     <div class="qa">
       <div class="q">✅ How MAF does it</div>
@@ -1500,7 +1616,7 @@ Switching backends is a one-line change. All checkpoint APIs stay the same.
     </div>
     <div class="qa">
       <div class="q">🔀 Alternatives</div>
-      <div class="a">PostgreSQL, DynamoDB, S3. MAF ships Redis and Cosmos packages; community can add others.</div>
+      <div class="a">PostgreSQL, DynamoDB, S3. For checkpoints, MAF core ships File and <span class="mono">agent-framework-azure-cosmos</span> ships Cosmos; the Redis package serves the context / history memory axis. The community can add more backends.</div>
     </div>
   </div>
 </details>
@@ -1556,6 +1672,21 @@ workflow = SequentialBuilder(participants=[writer, reviewer]).build()
 result = <span class="kw">await</span> workflow.run(<span class="st">"Write about AI agents"</span>)</pre>
 </div>
 
+<h2>这些零件是怎么拼起来的</h2>
+<div class="flow">
+  <div class="node"><div class="nt">Provider</div><div class="nd">OpenAIChatClient</div></div>
+  <div class="arrow">→</div>
+  <div class="node"><div class="nt">Writer</div><div class="nd">+ 工具 + 中间件</div></div>
+  <div class="arrow">→</div>
+  <div class="node"><div class="nt">Reviewer</div><div class="nd">审稿 Agent</div></div>
+  <div class="arrow">→</div>
+  <div class="node"><div class="nt">SequentialBuilder</div><div class="nd">串成工作流</div></div>
+  <div class="arrow">→</div>
+  <div class="node"><div class="nt">+ 检查点</div><div class="nd">checkpoint_storage</div></div>
+  <div class="arrow">→</div>
+  <div class="node hl"><div class="nt">workflow.run</div><div class="nd">端到端跑通</div></div>
+</div>
+<p>每个箭头都对应你前面学过的一课：<strong>Provider</strong>（L16）接模型，<strong>工具 / 中间件</strong>（L06 / L18）增强单个 Agent，<strong>Builder</strong>（L12-13）把多个 Agent 编排起来，<strong>检查点</strong>（L19）让它能恢复。capstone 的价值就是看清这些零件如何<strong>正交组合</strong>——各自独立，又能拼在一起。</p>
 <details class="accordion">
   <summary><span class="badge-num">1</span> 完整代码骨架（扩展版） <span class="hint">点击展开详解</span></summary>
   <div class="acc-body">
@@ -1585,7 +1716,7 @@ client = OpenAIChatClient(model=<span class="st">&quot;gpt-4o&quot;</span>)
 writer = client.as_agent(name=<span class="st">&quot;Writer&quot;</span>,
     instructions=<span class="st">&quot;Write articles&quot;</span>,
     tools=[web_search],
-    chat_middleware=[LoggingMiddleware()])
+    middleware=[LoggingMiddleware()])
 
 reviewer = client.as_agent(name=<span class="st">&quot;Reviewer&quot;</span>,
     instructions=<span class="st">&quot;Review and improve&quot;</span>)
@@ -1782,6 +1913,21 @@ workflow = SequentialBuilder(participants=[writer, reviewer]).build()
 result = <span class="kw">await</span> workflow.run(<span class="st">"Write about AI agents"</span>)</pre>
 </div>
 
+<h2>How the bricks snap together</h2>
+<div class="flow">
+  <div class="node"><div class="nt">Provider</div><div class="nd">OpenAIChatClient</div></div>
+  <div class="arrow">→</div>
+  <div class="node"><div class="nt">Writer</div><div class="nd">+ tools + middleware</div></div>
+  <div class="arrow">→</div>
+  <div class="node"><div class="nt">Reviewer</div><div class="nd">review Agent</div></div>
+  <div class="arrow">→</div>
+  <div class="node"><div class="nt">SequentialBuilder</div><div class="nd">chain into a workflow</div></div>
+  <div class="arrow">→</div>
+  <div class="node"><div class="nt">+ checkpoint</div><div class="nd">checkpoint_storage</div></div>
+  <div class="arrow">→</div>
+  <div class="node hl"><div class="nt">workflow.run</div><div class="nd">end to end</div></div>
+</div>
+<p>Every arrow maps to an earlier lesson: <strong>Provider</strong> (L16) supplies the model, <strong>tools / middleware</strong> (L06 / L18) enrich a single Agent, the <strong>Builder</strong> (L12-13) orchestrates multiple Agents, and <strong>checkpointing</strong> (L19) makes it recoverable. The capstone's value is seeing how these pieces <strong>compose orthogonally</strong> - each independent, yet snapping together.</p>
 <details class="accordion">
   <summary><span class="badge-num">1</span> Extended code skeleton <span class="hint">expand</span></summary>
   <div class="acc-body">
@@ -1811,7 +1957,7 @@ client = OpenAIChatClient(model=<span class="st">&quot;gpt-4o&quot;</span>)
 writer = client.as_agent(name=<span class="st">&quot;Writer&quot;</span>,
     instructions=<span class="st">&quot;Write articles&quot;</span>,
     tools=[web_search],
-    chat_middleware=[LoggingMiddleware()])
+    middleware=[LoggingMiddleware()])
 
 reviewer = client.as_agent(name=<span class="st">&quot;Reviewer&quot;</span>,
     instructions=<span class="st">&quot;Review and improve&quot;</span>)

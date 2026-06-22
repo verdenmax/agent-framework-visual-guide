@@ -285,6 +285,18 @@ table.t td.mono, table.t td .mono { font-family: ui-monospace, monospace; font-s
 </table>
 <p>全部用法一样：实例化 ChatClient → <span class="mono">client.as_agent(…)</span> → <span class="mono">agent.run(…)</span>。</p>
 
+<h2>从 import 到 run：所有 provider 同一条路</h2>
+<div class="flow">
+  <div class="node"><div class="nt">import</div><div class="nd">选一个 provider 包</div></div>
+  <div class="arrow">→</div>
+  <div class="node"><div class="nt">实例化</div><div class="nd">XxxChatClient(model=…)</div></div>
+  <div class="arrow">→</div>
+  <div class="node hl"><div class="nt">.as_agent(…)</div><div class="nd">厂商无关</div></div>
+  <div class="arrow">→</div>
+  <div class="node"><div class="nt">agent.run(…)</div><div class="nd">厂商无关</div></div>
+</div>
+<p>只有前两个框会随厂商变（包名 + ChatClient 类）；后两个框<strong>对所有 provider 完全一样</strong>。这就是“万能插座”：换插头不用换电器——把 OpenAI 换成 Anthropic，下游 Agent 代码一行不改。</p>
+
 <details class="accordion">
   <summary><span class="badge-num">1</span> FoundryChatClient 配置 <span class="hint">点击展开详解</span></summary>
   <div class="acc-body">
@@ -482,7 +494,54 @@ agent = client.as_agent(
   <strong>新增厂商不碰核心</strong>：provider 是独立包，通过懒加载接入。
   社区可以自己做新 provider 而不需要 fork 仓库。
 </div>
+<div class="selftest">
+<h2>🧪 自测 · 想一想为什么这么设计</h2>
+<div class="quiz">
+  <div class="qn">1. 为什么把模型厂商从 OpenAI 换成 Anthropic，通常只改“实例化 ChatClient”那一两行，下游 Agent 代码却不用动？</div>
+  <ol class="opts">
+    <li>因为 Agent 代码里其实写死了 OpenAI</li>
+    <li><code>as_agent()</code> / <code>run()</code> 这层接口是厂商无关的，provider 包只负责把自家 API 适配成同一套 ChatClient 抽象</li>
+    <li>因为所有厂商的 HTTP API 格式本来就完全一样</li>
+    <li>因为 MAF 会在运行时自动翻译你的 prompt</li>
+  </ol>
+  <details class="accordion">
+    <summary>看答案与解析 <span class="hint">点击展开</span></summary>
+    <div class="acc-body"><div class="qa"><div class="a"><strong>答案：B</strong>。ChatClient 是一道<strong>抽象边界</strong>：每个 provider 包实现同一套接口，Agent 只依赖抽象。所以“构造 ChatClient”以上随厂商变，以下全部复用——换厂商是局部改动。</div></div></div>
+  </details>
 </div>
+<div class="quiz">
+  <div class="qn">2. MAF 用<strong>同一个</strong> <code>OpenAIChatClient</code> 同时接 OpenAI 和 Azure OpenAI（靠 <code>base_url</code> / 认证区分），而不是做两个类。为什么？</div>
+  <ol class="opts">
+    <li>两者底层 wire protocol 相同，只是 endpoint / 认证不同——一个类加参数比两个近乎重复的类更好维护</li>
+    <li>因为 Azure OpenAI 没有自己的 SDK</li>
+    <li>因为 OpenAI 和 Azure 是同一家公司</li>
+    <li>因为 MAF 其实不支持 Azure OpenAI</li>
+  </ol>
+  <details class="accordion">
+    <summary>看答案与解析 <span class="hint">点击展开</span></summary>
+    <div class="acc-body"><div class="qa"><div class="a"><strong>答案：A</strong>。两种部署协议一致，差别只在 endpoint 和 credential。用一个类 + 参数化，比维护两个几乎重复的类更省心——这也呼应“厂商无关”：连同一厂商的两种部署都收敛到同一接口。</div></div></div>
+  </details>
+</div>
+<div class="quiz">
+  <div class="qn">3. 接入 Anthropic Claude 时，MAF 里<strong>真实</strong>的 ChatClient 类名是哪个？</div>
+  <ol class="opts">
+    <li><code>ClaudeChatClient</code></li>
+    <li><code>AnthropicAgent</code></li>
+    <li><code>AnthropicClient</code></li>
+    <li><code>AnthropicChatClient</code></li>
+  </ol>
+  <details class="accordion">
+    <summary>看答案与解析 <span class="hint">点击展开</span></summary>
+    <div class="acc-body"><div class="qa"><div class="a"><strong>答案：C</strong>。真实类名是 <code>AnthropicClient</code>（不是 <code>AnthropicChatClient</code>），从 <code>agent_framework.anthropic</code> 导入；而 OpenAI 那个才叫 <code>OpenAIChatClient</code>。命名不完全统一是真实情况——按包里的真名来，别想当然套 <code>*ChatClient</code>。</div></div></div>
+  </details>
+</div>
+<div class="card spark">
+  <div class="tag">💭 发散思考（没有标准答案，动手或动脑想想）</div>
+  <ul>
+    <li>请用真实类名分别写出“接入 OpenAI”和“接入 Anthropic”的 import + 实例化两行代码，然后指出：如果一个已经写好的 <code>agent.run(...)</code> 业务函数要在两家之间切换，哪些行会变、哪些行完全不变，并解释这背后是哪条设计原则。</li>
+  </ul>
+</div>
+</div></div>
 <div class="i18n" data-lang="en">
 <p class="lead">MAF's ChatClient is vendor-agnostic — but you pick a concrete vendor to <strong>connect a model</strong>.
 This lesson surveys the main provider packages and shows the <strong>import-to-run path</strong>.</p>
@@ -503,6 +562,18 @@ This lesson surveys the main provider packages and shows the <strong>import-to-r
   <tr><td>AWS Bedrock</td><td class="mono">agent-framework-bedrock</td><td class="mono">BedrockChatClient</td></tr>
 </table>
 <p>Same pattern for all: instantiate ChatClient → <span class="mono">client.as_agent(…)</span> → <span class="mono">agent.run(…)</span>.</p>
+
+<h2>From import to run: one path for every provider</h2>
+<div class="flow">
+  <div class="node"><div class="nt">import</div><div class="nd">pick a provider package</div></div>
+  <div class="arrow">→</div>
+  <div class="node"><div class="nt">instantiate</div><div class="nd">XxxChatClient(model=…)</div></div>
+  <div class="arrow">→</div>
+  <div class="node hl"><div class="nt">.as_agent(…)</div><div class="nd">vendor-agnostic</div></div>
+  <div class="arrow">→</div>
+  <div class="node"><div class="nt">agent.run(…)</div><div class="nd">vendor-agnostic</div></div>
+</div>
+<p>Only the first two boxes change per vendor (package name + ChatClient class); the last two are <strong>identical for every provider</strong>. That's the &quot;universal socket&quot;: swap the plug, keep the appliance - switch OpenAI for Anthropic and the downstream Agent code doesn't change a line.</p>
 
 <details class="accordion">
   <summary><span class="badge-num">1</span> FoundryChatClient configuration <span class="hint">expand</span></summary>
@@ -701,7 +772,54 @@ agent = client.as_agent(
   <strong>Adding a vendor never touches core</strong>: providers are separate packages, wired in via lazy loading.
   The community can build new providers without forking the repo.
 </div>
+<div class="selftest">
+<h2>🧪 Self-test - think about the design</h2>
+<div class="quiz">
+  <div class="qn">1. Why does switching the model vendor from OpenAI to Anthropic usually touch only the one or two &quot;instantiate the ChatClient&quot; lines, leaving downstream Agent code unchanged?</div>
+  <ol class="opts">
+    <li>Because the Agent code is actually hard-wired to OpenAI</li>
+    <li>The <code>as_agent()</code> / <code>run()</code> layer is vendor-agnostic; each provider package only adapts its own API to the same ChatClient abstraction</li>
+    <li>Because every vendor's HTTP API format is already identical</li>
+    <li>Because MAF auto-translates your prompt at runtime</li>
+  </ol>
+  <details class="accordion">
+    <summary>Show answer &amp; explanation <span class="hint">click to expand</span></summary>
+    <div class="acc-body"><div class="qa"><div class="a"><strong>Answer: B</strong>. ChatClient is an <strong>abstraction boundary</strong>: each provider package implements the same interface and the Agent depends only on the abstraction. So everything above &quot;construct the ChatClient&quot; varies by vendor and everything below is reused - switching vendors is a local change.</div></div></div>
+  </details>
 </div>
+<div class="quiz">
+  <div class="qn">2. MAF uses <strong>one</strong> <code>OpenAIChatClient</code> for both OpenAI and Azure OpenAI (distinguished by <code>base_url</code> / credentials) instead of two classes. Why?</div>
+  <ol class="opts">
+    <li>They share the same underlying wire protocol and differ only in endpoint / auth - one parameterized class is easier to maintain than two near-duplicate classes</li>
+    <li>Because Azure OpenAI has no SDK of its own</li>
+    <li>Because OpenAI and Azure are the same company</li>
+    <li>Because MAF doesn't actually support Azure OpenAI</li>
+  </ol>
+  <details class="accordion">
+    <summary>Show answer &amp; explanation <span class="hint">click to expand</span></summary>
+    <div class="acc-body"><div class="qa"><div class="a"><strong>Answer: A</strong>. The two deployments speak the same protocol and differ only in endpoint and credential. One parameterized class beats maintaining two near-identical ones - and it echoes &quot;vendor-agnostic&quot;: even one vendor's two deployments converge on the same interface.</div></div></div>
+  </details>
+</div>
+<div class="quiz">
+  <div class="qn">3. When connecting Anthropic Claude, what is the <strong>real</strong> ChatClient class name in MAF?</div>
+  <ol class="opts">
+    <li><code>ClaudeChatClient</code></li>
+    <li><code>AnthropicAgent</code></li>
+    <li><code>AnthropicClient</code></li>
+    <li><code>AnthropicChatClient</code></li>
+  </ol>
+  <details class="accordion">
+    <summary>Show answer &amp; explanation <span class="hint">click to expand</span></summary>
+    <div class="acc-body"><div class="qa"><div class="a"><strong>Answer: C</strong>. The real class is <code>AnthropicClient</code> (not <code>AnthropicChatClient</code>), imported from <code>agent_framework.anthropic</code>; OpenAI's is the one called <code>OpenAIChatClient</code>. Naming isn't perfectly uniform - use the real name from the package rather than assuming a <code>*ChatClient</code> suffix.</div></div></div>
+  </details>
+</div>
+<div class="card spark">
+  <div class="tag">💭 Open questions (no single right answer - just think or try)</div>
+  <ul>
+    <li>Using the real class names, write the import + instantiation lines for &quot;connect OpenAI&quot; and &quot;connect Anthropic&quot;. Then say, for an already-written <code>agent.run(...)</code> business function that must switch between the two, which lines change and which stay identical - and which design principle explains that.</li>
+  </ul>
+</div>
+</div></div>
   <div class="footnav"><a class="prev" href="15-contributing.html"><div class="dir"><span class="i18n" data-lang="zh">← 上一课</span><span class="i18n" data-lang="en">← Prev</span></div><div class="ttl"><span class="i18n" data-lang="zh">读源码 / 调试 / 测试 / 贡献</span><span class="i18n" data-lang="en">Read, Debug, Test, Contribute</span></div></a><a class="next" href="17-declarative.html"><div class="dir"><span class="i18n" data-lang="zh">下一课 →</span><span class="i18n" data-lang="en">Next →</span></div><div class="ttl"><span class="i18n" data-lang="zh">声明式 Agent（YAML）</span><span class="i18n" data-lang="en">Declarative Agents (YAML)</span></div></a></div>
 </div>
 

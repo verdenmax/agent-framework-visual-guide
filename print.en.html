@@ -276,7 +276,7 @@ h2, h3, h4 { break-after: avoid; }
   <h1>Agent Framework Visual Guide</h1>
   <div class="sub">Understand the whole project from scratch · Big picture → Usage → Internals → Build your own</div>
   <div class="meta">27 lessons · 7 parts · real source-code references in every lesson<br>
-    Generated 2026-06-22 · verdenmax · Code MIT · Content CC BY 4.0</div>
+    Generated 2026-06-23 · verdenmax · Code MIT · Content CC BY 4.0</div>
 </section>
 <section class="print-toc"><div class="wrap"><h2>Table of Contents</h2>
 <div class="tp">Part 1 · Big Picture</div>
@@ -5109,6 +5109,18 @@ This lesson surveys the main provider packages and shows the <strong>import-to-r
 </table>
 <p>Same pattern for all: instantiate ChatClient → <span class="mono">client.as_agent(…)</span> → <span class="mono">agent.run(…)</span>.</p>
 
+<h2>From import to run: one path for every provider</h2>
+<div class="flow">
+  <div class="node"><div class="nt">import</div><div class="nd">pick a provider package</div></div>
+  <div class="arrow">→</div>
+  <div class="node"><div class="nt">instantiate</div><div class="nd">XxxChatClient(model=…)</div></div>
+  <div class="arrow">→</div>
+  <div class="node hl"><div class="nt">.as_agent(…)</div><div class="nd">vendor-agnostic</div></div>
+  <div class="arrow">→</div>
+  <div class="node"><div class="nt">agent.run(…)</div><div class="nd">vendor-agnostic</div></div>
+</div>
+<p>Only the first two boxes change per vendor (package name + ChatClient class); the last two are <strong>identical for every provider</strong>. That's the &quot;universal socket&quot;: swap the plug, keep the appliance - switch OpenAI for Anthropic and the downstream Agent code doesn't change a line.</p>
+
 <details class="accordion" open>
   <summary><span class="badge-num">1</span> FoundryChatClient configuration <span class="hint">expand</span></summary>
   <div class="acc-body">
@@ -5306,7 +5318,54 @@ agent = client.as_agent(
   <strong>Adding a vendor never touches core</strong>: providers are separate packages, wired in via lazy loading.
   The community can build new providers without forking the repo.
 </div>
-</div></section>
+<div class="selftest">
+<h2>🧪 Self-test - think about the design</h2>
+<div class="quiz">
+  <div class="qn">1. Why does switching the model vendor from OpenAI to Anthropic usually touch only the one or two &quot;instantiate the ChatClient&quot; lines, leaving downstream Agent code unchanged?</div>
+  <ol class="opts">
+    <li>Because the Agent code is actually hard-wired to OpenAI</li>
+    <li>The <code>as_agent()</code> / <code>run()</code> layer is vendor-agnostic; each provider package only adapts its own API to the same ChatClient abstraction</li>
+    <li>Because every vendor's HTTP API format is already identical</li>
+    <li>Because MAF auto-translates your prompt at runtime</li>
+  </ol>
+  <details class="accordion" open>
+    <summary>Show answer &amp; explanation <span class="hint">click to expand</span></summary>
+    <div class="acc-body"><div class="qa"><div class="a"><strong>Answer: B</strong>. ChatClient is an <strong>abstraction boundary</strong>: each provider package implements the same interface and the Agent depends only on the abstraction. So everything above &quot;construct the ChatClient&quot; varies by vendor and everything below is reused - switching vendors is a local change.</div></div></div>
+  </details>
+</div>
+<div class="quiz">
+  <div class="qn">2. MAF uses <strong>one</strong> <code>OpenAIChatClient</code> for both OpenAI and Azure OpenAI (distinguished by <code>base_url</code> / credentials) instead of two classes. Why?</div>
+  <ol class="opts">
+    <li>They share the same underlying wire protocol and differ only in endpoint / auth - one parameterized class is easier to maintain than two near-duplicate classes</li>
+    <li>Because Azure OpenAI has no SDK of its own</li>
+    <li>Because OpenAI and Azure are the same company</li>
+    <li>Because MAF doesn't actually support Azure OpenAI</li>
+  </ol>
+  <details class="accordion" open>
+    <summary>Show answer &amp; explanation <span class="hint">click to expand</span></summary>
+    <div class="acc-body"><div class="qa"><div class="a"><strong>Answer: A</strong>. The two deployments speak the same protocol and differ only in endpoint and credential. One parameterized class beats maintaining two near-identical ones - and it echoes &quot;vendor-agnostic&quot;: even one vendor's two deployments converge on the same interface.</div></div></div>
+  </details>
+</div>
+<div class="quiz">
+  <div class="qn">3. When connecting Anthropic Claude, what is the <strong>real</strong> ChatClient class name in MAF?</div>
+  <ol class="opts">
+    <li><code>ClaudeChatClient</code></li>
+    <li><code>AnthropicAgent</code></li>
+    <li><code>AnthropicClient</code></li>
+    <li><code>AnthropicChatClient</code></li>
+  </ol>
+  <details class="accordion" open>
+    <summary>Show answer &amp; explanation <span class="hint">click to expand</span></summary>
+    <div class="acc-body"><div class="qa"><div class="a"><strong>Answer: C</strong>. The real class is <code>AnthropicClient</code> (not <code>AnthropicChatClient</code>), imported from <code>agent_framework.anthropic</code>; OpenAI's is the one called <code>OpenAIChatClient</code>. Naming isn't perfectly uniform - use the real name from the package rather than assuming a <code>*ChatClient</code> suffix.</div></div></div>
+  </details>
+</div>
+<div class="card spark">
+  <div class="tag">💭 Open questions (no single right answer - just think or try)</div>
+  <ul>
+    <li>Using the real class names, write the import + instantiation lines for &quot;connect OpenAI&quot; and &quot;connect Anthropic&quot;. Then say, for an already-written <code>agent.run(...)</code> business function that must switch between the two, which lines change and which stay identical - and which design principle explains that.</li>
+  </ul>
+</div>
+</div></div></section>
 <section class="print-lesson"><div class="wrap"><div class="lesson-head"><div class="lp">Part 5 · Build Your Own</div><h1><span class="ln">17 ·</span> Declarative Agents (YAML)</h1></div>
 <p class="lead">Don't want to write code? Define an Agent in <strong>YAML</strong> — name, instructions, tools
 and model all in a config file.</p>
@@ -5328,6 +5387,18 @@ tools:
 </div>
 <p>The <span class="mono">declarative</span> package reads this YAML and auto-constructs an <span class="mono">Agent</span>.
 Great for rapid prototyping and version control.</p>
+
+<h2>From YAML to running, end to end</h2>
+<div class="flow">
+  <div class="node"><div class="nt">my_agent.yaml</div><div class="nd">name / instructions / tools</div></div>
+  <div class="arrow">→</div>
+  <div class="node"><div class="nt">AgentFactory</div><div class="nd">create_agent_from_yaml_path</div></div>
+  <div class="arrow">→</div>
+  <div class="node hl"><div class="nt">Agent instance</div><div class="nd">identical to hand-written</div></div>
+  <div class="arrow">→</div>
+  <div class="node"><div class="nt">agent.run(…)</div><div class="nd">called as usual</div></div>
+</div>
+<p>Key insight: YAML is just <strong>another way to construct</strong>. What <span class="mono">AgentFactory</span> emits after parsing is <strong>the same kind of object</strong> you'd build by hand with <span class="mono">Agent(client=…, tools=…)</span> - so downstream <span class="mono">run()</span>, tools and middleware all work unchanged. Config and code are <strong>isomorphic</strong>, which is what lets you move freely between the two styles.</p>
 
 <details class="accordion" open>
   <summary><span class="badge-num">1</span> Complete YAML schema <span class="hint">expand</span></summary>
@@ -5482,7 +5553,54 @@ Current limitation: complex routing logic in workflows is best expressed in code
   <strong>"Config is an Agent"</strong>: tweak YAML to change behavior, no code changes, no recompilation.
   This lowers the barrier for non-developers to participate in Agent design.
 </div>
-</div></section>
+<div class="selftest">
+<h2>🧪 Self-test - think about the design</h2>
+<div class="quiz">
+  <div class="qn">1. How does an Agent built from YAML via <code>AgentFactory</code> compare to one you hand-build with <code>Agent(client=…, tools=…)</code>?</div>
+  <ol class="opts">
+    <li>It can only run via a special <code>yaml_run()</code></li>
+    <li>It's the <strong>same kind of object</strong>; downstream <code>run()</code> / tools / middleware all behave identically</li>
+    <li>It's slower because it re-parses the YAML on every call</li>
+    <li>It's a restricted &quot;read-only&quot; Agent that can't call tools</li>
+  </ol>
+  <details class="accordion" open>
+    <summary>Show answer &amp; explanation <span class="hint">click to expand</span></summary>
+    <div class="acc-body"><div class="qa"><div class="a"><strong>Answer: B</strong>. Declarative is just <strong>another construction path</strong>: <code>AgentFactory</code> parses and emits a standard <code>Agent</code> instance. Config and code are isomorphic, so the two styles are interchangeable and everything downstream is unchanged.</div></div></div>
+  </details>
+</div>
+<div class="quiz">
+  <div class="qn">2. What's the main benefit of putting the Agent definition in YAML instead of hard-coding it in <code>.py</code>?</div>
+  <ol class="opts">
+    <li>YAML can define unlimited tools</li>
+    <li>YAML runs faster than Python</li>
+    <li>YAML can bypass tool approval</li>
+    <li>Config becomes <strong>data</strong>: non-developers can edit it, it diffs in version control, and you can swap files per environment - all without touching code</li>
+  </ol>
+  <details class="accordion" open>
+    <summary>Show answer &amp; explanation <span class="hint">click to expand</span></summary>
+    <div class="acc-body"><div class="qa"><div class="a"><strong>Answer: D</strong>. Declarative decouples &quot;what&quot; from &quot;how it runs&quot;. Config-as-data means it's auditable, versionable and editable by non-engineers; <code>create_agent_from_yaml_path</code> loads it in one line.</div></div></div>
+  </details>
+</div>
+<div class="quiz">
+  <div class="qn">3. What is the <strong>real</strong> call to load an Agent from a YAML file in MAF?</div>
+  <ol class="opts">
+    <li><code>AgentFactory().create_agent_from_yaml_path("my_agent.yaml")</code></li>
+    <li><code>AgentFactory.load_agent("my_agent.yaml")</code></li>
+    <li><code>Agent.from_yaml("my_agent.yaml")</code></li>
+    <li><code>declarative.parse("my_agent.yaml")</code></li>
+  </ol>
+  <details class="accordion" open>
+    <summary>Show answer &amp; explanation <span class="hint">click to expand</span></summary>
+    <div class="acc-body"><div class="qa"><div class="a"><strong>Answer: A</strong>. The real API is <code>from agent_framework.declarative import AgentFactory</code>, then <code>create_agent_from_yaml_path(...)</code> (not <code>load_agent</code>). <code>AgentFactory(bindings={...})</code> also binds tool / client names in the YAML to real objects.</div></div></div>
+  </details>
+</div>
+<div class="card spark">
+  <div class="tag">💭 Open questions (no single right answer - just think or try)</div>
+  <ul>
+    <li>Your team wants PMs to edit an Agent's <code>instructions</code> without shipping a release. Explain how declarative YAML supports that workflow, and how <code>tools: [get_weather]</code> in the YAML becomes a callable tool (who resolves the name and binds it to the real function).</li>
+  </ul>
+</div>
+</div></div></section>
 <section class="print-lesson"><div class="wrap"><div class="lesson-head"><div class="lp">Part 5 · Build Your Own</div><h1><span class="ln">18 ·</span> Writing Your Own Middleware</h1></div>
 <p class="lead">Lesson 11 explained what middleware <em>is</em>; this lesson teaches you to
 <strong>write your own</strong> — from scratch to working.</p>
@@ -5512,7 +5630,25 @@ Current limitation: complex routing logic in workflows is best expressed in code
                 <span class="kw">if</span> attempt == self.max_retries - <span class="nb">1</span>:
                     <span class="kw">raise</span></pre>
 </div>
-<p>Attach to an Agent: <span class="inline">Agent(client=client, chat_middleware=[RetryChatMiddleware(3)])</span>.</p>
+<p>Attach to an Agent: <span class="inline">Agent(client=client, middleware=[RetryChatMiddleware(3)])</span>.</p>
+
+<h2>A request travels through the middleware (onion model)</h2>
+<div class="flow">
+  <div class="node"><div class="nt">run()</div><div class="nd">request starts</div></div>
+  <div class="arrow">→</div>
+  <div class="node"><div class="nt">Retry.before</div><div class="nd">before call_next()</div></div>
+  <div class="arrow">→</div>
+  <div class="node"><div class="nt">Logging.before</div><div class="nd">log input</div></div>
+  <div class="arrow">→</div>
+  <div class="node hl"><div class="nt">the real call</div><div class="nd">LLM / tool</div></div>
+  <div class="arrow">→</div>
+  <div class="node"><div class="nt">Logging.after</div><div class="nd">log output / timing</div></div>
+  <div class="arrow">→</div>
+  <div class="node"><div class="nt">Retry.after</div><div class="nd">retry on failure</div></div>
+  <div class="arrow">→</div>
+  <div class="node"><div class="nt">result</div><div class="nd">context.result</div></div>
+</div>
+<p><span class="mono">await call_next()</span> is the dividing line: code <strong>before</strong> it runs as the request goes &quot;in&quot;, code <strong>after</strong> it runs as the response comes &quot;out&quot; - so one middleware wraps both ends (the onion skin). <strong>Earlier middleware in the list sits further outside</strong>: first in, last out.</p>
 
 <details class="accordion" open>
   <summary><span class="badge-num">1</span> Complete logging middleware <span class="hint">expand</span></summary>
@@ -5665,7 +5801,7 @@ On failure: log error, optionally retry, optionally return fallback. Pattern: ca
   <ul>
     <li>Subclass <span class="mono">*Middleware</span>; implement <span class="mono">process(self, context, call_next)</span>.</li>
     <li><span class="mono">await call_next()</span> takes no args; result is on <span class="mono">context.result</span>.</li>
-    <li>Attach via <span class="mono">Agent(middleware=…, chat_middleware=…, function_middleware=…)</span>.</li>
+    <li>Attach via <span class="mono">Agent(client=client, middleware=[…])</span> - one list can mix Chat / Function / Agent middleware; the framework routes each by its base class.</li>
   </ul>
 </div>
 
@@ -5674,7 +5810,54 @@ On failure: log error, optionally retry, optionally return fallback. Pattern: ca
   Middleware is <strong>compositional</strong>: retries, logging, approvals — each implemented independently,
   assembled as needed, no interference.
 </div>
-</div></section>
+<div class="selftest">
+<h2>🧪 Self-test - think about the design</h2>
+<div class="quiz">
+  <div class="qn">1. To attach Chat, Function and Agent middleware to one Agent, the correct way is?</div>
+  <ol class="opts">
+    <li>Build a separate Agent for each middleware kind</li>
+    <li>An Agent can hold only one middleware</li>
+    <li>Use three separate params: <code>chat_middleware=</code> / <code>function_middleware=</code> / <code>agent_middleware=</code></li>
+    <li>Put them all in one <code>middleware=[...]</code> list; the framework routes each to the right layer by its base class</li>
+  </ol>
+  <details class="accordion" open>
+    <summary>Show answer &amp; explanation <span class="hint">click to expand</span></summary>
+    <div class="acc-body"><div class="qa"><div class="a"><strong>Answer: D</strong>. <code>Agent(...)</code> / <code>as_agent(...)</code> takes a <strong>single</strong> <code>middleware=</code> param and routes by base class (<code>ChatMiddleware</code> / <code>FunctionMiddleware</code> / <code>AgentMiddleware</code>). One slot, mixable, more composable. (<code>chat_middleware</code> / <code>function_middleware</code> are actually <em>decorators</em> that mark plain functions, not constructor params.)</div></div></div>
+  </details>
+</div>
+<div class="quiz">
+  <div class="qn">2. When does code <strong>after</strong> <code>await call_next()</code> run, and why is the result read from <code>context.result</code> instead of <code>call_next()</code>'s return value?</div>
+  <ol class="opts">
+    <li>It never runs; code after <code>call_next()</code> is dead code</li>
+    <li>It runs before the request goes &quot;in&quot;</li>
+    <li>It runs as the response travels &quot;out&quot;, after the inner layers finish; the result lives on the shared <code>context</code> so both ends and multiple middleware read/write one state</li>
+    <li><code>call_next()</code> directly returns the final string</li>
+  </ol>
+  <details class="accordion" open>
+    <summary>Show answer &amp; explanation <span class="hint">click to expand</span></summary>
+    <div class="acc-body"><div class="qa"><div class="a"><strong>Answer: C</strong>. <code>call_next()</code> is the dividing line: before = inbound, after = outbound (the onion). Putting the result on <code>context</code> rather than a return value lets any layer read/modify one shared context (rewrite output, record timing…) and lets the <strong>argument-free</strong> <code>call_next()</code> chain the whole pipeline.</div></div></div>
+  </details>
+</div>
+<div class="quiz">
+  <div class="qn">3. With <code>middleware=[A, B]</code>, what is the execution order?</div>
+  <ol class="opts">
+    <li>A runs fully, then B runs from scratch</li>
+    <li>The order is random</li>
+    <li><code>A.before → B.before → real call → B.after → A.after</code> (first-in, last-out; A is outermost)</li>
+    <li><code>B.before → A.before → call → A.after → B.after</code></li>
+  </ol>
+  <details class="accordion" open>
+    <summary>Show answer &amp; explanation <span class="hint">click to expand</span></summary>
+    <div class="acc-body"><div class="qa"><div class="a"><strong>Answer: C</strong>. Earlier in the list = further outside (onion skin): first in, last out. Order changes semantics - e.g. whether &quot;retry&quot; wraps &quot;logging&quot; or vice versa decides if retried failures get logged twice - so order is explicit and controllable.</div></div></div>
+  </details>
+</div>
+<div class="card spark">
+  <div class="tag">💭 Open questions (no single right answer - just think or try)</div>
+  <ul>
+    <li>You're adding a &quot;billing&quot; middleware that records each call's token usage and reports it. Say which base class you'd subclass, what you'd do before vs after <code>call_next()</code>, and how placing it <strong>earlier vs later</strong> in the <code>middleware=</code> list changes what it measures (e.g. whether extra calls from retries get counted).</li>
+  </ul>
+</div>
+</div></div></section>
 <section class="print-lesson"><div class="wrap"><div class="lesson-head"><div class="lp">Part 5 · Build Your Own</div><h1><span class="ln">19 ·</span> Checkpointing, HITL & Durability</h1></div>
 <p class="lead">Production needs: <strong>save progress mid-run</strong> (checkpoints), <strong>human approval at
 critical steps</strong> (HITL), <strong>resume after crashes</strong> (durability). MAF makes all three first-class.</p>
@@ -5688,11 +5871,27 @@ critical steps</strong> (HITL), <strong>resume after crashes</strong> (durabilit
 
 <h2>Checkpoints</h2>
 <p>Workflows auto-save at each superstep boundary. Default: <span class="mono">InMemoryCheckpointStorage</span>;
-swap to persistent storage (Redis, Cosmos) for production. After a crash, restart and resume from the latest save.</p>
+swap to persistent storage (local <span class="mono">FileCheckpointStorage</span> or cloud <span class="mono">CosmosCheckpointStorage</span>) for production. After a crash, restart and resume from the latest save.</p>
 
 <h2>Human-in-the-Loop (HITL)</h2>
 <p>Tools can set <span class="mono">approval_mode="always_require"</span> to pause for human confirmation.
 At the workflow level, <span class="mono">request_info</span> lets a node pause, ask a question, and wait for a reply.</p>
+
+<h2>A timeline with saves and pauses</h2>
+<div class="flow">
+  <div class="node"><div class="nt">superstep 1</div><div class="nd">Writer finishes</div></div>
+  <div class="arrow">→</div>
+  <div class="node"><div class="nt">💾 save</div><div class="nd">superstep boundary</div></div>
+  <div class="arrow">→</div>
+  <div class="node"><div class="nt">⏸ HITL</div><div class="nd">approval / request_info</div></div>
+  <div class="arrow">→</div>
+  <div class="node"><div class="nt">superstep 2</div><div class="nd">Reviewer runs</div></div>
+  <div class="arrow">→</div>
+  <div class="node"><div class="nt">💥 crash</div><div class="nd">process dies</div></div>
+  <div class="arrow">→</div>
+  <div class="node hl"><div class="nt">↺ resume</div><div class="nd">from latest save</div></div>
+</div>
+<p>Each concern owns a slice: <strong>checkpointing</strong> auto-saves at every superstep boundary; <strong>HITL</strong> <em>pauses</em> the flow at key nodes to wait for a human; the <strong>persistent backend</strong> (File / Cosmos) decides where saves live and whether you can recover after a crash. Note that <strong>the Redis package is for context / history memory, not workflow checkpoints</strong>.</p>
 
 <details class="accordion" open>
   <summary><span class="badge-num">1</span> InMemoryCheckpointStorage example <span class="hint">expand</span></summary>
@@ -5790,7 +5989,7 @@ Durability guarantees: state survives process restarts, supports long waits (hou
 </details>
 
 <details class="accordion" open>
-  <summary><span class="badge-num">4</span> Redis/Cosmos persistent storage <span class="hint">expand</span></summary>
+  <summary><span class="badge-num">4</span> File / Cosmos persistent storage <span class="hint">expand</span></summary>
   <div class="acc-body">
     <div class="qa">
       <div class="q">🧪 Example</div>
@@ -5817,7 +6016,7 @@ Switching backends is a one-line change. All checkpoint APIs stay the same.
     </div>
     <div class="qa">
       <div class="q">❓ Why this matters</div>
-      <div class="a">In-memory storage is fast but volatile. Redis gives speed + persistence; Cosmos gives global distribution + strong consistency.</div>
+      <div class="a">In-memory storage is fast but volatile. <span class="mono">FileCheckpointStorage</span> gives zero-dependency local persistence; <span class="mono">CosmosCheckpointStorage</span> gives global distribution + strong consistency. (The Redis package provides context / history memory, not workflow checkpoints.)</div>
     </div>
     <div class="qa">
       <div class="q">✅ How MAF does it</div>
@@ -5825,7 +6024,7 @@ Switching backends is a one-line change. All checkpoint APIs stay the same.
     </div>
     <div class="qa">
       <div class="q">🔀 Alternatives</div>
-      <div class="a">PostgreSQL, DynamoDB, S3. MAF ships Redis and Cosmos packages; community can add others.</div>
+      <div class="a">PostgreSQL, DynamoDB, S3. For checkpoints, MAF core ships File and <span class="mono">agent-framework-azure-cosmos</span> ships Cosmos; the Redis package serves the context / history memory axis. The community can add more backends.</div>
     </div>
   </div>
 </details>
@@ -5844,7 +6043,54 @@ Switching backends is a one-line change. All checkpoint APIs stay the same.
   <strong>Production features aren't plugins — they're part of the framework</strong>: checkpoints, approvals and
   durability are in the core API, not third-party libraries you glue on yourself.
 </div>
-</div></section>
+<div class="selftest">
+<h2>🧪 Self-test - think about the design</h2>
+<div class="quiz">
+  <div class="qn">1. Where does a Workflow auto-save checkpoints, and what's the point?</div>
+  <ol class="opts">
+    <li>Never automatically; you must call <code>save()</code> by hand</li>
+    <li>After every single token is generated</li>
+    <li>Only once, after <code>workflow.run</code> returns</li>
+    <li>At every <strong>superstep boundary</strong>; after a crash it resumes from the latest save instead of restarting from scratch</li>
+  </ol>
+  <details class="accordion" open>
+    <summary>Show answer &amp; explanation <span class="hint">click to expand</span></summary>
+    <div class="acc-body"><div class="qa"><div class="a"><strong>Answer: D</strong>. A superstep is the workflow's batch boundary - a natural consistency snapshot point. A save holds Agent state + message history + current step; a 10-step run that dies at step 5 resumes from step 5, saving time and LLM tokens.</div></div></div>
+  </details>
+</div>
+<div class="quiz">
+  <div class="qn">2. Regarding the <strong>persistent backend</strong> for checkpoints, which statement is correct?</div>
+  <ol class="opts">
+    <li>Workflow checkpoints use <code>FileCheckpointStorage</code> (core) or <code>CosmosCheckpointStorage</code> (azure-cosmos package); the Redis package is for context / history memory, not a checkpoint backend</li>
+    <li>There's only an in-memory backend; persistence is impossible</li>
+    <li>Redis is the default checkpoint backend</li>
+    <li>Switching backends requires rewriting the whole workflow</li>
+  </ol>
+  <details class="accordion" open>
+    <summary>Show answer &amp; explanation <span class="hint">click to expand</span></summary>
+    <div class="acc-body"><div class="qa"><div class="a"><strong>Answer: A</strong>. Reality: core ships <code>InMemory</code> / <code>File</code>; <code>agent-framework-azure-cosmos</code> ships <code>Cosmos</code>. The Redis package exports <code>RedisContextProvider</code> / <code>RedisHistoryProvider</code> (memory / history) - a <strong>different</strong> durability axis. Switching backends is a one-line change to constructing <code>storage</code>; the <code>checkpoint_storage=</code> interface stays the same.</div></div></div>
+  </details>
+</div>
+<div class="quiz">
+  <div class="qn">3. At which <strong>two</strong> levels does MAF's human-in-the-loop (HITL) offer pause points?</div>
+  <ol class="opts">
+    <li>By polling with <code>time.sleep</code></li>
+    <li>Only the tool level</li>
+    <li>Only a UI-level popup</li>
+    <li>Tool level <code>approval_mode="always_require"</code> + workflow level <code>request_info</code></li>
+  </ol>
+  <details class="accordion" open>
+    <summary>Show answer &amp; explanation <span class="hint">click to expand</span></summary>
+    <div class="acc-body"><div class="qa"><div class="a"><strong>Answer: D</strong>. Two routes: require approval before a single tool call (<code>approval_mode</code>), or have a workflow node <code>request_info</code> to pause, ask and await a reply. Both make &quot;waiting on a human&quot; a first-class state - combined with checkpointing, the pending approval can even survive a crash-and-resume.</div></div></div>
+  </details>
+</div>
+<div class="card spark">
+  <div class="tag">💭 Open questions (no single right answer - just think or try)</div>
+  <ul>
+    <li>A 10-step workflow with one human approval crashes at step 6. Using <strong>checkpointing + persistent backend + HITL</strong>, explain how it recovers to the correct state on restart, whether that approval result is lost, and whether you'd pick the <code>File</code> or <code>Cosmos</code> backend and why.</li>
+  </ul>
+</div>
+</div></div></section>
 <section class="print-lesson"><div class="wrap"><div class="lesson-head"><div class="lp">Part 5 · Build Your Own</div><h1><span class="ln">20 ·</span> Capstone: A Multi-Agent Workflow</h1></div>
 <p class="lead">Capstone: assemble <strong>Agent + tools + orchestration + checkpoints</strong> from earlier lessons
 into a <strong>multi-Agent workflow</strong>.</p>
@@ -5880,6 +6126,21 @@ workflow = SequentialBuilder(participants=[writer, reviewer]).build()
 result = <span class="kw">await</span> workflow.run(<span class="st">"Write about AI agents"</span>)</pre>
 </div>
 
+<h2>How the bricks snap together</h2>
+<div class="flow">
+  <div class="node"><div class="nt">Provider</div><div class="nd">OpenAIChatClient</div></div>
+  <div class="arrow">→</div>
+  <div class="node"><div class="nt">Writer</div><div class="nd">+ tools + middleware</div></div>
+  <div class="arrow">→</div>
+  <div class="node"><div class="nt">Reviewer</div><div class="nd">review Agent</div></div>
+  <div class="arrow">→</div>
+  <div class="node"><div class="nt">SequentialBuilder</div><div class="nd">chain into a workflow</div></div>
+  <div class="arrow">→</div>
+  <div class="node"><div class="nt">+ checkpoint</div><div class="nd">checkpoint_storage</div></div>
+  <div class="arrow">→</div>
+  <div class="node hl"><div class="nt">workflow.run</div><div class="nd">end to end</div></div>
+</div>
+<p>Every arrow maps to an earlier lesson: <strong>Provider</strong> (L16) supplies the model, <strong>tools / middleware</strong> (L06 / L18) enrich a single Agent, the <strong>Builder</strong> (L12-13) orchestrates multiple Agents, and <strong>checkpointing</strong> (L19) makes it recoverable. The capstone's value is seeing how these pieces <strong>compose orthogonally</strong> - each independent, yet snapping together.</p>
 <details class="accordion" open>
   <summary><span class="badge-num">1</span> Extended code skeleton <span class="hint">expand</span></summary>
   <div class="acc-body">
@@ -5909,7 +6170,7 @@ client = OpenAIChatClient(model=<span class="st">&quot;gpt-4o&quot;</span>)
 writer = client.as_agent(name=<span class="st">&quot;Writer&quot;</span>,
     instructions=<span class="st">&quot;Write articles&quot;</span>,
     tools=[web_search],
-    chat_middleware=[LoggingMiddleware()])
+    middleware=[LoggingMiddleware()])
 
 reviewer = client.as_agent(name=<span class="st">&quot;Reviewer&quot;</span>,
     instructions=<span class="st">&quot;Review and improve&quot;</span>)
@@ -6069,7 +6330,41 @@ Checklist of gaps from demo to production.
   <strong>Complexity is incremental</strong>: single Agent → add tools → add orchestration → add checkpoints → add
   approvals, each step adds only a few lines. That's the "prototype to production" experience.
 </div>
-</div></section>
+<div class="selftest">
+<h2>🧪 Self-test - think about the design</h2>
+<div class="quiz">
+  <div class="qn">1. The capstone assembles provider / tools / middleware / orchestration / checkpointing. Which MAF design does that best illustrate?</div>
+  <ol class="opts">
+    <li>All the features are really one giant class</li>
+    <li>These capabilities are <strong>orthogonal</strong>: independent with stable interfaces, so they compose like LEGO without changing each other's code</li>
+    <li>They must be wired in a fixed order; swap one and everything breaks</li>
+    <li>Composition only works in the enterprise edition</li>
+  </ol>
+  <details class="accordion" open>
+    <summary>Show answer &amp; explanation <span class="hint">click to expand</span></summary>
+    <div class="acc-body"><div class="qa"><div class="a"><strong>Answer: B</strong>. Each brick is exposed via a stable interface (<code>ChatClient</code>, <code>@tool</code>, <code>middleware=</code>, <code>*Builder</code>, <code>checkpoint_storage=</code>). Orthogonal means composable: adding middleware doesn't affect orchestration, swapping providers doesn't affect tools. The capstone makes that visible.</div></div></div>
+  </details>
+</div>
+<div class="quiz">
+  <div class="qn">2. In the writer → reviewer <code>SequentialBuilder</code> workflow, how does checkpointing get wired in?</div>
+  <ol class="opts">
+    <li>Manually <code>save</code> inside each Agent's <code>run()</code></li>
+    <li>Checkpointing must be wrapped in a separate <code>with</code> block</li>
+    <li>Pass <code>storage</code> to <code>SequentialBuilder(participants=[…], checkpoint_storage=storage)</code>; the workflow auto-saves at superstep boundaries</li>
+    <li>Sequential workflows don't support checkpointing</li>
+  </ol>
+  <details class="accordion" open>
+    <summary>Show answer &amp; explanation <span class="hint">click to expand</span></summary>
+    <div class="acc-body"><div class="qa"><div class="a"><strong>Answer: C</strong>. Checkpointing is a Builder parameter; the <strong>orchestration layer</strong> owns saving, and the Agent need not know about persistence. That's layered composition: the Agent &quot;thinks&quot;, the Builder handles &quot;orchestration + saving&quot; - separate concerns that don't leak into each other.</div></div></div>
+  </details>
+</div>
+<div class="card spark">
+  <div class="tag">💭 Open questions (no single right answer - just think or try)</div>
+  <ul>
+    <li>Add a &quot;fact-check&quot; Agent to the writer → reviewer workflow, required to run before the reviewer. Say how you'd change <code>participants</code>, whether you must edit the writer / reviewer code itself, and why this is usually &quot;adding one more LEGO brick&quot; rather than &quot;refactoring&quot; - which design principle does that confirm?</li>
+  </ul>
+</div>
+</div></div></section>
 <section class="print-lesson"><div class="wrap"><div class="lesson-head"><div class="lp">Part 6 · Protocols & Ecosystem</div><h1><span class="ln">21 ·</span> Agent Skills</h1></div>
 <p class="lead"><strong>Agent Skills</strong> let you package domain knowledge into discoverable, reusable modules —
 Agents get not just tools but <strong>knowledge bases</strong>.</p>

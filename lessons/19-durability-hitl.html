@@ -277,11 +277,27 @@ table.t td.mono, table.t td .mono { font-family: ui-monospace, monospace; font-s
 
 <h2>检查点（Checkpoint）</h2>
 <p>Workflow 在每个 superstep 边界自动存档。默认用 <span class="mono">InMemoryCheckpointStorage</span>；
-生产换成持久化存储（如 Redis、Cosmos）。崩溃后重启，从最近存档恢复。</p>
+生产换成持久化存储（如本地 <span class="mono">FileCheckpointStorage</span> 或云端 <span class="mono">CosmosCheckpointStorage</span>）。崩溃后重启，从最近存档恢复。</p>
 
 <h2>人在环（HITL）</h2>
 <p>工具可设置 <span class="mono">approval_mode="always_require"</span>，执行前暂停等人确认。
 工作流层面也有 <span class="mono">request_info</span> 机制：节点暂停、发问、等回答再继续。</p>
+
+<h2>一条带存档与暂停的时间线</h2>
+<div class="flow">
+  <div class="node"><div class="nt">superstep 1</div><div class="nd">Writer 跑完</div></div>
+  <div class="arrow">→</div>
+  <div class="node"><div class="nt">💾 存档</div><div class="nd">superstep 边界</div></div>
+  <div class="arrow">→</div>
+  <div class="node"><div class="nt">⏸ 人在环</div><div class="nd">approval / request_info</div></div>
+  <div class="arrow">→</div>
+  <div class="node"><div class="nt">superstep 2</div><div class="nd">Reviewer 跑</div></div>
+  <div class="arrow">→</div>
+  <div class="node"><div class="nt">💥 崩溃</div><div class="nd">进程挂了</div></div>
+  <div class="arrow">→</div>
+  <div class="node hl"><div class="nt">↺ 续跑</div><div class="nd">从最近存档恢复</div></div>
+</div>
+<p>三件事各管一段：<strong>检查点</strong>在每个 superstep 边界自动存档；<strong>人在环</strong>在关键节点把流程<em>暂停</em>等人；<strong>持久化后端</strong>（File / Cosmos）决定存档放哪、崩溃后还能不能找回。注意 <strong>Redis 包是给上下文 / 历史记忆用的，不是工作流检查点</strong>。</p>
 
 <details class="accordion">
   <summary><span class="badge-num">1</span> InMemoryCheckpointStorage 示例 <span class="hint">点击展开详解</span></summary>
@@ -379,7 +395,7 @@ answer = <span class="kw">await</span> request_info(<span class="st">&quot;Shoul
 </details>
 
 <details class="accordion">
-  <summary><span class="badge-num">4</span> Redis/Cosmos 持久化存储 <span class="hint">点击展开详解</span></summary>
+  <summary><span class="badge-num">4</span> File / Cosmos 持久化存储 <span class="hint">点击展开详解</span></summary>
   <div class="acc-body">
     <div class="qa">
       <div class="q">🧪 示例</div>
@@ -406,7 +422,7 @@ workflow = SequentialBuilder(
     </div>
     <div class="qa">
       <div class="q">❓ 为什么这件事必要</div>
-      <div class="a">内存存储快但易失。Redis 提供速度 + 持久性；Cosmos 提供全球分布 + 强一致性。</div>
+      <div class="a">内存存储快但易失。<span class="mono">FileCheckpointStorage</span> 提供零依赖的本地持久化；<span class="mono">CosmosCheckpointStorage</span> 提供全球分布 + 强一致性。（Redis 包提供的是上下文 / 历史记忆，不是工作流检查点。）</div>
     </div>
     <div class="qa">
       <div class="q">✅ MAF 的做法与优点</div>
@@ -414,7 +430,7 @@ workflow = SequentialBuilder(
     </div>
     <div class="qa">
       <div class="q">🔀 还有什么其他方案</div>
-      <div class="a">PostgreSQL、DynamoDB、S3。MAF 提供 Redis 和 Cosmos 包；社区可以添加其他。</div>
+      <div class="a">PostgreSQL、DynamoDB、S3。检查点方面，MAF 核心自带 File、<span class="mono">agent-framework-azure-cosmos</span> 提供 Cosmos；Redis 包走的是上下文 / 历史记忆这条轴，社区可再补其他后端。</div>
     </div>
   </div>
 </details>
@@ -433,7 +449,54 @@ workflow = SequentialBuilder(
   <strong>生产能力不是插件，是框架的一部分</strong>：检查点、审批、持久化都在核心 API 里，
   而不是你自己拼第三方库。
 </div>
+<div class="selftest">
+<h2>🧪 自测 · 想一想为什么这么设计</h2>
+<div class="quiz">
+  <div class="qn">1. Workflow 在哪里自动存检查点，这有什么用？</div>
+  <ol class="opts">
+    <li>从不自动存，必须手动调 <code>save()</code></li>
+    <li>在每生成一个 token 后都存一次</li>
+    <li>只在 <code>workflow.run</code> 返回后存一次</li>
+    <li>在每个 <strong>superstep 边界</strong>存档；崩溃后能从最近存档续跑，不必从头重来</li>
+  </ol>
+  <details class="accordion">
+    <summary>看答案与解析 <span class="hint">点击展开</span></summary>
+    <div class="acc-body"><div class="qa"><div class="a"><strong>答案：D</strong>。superstep 是 workflow 的批处理边界，天然是一致性快照点。存档内容=Agent 状态 + 消息历史 + 当前步；10 步在第 5 步挂了能从第 5 步起，省时间也省 LLM token。</div></div></div>
+  </details>
 </div>
+<div class="quiz">
+  <div class="qn">2. 关于检查点的<strong>持久化后端</strong>，下面哪个说法正确？</div>
+  <ol class="opts">
+    <li>工作流检查点用 <code>FileCheckpointStorage</code>（核心）或 <code>CosmosCheckpointStorage</code>（azure-cosmos 包）；Redis 包是给上下文 / 历史记忆用的，不是 checkpoint 后端</li>
+    <li>只有内存一种后端，无法持久化</li>
+    <li>Redis 是默认的检查点后端</li>
+    <li>切换后端必须重写整个 workflow</li>
+  </ol>
+  <details class="accordion">
+    <summary>看答案与解析 <span class="hint">点击展开</span></summary>
+    <div class="acc-body"><div class="qa"><div class="a"><strong>答案：A</strong>。真实情况：核心提供 <code>InMemory</code> / <code>File</code>，<code>agent-framework-azure-cosmos</code> 提供 <code>Cosmos</code>。Redis 包导出的是 <code>RedisContextProvider</code> / <code>RedisHistoryProvider</code>（记忆 / 历史），属于<strong>另一条</strong>持久化轴。切后端只改“构造 storage”那一行，<code>checkpoint_storage=</code> 接口不变。</div></div></div>
+  </details>
+</div>
+<div class="quiz">
+  <div class="qn">3. MAF 的“人在环”(HITL) 在哪<strong>两个</strong>层面提供暂停点？</div>
+  <ol class="opts">
+    <li>靠 <code>time.sleep</code> 轮询</li>
+    <li>只有工具层</li>
+    <li>只有 UI 层弹窗</li>
+    <li>工具层 <code>approval_mode="always_require"</code> + 工作流层 <code>request_info</code></li>
+  </ol>
+  <details class="accordion">
+    <summary>看答案与解析 <span class="hint">点击展开</span></summary>
+    <div class="acc-body"><div class="qa"><div class="a"><strong>答案：D</strong>。两条路：单个工具调用前要审批（<code>approval_mode</code>），或工作流节点用 <code>request_info</code> 暂停、发问、等回答。共同点是把“等人”变成一等状态——配合检查点，甚至能在崩溃恢复后继续等那次审批。</div></div></div>
+  </details>
+</div>
+<div class="card spark">
+  <div class="tag">💭 发散思考（没有标准答案，动手或动脑想想）</div>
+  <ul>
+    <li>一个 10 步、含一次人工审批的工作流，跑到第 6 步进程崩了。结合<strong>检查点 + 持久化后端 + 人在环</strong>，说说重启后它怎么恢复到正确状态、那次审批的结果会不会丢，以及你会选 <code>File</code> 还是 <code>Cosmos</code> 后端、为什么。</li>
+  </ul>
+</div>
+</div></div>
 <div class="i18n" data-lang="en">
 <p class="lead">Production needs: <strong>save progress mid-run</strong> (checkpoints), <strong>human approval at
 critical steps</strong> (HITL), <strong>resume after crashes</strong> (durability). MAF makes all three first-class.</p>
@@ -447,11 +510,27 @@ critical steps</strong> (HITL), <strong>resume after crashes</strong> (durabilit
 
 <h2>Checkpoints</h2>
 <p>Workflows auto-save at each superstep boundary. Default: <span class="mono">InMemoryCheckpointStorage</span>;
-swap to persistent storage (Redis, Cosmos) for production. After a crash, restart and resume from the latest save.</p>
+swap to persistent storage (local <span class="mono">FileCheckpointStorage</span> or cloud <span class="mono">CosmosCheckpointStorage</span>) for production. After a crash, restart and resume from the latest save.</p>
 
 <h2>Human-in-the-Loop (HITL)</h2>
 <p>Tools can set <span class="mono">approval_mode="always_require"</span> to pause for human confirmation.
 At the workflow level, <span class="mono">request_info</span> lets a node pause, ask a question, and wait for a reply.</p>
+
+<h2>A timeline with saves and pauses</h2>
+<div class="flow">
+  <div class="node"><div class="nt">superstep 1</div><div class="nd">Writer finishes</div></div>
+  <div class="arrow">→</div>
+  <div class="node"><div class="nt">💾 save</div><div class="nd">superstep boundary</div></div>
+  <div class="arrow">→</div>
+  <div class="node"><div class="nt">⏸ HITL</div><div class="nd">approval / request_info</div></div>
+  <div class="arrow">→</div>
+  <div class="node"><div class="nt">superstep 2</div><div class="nd">Reviewer runs</div></div>
+  <div class="arrow">→</div>
+  <div class="node"><div class="nt">💥 crash</div><div class="nd">process dies</div></div>
+  <div class="arrow">→</div>
+  <div class="node hl"><div class="nt">↺ resume</div><div class="nd">from latest save</div></div>
+</div>
+<p>Each concern owns a slice: <strong>checkpointing</strong> auto-saves at every superstep boundary; <strong>HITL</strong> <em>pauses</em> the flow at key nodes to wait for a human; the <strong>persistent backend</strong> (File / Cosmos) decides where saves live and whether you can recover after a crash. Note that <strong>the Redis package is for context / history memory, not workflow checkpoints</strong>.</p>
 
 <details class="accordion">
   <summary><span class="badge-num">1</span> InMemoryCheckpointStorage example <span class="hint">expand</span></summary>
@@ -549,7 +628,7 @@ Durability guarantees: state survives process restarts, supports long waits (hou
 </details>
 
 <details class="accordion">
-  <summary><span class="badge-num">4</span> Redis/Cosmos persistent storage <span class="hint">expand</span></summary>
+  <summary><span class="badge-num">4</span> File / Cosmos persistent storage <span class="hint">expand</span></summary>
   <div class="acc-body">
     <div class="qa">
       <div class="q">🧪 Example</div>
@@ -576,7 +655,7 @@ Switching backends is a one-line change. All checkpoint APIs stay the same.
     </div>
     <div class="qa">
       <div class="q">❓ Why this matters</div>
-      <div class="a">In-memory storage is fast but volatile. Redis gives speed + persistence; Cosmos gives global distribution + strong consistency.</div>
+      <div class="a">In-memory storage is fast but volatile. <span class="mono">FileCheckpointStorage</span> gives zero-dependency local persistence; <span class="mono">CosmosCheckpointStorage</span> gives global distribution + strong consistency. (The Redis package provides context / history memory, not workflow checkpoints.)</div>
     </div>
     <div class="qa">
       <div class="q">✅ How MAF does it</div>
@@ -584,7 +663,7 @@ Switching backends is a one-line change. All checkpoint APIs stay the same.
     </div>
     <div class="qa">
       <div class="q">🔀 Alternatives</div>
-      <div class="a">PostgreSQL, DynamoDB, S3. MAF ships Redis and Cosmos packages; community can add others.</div>
+      <div class="a">PostgreSQL, DynamoDB, S3. For checkpoints, MAF core ships File and <span class="mono">agent-framework-azure-cosmos</span> ships Cosmos; the Redis package serves the context / history memory axis. The community can add more backends.</div>
     </div>
   </div>
 </details>
@@ -603,7 +682,54 @@ Switching backends is a one-line change. All checkpoint APIs stay the same.
   <strong>Production features aren't plugins — they're part of the framework</strong>: checkpoints, approvals and
   durability are in the core API, not third-party libraries you glue on yourself.
 </div>
+<div class="selftest">
+<h2>🧪 Self-test - think about the design</h2>
+<div class="quiz">
+  <div class="qn">1. Where does a Workflow auto-save checkpoints, and what's the point?</div>
+  <ol class="opts">
+    <li>Never automatically; you must call <code>save()</code> by hand</li>
+    <li>After every single token is generated</li>
+    <li>Only once, after <code>workflow.run</code> returns</li>
+    <li>At every <strong>superstep boundary</strong>; after a crash it resumes from the latest save instead of restarting from scratch</li>
+  </ol>
+  <details class="accordion">
+    <summary>Show answer &amp; explanation <span class="hint">click to expand</span></summary>
+    <div class="acc-body"><div class="qa"><div class="a"><strong>Answer: D</strong>. A superstep is the workflow's batch boundary - a natural consistency snapshot point. A save holds Agent state + message history + current step; a 10-step run that dies at step 5 resumes from step 5, saving time and LLM tokens.</div></div></div>
+  </details>
 </div>
+<div class="quiz">
+  <div class="qn">2. Regarding the <strong>persistent backend</strong> for checkpoints, which statement is correct?</div>
+  <ol class="opts">
+    <li>Workflow checkpoints use <code>FileCheckpointStorage</code> (core) or <code>CosmosCheckpointStorage</code> (azure-cosmos package); the Redis package is for context / history memory, not a checkpoint backend</li>
+    <li>There's only an in-memory backend; persistence is impossible</li>
+    <li>Redis is the default checkpoint backend</li>
+    <li>Switching backends requires rewriting the whole workflow</li>
+  </ol>
+  <details class="accordion">
+    <summary>Show answer &amp; explanation <span class="hint">click to expand</span></summary>
+    <div class="acc-body"><div class="qa"><div class="a"><strong>Answer: A</strong>. Reality: core ships <code>InMemory</code> / <code>File</code>; <code>agent-framework-azure-cosmos</code> ships <code>Cosmos</code>. The Redis package exports <code>RedisContextProvider</code> / <code>RedisHistoryProvider</code> (memory / history) - a <strong>different</strong> durability axis. Switching backends is a one-line change to constructing <code>storage</code>; the <code>checkpoint_storage=</code> interface stays the same.</div></div></div>
+  </details>
+</div>
+<div class="quiz">
+  <div class="qn">3. At which <strong>two</strong> levels does MAF's human-in-the-loop (HITL) offer pause points?</div>
+  <ol class="opts">
+    <li>By polling with <code>time.sleep</code></li>
+    <li>Only the tool level</li>
+    <li>Only a UI-level popup</li>
+    <li>Tool level <code>approval_mode="always_require"</code> + workflow level <code>request_info</code></li>
+  </ol>
+  <details class="accordion">
+    <summary>Show answer &amp; explanation <span class="hint">click to expand</span></summary>
+    <div class="acc-body"><div class="qa"><div class="a"><strong>Answer: D</strong>. Two routes: require approval before a single tool call (<code>approval_mode</code>), or have a workflow node <code>request_info</code> to pause, ask and await a reply. Both make &quot;waiting on a human&quot; a first-class state - combined with checkpointing, the pending approval can even survive a crash-and-resume.</div></div></div>
+  </details>
+</div>
+<div class="card spark">
+  <div class="tag">💭 Open questions (no single right answer - just think or try)</div>
+  <ul>
+    <li>A 10-step workflow with one human approval crashes at step 6. Using <strong>checkpointing + persistent backend + HITL</strong>, explain how it recovers to the correct state on restart, whether that approval result is lost, and whether you'd pick the <code>File</code> or <code>Cosmos</code> backend and why.</li>
+  </ul>
+</div>
+</div></div>
   <div class="footnav"><a class="prev" href="18-custom-middleware.html"><div class="dir"><span class="i18n" data-lang="zh">← 上一课</span><span class="i18n" data-lang="en">← Prev</span></div><div class="ttl"><span class="i18n" data-lang="zh">写自己的中间件</span><span class="i18n" data-lang="en">Writing Your Own Middleware</span></div></a><a class="next" href="20-capstone.html"><div class="dir"><span class="i18n" data-lang="zh">下一课 →</span><span class="i18n" data-lang="en">Next →</span></div><div class="ttl"><span class="i18n" data-lang="zh">端到端实战：多 Agent 工作流</span><span class="i18n" data-lang="en">Capstone: A Multi-Agent Workflow</span></div></a></div>
 </div>
 

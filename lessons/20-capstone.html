@@ -298,6 +298,21 @@ workflow = SequentialBuilder(participants=[writer, reviewer]).build()
 result = <span class="kw">await</span> workflow.run(<span class="st">"Write about AI agents"</span>)</pre>
 </div>
 
+<h2>这些零件是怎么拼起来的</h2>
+<div class="flow">
+  <div class="node"><div class="nt">Provider</div><div class="nd">OpenAIChatClient</div></div>
+  <div class="arrow">→</div>
+  <div class="node"><div class="nt">Writer</div><div class="nd">+ 工具 + 中间件</div></div>
+  <div class="arrow">→</div>
+  <div class="node"><div class="nt">Reviewer</div><div class="nd">审稿 Agent</div></div>
+  <div class="arrow">→</div>
+  <div class="node"><div class="nt">SequentialBuilder</div><div class="nd">串成工作流</div></div>
+  <div class="arrow">→</div>
+  <div class="node"><div class="nt">+ 检查点</div><div class="nd">checkpoint_storage</div></div>
+  <div class="arrow">→</div>
+  <div class="node hl"><div class="nt">workflow.run</div><div class="nd">端到端跑通</div></div>
+</div>
+<p>每个箭头都对应你前面学过的一课：<strong>Provider</strong>（L16）接模型，<strong>工具 / 中间件</strong>（L06 / L18）增强单个 Agent，<strong>Builder</strong>（L12-13）把多个 Agent 编排起来，<strong>检查点</strong>（L19）让它能恢复。capstone 的价值就是看清这些零件如何<strong>正交组合</strong>——各自独立，又能拼在一起。</p>
 <details class="accordion">
   <summary><span class="badge-num">1</span> 完整代码骨架（扩展版） <span class="hint">点击展开详解</span></summary>
   <div class="acc-body">
@@ -327,7 +342,7 @@ client = OpenAIChatClient(model=<span class="st">&quot;gpt-4o&quot;</span>)
 writer = client.as_agent(name=<span class="st">&quot;Writer&quot;</span>,
     instructions=<span class="st">&quot;Write articles&quot;</span>,
     tools=[web_search],
-    chat_middleware=[LoggingMiddleware()])
+    middleware=[LoggingMiddleware()])
 
 reviewer = client.as_agent(name=<span class="st">&quot;Reviewer&quot;</span>,
     instructions=<span class="st">&quot;Review and improve&quot;</span>)
@@ -487,7 +502,41 @@ logging.basicConfig(level=logging.INFO)</pre>
   <strong>复杂度是增量的</strong>：单 Agent → 加工具 → 加编排 → 加检查点 → 加审批，每一步只增加几行代码。
   这就是"从原型到生产"的体验。
 </div>
+<div class="selftest">
+<h2>🧪 自测 · 想一想为什么这么设计</h2>
+<div class="quiz">
+  <div class="qn">1. capstone 把 provider / 工具 / 中间件 / 编排 / 检查点拼到一起，最能体现 MAF 的哪个设计？</div>
+  <ol class="opts">
+    <li>所有功能其实都是一个大类</li>
+    <li>这些能力彼此<strong>正交</strong>：各自独立、接口稳定，所以能像乐高一样自由组合，不用互相改代码</li>
+    <li>必须按固定顺序写死，换一个就全崩</li>
+    <li>只有买企业版才能组合</li>
+  </ol>
+  <details class="accordion">
+    <summary>看答案与解析 <span class="hint">点击展开</span></summary>
+    <div class="acc-body"><div class="qa"><div class="a"><strong>答案：B</strong>。每个零件都通过稳定接口暴露（<code>ChatClient</code>、<code>@tool</code>、<code>middleware=</code>、<code>*Builder</code>、<code>checkpoint_storage=</code>）。正交即可组合：加中间件不影响编排，换 provider 不影响工具。capstone 的价值就是把这点看清。</div></div></div>
+  </details>
 </div>
+<div class="quiz">
+  <div class="qn">2. 在 writer → reviewer 的 <code>SequentialBuilder</code> 工作流里，检查点是怎么接进去的？</div>
+  <ol class="opts">
+    <li>在每个 Agent 的 <code>run()</code> 里手动 <code>save</code></li>
+    <li>检查点必须用一个单独的 <code>with</code> 语句包住</li>
+    <li>把 <code>storage</code> 传给 <code>SequentialBuilder(participants=[…], checkpoint_storage=storage)</code>，工作流在 superstep 边界自动存</li>
+    <li>Sequential 工作流不支持检查点</li>
+  </ol>
+  <details class="accordion">
+    <summary>看答案与解析 <span class="hint">点击展开</span></summary>
+    <div class="acc-body"><div class="qa"><div class="a"><strong>答案：C</strong>。检查点是 Builder 的一个参数，由<strong>编排层</strong>统一负责存档；Agent 本身不用关心持久化。这正是分层组合：Agent 管“想”，Builder 管“编排 + 存档”——各司其职，互不渗透。</div></div></div>
+  </details>
+</div>
+<div class="card spark">
+  <div class="tag">💭 发散思考（没有标准答案，动手或动脑想想）</div>
+  <ul>
+    <li>给这个 writer → reviewer 工作流再加一个“事实核查”Agent，并要求在 reviewer 之前先过核查。请说说你会怎么改 <code>participants</code>、是否需要改动 writer / reviewer 自身的代码，以及为什么这种扩展通常是“再加一块乐高”而不是“重构”——它印证了哪条设计原则？</li>
+  </ul>
+</div>
+</div></div>
 <div class="i18n" data-lang="en">
 <p class="lead">Capstone: assemble <strong>Agent + tools + orchestration + checkpoints</strong> from earlier lessons
 into a <strong>multi-Agent workflow</strong>.</p>
@@ -523,6 +572,21 @@ workflow = SequentialBuilder(participants=[writer, reviewer]).build()
 result = <span class="kw">await</span> workflow.run(<span class="st">"Write about AI agents"</span>)</pre>
 </div>
 
+<h2>How the bricks snap together</h2>
+<div class="flow">
+  <div class="node"><div class="nt">Provider</div><div class="nd">OpenAIChatClient</div></div>
+  <div class="arrow">→</div>
+  <div class="node"><div class="nt">Writer</div><div class="nd">+ tools + middleware</div></div>
+  <div class="arrow">→</div>
+  <div class="node"><div class="nt">Reviewer</div><div class="nd">review Agent</div></div>
+  <div class="arrow">→</div>
+  <div class="node"><div class="nt">SequentialBuilder</div><div class="nd">chain into a workflow</div></div>
+  <div class="arrow">→</div>
+  <div class="node"><div class="nt">+ checkpoint</div><div class="nd">checkpoint_storage</div></div>
+  <div class="arrow">→</div>
+  <div class="node hl"><div class="nt">workflow.run</div><div class="nd">end to end</div></div>
+</div>
+<p>Every arrow maps to an earlier lesson: <strong>Provider</strong> (L16) supplies the model, <strong>tools / middleware</strong> (L06 / L18) enrich a single Agent, the <strong>Builder</strong> (L12-13) orchestrates multiple Agents, and <strong>checkpointing</strong> (L19) makes it recoverable. The capstone's value is seeing how these pieces <strong>compose orthogonally</strong> - each independent, yet snapping together.</p>
 <details class="accordion">
   <summary><span class="badge-num">1</span> Extended code skeleton <span class="hint">expand</span></summary>
   <div class="acc-body">
@@ -552,7 +616,7 @@ client = OpenAIChatClient(model=<span class="st">&quot;gpt-4o&quot;</span>)
 writer = client.as_agent(name=<span class="st">&quot;Writer&quot;</span>,
     instructions=<span class="st">&quot;Write articles&quot;</span>,
     tools=[web_search],
-    chat_middleware=[LoggingMiddleware()])
+    middleware=[LoggingMiddleware()])
 
 reviewer = client.as_agent(name=<span class="st">&quot;Reviewer&quot;</span>,
     instructions=<span class="st">&quot;Review and improve&quot;</span>)
@@ -712,7 +776,41 @@ Checklist of gaps from demo to production.
   <strong>Complexity is incremental</strong>: single Agent → add tools → add orchestration → add checkpoints → add
   approvals, each step adds only a few lines. That's the "prototype to production" experience.
 </div>
+<div class="selftest">
+<h2>🧪 Self-test - think about the design</h2>
+<div class="quiz">
+  <div class="qn">1. The capstone assembles provider / tools / middleware / orchestration / checkpointing. Which MAF design does that best illustrate?</div>
+  <ol class="opts">
+    <li>All the features are really one giant class</li>
+    <li>These capabilities are <strong>orthogonal</strong>: independent with stable interfaces, so they compose like LEGO without changing each other's code</li>
+    <li>They must be wired in a fixed order; swap one and everything breaks</li>
+    <li>Composition only works in the enterprise edition</li>
+  </ol>
+  <details class="accordion">
+    <summary>Show answer &amp; explanation <span class="hint">click to expand</span></summary>
+    <div class="acc-body"><div class="qa"><div class="a"><strong>Answer: B</strong>. Each brick is exposed via a stable interface (<code>ChatClient</code>, <code>@tool</code>, <code>middleware=</code>, <code>*Builder</code>, <code>checkpoint_storage=</code>). Orthogonal means composable: adding middleware doesn't affect orchestration, swapping providers doesn't affect tools. The capstone makes that visible.</div></div></div>
+  </details>
 </div>
+<div class="quiz">
+  <div class="qn">2. In the writer → reviewer <code>SequentialBuilder</code> workflow, how does checkpointing get wired in?</div>
+  <ol class="opts">
+    <li>Manually <code>save</code> inside each Agent's <code>run()</code></li>
+    <li>Checkpointing must be wrapped in a separate <code>with</code> block</li>
+    <li>Pass <code>storage</code> to <code>SequentialBuilder(participants=[…], checkpoint_storage=storage)</code>; the workflow auto-saves at superstep boundaries</li>
+    <li>Sequential workflows don't support checkpointing</li>
+  </ol>
+  <details class="accordion">
+    <summary>Show answer &amp; explanation <span class="hint">click to expand</span></summary>
+    <div class="acc-body"><div class="qa"><div class="a"><strong>Answer: C</strong>. Checkpointing is a Builder parameter; the <strong>orchestration layer</strong> owns saving, and the Agent need not know about persistence. That's layered composition: the Agent &quot;thinks&quot;, the Builder handles &quot;orchestration + saving&quot; - separate concerns that don't leak into each other.</div></div></div>
+  </details>
+</div>
+<div class="card spark">
+  <div class="tag">💭 Open questions (no single right answer - just think or try)</div>
+  <ul>
+    <li>Add a &quot;fact-check&quot; Agent to the writer → reviewer workflow, required to run before the reviewer. Say how you'd change <code>participants</code>, whether you must edit the writer / reviewer code itself, and why this is usually &quot;adding one more LEGO brick&quot; rather than &quot;refactoring&quot; - which design principle does that confirm?</li>
+  </ul>
+</div>
+</div></div>
   <div class="footnav"><a class="prev" href="19-durability-hitl.html"><div class="dir"><span class="i18n" data-lang="zh">← 上一课</span><span class="i18n" data-lang="en">← Prev</span></div><div class="ttl"><span class="i18n" data-lang="zh">检查点 · 人在环 · 持久化</span><span class="i18n" data-lang="en">Checkpointing, HITL & Durability</span></div></a><a class="next" href="23-skills.html"><div class="dir"><span class="i18n" data-lang="zh">下一课 →</span><span class="i18n" data-lang="en">Next →</span></div><div class="ttl"><span class="i18n" data-lang="zh">Agent Skills 技能系统</span><span class="i18n" data-lang="en">Agent Skills</span></div></a></div>
 </div>
 

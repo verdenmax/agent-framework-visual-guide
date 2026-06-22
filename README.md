@@ -5,8 +5,8 @@
 [![📄 English PDF](https://img.shields.io/badge/%F0%9F%93%84%20English%20PDF-Download-b4690e?style=for-the-badge)](https://github.com/verdenmax/agent-framework-visual-guide/releases/latest/download/agent-framework-visual-guide.en.pdf)
 
 ![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)
-![Lessons](https://img.shields.io/badge/lessons-22-blue.svg)
-![Parts](https://img.shields.io/badge/parts-6-9cf.svg)
+![Lessons](https://img.shields.io/badge/lessons-27-blue.svg)
+![Parts](https://img.shields.io/badge/parts-7-9cf.svg)
 ![Built with](https://img.shields.io/badge/built%20with-Python%203-3776AB.svg?logo=python&logoColor=white)
 ![Dependencies](https://img.shields.io/badge/dependencies-none-brightgreen.svg)
 ![Language](https://img.shields.io/badge/docs-%E4%B8%AD%E6%96%87%20%2F%20EN-orange.svg)
@@ -20,6 +20,19 @@ A bilingual (中/EN) visual tutorial for complete beginners, helping you underst
 **一键切换语言** · 每页顶栏有 `中 / EN` 切换按钮，无需刷新。
 
 ## 📚 教程结构 · Tutorial Structure
+
+> **声明**：本项目是**第三方、非官方**学习材料，**不包含 Agent Framework 源码**，仅通过引用少量、标注来源的代码片段讲解。Microsoft Agent Framework 由微软以 MIT 许可发布，相关名称与商标归其所有。
+> **Disclaimer:** Third-party, unofficial educational material. It contains **no Agent Framework source**; it explains the framework via small, cited snippets. Microsoft Agent Framework is MIT-licensed by Microsoft.
+
+| Part | 主题 Topic | 课 Lessons |
+| --- | --- | --- |
+| 1 · 宏观全景 / Big Picture | 是什么 · monorepo · 一次 run 的生命周期 | L01–03 |
+| 2 · 用户视角 / User's View | 消息 · ChatClient · 工具 · 会话记忆 | L04–07 |
+| 3 · 内部源码 / Internals | Agent/Client/Tool/中间件/Workflow/编排/流式 | L08–14 |
+| 4 · 进阶实战 / Advanced | 读源码 · 调试 · 测试 · 贡献 | L15 |
+| 5 · 自己动手 / Build Your Own | 接模型 · 声明式 · 自定义中间件 · 持久化 · 实战 | L16–20 |
+| 6 · 协议与生态 / Protocols & Ecosystem | Skills · MCP · 托管 Agent · A2A/AG-UI · 评估 | L23–27 |
+| 7 · 番外篇 / Bonus | 横向对比 · 全栈坐标系 | L21–22 |
 
 ### 第一部分 · 宏观全景 | Part 1 · Big Picture
 1. **Agent Framework 是什么** — 解决什么问题 · 核心心智模型
@@ -79,13 +92,15 @@ python -m http.server 8000
 ```
 agent-framework-visual-guide/
 ├── index.html              ← 入口（目录页）
-├── lessons/                ← 22 课图解页面
+├── lessons/                ← 27 课图解页面
 ├── src/                    ← 无依赖的 Python 生成器
 │   ├── shell.py            CSS 设计系统 + 双语切换 + 导航
-│   ├── part1.py … part6.py 各部分课程内容（中 + 英）
+│   ├── part1.py … part7.py 各部分课程内容（中 + 英）
+│   ├── quizzes.py          每课自测题（双语 · 确定性洗牌）
 │   ├── registry.py         课程 → 内容映射
 │   ├── build.py            站点构建
 │   ├── build_print.py      PDF 构建（中/英各一份）
+│   ├── check_html.py       HTML 结构校验
 │   └── check_links.py      内链检查
 ├── .github/workflows/
 │   ├── deploy.yml          自动部署 Pages + PDF + Release
@@ -99,6 +114,7 @@ agent-framework-visual-guide/
 cd src
 python build.py          # 生成 index.html + lessons/
 python build_print.py    # 生成 print.zh.html + print.en.html
+python check_html.py     # 结构校验（期望 0 错）
 python check_links.py    # 检查内链
 ```
 
@@ -112,6 +128,9 @@ chromium --headless=new --no-pdf-header-footer \
 
 ## 📄 许可 · License
 
-[MIT License](./LICENSE)
+双许可 Dual-licensed：
 
-Microsoft Agent Framework 为 Microsoft 的项目，相关名称与商标归其所有。本教程为独立的第三方学习材料。
+- **代码 Code**（`src/` 下的 Python 生成器与校验脚本）— MIT，见 [LICENSE](./LICENSE)
+- **内容 Content**（课程文字与图，渲染进 `index.html` / `lessons/*.html` / `print.*.html`）— CC BY 4.0，见 [LICENSE-CONTENT](./LICENSE-CONTENT)
+
+Microsoft Agent Framework 为 Microsoft 的项目（MIT 许可），相关名称与商标归其所有。本教程为独立的第三方、非官方学习材料，不含其源码。

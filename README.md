@@ -29,10 +29,11 @@ A bilingual (中/EN) visual tutorial for complete beginners, helping you underst
 | 1 · 宏观全景 / Big Picture | 是什么 · monorepo · 一次 run 的生命周期 | L01–03 |
 | 2 · 用户视角 / User's View | 消息 · ChatClient · 工具 · 会话记忆 | L04–07 |
 | 3 · 内部源码 / Internals | Agent/Client/Tool/中间件/Workflow/编排/流式 | L08–14 |
-| 4 · 进阶实战 / Advanced | 读源码 · 调试 · 测试 · 贡献 | L15 |
-| 5 · 自己动手 / Build Your Own | 接模型 · 声明式 · 自定义中间件 · 持久化 · 实战 | L16–20 |
+| 4 · 进阶实战 / Advanced | 读源码 · 调试 · 测试 · 贡献 · DevUI · 可观测性深入 | L15 · L29–30 |
+| 5 · 自己动手 / Build Your Own | 接模型 · 声明式 · 自定义中间件 · 持久化 · 实战 · 记忆后端 | L16–20 · L28 |
 | 6 · 协议与生态 / Protocols & Ecosystem | Skills · MCP · 托管 Agent · A2A/AG-UI · 评估 | L23–27 |
 | 7 · 番外篇 / Bonus | 横向对比 · 全栈坐标系 | L21–22 |
+| 8 · 速查 / Quick Reference | 术语表 · 速查 | L31 |
 
 ### 第一部分 · 宏观全景 | Part 1 · Big Picture
 1. **Agent Framework 是什么** — 解决什么问题 · 核心心智模型

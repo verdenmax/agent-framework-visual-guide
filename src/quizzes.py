@@ -849,6 +849,76 @@ QUIZZES = {
             },
         ],
     },
+    "27-eval-timetravel.html": {
+        "mcq": [
+            {
+                "q": {
+                    "zh": "在 CI 里，<code>evaluate_agent(...)</code> 之后那行 <code>results[0].raise_for_status()</code> 的作用是？",
+                    "en": "In CI, what does the line <code>results[0].raise_for_status()</code> after <code>evaluate_agent(...)</code> do?",
+                },
+                "opts": [
+                    {
+                        "zh": "评分不达标时<strong>抛错</strong>，让流水线变红——把质量回归挡在合并前",
+                        "en": "<strong>Raises</strong> when scores fall short, turning the pipeline red — blocking a quality regression before merge",
+                    },
+                    {"zh": "把所有失败的 query 自动重跑直到通过", "en": "Auto-reruns every failed query until it passes"},
+                    {"zh": "提高模型温度以获得更好的分数", "en": "Raises the model temperature for better scores"},
+                    {"zh": "把评估结果上传到生产数据库", "en": "Uploads the eval results to the production database"},
+                ],
+                "answer": 0,
+                "why": {
+                    "zh": "<code>evaluate_agent</code>（<code>_evaluation.py:1629</code>）为每个 query 调 <code>agent.run()</code>、转成 <code>EvalItem</code>、交 <code>Evaluator.evaluate</code> 打分，返回 <code>list[EvalResults]</code>。<code>raise_for_status()</code>（<code>:470</code>）类似 <code>requests</code> 的同名方法：分数不达标就抛异常。放进 CI，它就把评估从&quot;人工抽查&quot;变成&quot;自动护栏&quot;——改了 prompt/模型导致 <code>passed/total</code>（<code>:441/:451</code>）下滑时，合并会被自动拦下。",
+                    "en": "<code>evaluate_agent</code> (<code>_evaluation.py:1629</code>) calls <code>agent.run()</code> per query, converts each into an <code>EvalItem</code>, scores via <code>Evaluator.evaluate</code>, and returns <code>list[EvalResults]</code>. <code>raise_for_status()</code> (<code>:470</code>) mirrors the <code>requests</code> method of the same name: it raises when scores fall short. Dropped into CI, it turns evaluation from a &quot;manual spot-check&quot; into an &quot;automated guardrail&quot; — when a prompt/model change drops <code>passed/total</code> (<code>:441/:451</code>), the merge is blocked automatically.",
+                },
+            },
+            {
+                "q": {
+                    "zh": "<code>WorkflowCheckpoint</code> 里哪个字段把一串检查点串成可回溯的&quot;时间线&quot;？",
+                    "en": "Which field of <code>WorkflowCheckpoint</code> chains a series of checkpoints into a rewindable &quot;timeline&quot;?",
+                },
+                "opts": [
+                    {
+                        "zh": "<code>previous_checkpoint_id</code>——指向上一帧的反向指针，链起来就是时间线",
+                        "en": "<code>previous_checkpoint_id</code> — a back-pointer to the prior frame; the chain is the timeline",
+                    },
+                    {"zh": "<code>iteration_count</code>——它只是个递增计数器", "en": "<code>iteration_count</code> — it's just an incrementing counter"},
+                    {"zh": "<code>graph_signature_hash</code>——它只校验拓扑", "en": "<code>graph_signature_hash</code> — it only validates topology"},
+                    {"zh": "<code>workflow_name</code>——它只是个名字", "en": "<code>workflow_name</code> — it's just a name"},
+                ],
+                "answer": 0,
+                "why": {
+                    "zh": "<code>WorkflowCheckpoint</code>（<code>_checkpoint.py:31</code>）的 <code>previous_checkpoint_id</code>（<code>:75</code>）指向上一张检查点，串成一条可倒回任意一帧的链=时间线。<code>graph_signature_hash</code>（<code>:72</code>）负责回放前校验拓扑一致、<code>iteration_count</code>（<code>:84</code>）记迭代号、<code>workflow_name</code>（<code>:71</code>）标识归属——它们都重要，但&quot;时间线&quot;靠的是 <code>previous_checkpoint_id</code> 这条链。",
+                    "en": "On <code>WorkflowCheckpoint</code> (<code>_checkpoint.py:31</code>), <code>previous_checkpoint_id</code> (<code>:75</code>) points at the prior checkpoint, forming a chain rewindable to any frame — the timeline. <code>graph_signature_hash</code> (<code>:72</code>) validates topology before replay, <code>iteration_count</code> (<code>:84</code>) records the iteration, and <code>workflow_name</code> (<code>:71</code>) identifies ownership — all matter, but the &quot;timeline&quot; comes from the <code>previous_checkpoint_id</code> chain.",
+                },
+            },
+            {
+                "q": {
+                    "zh": "一个 5 步工作流在第 4 步失败。开启了检查点后，最省的恢复方式是？",
+                    "en": "A 5-step workflow fails at step 4. With checkpointing enabled, what is the cheapest way to recover?",
+                },
+                "opts": [
+                    {
+                        "zh": "<code>wf.run(checkpoint_id=cp3, checkpoint_storage=storage)</code>——从断点那帧回放，已完成步骤跳过",
+                        "en": "<code>wf.run(checkpoint_id=cp3, checkpoint_storage=storage)</code> — replay from the breakpoint frame; completed steps are skipped",
+                    },
+                    {"zh": "从头 <code>wf.run(message=...)</code> 重跑全部 5 步", "en": "Rerun all 5 steps from scratch with <code>wf.run(message=...)</code>"},
+                    {"zh": "删掉检查点再重建工作流", "en": "Delete the checkpoints and rebuild the workflow"},
+                    {"zh": "手动把每步的中间结果复制粘贴回去", "en": "Manually copy-paste each step's intermediate result back in"},
+                ],
+                "answer": 0,
+                "why": {
+                    "zh": "传 <code>checkpoint_id</code>（可选配 <code>checkpoint_storage</code>）给 <code>wf.run()</code>（<code>_workflow.py:681</code>）会触发内部 <code>restore_from_checkpoint</code>（<code>:660</code>）：从该帧恢复完整状态，已完成的步骤直接跳过，只从断点续跑——省时也省 token。检查点用 <code>get_latest(workflow_name=)</code>（<code>:169</code>）或按 id <code>load</code>（<code>:133</code>）取回；存储有 <code>InMemoryCheckpointStorage</code>（<code>:192</code>）和 <code>FileCheckpointStorage</code>（<code>:239</code>）两种实现。",
+                    "en": "Passing <code>checkpoint_id</code> (optionally with <code>checkpoint_storage</code>) to <code>wf.run()</code> (<code>_workflow.py:681</code>) triggers the internal <code>restore_from_checkpoint</code> (<code>:660</code>): it restores full state from that frame, skips completed steps, and resumes only from the breakpoint — saving time and tokens. Fetch checkpoints via <code>get_latest(workflow_name=)</code> (<code>:169</code>) or by id with <code>load</code> (<code>:133</code>); storage comes as <code>InMemoryCheckpointStorage</code> (<code>:192</code>) or <code>FileCheckpointStorage</code> (<code>:239</code>).",
+                },
+            },
+        ],
+        "open": [
+            {
+                "zh": "你的 Agent 在一次回归里&quot;第 3 条 query&quot;评分掉了，而它背后是一个多步工作流。(1) 评估（<code>evaluate_agent</code>）和时间旅行（<code>wf.run(checkpoint_id=)</code>）在&quot;发现→诊断→修复→验证&quot;闭环里各自负责哪一段？(2) 为什么说检查点是&quot;确定性快照&quot;、<code>graph_signature_hash</code> 在回放时保护了什么？(3) 如果你改了工作流的图结构再去回放旧检查点，会发生什么、为什么这是好事？",
+                "en": "Your Agent regresses: &quot;query 3&quot; drops in score, and behind it sits a multi-step workflow. (1) In the &quot;detect → diagnose → fix → verify&quot; loop, which stage does evaluation (<code>evaluate_agent</code>) own versus time-travel (<code>wf.run(checkpoint_id=)</code>)? (2) Why is a checkpoint a &quot;deterministic snapshot&quot;, and what does <code>graph_signature_hash</code> protect during replay? (3) If you change the workflow's graph structure and then replay an old checkpoint, what happens and why is that a good thing?",
+            },
+        ],
+    },
 }
 
 

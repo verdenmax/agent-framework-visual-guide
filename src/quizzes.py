@@ -65,8 +65,8 @@ QUIZZES = {
             },
             {
                 "q": {
-                    "zh": "下面哪一项**不是** Agent Framework 想替你抹平的“上生产”麻烦？",
-                    "en": "Which is **not** one of the production headaches Agent Framework aims to smooth over?",
+                    "zh": "下面哪一项<strong>不是</strong> Agent Framework 想替你抹平的“上生产”麻烦？",
+                    "en": "Which is <strong>not</strong> one of the production headaches Agent Framework aims to smooth over?",
                 },
                 "opts": [
                     {"zh": "可观测性（OpenTelemetry）", "en": "Observability (OpenTelemetry)"},
@@ -76,8 +76,8 @@ QUIZZES = {
                 ],
                 "answer": 2,
                 "why": {
-                    "zh": "Agent Framework 负责模型“周边”的工程管道（编排、可观测、持久化、审批），**不**负责训练模型本身——训练不在它的职责范围。",
-                    "en": "Agent Framework owns the engineering plumbing *around* the model (orchestration, observability, durability, approval); it does **not** train the model itself - training is out of scope.",
+                    "zh": "Agent Framework 负责模型“周边”的工程管道（编排、可观测、持久化、审批），<strong>不</strong>负责训练模型本身——训练不在它的职责范围。",
+                    "en": "Agent Framework owns the engineering plumbing <em>around</em> the model (orchestration, observability, durability, approval); it does <strong>not</strong> train the model itself - training is out of scope.",
                 },
             },
         ],

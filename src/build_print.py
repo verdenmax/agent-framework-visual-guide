@@ -129,7 +129,7 @@ def build_print(lang):
   <h1>{labels["title"]}</h1>
   <div class="sub">{labels["subtitle"]}</div>
   <div class="meta">{labels["lesson_count"].format(n=len(shell.PAGES), p=n_parts)}<br>
-    {labels["gen_prefix"]} {today} · {labels["author"]} · MIT License</div>
+    {labels["gen_prefix"]} {today} · {labels["author"]} · Code MIT · Content CC BY 4.0</div>
 </section>
 <section class="print-toc"><div class="wrap">{_toc_html(lang)}</div></section>
 {body}

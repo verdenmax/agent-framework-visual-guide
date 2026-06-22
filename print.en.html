@@ -6538,6 +6538,110 @@ server.run()
 <span class="cm"># That's it — Agent is live in the cloud!</span></pre>
 </div>
 
+<h2>Trace one hosted deployment</h2>
+<p>Enough abstraction — let's walk it end to end: take an <strong>Agent with a "refund" tool (approval-required)</strong> and put it online with <span class="mono">ResponsesHostServer</span>.
+The point: that "2-line deploy" really means the hosting layer quietly takes over a pile of <strong>operational chores</strong> — session isolation, history, checkpoints, <strong>approval storage</strong>, scaling, monitoring.
+Locally, <span class="mono">agent.run()</span> only serves you; wrap it in a host server and it becomes a cloud-callable service.</p>
+
+<div class="vflow">
+  <div class="step"><div class="num">0</div><div class="sc"><h4>Start: one local Agent</h4>
+    <p>You already have an <span class="mono">agent</span> (with a <span class="mono">refund</span> tool that requires approval). Locally it only runs in your process.</p></div></div>
+  <div class="step"><div class="num">1</div><div class="sc"><h4>Wrap: the host server takes over ops</h4>
+    <p><span class="mono">server = ResponsesHostServer(agent)</span> (<span class="mono">_responses.py:341</span>). On construction it <strong>validates</strong>: no history provider with <span class="mono">load_messages=True</span>,
+    because <strong>history is owned by the hosting layer</strong> (<span class="mono">:367</span>); and it picks an approval store by environment — file in the cloud, in-memory locally (<span class="mono">:404</span>).</p>
+<pre class="code"><span class="cm"># the hosting layer picks the approval backend by “am I hosted?”</span>
+self._approval_storage = (
+    FileBasedFunctionApprovalStorage(...)   <span class="cm"># self.config.is_hosted</span>
+    <span class="kw">if</span> self.config.is_hosted
+    <span class="kw">else</span> InMemoryFunctionApprovalStorage())</pre></div></div>
+  <div class="step"><div class="num">2</div><div class="sc"><h4>Expose the endpoint: server.run()</h4>
+    <p><span class="mono">server.run()</span> starts the HTTP service over the Foundry Responses protocol. Note the Agent is entered <strong>lazily</strong> —
+    only the first request triggers <span class="mono">_ensure_agent_ready</span> (<span class="mono">:418</span>), so an MCP auth failure surfaces as a stream event to the client instead of crashing the whole server.</p></div></div>
+  <div class="step"><div class="num">3</div><div class="sc"><h4>A remote call arrives</h4>
+    <p>A cloud caller sends a Responses request (with a user message). The host server routes it to <span class="mono">_handle_response</span>,
+    isolating session state by <span class="mono">session_id</span> — concurrent users never cross-contaminate.</p></div></div>
+  <div class="step"><div class="num">4</div><div class="sc"><h4>A tool triggers approval: write to ApprovalStorage</h4>
+    <p>The model decides to call <span class="mono">refund</span>, but it needs approval. The host server creates an approval request and calls
+    <span class="mono">ApprovalStorage.save_approval_request(id, request)</span> (<span class="mono">:127</span>) to <strong>persist</strong> it, returns "pending approval" as a response event, and <strong>suspends</strong> this step.</p></div></div>
+  <div class="step"><div class="num">5</div><div class="sc"><h4>Human approves → release</h4>
+    <p>The approver re-requests with the approval id; the host server uses <span class="mono">load_approval_request(id)</span> (<span class="mono">:131</span>) to fetch the original request, confirms, and lets the tool run.
+    Even if the process is <strong>recycled</strong> between the two requests, the approval state is on disk and survives.</p></div></div>
+  <div class="step"><div class="num">6</div><div class="sc"><h4>Produce: stream the final answer</h4>
+    <p>The tool runs → the model continues → the Responses stream returns the final answer. The whole run's <strong>history and checkpoints</strong> are stored by the hosting layer —
+    your business code wrote none of it.</p></div></div>
+</div>
+
+<div class="card detail">
+  <div class="tag">🔬 Reading this trace</div>
+  Behind "2 lines", the hosting layer silently takes over four kinds of chores: ① <strong>session isolation</strong> — bucketed by <span class="mono">session_id</span> so concurrent users don't mix;
+  ② <strong>history/checkpoint hosting</strong> — which is why it <em>rejects</em> your own <span class="mono">load_messages=True</span> history provider, avoiding two competing histories;
+  ③ <strong>approval persistence</strong> — dangerous-tool approval requests land in <span class="mono">ApprovalStorage</span> and survive a recycled process (human-in-the-loop, see <a href="19-durability-hitl.html">Lesson 19</a>);
+  ④ <strong>lazy lifecycle</strong> — the Agent is entered only on the first request, turning auth failures into returnable events instead of startup crashes.
+</div>
+
+<h2>The hosting stack: who owns what</h2>
+<p>Slice this deployment vertically, from your code down to the cloud runtime, and each layer owns a slice — <strong>you only write the top one</strong>:</p>
+<div class="layers">
+  <div class="layer l-app"><div class="lh"><span class="badge">you</span><span class="name">your Agent</span></div>
+    <div class="ld">Business logic: instructions, tools, skills. It just needs to run locally with <span class="mono">agent.run()</span>.</div></div>
+  <div class="layer l-core"><div class="lh"><span class="badge">wrap</span><span class="name">InvocationsHostServer / ResponsesHostServer</span></div>
+    <div class="ld"><span class="mono">_invocations.py:10</span> / <span class="mono">_responses.py:341</span>. Session isolation, streaming, history, checkpoints, approval storage — all taken over by one constructor.</div></div>
+  <div class="layer l-main"><div class="lh"><span class="badge">base</span><span class="name">azure.ai.agentserver.*</span></div>
+    <div class="ld"><span class="mono">InvocationAgentServerHost</span> / <span class="mono">ResponsesAgentServerHost</span>. HTTP routing, protocol codec, and <span class="mono">server.run()</span> live here.</div></div>
+  <div class="layer l-part"><div class="lh"><span class="badge">cloud</span><span class="name">Azure AI Foundry runtime</span></div>
+    <div class="ld">Auto-scaling, monitoring, credentials, and possibly recycling instances between requests — which is exactly why the layer above demands "no in-memory state, externalize it".</div></div>
+</div>
+
+<p>Horizontally, deploying just inserts a host server between "local definition" and "cloud caller", with approval hanging off to the side in storage:</p>
+<div class="flow">
+  <div class="node"><div class="nt">local Agent</div><div class="nd">agent.run() works</div></div>
+  <div class="arrow">→</div>
+  <div class="node hl"><div class="nt">HostServer</div><div class="nd">wrap · server.run()</div></div>
+  <div class="arrow">→</div>
+  <div class="node"><div class="nt">endpoint</div><div class="nd">Foundry protocol</div></div>
+  <div class="arrow">→</div>
+  <div class="node"><div class="nt">cloud caller</div><div class="nd">isolated by session_id</div></div>
+  <div class="arrow">↔</div>
+  <div class="node"><div class="nt">ApprovalStorage</div><div class="nd">approvals persisted</div></div>
+</div>
+
+<h2>🔍 Real source: the two host servers and approval storage</h2>
+<div class="codefile">
+  <div class="cf-head"><span class="dot"></span><span class="path">foundry_hosting/</span><span class="ln">two host servers + ApprovalStorage (simplified from _invocations.py:10 / _responses.py:341 / :124)</span></div>
+<pre class="code"><span class="kw">class</span> <span class="fn">InvocationsHostServer</span>(InvocationAgentServerHost):   <span class="cm"># _invocations.py:10</span>
+    <span class="kw">def</span> <span class="fn">__init__</span>(self, agent, *, openapi_spec=<span class="kw">None</span>, **kwargs):
+        <span class="cm"># body {"message": ...} -&gt; {"response": ..., "session_id": ...}</span>
+        <span class="kw">if not</span> isinstance(agent, SupportsAgentRun): <span class="kw">raise</span> TypeError(...)
+        self._sessions: dict[str, AgentSession] = {}     <span class="cm"># isolated by session_id</span>
+
+<span class="kw">class</span> <span class="fn">ResponsesHostServer</span>(ResponsesAgentServerHost):     <span class="cm"># _responses.py:341</span>
+    <span class="kw">def</span> <span class="fn">__init__</span>(self, agent, *, prefix=<span class="st">""</span>, options=<span class="kw">None</span>, store=<span class="kw">None</span>):
+        <span class="cm"># history/checkpoints owned by host -&gt; rejects load_messages=True history</span>
+        self._approval_storage = (FileBasedFunctionApprovalStorage(...)
+            <span class="kw">if</span> self.config.is_hosted <span class="kw">else</span> InMemoryFunctionApprovalStorage())
+
+<span class="kw">class</span> <span class="fn">ApprovalStorage</span>(Protocol):                       <span class="cm"># _responses.py:124</span>
+    <span class="kw">async def</span> <span class="fn">save_approval_request</span>(self, id, request): ...  <span class="cm"># :127</span>
+    <span class="kw">async def</span> <span class="fn">load_approval_request</span>(self, id): ...           <span class="cm"># :131</span></pre>
+</div>
+<p>Note two things: <span class="mono">InvocationsHostServer</span> is minimal — one <span class="mono">{"message"}</span> in, <span class="mono">{"response","session_id"}</span> out;
+<span class="mono">ResponsesHostServer</span> offers the full Foundry Responses protocol (streaming, approval, checkpoints).
+<span class="mono">ApprovalStorage</span> is a <strong>Protocol</strong> — swap in your own implementation (a database, a secrets store…) as long as it satisfies the two save/load methods.</p>
+
+<h2>Why "2-line deploy" is worth it</h2>
+<p>Putting an Agent into production, the real pain is never "make it run" — it's the long tail of ops <strong>after</strong> it runs. The hosting layer's value is packaging that tail and carrying it away:</p>
+<table class="t">
+  <tr><th>What production needs</th><th>Roll-your-own FastAPI</th><th>Foundry hosting</th></tr>
+  <tr><td><strong>Session isolation</strong></td><td>Store/clean by session_id yourself</td><td>Built-in <span class="mono">AgentSession</span> bucketing</td></tr>
+  <tr><td><strong>History/checkpoints</strong></td><td>Wire storage and recovery yourself</td><td>Owned by the host; survives recycling</td></tr>
+  <tr><td><strong>Human-in-the-loop approval</strong></td><td>Design persistence and resume yourself</td><td><span class="mono">ApprovalStorage</span> protocol + file/in-memory impls</td></tr>
+  <tr><td><strong>Scaling / monitoring</strong></td><td>Stand up K8s, wire metrics yourself</td><td>Cloud runtime auto-scales and monitors</td></tr>
+  <tr><td><strong>Protocol compatibility</strong></td><td>Implement Responses/Invocations API yourself</td><td>Swap a class name to get a standard endpoint</td></tr>
+</table>
+<p>The cost and constraint are explicit too: because instances may be <strong>recycled</strong> between requests, your Agent must be <strong>stateless with externalized state</strong> (don't stuff context into an in-memory context provider).
+That's exactly why the hosting layer "rejects" certain configs — it's guarding the "horizontally scalable" invariant for you. Simple cases go fast with <span class="mono">InvocationsHostServer</span>;
+deep Foundry integration (streaming, approval, checkpoints) calls for <span class="mono">ResponsesHostServer</span>. The next lesson's <a href="26-a2a-agui.html">A2A / AG-UI</a> flips direction: not hosting an Agent in the cloud, but standardizing how Agents talk to <em>each other</em> and to <em>front-end UIs</em>.</p>
+
 <details class="accordion" open>
   <summary><span class="badge-num">1</span> Responses vs Invocations <span class="hint">expand</span></summary>
   <div class="acc-body">
@@ -6702,7 +6806,54 @@ server = InvocationsHostServer(agent=agent)
   HostServer is an <strong>optional thin adapter</strong> translating your Agent into the protocol Foundry understands.
   The same Agent works locally for debugging and goes live with one line.
 </div>
-</div></section>
+<div class="selftest">
+<h2>🧪 Self-test - think about the design</h2>
+<div class="quiz">
+  <div class="qn">1. Hosting a local Agent with <code>InvocationsHostServer</code>/<code>ResponsesHostServer</code> mainly takes over what for you?</div>
+  <ol class="opts">
+    <li>Turns all cloud calls into in-process local calls</li>
+    <li><strong>The ops chores</strong>: session isolation, history/checkpoints, approval storage, scaling and monitoring — your business code writes almost none of it</li>
+    <li>Auto-writes your Agent's instructions and tools</li>
+    <li>Fine-tunes the model to higher accuracy for you</li>
+  </ol>
+  <details class="accordion" open>
+    <summary>Show answer &amp; explanation <span class="hint">click to expand</span></summary>
+    <div class="acc-body"><div class="qa"><div class="a"><strong>Answer: B</strong>. The essence of “2-line deploy” is the hosting layer absorbing the post-production tail: <code>InvocationsHostServer</code> (<code>_invocations.py:10</code>) isolates <code>AgentSession</code> by <code>session_id</code>; <code>ResponsesHostServer</code> (<code>:341</code>) takes over history/checkpoints and approval storage, and leaves scaling/monitoring to the cloud runtime. It does <strong>not</strong> train the model or write your business logic — you only write the top-layer Agent.</div></div></div>
+  </details>
+</div>
+<div class="quiz">
+  <div class="qn">2. The most accurate difference between <code>InvocationsHostServer</code> and <code>ResponsesHostServer</code> is?</div>
+  <ol class="opts">
+    <li>Invocations is minimal (<code>{"message"}</code> in, <code>{"response","session_id"}</code> out); Responses offers the full Foundry protocol (streaming, approval, checkpoints)</li>
+    <li>Responses is local-only, Invocations is cloud-only</li>
+    <li>They are identical, just named differently</li>
+    <li>Invocations runs once, Responses runs many times</li>
+  </ol>
+  <details class="accordion" open>
+    <summary>Show answer &amp; explanation <span class="hint">click to expand</span></summary>
+    <div class="acc-body"><div class="qa"><div class="a"><strong>Answer: A</strong>. <code>InvocationsHostServer</code> is a lightweight JSON request/response, good for quick deploys and simple cases; <code>ResponsesHostServer</code> implements the full Azure AI Foundry Responses protocol — streaming, human-in-the-loop approval (<code>ApprovalStorage</code>), workflow checkpoints, and it owns history. The Agent code is identical for both, so <strong>switching is just a class-name change</strong> chosen by the protocol depth you need.</div></div></div>
+  </details>
+</div>
+<div class="quiz">
+  <div class="qn">3. Under hosting, when an approval-required tool is triggered, what does <code>ApprovalStorage</code> do?</div>
+  <ol class="opts">
+    <li>Auto-approves every tool, no human needed</li>
+    <li>It <strong>persists</strong> the approval request (<code>save_approval_request</code>); after a human approves, <code>load_approval_request</code> fetches it to release — surviving a recycled process</li>
+    <li>Sends approval logs into the model as training data</li>
+    <li>Permanently blocks that tool from ever running</li>
+  </ol>
+  <details class="accordion" open>
+    <summary>Show answer &amp; explanation <span class="hint">click to expand</span></summary>
+    <div class="acc-body"><div class="qa"><div class="a"><strong>Answer: B</strong>. <code>ApprovalStorage</code> is a Protocol (<code>_responses.py:124</code>) with just two methods: <code>save_approval_request(id, request)</code> (<code>:127</code>) and <code>load_approval_request(id)</code> (<code>:131</code>). When a dangerous tool fires, the host server persists the approval request, returns “pending” as an event and suspends that step; after a human approves, it fetches by id and releases. Because state is externalized, a recycled hosted instance can still resume the approval between requests — the crux of production-grade human-in-the-loop.</div></div></div>
+  </details>
+</div>
+<div class="card spark">
+  <div class="tag">💭 Open questions (no single right answer - just think or try)</div>
+  <ul>
+    <li>You're putting an Agent that can “send email / issue refunds” into production. (1) Why does the hosting layer require the Agent to be <strong>stateless with externalized state</strong>? If you insist on keeping context in an in-memory context provider, what happens when a cloud instance is recycled? (2) How would you wire these two dangerous actions through <code>ApprovalStorage</code> for human-in-the-loop? (3) Would you pick <code>Invocations</code> or <code>Responses</code> mode, and why?</li>
+  </ul>
+</div>
+</div></div></section>
 <section class="print-lesson"><div class="wrap"><div class="lesson-head"><div class="lp">Part 6 · Protocols & Ecosystem</div><h1><span class="ln">24 ·</span> A2A & AG-UI Protocols</h1></div>
 <p class="lead"><strong>A2A (Agent-to-Agent)</strong> exposes an Agent as a service for other Agents to call;
 <strong>AG-UI</strong> gives Agents a structured real-time channel to the frontend —

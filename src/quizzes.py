@@ -709,6 +709,76 @@ QUIZZES = {
             },
         ],
     },
+    "25-hosted-agents.html": {
+        "mcq": [
+            {
+                "q": {
+                    "zh": "把本地 Agent 用 <code>InvocationsHostServer</code>/<code>ResponsesHostServer</code> 托管，主要替你接管了什么？",
+                    "en": "Hosting a local Agent with <code>InvocationsHostServer</code>/<code>ResponsesHostServer</code> mainly takes over what for you?",
+                },
+                "opts": [
+                    {
+                        "zh": "<strong>运维脏活</strong>：会话隔离、历史/检查点、审批存储、伸缩与监控——业务代码几乎不写这些",
+                        "en": "<strong>The ops chores</strong>: session isolation, history/checkpoints, approval storage, scaling and monitoring — your business code writes almost none of it",
+                    },
+                    {"zh": "替你把模型微调到更高准确率", "en": "Fine-tunes the model to higher accuracy for you"},
+                    {"zh": "自动帮你写 Agent 的 instructions 和工具", "en": "Auto-writes your Agent's instructions and tools"},
+                    {"zh": "把云端调用全部改成本地进程内调用", "en": "Turns all cloud calls into in-process local calls"},
+                ],
+                "answer": 0,
+                "why": {
+                    "zh": "“2 行部署”的本质是托管层接管了上生产后那串麻烦：<code>InvocationsHostServer</code>（<code>_invocations.py:10</code>）按 <code>session_id</code> 隔离 <code>AgentSession</code>；<code>ResponsesHostServer</code>（<code>:341</code>）接管历史/检查点、审批存储，并交给云端运行时做伸缩与监控。它<strong>不</strong>训练模型、也不替你写业务逻辑——你只写最上层的 Agent。",
+                    "en": "The essence of “2-line deploy” is the hosting layer absorbing the post-production tail: <code>InvocationsHostServer</code> (<code>_invocations.py:10</code>) isolates <code>AgentSession</code> by <code>session_id</code>; <code>ResponsesHostServer</code> (<code>:341</code>) takes over history/checkpoints and approval storage, and leaves scaling/monitoring to the cloud runtime. It does <strong>not</strong> train the model or write your business logic — you only write the top-layer Agent.",
+                },
+            },
+            {
+                "q": {
+                    "zh": "<code>InvocationsHostServer</code> 与 <code>ResponsesHostServer</code> 最贴切的区别是？",
+                    "en": "The most accurate difference between <code>InvocationsHostServer</code> and <code>ResponsesHostServer</code> is?",
+                },
+                "opts": [
+                    {
+                        "zh": "Invocations 极简（<code>{\"message\"}</code> 进、<code>{\"response\",\"session_id\"}</code> 出）；Responses 提供完整 Foundry 协议（流式、审批、检查点）",
+                        "en": "Invocations is minimal (<code>{\"message\"}</code> in, <code>{\"response\",\"session_id\"}</code> out); Responses offers the full Foundry protocol (streaming, approval, checkpoints)",
+                    },
+                    {"zh": "Invocations 只能跑一次，Responses 能跑多次", "en": "Invocations runs once, Responses runs many times"},
+                    {"zh": "Responses 只能本地、Invocations 只能上云", "en": "Responses is local-only, Invocations is cloud-only"},
+                    {"zh": "两者完全相同，只是名字不同", "en": "They are identical, just named differently"},
+                ],
+                "answer": 0,
+                "why": {
+                    "zh": "<code>InvocationsHostServer</code> 是轻量 JSON 请求/响应，适合快速部署与简单场景；<code>ResponsesHostServer</code> 实现完整的 Azure AI Foundry Responses 协议——支持流式、人在环审批（<code>ApprovalStorage</code>）、工作流检查点，并接管历史。两者上层 Agent 写法一致，<strong>切换只需换一个类名</strong>，按需要的协议深度选择即可。",
+                    "en": "<code>InvocationsHostServer</code> is a lightweight JSON request/response, good for quick deploys and simple cases; <code>ResponsesHostServer</code> implements the full Azure AI Foundry Responses protocol — streaming, human-in-the-loop approval (<code>ApprovalStorage</code>), workflow checkpoints, and it owns history. The Agent code is identical for both, so <strong>switching is just a class-name change</strong> chosen by the protocol depth you need.",
+                },
+            },
+            {
+                "q": {
+                    "zh": "托管下，一个需审批的工具被触发时，<code>ApprovalStorage</code> 起什么作用？",
+                    "en": "Under hosting, when an approval-required tool is triggered, what does <code>ApprovalStorage</code> do?",
+                },
+                "opts": [
+                    {
+                        "zh": "把审批请求<strong>持久化</strong>（<code>save_approval_request</code>），人审后再<code>load_approval_request</code> 取回放行——进程被回收也不丢",
+                        "en": "It <strong>persists</strong> the approval request (<code>save_approval_request</code>); after a human approves, <code>load_approval_request</code> fetches it to release — surviving a recycled process",
+                    },
+                    {"zh": "自动批准所有工具，不需要人", "en": "Auto-approves every tool, no human needed"},
+                    {"zh": "永久禁止该工具运行", "en": "Permanently blocks that tool from ever running"},
+                    {"zh": "把审批日志发到模型里当训练数据", "en": "Sends approval logs into the model as training data"},
+                ],
+                "answer": 0,
+                "why": {
+                    "zh": "<code>ApprovalStorage</code> 是个 Protocol（<code>_responses.py:124</code>），只有 <code>save_approval_request(id, request)</code>（<code>:127</code>）与 <code>load_approval_request(id)</code>（<code>:131</code>）两个方法。危险工具触发时，host server 把审批请求落盘并把“待审批”作为事件返回、挂起该步；人审后凭 id 取回放行。因为状态外置，托管实例即便在两次请求间被回收，审批也能续上——这正是生产级人在环的关键。",
+                    "en": "<code>ApprovalStorage</code> is a Protocol (<code>_responses.py:124</code>) with just two methods: <code>save_approval_request(id, request)</code> (<code>:127</code>) and <code>load_approval_request(id)</code> (<code>:131</code>). When a dangerous tool fires, the host server persists the approval request, returns “pending” as an event and suspends that step; after a human approves, it fetches by id and releases. Because state is externalized, a recycled hosted instance can still resume the approval between requests — the crux of production-grade human-in-the-loop.",
+                },
+            },
+        ],
+        "open": [
+            {
+                "zh": "你要把一个会“发邮件 / 退款”的 Agent 上生产。(1) 为什么托管层要求 Agent <strong>无内存态、状态外置</strong>？如果你坚持把上下文放进内存里的 context provider，云端实例被回收时会发生什么？(2) 这两个危险动作你会怎么用 <code>ApprovalStorage</code> 接人在环？(3) 你会选 <code>Invocations</code> 还是 <code>Responses</code> 模式，理由是什么？",
+                "en": "You're putting an Agent that can “send email / issue refunds” into production. (1) Why does the hosting layer require the Agent to be <strong>stateless with externalized state</strong>? If you insist on keeping context in an in-memory context provider, what happens when a cloud instance is recycled? (2) How would you wire these two dangerous actions through <code>ApprovalStorage</code> for human-in-the-loop? (3) Would you pick <code>Invocations</code> or <code>Responses</code> mode, and why?",
+            },
+        ],
+    },
 }
 
 

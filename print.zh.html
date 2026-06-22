@@ -6473,6 +6473,110 @@ server.run()
 <span class="cm"># 就这么简单——Agent 已在云端运行！</span></pre>
 </div>
 
+<h2>追踪一次托管部署</h2>
+<p>抽象讲完，我们端到端走一遍：把一个<strong>带「退款」工具（需人工审批）的 Agent</strong> 用 <span class="mono">ResponsesHostServer</span> 托管上线。
+重点在于：所谓「2 行部署」，其实是托管层替你接管了一堆<strong>运维脏活</strong>——会话隔离、历史、检查点、<strong>审批存储</strong>、伸缩、监控。
+本地直接 <span class="mono">agent.run()</span> 只服务你自己；套上 host server，它就变成一个云端可调用的服务。</p>
+
+<div class="vflow">
+  <div class="step"><div class="num">0</div><div class="sc"><h4>起点：一个本地 Agent</h4>
+    <p>你已有一个 <span class="mono">agent</span>（带一个 <span class="mono">refund</span> 工具，且该工具要求审批）。本地它只能在你的进程里跑。</p></div></div>
+  <div class="step"><div class="num">1</div><div class="sc"><h4>包装：host server 接管运维</h4>
+    <p><span class="mono">server = ResponsesHostServer(agent)</span>（<span class="mono">_responses.py:341</span>）。构造时它<strong>校验</strong>：不允许带 <span class="mono">load_messages=True</span> 的历史提供者，
+    因为<strong>历史由托管层接管</strong>（<span class="mono">:367</span>）；并据环境选好审批存储——云上用文件、本地用内存（<span class="mono">:404</span>）。</p>
+<pre class="code"><span class="cm"># 托管层据“是否在云端”自动选审批存储后端</span>
+self._approval_storage = (
+    FileBasedFunctionApprovalStorage(...)   <span class="cm"># self.config.is_hosted</span>
+    <span class="kw">if</span> self.config.is_hosted
+    <span class="kw">else</span> InMemoryFunctionApprovalStorage())</pre></div></div>
+  <div class="step"><div class="num">2</div><div class="sc"><h4>暴露 endpoint：server.run()</h4>
+    <p><span class="mono">server.run()</span> 起 HTTP 服务，按 Foundry Responses 协议暴露。注意 Agent 的进入是<strong>惰性</strong>的——
+    首个请求才 <span class="mono">_ensure_agent_ready</span>（<span class="mono">:418</span>），这样 MCP 鉴权失败能作为流事件回给客户端，而不是把整个服务搞崩。</p></div></div>
+  <div class="step"><div class="num">3</div><div class="sc"><h4>远端调用进来</h4>
+    <p>云端调用方发来一个 Responses 请求（含 user message）。host server 路由到 <span class="mono">_handle_response</span>，
+    按 <span class="mono">session_id</span> 隔离会话状态——并发的多个用户互不串味。</p></div></div>
+  <div class="step"><div class="num">4</div><div class="sc"><h4>工具触发审批：写入 ApprovalStorage</h4>
+    <p>模型决定调 <span class="mono">refund</span>，但它需审批。host server 生成一条审批请求，调
+    <span class="mono">ApprovalStorage.save_approval_request(id, request)</span>（<span class="mono">:127</span>）<strong>持久化</strong>，并把「待审批」作为响应事件返回，<strong>挂起</strong>这一步。</p></div></div>
+  <div class="step"><div class="num">5</div><div class="sc"><h4>人审通过 → 放行</h4>
+    <p>审批方带着 approval id 再次请求；host server 用 <span class="mono">load_approval_request(id)</span>（<span class="mono">:131</span>）取回原请求，确认后放行工具执行。
+    即便进程在两次请求之间被<strong>回收</strong>，审批状态也已落盘、不丢。</p></div></div>
+  <div class="step"><div class="num">6</div><div class="sc"><h4>产出：流式返回最终答案</h4>
+    <p>工具执行 → 模型续写 → Responses 流把最终答案返回。整个过程的<strong>历史与检查点</strong>都由托管层存储，
+    你的业务代码一行都没写这些。</p></div></div>
+</div>
+
+<div class="card detail">
+  <div class="tag">🔬 读懂这条轨迹</div>
+  「2 行」背后，托管层默默接管了四类脏活：①<strong>会话隔离</strong>——按 <span class="mono">session_id</span> 分桶，多用户并发不串台；
+  ②<strong>历史/检查点托管</strong>——所以它<em>拒绝</em>你自带 <span class="mono">load_messages=True</span> 的历史提供者，避免两套历史打架；
+  ③<strong>审批持久化</strong>——危险工具的批准请求落到 <span class="mono">ApprovalStorage</span>，进程被回收也能续上（人在环，见<a href="19-durability-hitl.html">第 19 课</a>）；
+  ④<strong>惰性生命周期</strong>——首个请求才真正进入 Agent，把鉴权失败变成可返回的事件而非启动崩溃。
+</div>
+
+<h2>托管栈：谁负责什么</h2>
+<p>把这次部署竖着切一刀，从你的代码到云端运行时，每一层各管一段——<strong>你只写最上面那层</strong>：</p>
+<div class="layers">
+  <div class="layer l-app"><div class="lh"><span class="badge">你写</span><span class="name">your Agent</span></div>
+    <div class="ld">业务逻辑：instructions、工具、技能。本地能 <span class="mono">agent.run()</span> 跑通即可。</div></div>
+  <div class="layer l-core"><div class="lh"><span class="badge">包装</span><span class="name">InvocationsHostServer / ResponsesHostServer</span></div>
+    <div class="ld"><span class="mono">_invocations.py:10</span> / <span class="mono">_responses.py:341</span>。会话隔离、流式、历史、检查点、审批存储——一句构造全接管。</div></div>
+  <div class="layer l-main"><div class="lh"><span class="badge">基类</span><span class="name">azure.ai.agentserver.*</span></div>
+    <div class="ld"><span class="mono">InvocationAgentServerHost</span> / <span class="mono">ResponsesAgentServerHost</span>。HTTP 路由、协议编解码、<span class="mono">server.run()</span> 都在这。</div></div>
+  <div class="layer l-part"><div class="lh"><span class="badge">云端</span><span class="name">Azure AI Foundry 运行时</span></div>
+    <div class="ld">自动伸缩、监控、凭据、可能在请求间回收实例——所以上面才要求「无内存态、状态外置」。</div></div>
+</div>
+
+<p>横过来看，部署就是把「本地定义」接到「云端调用方」之间补一个 host server，审批则横挂在旁边的存储上：</p>
+<div class="flow">
+  <div class="node"><div class="nt">本地 Agent</div><div class="nd">agent.run() 可跑</div></div>
+  <div class="arrow">→</div>
+  <div class="node hl"><div class="nt">HostServer</div><div class="nd">包装 · server.run()</div></div>
+  <div class="arrow">→</div>
+  <div class="node"><div class="nt">endpoint</div><div class="nd">Foundry 协议</div></div>
+  <div class="arrow">→</div>
+  <div class="node"><div class="nt">云端调用方</div><div class="nd">按 session_id 隔离</div></div>
+  <div class="arrow">↔</div>
+  <div class="node"><div class="nt">ApprovalStorage</div><div class="nd">审批落盘</div></div>
+</div>
+
+<h2>🔍 真实源码：两种 host server 与审批存储</h2>
+<div class="codefile">
+  <div class="cf-head"><span class="dot"></span><span class="path">foundry_hosting/</span><span class="ln">两种 host server + ApprovalStorage（简化自 _invocations.py:10 / _responses.py:341 / :124）</span></div>
+<pre class="code"><span class="kw">class</span> <span class="fn">InvocationsHostServer</span>(InvocationAgentServerHost):   <span class="cm"># _invocations.py:10</span>
+    <span class="kw">def</span> <span class="fn">__init__</span>(self, agent, *, openapi_spec=<span class="kw">None</span>, **kwargs):
+        <span class="cm"># 请求体 {"message": ...} → {"response": ..., "session_id": ...}</span>
+        <span class="kw">if not</span> isinstance(agent, SupportsAgentRun): <span class="kw">raise</span> TypeError(...)
+        self._sessions: dict[str, AgentSession] = {}     <span class="cm"># 按 session_id 隔离</span>
+
+<span class="kw">class</span> <span class="fn">ResponsesHostServer</span>(ResponsesAgentServerHost):     <span class="cm"># _responses.py:341</span>
+    <span class="kw">def</span> <span class="fn">__init__</span>(self, agent, *, prefix=<span class="st">""</span>, options=<span class="kw">None</span>, store=<span class="kw">None</span>):
+        <span class="cm"># 历史/检查点由托管层接管 → 拒绝自带 load_messages=True 的历史</span>
+        self._approval_storage = (FileBasedFunctionApprovalStorage(...)
+            <span class="kw">if</span> self.config.is_hosted <span class="kw">else</span> InMemoryFunctionApprovalStorage())
+
+<span class="kw">class</span> <span class="fn">ApprovalStorage</span>(Protocol):                       <span class="cm"># _responses.py:124</span>
+    <span class="kw">async def</span> <span class="fn">save_approval_request</span>(self, id, request): ...  <span class="cm"># :127</span>
+    <span class="kw">async def</span> <span class="fn">load_approval_request</span>(self, id): ...           <span class="cm"># :131</span></pre>
+</div>
+<p>注意两件事：<span class="mono">InvocationsHostServer</span> 极简——一个 <span class="mono">{"message"}</span> 进、<span class="mono">{"response","session_id"}</span> 出；
+<span class="mono">ResponsesHostServer</span> 则提供完整的 Foundry Responses 协议（流式、审批、检查点）。
+<span class="mono">ApprovalStorage</span> 是个 <strong>Protocol</strong>——你可以替换成自己的实现（数据库、密钥库……），只要满足 save/load 两个方法。</p>
+
+<h2>为什么值得「2 行部署」</h2>
+<p>把 Agent 上生产，真正烦的从来不是「跑起来」，而是<strong>跑起来之后</strong>那一长串运维问题。托管层的价值，就是把这串问题打包接走：</p>
+<table class="t">
+  <tr><th>上生产要解决的</th><th>自建 FastAPI</th><th>Foundry 托管</th></tr>
+  <tr><td><strong>会话隔离</strong></td><td>自己按 session_id 存取、清理</td><td>内建 <span class="mono">AgentSession</span> 分桶</td></tr>
+  <tr><td><strong>历史/检查点</strong></td><td>自己接存储、自己做恢复</td><td>托管层接管，进程回收也不丢</td></tr>
+  <tr><td><strong>人在环审批</strong></td><td>自己设计审批落盘与续跑</td><td><span class="mono">ApprovalStorage</span> 协议 + 文件/内存实现</td></tr>
+  <tr><td><strong>伸缩 / 监控</strong></td><td>自己上 K8s、配指标</td><td>云端运行时自动伸缩、监控</td></tr>
+  <tr><td><strong>协议兼容</strong></td><td>自己实现 Responses/Invocations API</td><td>换个类名即得标准 endpoint</td></tr>
+</table>
+<p>代价与约束也很清楚：因为实例可能在请求间被<strong>回收</strong>，你的 Agent 必须<strong>无内存态、状态外置</strong>（别把上下文塞进内存里的 context provider）。
+这正是托管层「拒绝」某些配置的原因——它在帮你守住「可水平伸缩」的底线。简单场景用 <span class="mono">InvocationsHostServer</span> 够快；
+要深度对接 Foundry（流式、审批、检查点）就上 <span class="mono">ResponsesHostServer</span>。下一课的 <a href="26-a2a-agui.html">A2A / AG-UI</a> 则换个方向：不是把 Agent 托管上云，而是让 Agent 之间、Agent 与前端 UI 之间标准化对话。</p>
+
 <details class="accordion" open>
   <summary><span class="badge-num">1</span> Responses vs Invocations <span class="hint">点击展开详解</span></summary>
   <div class="acc-body">
@@ -6635,7 +6739,54 @@ server = InvocationsHostServer(agent=agent)
   HostServer 是一个<strong>可选的薄适配器</strong>，把你的 Agent 翻译成 Foundry 能理解的协议。
   这意味着同一个 Agent 既能本地调试，又能一键上云。
 </div>
-</div></section>
+<div class="selftest">
+<h2>🧪 自测 · 想一想为什么这么设计</h2>
+<div class="quiz">
+  <div class="qn">1. 把本地 Agent 用 <code>InvocationsHostServer</code>/<code>ResponsesHostServer</code> 托管，主要替你接管了什么？</div>
+  <ol class="opts">
+    <li>把云端调用全部改成本地进程内调用</li>
+    <li><strong>运维脏活</strong>：会话隔离、历史/检查点、审批存储、伸缩与监控——业务代码几乎不写这些</li>
+    <li>自动帮你写 Agent 的 instructions 和工具</li>
+    <li>替你把模型微调到更高准确率</li>
+  </ol>
+  <details class="accordion" open>
+    <summary>看答案与解析 <span class="hint">点击展开</span></summary>
+    <div class="acc-body"><div class="qa"><div class="a"><strong>答案：B</strong>。“2 行部署”的本质是托管层接管了上生产后那串麻烦：<code>InvocationsHostServer</code>（<code>_invocations.py:10</code>）按 <code>session_id</code> 隔离 <code>AgentSession</code>；<code>ResponsesHostServer</code>（<code>:341</code>）接管历史/检查点、审批存储，并交给云端运行时做伸缩与监控。它<strong>不</strong>训练模型、也不替你写业务逻辑——你只写最上层的 Agent。</div></div></div>
+  </details>
+</div>
+<div class="quiz">
+  <div class="qn">2. <code>InvocationsHostServer</code> 与 <code>ResponsesHostServer</code> 最贴切的区别是？</div>
+  <ol class="opts">
+    <li>Invocations 极简（<code>{"message"}</code> 进、<code>{"response","session_id"}</code> 出）；Responses 提供完整 Foundry 协议（流式、审批、检查点）</li>
+    <li>Responses 只能本地、Invocations 只能上云</li>
+    <li>两者完全相同，只是名字不同</li>
+    <li>Invocations 只能跑一次，Responses 能跑多次</li>
+  </ol>
+  <details class="accordion" open>
+    <summary>看答案与解析 <span class="hint">点击展开</span></summary>
+    <div class="acc-body"><div class="qa"><div class="a"><strong>答案：A</strong>。<code>InvocationsHostServer</code> 是轻量 JSON 请求/响应，适合快速部署与简单场景；<code>ResponsesHostServer</code> 实现完整的 Azure AI Foundry Responses 协议——支持流式、人在环审批（<code>ApprovalStorage</code>）、工作流检查点，并接管历史。两者上层 Agent 写法一致，<strong>切换只需换一个类名</strong>，按需要的协议深度选择即可。</div></div></div>
+  </details>
+</div>
+<div class="quiz">
+  <div class="qn">3. 托管下，一个需审批的工具被触发时，<code>ApprovalStorage</code> 起什么作用？</div>
+  <ol class="opts">
+    <li>自动批准所有工具，不需要人</li>
+    <li>把审批请求<strong>持久化</strong>（<code>save_approval_request</code>），人审后再<code>load_approval_request</code> 取回放行——进程被回收也不丢</li>
+    <li>把审批日志发到模型里当训练数据</li>
+    <li>永久禁止该工具运行</li>
+  </ol>
+  <details class="accordion" open>
+    <summary>看答案与解析 <span class="hint">点击展开</span></summary>
+    <div class="acc-body"><div class="qa"><div class="a"><strong>答案：B</strong>。<code>ApprovalStorage</code> 是个 Protocol（<code>_responses.py:124</code>），只有 <code>save_approval_request(id, request)</code>（<code>:127</code>）与 <code>load_approval_request(id)</code>（<code>:131</code>）两个方法。危险工具触发时，host server 把审批请求落盘并把“待审批”作为事件返回、挂起该步；人审后凭 id 取回放行。因为状态外置，托管实例即便在两次请求间被回收，审批也能续上——这正是生产级人在环的关键。</div></div></div>
+  </details>
+</div>
+<div class="card spark">
+  <div class="tag">💭 发散思考（没有标准答案，动手或动脑想想）</div>
+  <ul>
+    <li>你要把一个会“发邮件 / 退款”的 Agent 上生产。(1) 为什么托管层要求 Agent <strong>无内存态、状态外置</strong>？如果你坚持把上下文放进内存里的 context provider，云端实例被回收时会发生什么？(2) 这两个危险动作你会怎么用 <code>ApprovalStorage</code> 接人在环？(3) 你会选 <code>Invocations</code> 还是 <code>Responses</code> 模式，理由是什么？</li>
+  </ul>
+</div>
+</div></div></section>
 <section class="print-lesson"><div class="wrap"><div class="lesson-head"><div class="lp">第六部分 · 协议与生态</div><h1><span class="ln">24 ·</span> A2A + AG-UI 协议</h1></div>
 <p class="lead"><strong>A2A（Agent-to-Agent）</strong>让 Agent 作为服务暴露给其他 Agent 调用；
 <strong>AG-UI</strong>让 Agent 与前端 UI 实时结构化通信——两个协议合力打通"Agent ↔ Agent"和"Agent ↔ 用户界面"。</p>

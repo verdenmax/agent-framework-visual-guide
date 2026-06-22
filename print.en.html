@@ -275,7 +275,7 @@ h2, h3, h4 { break-after: avoid; }
   <div class="emoji">📘</div>
   <h1>Agent Framework Visual Guide</h1>
   <div class="sub">Understand the whole project from scratch · Big picture → Usage → Internals → Build your own</div>
-  <div class="meta">27 lessons · 7 parts · real source-code references in every lesson<br>
+  <div class="meta">28 lessons · 7 parts · real source-code references in every lesson<br>
     Generated 2026-06-23 · verdenmax · Code MIT · Content CC BY 4.0</div>
 </section>
 <section class="print-toc"><div class="wrap"><h2>Table of Contents</h2>
@@ -313,19 +313,20 @@ h2, h3, h4 { break-after: avoid; }
 <li value="18">Writing Your Own Middleware</li>
 <li value="19">Checkpointing, HITL & Durability</li>
 <li value="20">Capstone: A Multi-Agent Workflow</li>
+<li value="21">Memory Backends</li>
 </ol>
 <div class="tp">Part 6 · Protocols & Ecosystem</div>
 <ol>
-<li value="21">Agent Skills</li>
-<li value="22">MCP Tool Protocol</li>
-<li value="23">Foundry Hosted Agents</li>
-<li value="24">A2A & AG-UI Protocols</li>
-<li value="25">Evaluation & Time-Travel</li>
+<li value="22">Agent Skills</li>
+<li value="23">MCP Tool Protocol</li>
+<li value="24">Foundry Hosted Agents</li>
+<li value="25">A2A & AG-UI Protocols</li>
+<li value="26">Evaluation & Time-Travel</li>
 </ol>
 <div class="tp">Part 7 · Bonus</div>
 <ol>
-<li value="26">AF vs Other Frameworks</li>
-<li value="27">Full-Stack Map & Learning Path</li>
+<li value="27">AF vs Other Frameworks</li>
+<li value="28">Full-Stack Map & Learning Path</li>
 </ol></div></section>
 <section class="print-lesson"><div class="wrap"><div class="lesson-head"><div class="lp">Part 1 · Big Picture</div><h1><span class="ln">01 ·</span> What is Agent Framework</h1></div>
 <p class="lead" style="font-size:1.06rem;color:var(--muted);margin-top:-.6rem">
@@ -6365,7 +6366,239 @@ Checklist of gaps from demo to production.
   </ul>
 </div>
 </div></div></section>
-<section class="print-lesson"><div class="wrap"><div class="lesson-head"><div class="lp">Part 6 · Protocols & Ecosystem</div><h1><span class="ln">21 ·</span> Agent Skills</h1></div>
+<section class="print-lesson"><div class="wrap"><div class="lesson-head"><div class="lp">Part 5 · Build Your Own</div><h1><span class="ln">21 ·</span> Memory Backends</h1></div>
+<p class="lead">So far our agents have had <strong>goldfish memory</strong>: the moment a <span class="mono">run()</span> ends, they forget everything.
+This lesson wires in a <strong>memory backend</strong>: Redis / Mem0 / Cosmos store conversation history and long-term memory outside the process,
+through two abstractions&mdash;<span class="mono">ContextProvider</span> and <span class="mono">HistoryProvider</span>&mdash;that splice "remembering" into every run.</p>
+
+<div class="card analogy">
+  <div class="tag">🧠 Analogy</div>
+  An agent with no memory backend is like an <strong>amnesiac receptionist</strong>: every visitor has to introduce themselves from scratch.
+  A memory backend gives them <strong>two things</strong>: a <strong>scratch pad</strong> (short-term, the verbatim log of this conversation = HistoryProvider),
+  and a <strong>customer archive</strong> (long-term, retrieved by relevance&mdash;"what has this person mentioned before" = ContextProvider).
+</div>
+
+<h2>Where memory sits in a run()</h2>
+<p>Memory isn't a field inside the agent&mdash;it's a <strong>plugin</strong> attached to the session. Within one <span class="mono">run()</span>, the framework calls back into each Provider <strong>before</strong> and <strong>after</strong> the model call:</p>
+<div class="flow">
+  <div class="node"><div class="nt">your input</div><div class="nd">agent.run(text, session)</div></div>
+  <div class="arrow">→</div>
+  <div class="node hl"><div class="nt">before_run</div><div class="nd">inject history + retrieved memory</div></div>
+  <div class="arrow">→</div>
+  <div class="node"><div class="nt">LLM</div><div class="nd">sees "history + memory + new question"</div></div>
+  <div class="arrow">→</div>
+  <div class="node hl"><div class="nt">after_run</div><div class="nd">write this turn back</div></div>
+</div>
+<p>Key insight: <strong>the agent holds no memory itself</strong>. It just "asks" the attached Providers at two fixed hooks&mdash;
+what context to inject (<span class="mono">before_run</span>), and what to persist afterward (<span class="mono">after_run</span>).
+Switching backends = swapping a Provider instance; the agent code never changes.</p>
+
+<h2>Worked example: one memory-enabled run</h2>
+<p>Scenario: a coffee-shop ordering assistant. The user comes back the next day and just says "<strong>the usual</strong>"&mdash;yet the agent answers correctly, because it checked the books first.
+Each step below shows the real <strong>message-list snapshot</strong>, so you can see memory appear "out of nowhere" in the context.</p>
+<div class="vflow">
+  <div class="step"><div class="num">1</div><div class="sc">
+    <h4>You sent a single line</h4>
+    <p>Call <span class="mono">agent.run("the usual", session=session)</span>. Right now the framework's message list is short:</p>
+<pre class="code">messages = [
+  Message(<span class="st">"system"</span>, [<span class="st">"You are a coffee-shop ordering assistant…"</span>]),
+  Message(<span class="st">"user"</span>,   [<span class="st">"the usual"</span>]),
+]</pre>
+  </div></div>
+  <div class="step"><div class="num">2</div><div class="sc">
+    <h4>HistoryProvider.before_run: reattach this session's history</h4>
+    <p><span class="mono">CosmosHistoryProvider</span> (or <span class="mono">RedisHistoryProvider</span>) calls <span class="mono">get_messages()</span> by <span class="mono">session_id</span>,
+      pulling back the <strong>verbatim log of last time</strong> and prepending it:</p>
+<pre class="code"><span class="cm"># history returned by get_messages(session_id)</span>
+Message(<span class="st">"user"</span>,      [<span class="st">"An oat-milk latte, low sugar"</span>]),
+Message(<span class="st">"assistant"</span>, [<span class="st">"Got it&mdash;oat latte, low sugar, ordered"</span>]),</pre>
+  </div></div>
+  <div class="step"><div class="num">3</div><div class="sc">
+    <h4>ContextProvider.before_run: retrieve long-term memory by relevance</h4>
+    <p><span class="mono">RedisContextProvider</span> / <span class="mono">Mem0ContextProvider</span> takes the input text and runs a <strong>full-text / vector search</strong>,
+      then <strong>injects</strong> the hits as one extra <span class="mono">user</span> message (the real code is literally <span class="mono">context.extend_messages(...)</span>):</p>
+<pre class="code"><span class="cm"># memory injected after a hit (with the context_prompt prefix)</span>
+Message(<span class="st">"user"</span>, [<span class="st">"## Memories\nThis customer is dairy-allergic; always orders oat milk."</span>]),</pre>
+  </div></div>
+  <div class="step"><div class="num">4</div><div class="sc">
+    <h4>Only now does the model see "history + memory + new question"</h4>
+    <p>What reaches the LLM is no longer a lonely "the usual" but a <strong>complete context</strong> quietly filled in by the two Providers,
+      so it can reply "<span class="mono">Sure&mdash;oat-milk latte, low sugar again</span>". Short-term pad and long-term archive merge here.</p>
+  </div></div>
+  <div class="step"><div class="num">5</div><div class="sc">
+    <h4>after_run: write this turn back for next time</h4>
+    <p>When the run ends, <span class="mono">HistoryProvider.after_run</span> calls <span class="mono">save_messages()</span> to append this Q&amp;A to history;
+      <span class="mono">ContextProvider.after_run</span> extracts/writes the worth-remembering facts (like "dairy allergy") into the vector store.
+      The next <span class="mono">run()</span> starts the loop again&mdash;memory snowballs.</p>
+  </div></div>
+</div>
+
+<h2>Two abstractions: scratch pad vs archive</h2>
+<p>This is the one diagram to remember. Both inherit from the same base <span class="mono">ContextProvider</span>, but their jobs differ:</p>
+<div class="cols">
+  <div class="col">
+    <h4>🗒️ HistoryProvider (short-term · verbatim)</h4>
+    <p><span class="mono">HistoryProvider(ContextProvider)</span>, <span class="mono">_sessions.py:410</span>.
+      Its job is to <strong>store/load a session's message stream as-is</strong>: subclasses only implement <span class="mono">get_messages()</span> and <span class="mono">save_messages()</span>,
+      while the base <span class="mono">before_run</span>/<span class="mono">after_run</span> auto "load/store" per flags.</p>
+    <p>Flags: <span class="mono">load_messages</span> (load before run?), <span class="mono">store_inputs</span> / <span class="mono">store_outputs</span> (store input/output?).
+      Use it to answer "<strong>what did we just say in this conversation</strong>". Backends: <span class="mono">RedisHistoryProvider</span> / <span class="mono">CosmosHistoryProvider</span>.</p>
+  </div>
+  <div class="col">
+    <h4>📚 ContextProvider (long-term · semantic)</h4>
+    <p>The <span class="mono">ContextProvider</span> base, <span class="mono">_sessions.py:348</span>. More general: in <span class="mono">before_run</span> it can <strong>push anything into the context</strong>
+      (retrieved memories, extra instructions, ad-hoc tools), and process the response in <span class="mono">after_run</span>.</p>
+    <p>Use it to answer "<strong>what did I already know about this person/topic</strong>"&mdash;usually backed by vector search.
+      Backends: <span class="mono">RedisContextProvider</span> / <span class="mono">Mem0ContextProvider</span>. It does <strong>not</strong> guarantee verbatim; it wants "relevant".</p>
+  </div>
+</div>
+
+<h2>Three backends compared</h2>
+<table class="t">
+  <tr><th>Backend</th><th>Package</th><th>Class</th><th>Type</th><th>Good at</th></tr>
+  <tr><td>Redis</td><td class="mono">agent-framework-redis</td><td class="mono">RedisContextProvider</td><td>ContextProvider</td><td>full-text / vector long-term memory, pluggable vectorizer</td></tr>
+  <tr><td>Redis</td><td class="mono">agent-framework-redis</td><td class="mono">RedisHistoryProvider</td><td>HistoryProvider</td><td>low-latency conversation history</td></tr>
+  <tr><td>Mem0</td><td class="mono">agent-framework-mem0</td><td class="mono">Mem0ContextProvider</td><td>ContextProvider</td><td>managed long-term memory (OSS or Platform), auto fact extraction</td></tr>
+  <tr><td>Cosmos</td><td class="mono">agent-framework-azure-cosmos</td><td class="mono">CosmosHistoryProvider</td><td>HistoryProvider</td><td>durable, scalable history on Azure</td></tr>
+</table>
+<p>Note an asymmetry: Redis ships both (pad and archive), Mem0 only does <span class="mono">ContextProvider</span> (focused on long-term memory),
+Cosmos only does <span class="mono">HistoryProvider</span> (focused on durable history). That mirrors "<strong>picking a backend = picking which kind of memory you need</strong>".</p>
+
+<h2>Real source: what a ContextProvider looks like</h2>
+<div class="codefile">
+  <div class="cf-head"><span class="dot"></span><span class="path">_context_provider.py</span><span class="ln">RedisContextProvider (simplified from :44 / :118)</span></div>
+<pre><span class="kw">class</span> <span class="fn">RedisContextProvider</span>(ContextProvider):
+    <span class="kw">def</span> <span class="fn">__init__</span>(self, source_id=<span class="st">"redis"</span>,
+                 redis_url=<span class="st">"redis://localhost:6379"</span>,
+                 index_name=<span class="st">"context"</span>, *, redis_vectorizer=<span class="kw">None</span>, ...):
+        <span class="kw">super</span>().__init__(source_id)        <span class="cm"># remember our source_id (for attribution)</span>
+        self.redis_index = ...               <span class="cm"># build / connect a Redis vector index</span>
+
+    <span class="kw">async def</span> <span class="fn">before_run</span>(self, *, agent, session, context, state):
+        <span class="cm"># 1) take this run's input text</span>
+        input_text = <span class="st">"\n"</span>.join(m.text <span class="kw">for</span> m <span class="kw">in</span> context.input_messages <span class="kw">if</span> m.text)
+        <span class="kw">if not</span> input_text.strip():
+            <span class="kw">return</span>
+        <span class="cm"># 2) retrieve relevant memories from Redis (full-text / vector)</span>
+        memories = <span class="kw">await</span> self._redis_search(text=input_text)
+        joined = <span class="st">"\n"</span>.join(m.get(<span class="st">"content"</span>, <span class="st">""</span>) <span class="kw">for</span> m <span class="kw">in</span> memories)
+        <span class="cm"># 3) "inject" the hits as an extra user message into this run's context</span>
+        <span class="kw">if</span> joined:
+            context.extend_messages(self.source_id,
+                [Message(role=<span class="st">"user"</span>, contents=[<span class="st">f"{self.context_prompt}\n{joined}"</span>])])</pre>
+</div>
+<p>Three steps&mdash;<strong>take input → retrieve → inject</strong>&mdash;are the skeleton of almost every <span class="mono">ContextProvider</span>.
+<span class="mono">Mem0ContextProvider.before_run</span> (<span class="mono">_context_provider.py:95</span>) is identical except step 2 calls Mem0's <span class="mono">search()</span>.
+<span class="mono">HistoryProvider</span> wraps this even tighter: you write only <span class="mono">get_messages</span>/<span class="mono">save_messages</span>, and the base class handles <em>when</em> to load/store per the <span class="mono">load_messages</span>/<span class="mono">store_*</span> flags.</p>
+
+<details class="accordion" open>
+  <summary><span class="badge-num">1</span> Why abstract "memory" into a Provider instead of baking it into Agent <span class="hint">click to expand</span></summary>
+  <div class="acc-body">
+    <div class="qa">
+      <div class="q">🧪 Example</div>
+      <div class="a">Same agent: in-memory history in dev, Cosmos in prod, plus a Redis long-term memory&mdash;three combinations, and the agent's construction code is unchanged; you just attach different Providers to the session.</div>
+    </div>
+    <div class="qa">
+      <div class="q">❓ Why it's necessary</div>
+      <div class="a">Memory is a <strong>cross-cutting concern</strong>: where to store, how to retrieve, verbatim or not&mdash;all swing wildly with environment. Welded into the Agent, every storage change means editing the Agent; as a Provider, storage policy and agent behavior fully decouple.</div>
+    </div>
+    <div class="qa">
+      <div class="q">✅ MAF's approach &amp; benefits</div>
+      <div class="a">The uniform <span class="mono">ContextProvider.before_run/after_run</span> hooks (<span class="mono">_sessions.py:367 / :388</span>) are the only seam. Multiple Providers stack (one for history, one for long-term memory), each with a <span class="mono">source_id</span> for message attribution, without clashing.</div>
+    </div>
+    <div class="qa">
+      <div class="q">🔀 Alternatives</div>
+      <div class="a">Hand-assemble history outside <span class="mono">run()</span> (verbose, error-prone), or bury memory logic in each tool (coupled). The Provider pattern means "<strong>wire once, applies everywhere</strong>", and is uniformly observable via the framework's middleware/telemetry.</div>
+    </div>
+  </div>
+</details>
+
+<details class="accordion" open>
+  <summary><span class="badge-num">2</span> Short-term history vs long-term vector memory&mdash;how to choose <span class="hint">click to expand</span></summary>
+  <div class="acc-body">
+    <div class="qa">
+      <div class="q">🧪 Example</div>
+      <div class="a">Support bot: a <span class="mono">HistoryProvider</span> guarantees "nothing said in this call is lost"; a (vector) <span class="mono">ContextProvider</span> remembers "this customer complained about shipping six months ago". Attach both&mdash;complementary.</div>
+    </div>
+    <div class="qa">
+      <div class="q">❓ Why it's necessary</div>
+      <div class="a">Verbatim history <strong>grows without bound</strong>; stuffing it all into the prompt is expensive and overflows the window. Pure vector memory loses "the exact wording of the last sentence". Splitting into two types plays to each strength.</div>
+    </div>
+    <div class="qa">
+      <div class="q">✅ MAF's approach &amp; benefits</div>
+      <div class="a"><span class="mono">HistoryProvider</span> manages the <strong>exact, ordered</strong> message stream via <span class="mono">get/save_messages</span>; <span class="mono">ContextProvider</span> manages <strong>relevant, cross-session</strong> memory via retrieval. The shared base hooks let you compose them freely.</div>
+    </div>
+    <div class="qa">
+      <div class="q">🔀 Alternatives</div>
+      <div class="a">History only (simple but forgets cross-session preferences), vector only (saves window but loses verbatim), or summarize-then-store (a compromise that loses detail). Production usually walks on both legs: short-term history + long-term vectors.</div>
+    </div>
+  </div>
+</details>
+
+<div class="card key">
+  <div class="tag">✅ Key points</div>
+  <ul>
+    <li>Memory is a <strong>Provider plugin</strong> on the session, not a field inside the Agent; swap backends without touching the Agent.</li>
+    <li><span class="mono">ContextProvider.before_run</span> injects context, <span class="mono">after_run</span> processes/persists&mdash;the single seam.</li>
+    <li><span class="mono">HistoryProvider</span> = short-term verbatim (<span class="mono">get/save_messages</span>); <span class="mono">ContextProvider</span> = long-term semantic retrieval.</li>
+    <li>Redis ships both, Mem0 specializes in long-term memory, Cosmos in durable history&mdash;pick by need.</li>
+  </ul>
+</div>
+
+<div class="card spark">
+  <div class="tag">💡 Design highlight</div>
+  <strong>One base class, two kinds of memory.</strong> <span class="mono">HistoryProvider</span> subclasses <span class="mono">ContextProvider</span>, so the "verbatim pad" and the "semantic archive"
+  share the same <span class="mono">before_run/after_run</span> pair. The framework didn't invent a new mechanism for "memory"&mdash;it's just one use of a ContextProvider.
+</div>
+<div class="selftest">
+<h2>🧪 Self-test - think about the design</h2>
+<div class="quiz">
+  <div class="qn">1. <code>HistoryProvider</code> and <code>ContextProvider</code> share a base class but do different jobs. Which is most accurate?</div>
+  <ol class="opts">
+    <li><code>HistoryProvider</code> trains the model</li>
+    <li><code>ContextProvider</code> can only store history, never retrieve</li>
+    <li><code>HistoryProvider</code> stores/loads a session's message stream verbatim (<code>get/save_messages</code>); <code>ContextProvider</code> is more general, injecting relevance-retrieved memory into context</li>
+    <li>They are identical, just named differently</li>
+  </ol>
+  <details class="accordion" open>
+    <summary>Show answer &amp; explanation <span class="hint">click to expand</span></summary>
+    <div class="acc-body"><div class="qa"><div class="a"><strong>Answer: C</strong>. <code>HistoryProvider(ContextProvider)</code> owns the short-term, verbatim, ordered conversation log; subclasses implement only <code>get_messages</code>/<code>save_messages</code>. The base <code>ContextProvider</code> is more general, injecting long-term, semantic memory in <code>before_run</code>. They share one hook pair, so they compose freely.</div></div></div>
+  </details>
+</div>
+<div class="quiz">
+  <div class="qn">2. MAF models memory as a Provider attached to the session, not welded into the Agent class. The main benefit?</div>
+  <ol class="opts">
+    <li>It removes the need for a ChatClient</li>
+    <li>It forces every agent to use Redis</li>
+    <li>Storage policy decouples from agent behavior: switching Redis / Mem0 / Cosmos just swaps a Provider instance, with zero changes to agent code</li>
+    <li>It makes model inference faster</li>
+  </ol>
+  <details class="accordion" open>
+    <summary>Show answer &amp; explanation <span class="hint">click to expand</span></summary>
+    <div class="acc-body"><div class="qa"><div class="a"><strong>Answer: C</strong>. Memory is a cross-cutting concern (where/how/verbatim swing with environment). As a Provider the only seam is the <code>before_run</code>/<code>after_run</code> hooks; multiple Providers stack, each with a <code>source_id</code> for attribution. Swap backend = swap instance; the agent is untouched.</div></div></div>
+  </details>
+</div>
+<div class="quiz">
+  <div class="qn">3. In a memory-enabled <code>run()</code>, how does memory reach the model?</div>
+  <ol class="opts">
+    <li>Only manual prompt-stitching gives memory</li>
+    <li>Memory is compiled into the model weights</li>
+    <li>The model connects to the database itself</li>
+    <li>Before the model call, the Provider's <code>before_run</code> injects history + retrieved memory into context; after the run, <code>after_run</code> writes this turn back</li>
+  </ol>
+  <details class="accordion" open>
+    <summary>Show answer &amp; explanation <span class="hint">click to expand</span></summary>
+    <div class="acc-body"><div class="qa"><div class="a"><strong>Answer: D</strong>. The framework calls <code>before_run</code> before the model: <code>HistoryProvider</code> reattaches verbatim history via <code>get_messages</code>, and <code>ContextProvider</code> injects retrieved memory via <code>context.extend_messages(...)</code>. The model then sees &quot;history + memory + new question&quot;. Afterward <code>after_run</code>/<code>save_messages</code> persists the turn for next time.</div></div></div>
+  </details>
+</div>
+<div class="card spark">
+  <div class="tag">💭 Open questions (no single right answer - just think or try)</div>
+  <ul>
+    <li>Design a memory scheme for one of your own agents: what belongs in a <code>HistoryProvider</code> (short-term verbatim) vs a <code>ContextProvider</code> (long-term semantic retrieval)? Then explain what breaks if conversation history grows without bound, and how you'd mitigate it with the &quot;short-term history + long-term vectors&quot; two-leg approach.</li>
+  </ul>
+</div>
+</div></div></section>
+<section class="print-lesson"><div class="wrap"><div class="lesson-head"><div class="lp">Part 6 · Protocols & Ecosystem</div><h1><span class="ln">22 ·</span> Agent Skills</h1></div>
 <p class="lead"><strong>Agent Skills</strong> let you package domain knowledge into discoverable, reusable modules —
 Agents get not just tools but <strong>knowledge bases</strong>.</p>
 
@@ -6737,7 +6970,7 @@ source = AggregatingSkillsSource(sources=[
   </ul>
 </div>
 </div></div></section>
-<section class="print-lesson"><div class="wrap"><div class="lesson-head"><div class="lp">Part 6 · Protocols & Ecosystem</div><h1><span class="ln">22 ·</span> MCP Tool Protocol</h1></div>
+<section class="print-lesson"><div class="wrap"><div class="lesson-head"><div class="lp">Part 6 · Protocols & Ecosystem</div><h1><span class="ln">23 ·</span> MCP Tool Protocol</h1></div>
 <p class="lead"><strong>MCP (Model Context Protocol)</strong> is the <strong>open standard</strong> for connecting tools and
 resources to LLMs — MAF can both <strong>call</strong> MCP servers and <strong>expose</strong> an Agent as one.</p>
 
@@ -7086,7 +7319,7 @@ MCPStdioTool(name=<span class="st">"fs"</span>, command=<span class="st">"npx"</
   </ul>
 </div>
 </div></div></section>
-<section class="print-lesson"><div class="wrap"><div class="lesson-head"><div class="lp">Part 6 · Protocols & Ecosystem</div><h1><span class="ln">23 ·</span> Foundry Hosted Agents</h1></div>
+<section class="print-lesson"><div class="wrap"><div class="lesson-head"><div class="lp">Part 6 · Protocols & Ecosystem</div><h1><span class="ln">24 ·</span> Foundry Hosted Agents</h1></div>
 <p class="lead"><strong>Foundry Hosted Agents</strong> — with ~2 extra lines of code, deploy your local Agent to Azure AI
 Foundry cloud and get auto-scaling, session management and enterprise monitoring for free.</p>
 
@@ -7430,7 +7663,7 @@ server = InvocationsHostServer(agent=agent)
   </ul>
 </div>
 </div></div></section>
-<section class="print-lesson"><div class="wrap"><div class="lesson-head"><div class="lp">Part 6 · Protocols & Ecosystem</div><h1><span class="ln">24 ·</span> A2A & AG-UI Protocols</h1></div>
+<section class="print-lesson"><div class="wrap"><div class="lesson-head"><div class="lp">Part 6 · Protocols & Ecosystem</div><h1><span class="ln">25 ·</span> A2A & AG-UI Protocols</h1></div>
 <p class="lead"><strong>A2A (Agent-to-Agent)</strong> exposes an Agent as a service for other Agents to call;
 <strong>AG-UI</strong> gives Agents a structured real-time channel to the frontend —
 together they connect "Agent ↔ Agent" and "Agent ↔ User Interface".</p>
@@ -7753,7 +7986,7 @@ add_agent_framework_fastapi_endpoint(app, ag_ui_agent)
   </ul>
 </div>
 </div></div></section>
-<section class="print-lesson"><div class="wrap"><div class="lesson-head"><div class="lp">Part 6 · Protocols & Ecosystem</div><h1><span class="ln">25 ·</span> Evaluation & Time-Travel</h1></div>
+<section class="print-lesson"><div class="wrap"><div class="lesson-head"><div class="lp">Part 6 · Protocols & Ecosystem</div><h1><span class="ln">26 ·</span> Evaluation & Time-Travel</h1></div>
 <p class="lead"><strong>Evaluation</strong> systematically tests Agent output quality;
 <strong>Time-travel</strong> replays workflow runs from checkpoints for debugging —
 together they take Agents from "it runs" to "it's reliable".</p>
@@ -8114,7 +8347,7 @@ results = <span class="kw">await</span> evaluate_agent(agent=agent, queries=[...
   </ul>
 </div>
 </div></div></section>
-<section class="print-lesson"><div class="wrap"><div class="lesson-head"><div class="lp">Part 7 · Bonus</div><h1><span class="ln">26 ·</span> AF vs Other Frameworks</h1></div>
+<section class="print-lesson"><div class="wrap"><div class="lesson-head"><div class="lp">Part 7 · Bonus</div><h1><span class="ln">27 ·</span> AF vs Other Frameworks</h1></div>
 <p class="lead">MAF isn't the only agent framework. This lesson compares four major ones to give you
 <strong>global coordinates</strong>.</p>
 
@@ -8367,7 +8600,7 @@ SK:        ~25k  (large enterprise user base)</pre>
   </ul>
 </div>
 </div></div></section>
-<section class="print-lesson"><div class="wrap"><div class="lesson-head"><div class="lp">Part 7 · Bonus</div><h1><span class="ln">27 ·</span> Full-Stack Map & Learning Path</h1></div>
+<section class="print-lesson"><div class="wrap"><div class="lesson-head"><div class="lp">Part 7 · Bonus</div><h1><span class="ln">28 ·</span> Full-Stack Map & Learning Path</h1></div>
 <p class="lead">Final lesson — zoom out: place MAF in the <strong>AI full-stack</strong> coordinate system and see
 what's worth learning next door.</p>
 

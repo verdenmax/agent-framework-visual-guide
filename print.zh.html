@@ -275,7 +275,7 @@ h2, h3, h4 { break-after: avoid; }
   <div class="emoji">📘</div>
   <h1>Agent Framework 图解教程</h1>
   <div class="sub">从零理解整个项目 · 宏观 → 用法 → 源码 → 自己动手做 Agent</div>
-  <div class="meta">共 27 课 · 7 个部分 · 每课配真实代码对应与设计亮点<br>
+  <div class="meta">共 28 课 · 7 个部分 · 每课配真实代码对应与设计亮点<br>
     生成日期 2026-06-23 · verdenmax · Code MIT · Content CC BY 4.0</div>
 </section>
 <section class="print-toc"><div class="wrap"><h2>目录</h2>
@@ -313,19 +313,20 @@ h2, h3, h4 { break-after: avoid; }
 <li value="18">写自己的中间件</li>
 <li value="19">检查点 · 人在环 · 持久化</li>
 <li value="20">端到端实战：多 Agent 工作流</li>
+<li value="21">记忆后端</li>
 </ol>
 <div class="tp">第六部分 · 协议与生态</div>
 <ol>
-<li value="21">Agent Skills 技能系统</li>
-<li value="22">MCP 工具协议</li>
-<li value="23">Foundry 托管 Agent</li>
-<li value="24">A2A + AG-UI 协议</li>
-<li value="25">评估与时间旅行</li>
+<li value="22">Agent Skills 技能系统</li>
+<li value="23">MCP 工具协议</li>
+<li value="24">Foundry 托管 Agent</li>
+<li value="25">A2A + AG-UI 协议</li>
+<li value="26">评估与时间旅行</li>
 </ol>
 <div class="tp">第七部分 · 番外篇</div>
 <ol>
-<li value="26">横向对比：AF vs 其他框架</li>
-<li value="27">全栈坐标系 & 学习地图</li>
+<li value="27">横向对比：AF vs 其他框架</li>
+<li value="28">全栈坐标系 & 学习地图</li>
 </ol></div></section>
 <section class="print-lesson"><div class="wrap"><div class="lesson-head"><div class="lp">第一部分 · 宏观全景</div><h1><span class="ln">01 ·</span> Agent Framework 是什么</h1></div>
 <p class="lead" style="font-size:1.06rem;color:var(--muted);margin-top:-.6rem">
@@ -6307,7 +6308,239 @@ logging.basicConfig(level=logging.INFO)</pre>
   </ul>
 </div>
 </div></div></section>
-<section class="print-lesson"><div class="wrap"><div class="lesson-head"><div class="lp">第六部分 · 协议与生态</div><h1><span class="ln">21 ·</span> Agent Skills 技能系统</h1></div>
+<section class="print-lesson"><div class="wrap"><div class="lesson-head"><div class="lp">第五部分 · 自己动手做 Agent</div><h1><span class="ln">21 ·</span> 记忆后端</h1></div>
+<p class="lead">前面几课的 Agent 都是<strong>金鱼记忆</strong>——一次 <span class="mono">run()</span> 结束，什么都不记得。
+本课教你给它接上<strong>记忆后端</strong>：用 Redis / Mem0 / Cosmos 把对话历史和长期记忆存到进程之外，
+靠两类抽象——<span class="mono">ContextProvider</span> 与 <span class="mono">HistoryProvider</span>——把"记住"这件事插进每一次运行。</p>
+
+<div class="card analogy">
+  <div class="tag">🧠 生活类比</div>
+  没有记忆后端的 Agent 像一个<strong>失忆的接待员</strong>：每位客人来都得从头自我介绍。
+  接上记忆后端，就等于给他配了<strong>两样东西</strong>：一本<strong>随手记的对话本</strong>（短期、逐字记录这次聊了什么 = HistoryProvider），
+  和一座<strong>客户档案馆</strong>（长期、按相关性检索"这个人以前提过什么" = ContextProvider）。
+</div>
+
+<h2>记忆挂在 run() 的哪个位置</h2>
+<p>记忆不是 Agent 内部的字段，而是挂在会话上的<strong>插件</strong>。一次 <span class="mono">run()</span> 里，框架会在调模型<strong>之前</strong>和<strong>之后</strong>各回调一次每个 Provider：</p>
+<div class="flow">
+  <div class="node"><div class="nt">你的输入</div><div class="nd">agent.run(text, session)</div></div>
+  <div class="arrow">→</div>
+  <div class="node hl"><div class="nt">before_run</div><div class="nd">注入历史 + 检索记忆</div></div>
+  <div class="arrow">→</div>
+  <div class="node"><div class="nt">LLM</div><div class="nd">看到「历史+记忆+新问题」</div></div>
+  <div class="arrow">→</div>
+  <div class="node hl"><div class="nt">after_run</div><div class="nd">把这轮写回后端</div></div>
+</div>
+<p>关键洞察：<strong>Agent 本身不持有记忆</strong>。它只是在固定的两个钩子上"问一下"挂着的 Provider 们——
+要注入什么上下文（<span class="mono">before_run</span>），运行完要存什么（<span class="mono">after_run</span>）。
+换后端 = 换一个 Provider 实例，Agent 代码一行不改。</p>
+
+<h2>走一遍：一次"带记忆"的运行</h2>
+<p>场景：一个咖啡店点单助手。用户第二天回来只问了一句"<strong>老样子</strong>"，Agent 却答得出来——因为它先去记忆后端翻了账。
+下面每一步给出当时<strong>消息列表的真实快照</strong>，看记忆是怎么"凭空"出现在上下文里的。</p>
+<div class="vflow">
+  <div class="step"><div class="num">1</div><div class="sc">
+    <h4>你只发了一句话</h4>
+    <p>调用 <span class="mono">agent.run("老样子", session=session)</span>。此刻框架手里的消息列表很短：</p>
+<pre class="code">messages = [
+  Message(<span class="st">"system"</span>, [<span class="st">"你是咖啡店点单助手…"</span>]),
+  Message(<span class="st">"user"</span>,   [<span class="st">"老样子"</span>]),
+]</pre>
+  </div></div>
+  <div class="step"><div class="num">2</div><div class="sc">
+    <h4>HistoryProvider.before_run：把这个会话的历史接回来</h4>
+    <p><span class="mono">CosmosHistoryProvider</span>（或 <span class="mono">RedisHistoryProvider</span>）用 <span class="mono">session_id</span> 调
+      <span class="mono">get_messages()</span>，把<strong>上次聊天的逐字记录</strong>取回并接到前面：</p>
+<pre class="code"><span class="cm"># get_messages(session_id) 取回的历史</span>
+Message(<span class="st">"user"</span>,      [<span class="st">"我要一杯燕麦拿铁，少糖"</span>]),
+Message(<span class="st">"assistant"</span>, [<span class="st">"好的，燕麦拿铁少糖，已下单"</span>]),</pre>
+  </div></div>
+  <div class="step"><div class="num">3</div><div class="sc">
+    <h4>ContextProvider.before_run：按相关性检索长期记忆</h4>
+    <p><span class="mono">RedisContextProvider</span> / <span class="mono">Mem0ContextProvider</span> 拿本次输入文本去后端做<strong>全文 / 向量检索</strong>，
+      把命中的"画像式记忆"作为一条额外的 <span class="mono">user</span> 消息<strong>注入</strong>上下文（真实代码就是 <span class="mono">context.extend_messages(...)</span>）：</p>
+<pre class="code"><span class="cm"># 检索命中后注入的记忆（带 context_prompt 前缀）</span>
+Message(<span class="st">"user"</span>, [<span class="st">"## Memories\n这位顾客对牛奶过敏，长期点燕麦奶。"</span>]),</pre>
+  </div></div>
+  <div class="step"><div class="num">4</div><div class="sc">
+    <h4>模型这才看到「历史 + 记忆 + 新问题」</h4>
+    <p>LLM 收到的早已不是孤零零一句"老样子"，而是被两个 Provider 悄悄补全过的<strong>完整上下文</strong>，于是答得出
+      "<span class="mono">好的，还是燕麦拿铁少糖</span>"。短期对话本 + 长期档案馆，在这里合流。</p>
+  </div></div>
+  <div class="step"><div class="num">5</div><div class="sc">
+    <h4>after_run：把这一轮写回后端，供下次取用</h4>
+    <p>运行结束，<span class="mono">HistoryProvider.after_run</span> 调 <span class="mono">save_messages()</span> 把本轮问答追加进历史；
+      <span class="mono">ContextProvider.after_run</span> 则把值得长期记的事实（如"过敏牛奶"）抽取/写进向量库。
+      下一次 <span class="mono">run()</span>，循环重新开始——记忆就这样滚雪球式地积累。</p>
+  </div></div>
+</div>
+
+<h2>两类抽象：短期对话本 vs 长期档案馆</h2>
+<p>这是本课最该记住的一张图。两者都继承自同一个基类 <span class="mono">ContextProvider</span>，但分工不同：</p>
+<div class="cols">
+  <div class="col">
+    <h4>🗒️ HistoryProvider（短期 · 逐字）</h4>
+    <p><span class="mono">HistoryProvider(ContextProvider)</span>，<span class="mono">_sessions.py:410</span>。
+      职责是<strong>原样存取一个会话的消息流</strong>：子类只需实现 <span class="mono">get_messages()</span> 和 <span class="mono">save_messages()</span>，
+      基类的 <span class="mono">before_run</span>/<span class="mono">after_run</span> 自动按开关"加载/存储"。</p>
+    <p>开关：<span class="mono">load_messages</span>（运行前是否加载）、<span class="mono">store_inputs</span> / <span class="mono">store_outputs</span>（是否存输入/输出）。
+      用它回答"<strong>我们这次对话刚才说了啥</strong>"。后端如 <span class="mono">RedisHistoryProvider</span> / <span class="mono">CosmosHistoryProvider</span>。</p>
+  </div>
+  <div class="col">
+    <h4>📚 ContextProvider（长期 · 语义）</h4>
+    <p><span class="mono">ContextProvider</span> 基类，<span class="mono">_sessions.py:348</span>。更通用：在 <span class="mono">before_run</span> 里<strong>往上下文塞任何东西</strong>
+      （检索到的记忆、额外指令、临时工具），在 <span class="mono">after_run</span> 里处理响应。</p>
+    <p>用它回答"<strong>关于这个人/这件事，我以前知道些什么</strong>"——通常背后是向量检索。
+      后端如 <span class="mono">RedisContextProvider</span> / <span class="mono">Mem0ContextProvider</span>。它<strong>不保证逐字</strong>，要的是"相关"。</p>
+  </div>
+</div>
+
+<h2>三家后端对照</h2>
+<table class="t">
+  <tr><th>后端</th><th>包</th><th>类</th><th>类型</th><th>擅长</th></tr>
+  <tr><td>Redis</td><td class="mono">agent-framework-redis</td><td class="mono">RedisContextProvider</td><td>ContextProvider</td><td>全文 / 向量检索的长期记忆，可自带 vectorizer</td></tr>
+  <tr><td>Redis</td><td class="mono">agent-framework-redis</td><td class="mono">RedisHistoryProvider</td><td>HistoryProvider</td><td>低延迟存取会话历史</td></tr>
+  <tr><td>Mem0</td><td class="mono">agent-framework-mem0</td><td class="mono">Mem0ContextProvider</td><td>ContextProvider</td><td>托管式长期记忆（OSS 或 Platform），自动抽取事实</td></tr>
+  <tr><td>Cosmos</td><td class="mono">agent-framework-azure-cosmos</td><td class="mono">CosmosHistoryProvider</td><td>HistoryProvider</td><td>Azure 上持久、可扩展的会话历史</td></tr>
+</table>
+<p>注意一个不对称：Redis 两类都给（既能当对话本又能当档案馆），Mem0 只做 <span class="mono">ContextProvider</span>（专注长期记忆），
+Cosmos 只做 <span class="mono">HistoryProvider</span>（专注持久历史）。这正反映了"<strong>选后端 = 选你需要哪类记忆</strong>"。</p>
+
+<h2>真实源码：一个 ContextProvider 长什么样</h2>
+<div class="codefile">
+  <div class="cf-head"><span class="dot"></span><span class="path">_context_provider.py</span><span class="ln">RedisContextProvider（简化自 :44 / :118）</span></div>
+<pre><span class="kw">class</span> <span class="fn">RedisContextProvider</span>(ContextProvider):
+    <span class="kw">def</span> <span class="fn">__init__</span>(self, source_id=<span class="st">"redis"</span>,
+                 redis_url=<span class="st">"redis://localhost:6379"</span>,
+                 index_name=<span class="st">"context"</span>, *, redis_vectorizer=<span class="kw">None</span>, ...):
+        <span class="kw">super</span>().__init__(source_id)        <span class="cm"># 记住自己的 source_id（用于归因）</span>
+        self.redis_index = ...               <span class="cm"># 建 / 连 Redis 向量索引</span>
+
+    <span class="kw">async def</span> <span class="fn">before_run</span>(self, *, agent, session, context, state):
+        <span class="cm"># 1) 取本次输入文本</span>
+        input_text = <span class="st">"\n"</span>.join(m.text <span class="kw">for</span> m <span class="kw">in</span> context.input_messages <span class="kw">if</span> m.text)
+        <span class="kw">if not</span> input_text.strip():
+            <span class="kw">return</span>
+        <span class="cm"># 2) 去 Redis 按相关性检索记忆（全文 / 向量）</span>
+        memories = <span class="kw">await</span> self._redis_search(text=input_text)
+        joined = <span class="st">"\n"</span>.join(m.get(<span class="st">"content"</span>, <span class="st">""</span>) <span class="kw">for</span> m <span class="kw">in</span> memories)
+        <span class="cm"># 3) 把检索到的记忆作为额外 user 消息「注入」本次上下文</span>
+        <span class="kw">if</span> joined:
+            context.extend_messages(self.source_id,
+                [Message(role=<span class="st">"user"</span>, contents=[<span class="st">f"{self.context_prompt}\n{joined}"</span>])])</pre>
+</div>
+<p>三步——<strong>取输入 → 检索 → 注入</strong>——就是几乎所有 <span class="mono">ContextProvider</span> 的骨架。
+<span class="mono">Mem0ContextProvider.before_run</span>（<span class="mono">_context_provider.py:95</span>）逻辑一模一样，只是第 2 步换成调 Mem0 的 <span class="mono">search()</span>。
+而 <span class="mono">HistoryProvider</span> 把这套封装得更狠：你只写 <span class="mono">get_messages</span>/<span class="mono">save_messages</span> 两个方法，加载/存储的时机由基类按 <span class="mono">load_messages</span>/<span class="mono">store_*</span> 开关代劳。</p>
+
+<details class="accordion" open>
+  <summary><span class="badge-num">1</span> 为什么把"记忆"抽象成 Provider，而不是塞进 Agent <span class="hint">点击展开详解</span></summary>
+  <div class="acc-body">
+    <div class="qa">
+      <div class="q">🧪 示例</div>
+      <div class="a">同一个 Agent，开发期用内存历史，生产期换 Cosmos，再加一个 Redis 长期记忆——三种组合，Agent 构造代码不变，只是往 session 上挂不同的 Provider 列表。</div>
+    </div>
+    <div class="qa">
+      <div class="q">❓ 为什么这件事必要</div>
+      <div class="a">记忆是<strong>横切关注点</strong>：存哪、怎么检索、要不要逐字，会随环境剧变。如果把它焊进 Agent，每换一种存储就得改 Agent；抽成 Provider 后，存储策略与 Agent 行为彻底解耦。</div>
+    </div>
+    <div class="qa">
+      <div class="q">✅ MAF 的做法与优点</div>
+      <div class="a">统一的 <span class="mono">ContextProvider.before_run/after_run</span> 钩子（<span class="mono">_sessions.py:367 / :388</span>）是唯一的接入面。多个 Provider 可叠加（一个管历史、一个管长期记忆），各自带 <span class="mono">source_id</span> 做消息归因，互不打架。</div>
+    </div>
+    <div class="qa">
+      <div class="q">🔀 还有什么其他方案</div>
+      <div class="a">可以自己在 <span class="mono">run()</span> 外面手动拼历史（啰嗦、易错），或把记忆逻辑写进每个工具（耦合）。Provider 模式的好处是"<strong>一次接入，处处生效</strong>"，且能被框架的中间件/可观测统一观测。</div>
+    </div>
+  </div>
+</details>
+
+<details class="accordion" open>
+  <summary><span class="badge-num">2</span> 短期历史 vs 长期向量记忆，怎么选 <span class="hint">点击展开详解</span></summary>
+  <div class="acc-body">
+    <div class="qa">
+      <div class="q">🧪 示例</div>
+      <div class="a">客服机器人：用 <span class="mono">HistoryProvider</span> 保证"这通对话里说过的话不丢"；用 <span class="mono">ContextProvider</span>（向量）记住"这个客户半年前投诉过物流"。两者同时挂，互补。</div>
+    </div>
+    <div class="qa">
+      <div class="q">❓ 为什么这件事必要</div>
+      <div class="a">逐字历史<strong>会无限膨胀</strong>，全塞进 prompt 既贵又超窗口；纯向量记忆又会丢掉"刚才那句话的精确措辞"。分成两类，各取所长。</div>
+    </div>
+    <div class="qa">
+      <div class="q">✅ MAF 的做法与优点</div>
+      <div class="a"><span class="mono">HistoryProvider</span> 用 <span class="mono">get/save_messages</span> 管<strong>精确、有序</strong>的会话流；<span class="mono">ContextProvider</span> 用检索管<strong>相关、跨会话</strong>的记忆。基类共享同一套钩子，所以能自由组合。</div>
+    </div>
+    <div class="qa">
+      <div class="q">🔀 还有什么其他方案</div>
+      <div class="a">只用历史（简单但记不住跨会话偏好）、只用向量（省窗口但丢逐字）、或把整段历史做摘要再存（折中，但摘要会丢细节）。生产里通常"短期历史 + 长期向量"两条腿走路。</div>
+    </div>
+  </div>
+</details>
+
+<div class="card key">
+  <div class="tag">✅ 关键要点</div>
+  <ul>
+    <li>记忆是挂在会话上的 <strong>Provider 插件</strong>，不是 Agent 的内部字段；换后端不改 Agent。</li>
+    <li><span class="mono">ContextProvider.before_run</span> 注入上下文，<span class="mono">after_run</span> 处理/写回——这是唯一接入面。</li>
+    <li><span class="mono">HistoryProvider</span> = 短期逐字（<span class="mono">get/save_messages</span>）；<span class="mono">ContextProvider</span> = 长期语义检索。</li>
+    <li>Redis 两类全给，Mem0 专做长期记忆，Cosmos 专做持久历史——按需求选后端。</li>
+  </ul>
+</div>
+
+<div class="card spark">
+  <div class="tag">💡 设计亮点</div>
+  <strong>同一个基类，两种记忆。</strong><span class="mono">HistoryProvider</span> 继承 <span class="mono">ContextProvider</span>，于是"逐字对话本"和"语义档案馆"
+  共用 <span class="mono">before_run/after_run</span> 这一对钩子。框架不需要为"记忆"发明新机制——它只是 ContextProvider 的一种用法。
+</div>
+<div class="selftest">
+<h2>🧪 自测 · 想一想为什么这么设计</h2>
+<div class="quiz">
+  <div class="qn">1. <code>HistoryProvider</code> 与 <code>ContextProvider</code> 都继承自同一个基类，但分工不同。下面哪条最准确？</div>
+  <ol class="opts">
+    <li><code>HistoryProvider</code> 负责训练模型</li>
+    <li><code>ContextProvider</code> 只能存历史，不能检索</li>
+    <li><code>HistoryProvider</code> 逐字存取一个会话的消息流（<code>get/save_messages</code>）；<code>ContextProvider</code> 更通用，按相关性把检索到的记忆注入上下文</li>
+    <li>两者完全一样，只是名字不同</li>
+  </ol>
+  <details class="accordion" open>
+    <summary>看答案与解析 <span class="hint">点击展开</span></summary>
+    <div class="acc-body"><div class="qa"><div class="a"><strong>答案：C</strong>。<code>HistoryProvider(ContextProvider)</code> 专管「短期、逐字、有序」的会话历史，子类只实现 <code>get_messages</code>/<code>save_messages</code>；基类 <code>ContextProvider</code> 更通用，在 <code>before_run</code> 里把检索到的「长期、语义」记忆注入上下文。两者共用同一对钩子，因此能自由叠加。</div></div></div>
+  </details>
+</div>
+<div class="quiz">
+  <div class="qn">2. MAF 把「记忆」做成挂在会话上的 Provider，而不是焊进 Agent 类。最主要的好处是？</div>
+  <ol class="opts">
+    <li>让 Agent 不再需要 ChatClient</li>
+    <li>强制所有 Agent 都必须用 Redis</li>
+    <li>存储策略与 Agent 行为解耦：换 Redis / Mem0 / Cosmos 只是换一个 Provider 实例，Agent 代码一行不改</li>
+    <li>让模型推理更快</li>
+  </ol>
+  <details class="accordion" open>
+    <summary>看答案与解析 <span class="hint">点击展开</span></summary>
+    <div class="acc-body"><div class="qa"><div class="a"><strong>答案：C</strong>。记忆是横切关注点（存哪、怎么检索、要不要逐字会随环境剧变）。抽成 Provider 后，唯一接入面是 <code>before_run</code>/<code>after_run</code> 钩子；多个 Provider 可叠加，各带 <code>source_id</code> 做归因。换后端 = 换实例，Agent 不动。</div></div></div>
+  </details>
+</div>
+<div class="quiz">
+  <div class="qn">3. 一次「带记忆」的 <code>run()</code>，记忆是怎么进到模型眼前的？</div>
+  <ol class="opts">
+    <li>只有你手动拼 prompt 才有记忆</li>
+    <li>记忆被编译进模型权重</li>
+    <li>模型自己连数据库去查</li>
+    <li>模型调用前，Provider 的 <code>before_run</code> 把历史 + 检索到的记忆注入上下文；运行后 <code>after_run</code> 把这轮写回后端</li>
+  </ol>
+  <details class="accordion" open>
+    <summary>看答案与解析 <span class="hint">点击展开</span></summary>
+    <div class="acc-body"><div class="qa"><div class="a"><strong>答案：D</strong>。框架在调模型「之前」回调 <code>before_run</code>：<code>HistoryProvider</code> 用 <code>get_messages</code> 接回逐字历史，<code>ContextProvider</code> 检索后用 <code>context.extend_messages(...)</code> 注入记忆。模型因此看到「历史+记忆+新问题」。「之后」回调 <code>after_run</code>/<code>save_messages</code> 写回，供下次取用。</div></div></div>
+  </details>
+</div>
+<div class="card spark">
+  <div class="tag">💭 发散思考（没有标准答案，动手或动脑想想）</div>
+  <ul>
+    <li>为你自己的一个 Agent 设计记忆方案：哪些信息该进 <code>HistoryProvider</code>（短期逐字），哪些该进 <code>ContextProvider</code>（长期语义检索）？再说说如果对话历史无限增长会出什么问题，你会怎么用「短期历史 + 长期向量」两条腿来缓解。</li>
+  </ul>
+</div>
+</div></div></section>
+<section class="print-lesson"><div class="wrap"><div class="lesson-head"><div class="lp">第六部分 · 协议与生态</div><h1><span class="ln">22 ·</span> Agent Skills 技能系统</h1></div>
 <p class="lead"><strong>Agent Skills（技能）</strong>让你把领域知识打包成可发现、可复用的模块——
 Agent 不再只有工具，还有<strong>知识库</strong>。</p>
 
@@ -6674,7 +6907,7 @@ source = AggregatingSkillsSource(sources=[
   </ul>
 </div>
 </div></div></section>
-<section class="print-lesson"><div class="wrap"><div class="lesson-head"><div class="lp">第六部分 · 协议与生态</div><h1><span class="ln">22 ·</span> MCP 工具协议</h1></div>
+<section class="print-lesson"><div class="wrap"><div class="lesson-head"><div class="lp">第六部分 · 协议与生态</div><h1><span class="ln">23 ·</span> MCP 工具协议</h1></div>
 <p class="lead"><strong>MCP（Model Context Protocol）</strong>是连接工具/资源到 LLM 的<strong>开放标准</strong>——
 MAF 既能<strong>调用</strong> MCP 服务器上的工具，也能把 Agent 自身<strong>暴露为</strong> MCP 服务器。</p>
 
@@ -7022,7 +7255,7 @@ MCPStdioTool(name=<span class="st">"fs"</span>, command=<span class="st">"npx"</
   </ul>
 </div>
 </div></div></section>
-<section class="print-lesson"><div class="wrap"><div class="lesson-head"><div class="lp">第六部分 · 协议与生态</div><h1><span class="ln">23 ·</span> Foundry 托管 Agent</h1></div>
+<section class="print-lesson"><div class="wrap"><div class="lesson-head"><div class="lp">第六部分 · 协议与生态</div><h1><span class="ln">24 ·</span> Foundry 托管 Agent</h1></div>
 <p class="lead"><strong>Foundry 托管 Agent</strong>——只需 ~2 行额外代码，就能把本地 Agent 部署到 Azure AI Foundry 云端，
 获得自动伸缩、会话管理和企业级监控。</p>
 
@@ -7363,7 +7596,7 @@ server = InvocationsHostServer(agent=agent)
   </ul>
 </div>
 </div></div></section>
-<section class="print-lesson"><div class="wrap"><div class="lesson-head"><div class="lp">第六部分 · 协议与生态</div><h1><span class="ln">24 ·</span> A2A + AG-UI 协议</h1></div>
+<section class="print-lesson"><div class="wrap"><div class="lesson-head"><div class="lp">第六部分 · 协议与生态</div><h1><span class="ln">25 ·</span> A2A + AG-UI 协议</h1></div>
 <p class="lead"><strong>A2A（Agent-to-Agent）</strong>让 Agent 作为服务暴露给其他 Agent 调用；
 <strong>AG-UI</strong>让 Agent 与前端 UI 实时结构化通信——两个协议合力打通"Agent ↔ Agent"和"Agent ↔ 用户界面"。</p>
 
@@ -7682,7 +7915,7 @@ add_agent_framework_fastapi_endpoint(app, ag_ui_agent)
   </ul>
 </div>
 </div></div></section>
-<section class="print-lesson"><div class="wrap"><div class="lesson-head"><div class="lp">第六部分 · 协议与生态</div><h1><span class="ln">25 ·</span> 评估与时间旅行</h1></div>
+<section class="print-lesson"><div class="wrap"><div class="lesson-head"><div class="lp">第六部分 · 协议与生态</div><h1><span class="ln">26 ·</span> 评估与时间旅行</h1></div>
 <p class="lead"><strong>Evaluation（评估）</strong>系统化测试 Agent 输出质量；
 <strong>Time-travel（时间旅行）</strong>通过检查点回放调试工作流——两者合力让 Agent 从"能跑"进化到"可靠"。</p>
 
@@ -8041,7 +8274,7 @@ results = <span class="kw">await</span> evaluate_agent(agent=agent, queries=[...
   </ul>
 </div>
 </div></div></section>
-<section class="print-lesson"><div class="wrap"><div class="lesson-head"><div class="lp">第七部分 · 番外篇</div><h1><span class="ln">26 ·</span> 横向对比：AF vs 其他框架</h1></div>
+<section class="print-lesson"><div class="wrap"><div class="lesson-head"><div class="lp">第七部分 · 番外篇</div><h1><span class="ln">27 ·</span> 横向对比：AF vs 其他框架</h1></div>
 <p class="lead">Agent 框架不止 MAF 一个。本课横向对比四大框架，帮你建立<strong>全局坐标</strong>。</p>
 
 <div class="card analogy">
@@ -8290,7 +8523,7 @@ SK:        ~25k  (企业用户基数大)</pre>
   </ul>
 </div>
 </div></div></section>
-<section class="print-lesson"><div class="wrap"><div class="lesson-head"><div class="lp">第七部分 · 番外篇</div><h1><span class="ln">27 ·</span> 全栈坐标系 & 学习地图</h1></div>
+<section class="print-lesson"><div class="wrap"><div class="lesson-head"><div class="lp">第七部分 · 番外篇</div><h1><span class="ln">28 ·</span> 全栈坐标系 & 学习地图</h1></div>
 <p class="lead">最后一课，缩放镜头：把 MAF 放进<strong>AI 全栈</strong>的坐标系里——
 看看你现在在哪，隔壁层还有什么值得学。</p>
 

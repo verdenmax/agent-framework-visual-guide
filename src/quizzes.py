@@ -1415,6 +1415,76 @@ QUIZZES = {
             },
         ],
     },
+    "28-memory-backends.html": {
+        "mcq": [
+            {
+                "q": {
+                    "zh": "<code>HistoryProvider</code> 与 <code>ContextProvider</code> 都继承自同一个基类，但分工不同。下面哪条最准确？",
+                    "en": "<code>HistoryProvider</code> and <code>ContextProvider</code> share a base class but do different jobs. Which is most accurate?",
+                },
+                "opts": [
+                    {
+                        "zh": "<code>HistoryProvider</code> 逐字存取一个会话的消息流（<code>get/save_messages</code>）；<code>ContextProvider</code> 更通用，按相关性把检索到的记忆注入上下文",
+                        "en": "<code>HistoryProvider</code> stores/loads a session's message stream verbatim (<code>get/save_messages</code>); <code>ContextProvider</code> is more general, injecting relevance-retrieved memory into context",
+                    },
+                    {"zh": "两者完全一样，只是名字不同", "en": "They are identical, just named differently"},
+                    {"zh": "<code>ContextProvider</code> 只能存历史，不能检索", "en": "<code>ContextProvider</code> can only store history, never retrieve"},
+                    {"zh": "<code>HistoryProvider</code> 负责训练模型", "en": "<code>HistoryProvider</code> trains the model"},
+                ],
+                "answer": 0,
+                "why": {
+                    "zh": "<code>HistoryProvider(ContextProvider)</code> 专管「短期、逐字、有序」的会话历史，子类只实现 <code>get_messages</code>/<code>save_messages</code>；基类 <code>ContextProvider</code> 更通用，在 <code>before_run</code> 里把检索到的「长期、语义」记忆注入上下文。两者共用同一对钩子，因此能自由叠加。",
+                    "en": "<code>HistoryProvider(ContextProvider)</code> owns the short-term, verbatim, ordered conversation log; subclasses implement only <code>get_messages</code>/<code>save_messages</code>. The base <code>ContextProvider</code> is more general, injecting long-term, semantic memory in <code>before_run</code>. They share one hook pair, so they compose freely.",
+                },
+            },
+            {
+                "q": {
+                    "zh": "MAF 把「记忆」做成挂在会话上的 Provider，而不是焊进 Agent 类。最主要的好处是？",
+                    "en": "MAF models memory as a Provider attached to the session, not welded into the Agent class. The main benefit?",
+                },
+                "opts": [
+                    {
+                        "zh": "存储策略与 Agent 行为解耦：换 Redis / Mem0 / Cosmos 只是换一个 Provider 实例，Agent 代码一行不改",
+                        "en": "Storage policy decouples from agent behavior: switching Redis / Mem0 / Cosmos just swaps a Provider instance, with zero changes to agent code",
+                    },
+                    {"zh": "让模型推理更快", "en": "It makes model inference faster"},
+                    {"zh": "强制所有 Agent 都必须用 Redis", "en": "It forces every agent to use Redis"},
+                    {"zh": "让 Agent 不再需要 ChatClient", "en": "It removes the need for a ChatClient"},
+                ],
+                "answer": 0,
+                "why": {
+                    "zh": "记忆是横切关注点（存哪、怎么检索、要不要逐字会随环境剧变）。抽成 Provider 后，唯一接入面是 <code>before_run</code>/<code>after_run</code> 钩子；多个 Provider 可叠加，各带 <code>source_id</code> 做归因。换后端 = 换实例，Agent 不动。",
+                    "en": "Memory is a cross-cutting concern (where/how/verbatim swing with environment). As a Provider the only seam is the <code>before_run</code>/<code>after_run</code> hooks; multiple Providers stack, each with a <code>source_id</code> for attribution. Swap backend = swap instance; the agent is untouched.",
+                },
+            },
+            {
+                "q": {
+                    "zh": "一次「带记忆」的 <code>run()</code>，记忆是怎么进到模型眼前的？",
+                    "en": "In a memory-enabled <code>run()</code>, how does memory reach the model?",
+                },
+                "opts": [
+                    {
+                        "zh": "模型调用前，Provider 的 <code>before_run</code> 把历史 + 检索到的记忆注入上下文；运行后 <code>after_run</code> 把这轮写回后端",
+                        "en": "Before the model call, the Provider's <code>before_run</code> injects history + retrieved memory into context; after the run, <code>after_run</code> writes this turn back",
+                    },
+                    {"zh": "模型自己连数据库去查", "en": "The model connects to the database itself"},
+                    {"zh": "记忆被编译进模型权重", "en": "Memory is compiled into the model weights"},
+                    {"zh": "只有你手动拼 prompt 才有记忆", "en": "Only manual prompt-stitching gives memory"},
+                ],
+                "answer": 0,
+                "why": {
+                    "zh": "框架在调模型「之前」回调 <code>before_run</code>：<code>HistoryProvider</code> 用 <code>get_messages</code> 接回逐字历史，<code>ContextProvider</code> 检索后用 <code>context.extend_messages(...)</code> 注入记忆。模型因此看到「历史+记忆+新问题」。「之后」回调 <code>after_run</code>/<code>save_messages</code> 写回，供下次取用。",
+                    "en": "The framework calls <code>before_run</code> before the model: <code>HistoryProvider</code> reattaches verbatim history via <code>get_messages</code>, and <code>ContextProvider</code> injects retrieved memory via <code>context.extend_messages(...)</code>. The model then sees &quot;history + memory + new question&quot;. Afterward <code>after_run</code>/<code>save_messages</code> persists the turn for next time.",
+                },
+            },
+        ],
+        "open": [
+            {
+                "zh": "为你自己的一个 Agent 设计记忆方案：哪些信息该进 <code>HistoryProvider</code>（短期逐字），哪些该进 <code>ContextProvider</code>（长期语义检索）？再说说如果对话历史无限增长会出什么问题，你会怎么用「短期历史 + 长期向量」两条腿来缓解。",
+                "en": "Design a memory scheme for one of your own agents: what belongs in a <code>HistoryProvider</code> (short-term verbatim) vs a <code>ContextProvider</code> (long-term semantic retrieval)? Then explain what breaks if conversation history grows without bound, and how you'd mitigate it with the &quot;short-term history + long-term vectors&quot; two-leg approach.",
+            },
+        ],
+    },
     "23-skills.html": {
         "mcq": [
             {

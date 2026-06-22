@@ -10,6 +10,7 @@ import part4
 import part5
 import part6
 import part7
+import part8
 
 # filename -> {"zh": html, "en": html}; order matches shell.PAGES.
 CONTENT = {
@@ -33,6 +34,7 @@ CONTENT = {
     "18-custom-middleware.html": {"zh": part5.L18_ZH, "en": part5.L18_EN},
     "19-durability-hitl.html": {"zh": part5.L19_ZH, "en": part5.L19_EN},
     "20-capstone.html": {"zh": part5.L20_ZH, "en": part5.L20_EN},
+    "28-memory-backends.html": {"zh": part8.L28_ZH, "en": part8.L28_EN},
     "23-skills.html": {"zh": part7.L23_ZH, "en": part7.L23_EN},
     "24-mcp.html": {"zh": part7.L24_ZH, "en": part7.L24_EN},
     "25-hosted-agents.html": {"zh": part7.L25_ZH, "en": part7.L25_EN},

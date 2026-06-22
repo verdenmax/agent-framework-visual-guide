@@ -31,6 +31,10 @@ jobs:
           fi
           echo "Committed HTML matches src ✓"
 
+      - name: Check HTML structure
+        working-directory: src
+        run: python check_html.py
+
       - name: Check internal links
         working-directory: src
         run: python check_links.py

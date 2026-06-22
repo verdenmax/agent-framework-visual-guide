@@ -1765,6 +1765,200 @@ QUIZZES = {
             },
         ],
     },
+    "21-vs-others.html": {
+        "mcq": [
+            {
+                "q": {
+                    "zh": "MAF 同时给了底层 <code>WorkflowBuilder</code>（手画图）和上层预置编排（Sequential / Concurrent / …）。相比 LangGraph 只有手画图这一级，这种“两层”设计的好处是？",
+                    "en": "MAF offers both a low-level <code>WorkflowBuilder</code> (hand-drawn graph) and high-level prebuilt orchestrations (Sequential / Concurrent / …). Versus LangGraph's single graph level, what's the benefit of this &quot;two-tier&quot; design?",
+                },
+                "opts": [
+                    {
+                        "zh": "让框架代码量更大，显得更专业",
+                        "en": "It makes the framework bigger and look more professional",
+                    },
+                    {
+                        "zh": "强制所有人都用图，统一心智",
+                        "en": "It forces everyone onto graphs for a uniform mental model",
+                    },
+                    {
+                        "zh": "简单任务用预置编排几行搞定，复杂拓扑再下沉到手画图——不用为简单场景付出“手画每条边”的成本",
+                        "en": "Simple tasks need only a few lines of prebuilt orchestration; complex topologies drop down to the hand-drawn graph - you don't pay the &quot;draw every edge&quot; cost for simple cases",
+                    },
+                    {
+                        "zh": "因为预置编排比手画图跑得快",
+                        "en": "Because prebuilt orchestrations run faster than hand-drawn graphs",
+                    },
+                ],
+                "answer": 2,
+                "why": {
+                    "zh": "抽象分层让你<strong>按需选粒度</strong>：约 80% 场景预置编排就够（低心智负担），剩下复杂拓扑再下沉到 <code>WorkflowBuilder</code>。LangGraph 只有图这一级，简单串行也得手画节点和边。",
+                    "en": "Layered abstractions let you <strong>pick granularity on demand</strong>: ~80% of cases are covered by prebuilt orchestrations (low cognitive load), and the rest drop to <code>WorkflowBuilder</code>. LangGraph has only the graph level, so even a simple sequence means hand-drawing nodes and edges.",
+                },
+            },
+            {
+                "q": {
+                    "zh": "为什么说“新项目直接上 MAF”对许多 SK / AutoGen 用户通常是合理建议？",
+                    "en": "Why is &quot;use MAF directly for new projects&quot; usually sound advice for many SK / AutoGen users?",
+                },
+                "opts": [
+                    {
+                        "zh": "MAF 是微软把 SK 和 AutoGen 统一演进的继任方向，吸收了二者能力（连接器 / Planner + 多 Agent），且维护重心已转向 MAF",
+                        "en": "MAF is Microsoft's converged successor to SK and AutoGen, absorbing both (connectors / Planner + multi-agent), and maintenance focus has shifted to MAF",
+                    },
+                    {
+                        "zh": "因为 SK 和 AutoGen 已经被删除了",
+                        "en": "Because SK and AutoGen have been deleted",
+                    },
+                    {
+                        "zh": "因为 MAF 不兼容任何旧代码，必须全部重写",
+                        "en": "Because MAF is incompatible with all old code and forces a full rewrite",
+                    },
+                    {
+                        "zh": "因为 MAF 是其中唯一开源的",
+                        "en": "Because MAF is the only open-source one",
+                    },
+                ],
+                "answer": 0,
+                "why": {
+                    "zh": "MAF 继承 SK 的企业连接器 / Planner 思想和 AutoGen 的 Magentic-One（指挥官 + 工人）多 Agent 范式，再加图编排 / DurableTask / 统一 <code>ChatClient</code>。官方把它定位为“下一代”，所以新项目可直接用，老项目能渐进迁移、共存。",
+                    "en": "MAF inherits SK's enterprise connectors / Planner ideas and AutoGen's Magentic-One (manager + workers) multi-agent paradigm, plus graph orchestration / DurableTask / a unified <code>ChatClient</code>. It's positioned as the &quot;next generation&quot;, so new projects can adopt it directly while old ones migrate gradually and coexist.",
+                },
+            },
+            {
+                "q": {
+                    "zh": "关于“MAF vs LangGraph”，下面哪个说法最准确？",
+                    "en": "Regarding &quot;MAF vs LangGraph&quot;, which statement is most accurate?",
+                },
+                "opts": [
+                    {
+                        "zh": "用了 MAF 就不能再碰任何 LangChain 生态",
+                        "en": "Using MAF means you can't touch any LangChain ecosystem",
+                    },
+                    {
+                        "zh": "它们不一定二选一：可以用 MAF 的 Agent / ChatClient 配 LangGraph 的编排，因为编排层是可替换的",
+                        "en": "They aren't necessarily either/or: you can pair MAF's Agent / ChatClient with LangGraph's orchestration, because the orchestration layer is swappable",
+                    },
+                    {
+                        "zh": "两者底层其实是同一份代码",
+                        "en": "The two are really the same code underneath",
+                    },
+                    {
+                        "zh": "LangGraph 不支持检查点",
+                        "en": "LangGraph doesn't support checkpointing",
+                    },
+                ],
+                "answer": 1,
+                "why": {
+                    "zh": "框架边界是<strong>分层</strong>的——Agent / ChatClient 抽象与编排层可以解耦。混用可行（MAF 做 Agent，LangGraph 做图编排）。选型是“主线选谁”，而不是互斥的非黑即白。",
+                    "en": "Framework boundaries are <strong>layered</strong> - the Agent / ChatClient abstraction and the orchestration layer can be decoupled. Mixing is viable (MAF for Agents, LangGraph for graph orchestration). Picking is choosing a &quot;main line&quot;, not a mutually exclusive split.",
+                },
+            },
+        ],
+        "open": [
+            {
+                "zh": "你的团队已有一套 Semantic Kernel 代码，现在要做一个需要“多 Agent 协作 + 检查点恢复”的新功能。基于本课对比，说说你会<strong>直接重写成 MAF</strong> 还是 <strong>SK / MAF 共存渐进迁移</strong>，并给出两条支撑你决定的具体理由（结合生产特性与迁移成本）。",
+                "en": "Your team has a Semantic Kernel codebase and now needs a new feature requiring &quot;multi-agent collaboration + checkpoint recovery&quot;. Based on this lesson, would you <strong>rewrite directly in MAF</strong> or <strong>run SK / MAF side by side for gradual migration</strong>? Give two concrete reasons (weighing production features against migration cost).",
+            },
+        ],
+    },
+    "22-stack-map.html": {
+        "mcq": [
+            {
+                "q": {
+                    "zh": "MAF 的 <code>OpenAIChatClient</code> 能指向 vLLM / llama.cpp server / Ollama。这给你带来的最大好处是？",
+                    "en": "MAF's <code>OpenAIChatClient</code> can point at vLLM / a llama.cpp server / Ollama. What's the biggest benefit?",
+                },
+                "opts": [
+                    {
+                        "zh": "开发时用云端 OpenAI API，上线切私有 vLLM，Agent 代码一行不改——推理层与编排层解耦",
+                        "en": "Develop against the cloud OpenAI API, switch to private vLLM in production, and the Agent code doesn't change a line - inference and orchestration are decoupled",
+                    },
+                    {
+                        "zh": "这些后端会自动让模型变得更聪明",
+                        "en": "These backends automatically make the model smarter",
+                    },
+                    {
+                        "zh": "因为它们其实是同一个模型",
+                        "en": "Because they're actually the same model",
+                    },
+                    {
+                        "zh": "只有这样才能使用工具调用",
+                        "en": "Because tool calling only works this way",
+                    },
+                ],
+                "answer": 0,
+                "why": {
+                    "zh": "只要端点兼容 OpenAI API，<code>ChatClient</code> 就能接。L5（推理）与 L6（编排）解耦，意味着私有化部署、成本 / 延迟优化只是“换 L5”，不波及你写的 Agent 逻辑。",
+                    "en": "As long as the endpoint speaks the OpenAI API, the <code>ChatClient</code> can connect. Decoupling L5 (inference) from L6 (orchestration) means private deployment and cost / latency tuning are just &quot;swap L5&quot;, leaving your Agent logic untouched.",
+                },
+            },
+            {
+                "q": {
+                    "zh": "本课把编排分成链 / 图 / 多 Agent 对话 / Planner / 声明式几大流派。MAF 的特别之处在于？",
+                    "en": "This lesson groups orchestration into schools: chain / graph / multi-agent chat / Planner / declarative. What makes MAF special?",
+                },
+                "opts": [
+                    {
+                        "zh": "它只支持声明式一种流派",
+                        "en": "It supports only the declarative school",
+                    },
+                    {
+                        "zh": "它发明了链式管道",
+                        "en": "It invented the chain pipeline",
+                    },
+                    {
+                        "zh": "它把“图”和“多 Agent 对话”统一进同一个框架，预置编排是糖、底层 Workflow 是引擎，可混用",
+                        "en": "It unifies &quot;graph&quot; and &quot;multi-agent chat&quot; in one framework - prebuilt orchestrations are sugar, the underlying Workflow is the engine, and you can mix them",
+                    },
+                    {
+                        "zh": "它要求每个项目只能选一种流派",
+                        "en": "It requires each project to pick exactly one school",
+                    },
+                ],
+                "answer": 2,
+                "why": {
+                    "zh": "多数框架押注单一流派（LangChain=链、LangGraph=图、AutoGen=对话、SK=Planner）。MAF 把图编排和多 Agent 对话收进<strong>一个引擎</strong>，让你在同一项目里按场景混搭，而不必跨框架拼装。",
+                    "en": "Most frameworks bet on one school (LangChain=chain, LangGraph=graph, AutoGen=chat, SK=Planner). MAF folds graph orchestration and multi-agent chat into <strong>one engine</strong>, letting you mix per scenario within a single project instead of stitching frameworks together.",
+                },
+            },
+            {
+                "q": {
+                    "zh": "你想给现有 MAF Agent 加“基于公司知识库回答”。按全栈分层，这主要是在改哪一层、为什么 Agent 逻辑基本不用动？",
+                    "en": "You want an existing MAF Agent to &quot;answer from the company knowledge base&quot;. By the full-stack layering, which layer mainly changes, and why does Agent logic stay largely untouched?",
+                },
+                "opts": [
+                    {
+                        "zh": "主要改 L4（向量检索 / RAG），把检索到的上下文喂给 L6 的 Agent；分层让“加知识”变成接入新层，而不是重构",
+                        "en": "Mainly L4 (vector search / RAG), feeding retrieved context into the L6 Agent; layering makes &quot;adding knowledge&quot; a matter of plugging in a layer, not refactoring",
+                    },
+                    {
+                        "zh": "改 L7 应用层的 CSS",
+                        "en": "Change the CSS in the L7 application layer",
+                    },
+                    {
+                        "zh": "改 L5 推理层的 GPU 驱动",
+                        "en": "Change the GPU driver in the L5 inference layer",
+                    },
+                    {
+                        "zh": "必须把 Agent 拆成多个才能加知识",
+                        "en": "You must split the Agent into several to add knowledge",
+                    },
+                ],
+                "answer": 0,
+                "why": {
+                    "zh": "全栈分层让每种需求对应一层：私有模型→L5，知识库→L4，换前端→L7。RAG 是在 L4 取上下文再注入 L6 的 Agent，所以 Agent 编排逻辑稳定——这正是“看懂楼层布局才知道去哪接管线”。",
+                    "en": "The full-stack layering maps each need to a layer: private model→L5, knowledge base→L4, new front end→L7. RAG fetches context at L4 and injects it into the L6 Agent, so the orchestration logic stays stable - exactly &quot;know the floor plan to know where to connect the pipes&quot;.",
+                },
+            },
+        ],
+        "open": [
+            {
+                "zh": "把你这门课学到的 MAF 能力放进本课的全栈坐标系：你主要在哪一层工作？如果要做一个“私有部署 + 带公司知识库 + 网页聊天界面”的产品，请分别说出你会在 L7 / L6 / L5 / L4 各做什么，以及为什么这种分层能让团队<strong>并行开发</strong>。",
+                "en": "Place the MAF skills from this course into the full-stack map: which layer do you mainly work in? For a product that is &quot;privately deployed + backed by a company knowledge base + with a web chat UI&quot;, say what you'd do at each of L7 / L6 / L5 / L4, and why this layering lets a team <strong>work in parallel</strong>.",
+            },
+        ],
+    },
 }
 
 

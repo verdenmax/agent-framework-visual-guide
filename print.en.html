@@ -8293,6 +8293,17 @@ SK:        ~25k  (large enterprise user base)</pre>
   </div>
 </details>
 
+<h2>A one-glance selection table</h2>
+<table class="t">
+  <tr><th>If you value most…</th><th>Better fit</th><th>Why</th></tr>
+  <tr><td>Prototype-to-production in one stack (checkpoints / HITL / OTel)</td><td class="mono">MAF</td><td>Production features are first-class; prebuilt orchestrations + manual graph cover both ends</td></tr>
+  <tr><td>The finest-grained graph control flow</td><td class="mono">LangGraph</td><td>StateGraph lets you hand-draw every node and edge for maximum precision</td></tr>
+  <tr><td>Multi-agent chat / academic exploration</td><td class="mono">AutoGen</td><td>Birthplace of the &quot;multi-agent group chat&quot; paradigm, active research community</td></tr>
+  <tr><td>An existing trove of enterprise connectors / plugins</td><td class="mono">Semantic Kernel</td><td>Dozens of ready-made plugins, mature enterprise integration</td></tr>
+  <tr><td>Microsoft ecosystem + long-term direction</td><td class="mono">MAF</td><td>The officially recommended successor unifying SK + AutoGen</td></tr>
+</table>
+<p>Note: these are <strong>not mutually exclusive</strong>. MAF's Agent / ChatClient can pair with LangGraph's orchestration; SK and MAF can coexist for gradual migration. Picking a framework is choosing the &quot;main line&quot;, not a black-and-white split.</p>
+
 <div class="card key">
   <div class="tag">✅ Key points</div>
   <ul>
@@ -8308,7 +8319,54 @@ SK:        ~25k  (large enterprise user base)</pre>
   MAF <strong>unifies graph orchestration and multi-agent chat in one framework</strong> — you don't have to choose
   between LangGraph and AutoGen. Prebuilt orchestrations are sugar; the underlying Workflow is the engine. Mix freely.
 </div>
-</div></section>
+<div class="selftest">
+<h2>🧪 Self-test - think about the design</h2>
+<div class="quiz">
+  <div class="qn">1. MAF offers both a low-level <code>WorkflowBuilder</code> (hand-drawn graph) and high-level prebuilt orchestrations (Sequential / Concurrent / …). Versus LangGraph's single graph level, what's the benefit of this &quot;two-tier&quot; design?</div>
+  <ol class="opts">
+    <li>It forces everyone onto graphs for a uniform mental model</li>
+    <li>It makes the framework bigger and look more professional</li>
+    <li>Because prebuilt orchestrations run faster than hand-drawn graphs</li>
+    <li>Simple tasks need only a few lines of prebuilt orchestration; complex topologies drop down to the hand-drawn graph - you don't pay the &quot;draw every edge&quot; cost for simple cases</li>
+  </ol>
+  <details class="accordion" open>
+    <summary>Show answer &amp; explanation <span class="hint">click to expand</span></summary>
+    <div class="acc-body"><div class="qa"><div class="a"><strong>Answer: D</strong>. Layered abstractions let you <strong>pick granularity on demand</strong>: ~80% of cases are covered by prebuilt orchestrations (low cognitive load), and the rest drop to <code>WorkflowBuilder</code>. LangGraph has only the graph level, so even a simple sequence means hand-drawing nodes and edges.</div></div></div>
+  </details>
+</div>
+<div class="quiz">
+  <div class="qn">2. Why is &quot;use MAF directly for new projects&quot; usually sound advice for many SK / AutoGen users?</div>
+  <ol class="opts">
+    <li>MAF is Microsoft's converged successor to SK and AutoGen, absorbing both (connectors / Planner + multi-agent), and maintenance focus has shifted to MAF</li>
+    <li>Because SK and AutoGen have been deleted</li>
+    <li>Because MAF is the only open-source one</li>
+    <li>Because MAF is incompatible with all old code and forces a full rewrite</li>
+  </ol>
+  <details class="accordion" open>
+    <summary>Show answer &amp; explanation <span class="hint">click to expand</span></summary>
+    <div class="acc-body"><div class="qa"><div class="a"><strong>Answer: A</strong>. MAF inherits SK's enterprise connectors / Planner ideas and AutoGen's Magentic-One (manager + workers) multi-agent paradigm, plus graph orchestration / DurableTask / a unified <code>ChatClient</code>. It's positioned as the &quot;next generation&quot;, so new projects can adopt it directly while old ones migrate gradually and coexist.</div></div></div>
+  </details>
+</div>
+<div class="quiz">
+  <div class="qn">3. Regarding &quot;MAF vs LangGraph&quot;, which statement is most accurate?</div>
+  <ol class="opts">
+    <li>Using MAF means you can't touch any LangChain ecosystem</li>
+    <li>They aren't necessarily either/or: you can pair MAF's Agent / ChatClient with LangGraph's orchestration, because the orchestration layer is swappable</li>
+    <li>LangGraph doesn't support checkpointing</li>
+    <li>The two are really the same code underneath</li>
+  </ol>
+  <details class="accordion" open>
+    <summary>Show answer &amp; explanation <span class="hint">click to expand</span></summary>
+    <div class="acc-body"><div class="qa"><div class="a"><strong>Answer: B</strong>. Framework boundaries are <strong>layered</strong> - the Agent / ChatClient abstraction and the orchestration layer can be decoupled. Mixing is viable (MAF for Agents, LangGraph for graph orchestration). Picking is choosing a &quot;main line&quot;, not a mutually exclusive split.</div></div></div>
+  </details>
+</div>
+<div class="card spark">
+  <div class="tag">💭 Open questions (no single right answer - just think or try)</div>
+  <ul>
+    <li>Your team has a Semantic Kernel codebase and now needs a new feature requiring &quot;multi-agent collaboration + checkpoint recovery&quot;. Based on this lesson, would you <strong>rewrite directly in MAF</strong> or <strong>run SK / MAF side by side for gradual migration</strong>? Give two concrete reasons (weighing production features against migration cost).</li>
+  </ul>
+</div>
+</div></div></section>
 <section class="print-lesson"><div class="wrap"><div class="lesson-head"><div class="lp">Part 7 · Bonus</div><h1><span class="ln">27 ·</span> Full-Stack Map & Learning Path</h1></div>
 <p class="lead">Final lesson — zoom out: place MAF in the <strong>AI full-stack</strong> coordinate system and see
 what's worth learning next door.</p>
@@ -8331,6 +8389,22 @@ what's worth learning next door.</p>
   <div class="layer l-core"><div class="lh"><span class="badge">L4</span><span class="name">Vector Search / RAG</span></div>
     <div class="ld">Embeddings · pgvector · Qdrant · Azure AI Search.</div></div>
 </div>
+
+<h2>How one request travels through the layers</h2>
+<div class="flow">
+  <div class="node"><div class="nt">user asks</div><div class="nd">L7 application</div></div>
+  <div class="arrow">→</div>
+  <div class="node hl"><div class="nt">MAF orchestration</div><div class="nd">L6 ← you are here</div></div>
+  <div class="arrow">→</div>
+  <div class="node"><div class="nt">RAG fetch context</div><div class="nd">L4 vector search</div></div>
+  <div class="arrow">→</div>
+  <div class="node"><div class="nt">model inference</div><div class="nd">L5 OpenAI / vLLM</div></div>
+  <div class="arrow">→</div>
+  <div class="node"><div class="nt">assemble reply</div><div class="nd">L6</div></div>
+  <div class="arrow">→</div>
+  <div class="node"><div class="nt">render back</div><div class="nd">L7 → user</div></div>
+</div>
+<p>A single Q&amp;A <strong>travels up and down several layers</strong>: your MAF orchestration (L6) sits in the middle - reaching up to the app, down to inference, and over to L4 for knowledge when needed. Reading this dataflow tells you which layer to &quot;connect the plumbing&quot; in: private models change L5, a knowledge base changes L4, a new front end changes L7 - while the <strong>Agent logic (L6) stays basically untouched</strong>.</p>
 
 <h2>Orchestration schools</h2>
 <table class="t">
@@ -8517,5 +8591,52 @@ app = FastAPI()
   Knowing the layers above and below is key to becoming an Agent expert.
   You don't need to master every layer — just know what it does and how it interfaces with yours.
 </div>
-</div></section>
+<div class="selftest">
+<h2>🧪 Self-test - think about the design</h2>
+<div class="quiz">
+  <div class="qn">1. MAF's <code>OpenAIChatClient</code> can point at vLLM / a llama.cpp server / Ollama. What's the biggest benefit?</div>
+  <ol class="opts">
+    <li>Because they're actually the same model</li>
+    <li>These backends automatically make the model smarter</li>
+    <li>Develop against the cloud OpenAI API, switch to private vLLM in production, and the Agent code doesn't change a line - inference and orchestration are decoupled</li>
+    <li>Because tool calling only works this way</li>
+  </ol>
+  <details class="accordion" open>
+    <summary>Show answer &amp; explanation <span class="hint">click to expand</span></summary>
+    <div class="acc-body"><div class="qa"><div class="a"><strong>Answer: C</strong>. As long as the endpoint speaks the OpenAI API, the <code>ChatClient</code> can connect. Decoupling L5 (inference) from L6 (orchestration) means private deployment and cost / latency tuning are just &quot;swap L5&quot;, leaving your Agent logic untouched.</div></div></div>
+  </details>
+</div>
+<div class="quiz">
+  <div class="qn">2. This lesson groups orchestration into schools: chain / graph / multi-agent chat / Planner / declarative. What makes MAF special?</div>
+  <ol class="opts">
+    <li>It unifies &quot;graph&quot; and &quot;multi-agent chat&quot; in one framework - prebuilt orchestrations are sugar, the underlying Workflow is the engine, and you can mix them</li>
+    <li>It supports only the declarative school</li>
+    <li>It invented the chain pipeline</li>
+    <li>It requires each project to pick exactly one school</li>
+  </ol>
+  <details class="accordion" open>
+    <summary>Show answer &amp; explanation <span class="hint">click to expand</span></summary>
+    <div class="acc-body"><div class="qa"><div class="a"><strong>Answer: A</strong>. Most frameworks bet on one school (LangChain=chain, LangGraph=graph, AutoGen=chat, SK=Planner). MAF folds graph orchestration and multi-agent chat into <strong>one engine</strong>, letting you mix per scenario within a single project instead of stitching frameworks together.</div></div></div>
+  </details>
+</div>
+<div class="quiz">
+  <div class="qn">3. You want an existing MAF Agent to &quot;answer from the company knowledge base&quot;. By the full-stack layering, which layer mainly changes, and why does Agent logic stay largely untouched?</div>
+  <ol class="opts">
+    <li>You must split the Agent into several to add knowledge</li>
+    <li>Change the CSS in the L7 application layer</li>
+    <li>Change the GPU driver in the L5 inference layer</li>
+    <li>Mainly L4 (vector search / RAG), feeding retrieved context into the L6 Agent; layering makes &quot;adding knowledge&quot; a matter of plugging in a layer, not refactoring</li>
+  </ol>
+  <details class="accordion" open>
+    <summary>Show answer &amp; explanation <span class="hint">click to expand</span></summary>
+    <div class="acc-body"><div class="qa"><div class="a"><strong>Answer: D</strong>. The full-stack layering maps each need to a layer: private model→L5, knowledge base→L4, new front end→L7. RAG fetches context at L4 and injects it into the L6 Agent, so the orchestration logic stays stable - exactly &quot;know the floor plan to know where to connect the pipes&quot;.</div></div></div>
+  </details>
+</div>
+<div class="card spark">
+  <div class="tag">💭 Open questions (no single right answer - just think or try)</div>
+  <ul>
+    <li>Place the MAF skills from this course into the full-stack map: which layer do you mainly work in? For a product that is &quot;privately deployed + backed by a company knowledge base + with a web chat UI&quot;, say what you'd do at each of L7 / L6 / L5 / L4, and why this layering lets a team <strong>work in parallel</strong>.</li>
+  </ul>
+</div>
+</div></div></section>
 </body></html>

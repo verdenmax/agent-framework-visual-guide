@@ -176,6 +176,17 @@ SK:        ~25k  (企业用户基数大)</pre>
   </div>
 </details>
 
+<h2>一张选型决策表</h2>
+<table class="t">
+  <tr><th>如果你最看重…</th><th>更适合</th><th>为什么</th></tr>
+  <tr><td>原型到生产一条龙（检查点 / HITL / OTel）</td><td class="mono">MAF</td><td>生产特性是一等公民，预置编排 + 手动图两层覆盖</td></tr>
+  <tr><td>最细粒度的图控制流</td><td class="mono">LangGraph</td><td>StateGraph 让你手画每个节点和边，控制最精确</td></tr>
+  <tr><td>多 Agent 对话 / 学术探索</td><td class="mono">AutoGen</td><td>“多 Agent 群聊”范式发源地，研究社区活跃</td></tr>
+  <tr><td>已有大量企业连接器 / Plugin</td><td class="mono">Semantic Kernel</td><td>几十种现成 Plugin，企业集成成熟</td></tr>
+  <tr><td>微软生态 + 长期演进方向</td><td class="mono">MAF</td><td>官方推荐的 SK + AutoGen 统一继任者</td></tr>
+</table>
+<p>注意：这些<strong>不是互斥</strong>的。MAF 的 Agent / ChatClient 可以配 LangGraph 的编排；SK 和 MAF 能共存渐进迁移。选型是“主线选谁”，不是“非黑即白”。</p>
+
 <div class="card key">
   <div class="tag">✅ 关键要点</div>
   <ul>
@@ -372,6 +383,17 @@ SK:        ~25k  (large enterprise user base)</pre>
   </div>
 </details>
 
+<h2>A one-glance selection table</h2>
+<table class="t">
+  <tr><th>If you value most…</th><th>Better fit</th><th>Why</th></tr>
+  <tr><td>Prototype-to-production in one stack (checkpoints / HITL / OTel)</td><td class="mono">MAF</td><td>Production features are first-class; prebuilt orchestrations + manual graph cover both ends</td></tr>
+  <tr><td>The finest-grained graph control flow</td><td class="mono">LangGraph</td><td>StateGraph lets you hand-draw every node and edge for maximum precision</td></tr>
+  <tr><td>Multi-agent chat / academic exploration</td><td class="mono">AutoGen</td><td>Birthplace of the &quot;multi-agent group chat&quot; paradigm, active research community</td></tr>
+  <tr><td>An existing trove of enterprise connectors / plugins</td><td class="mono">Semantic Kernel</td><td>Dozens of ready-made plugins, mature enterprise integration</td></tr>
+  <tr><td>Microsoft ecosystem + long-term direction</td><td class="mono">MAF</td><td>The officially recommended successor unifying SK + AutoGen</td></tr>
+</table>
+<p>Note: these are <strong>not mutually exclusive</strong>. MAF's Agent / ChatClient can pair with LangGraph's orchestration; SK and MAF can coexist for gradual migration. Picking a framework is choosing the &quot;main line&quot;, not a black-and-white split.</p>
+
 <div class="card key">
   <div class="tag">✅ Key points</div>
   <ul>
@@ -411,6 +433,22 @@ L22_ZH = r"""
   <div class="layer l-core"><div class="lh"><span class="badge">L4</span><span class="name">向量检索 / RAG</span></div>
     <div class="ld">Embeddings · pgvector · Qdrant · Azure AI Search。</div></div>
 </div>
+
+<h2>一个请求怎么穿过这几层</h2>
+<div class="flow">
+  <div class="node"><div class="nt">用户提问</div><div class="nd">L7 应用层</div></div>
+  <div class="arrow">→</div>
+  <div class="node hl"><div class="nt">MAF 编排</div><div class="nd">L6 ← 你在这</div></div>
+  <div class="arrow">→</div>
+  <div class="node"><div class="nt">RAG 取上下文</div><div class="nd">L4 向量检索</div></div>
+  <div class="arrow">→</div>
+  <div class="node"><div class="nt">模型推理</div><div class="nd">L5 OpenAI / vLLM</div></div>
+  <div class="arrow">→</div>
+  <div class="node"><div class="nt">编排组装回复</div><div class="nd">L6</div></div>
+  <div class="arrow">→</div>
+  <div class="node"><div class="nt">渲染返回</div><div class="nd">L7 → 用户</div></div>
+</div>
+<p>一次问答会<strong>上下穿过好几层</strong>：你写的 MAF 编排（L6）夹在中间——向上接应用，向下调推理、必要时先到 L4 取知识。看懂这条数据流，就知道“接水管接电线”该去哪一层：要私有模型改 L5，要知识库改 L4，要换前端改 L7，<strong>而 Agent 逻辑（L6）基本不动</strong>。</p>
 
 <h2>编排流派一览</h2>
 <table class="t">
@@ -616,6 +654,22 @@ what's worth learning next door.</p>
   <div class="layer l-core"><div class="lh"><span class="badge">L4</span><span class="name">Vector Search / RAG</span></div>
     <div class="ld">Embeddings · pgvector · Qdrant · Azure AI Search.</div></div>
 </div>
+
+<h2>How one request travels through the layers</h2>
+<div class="flow">
+  <div class="node"><div class="nt">user asks</div><div class="nd">L7 application</div></div>
+  <div class="arrow">→</div>
+  <div class="node hl"><div class="nt">MAF orchestration</div><div class="nd">L6 ← you are here</div></div>
+  <div class="arrow">→</div>
+  <div class="node"><div class="nt">RAG fetch context</div><div class="nd">L4 vector search</div></div>
+  <div class="arrow">→</div>
+  <div class="node"><div class="nt">model inference</div><div class="nd">L5 OpenAI / vLLM</div></div>
+  <div class="arrow">→</div>
+  <div class="node"><div class="nt">assemble reply</div><div class="nd">L6</div></div>
+  <div class="arrow">→</div>
+  <div class="node"><div class="nt">render back</div><div class="nd">L7 → user</div></div>
+</div>
+<p>A single Q&amp;A <strong>travels up and down several layers</strong>: your MAF orchestration (L6) sits in the middle - reaching up to the app, down to inference, and over to L4 for knowledge when needed. Reading this dataflow tells you which layer to &quot;connect the plumbing&quot; in: private models change L5, a knowledge base changes L4, a new front end changes L7 - while the <strong>Agent logic (L6) stays basically untouched</strong>.</p>
 
 <h2>Orchestration schools</h2>
 <table class="t">

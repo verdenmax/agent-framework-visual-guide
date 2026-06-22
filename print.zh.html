@@ -8216,6 +8216,17 @@ SK:        ~25k  (企业用户基数大)</pre>
   </div>
 </details>
 
+<h2>一张选型决策表</h2>
+<table class="t">
+  <tr><th>如果你最看重…</th><th>更适合</th><th>为什么</th></tr>
+  <tr><td>原型到生产一条龙（检查点 / HITL / OTel）</td><td class="mono">MAF</td><td>生产特性是一等公民，预置编排 + 手动图两层覆盖</td></tr>
+  <tr><td>最细粒度的图控制流</td><td class="mono">LangGraph</td><td>StateGraph 让你手画每个节点和边，控制最精确</td></tr>
+  <tr><td>多 Agent 对话 / 学术探索</td><td class="mono">AutoGen</td><td>“多 Agent 群聊”范式发源地，研究社区活跃</td></tr>
+  <tr><td>已有大量企业连接器 / Plugin</td><td class="mono">Semantic Kernel</td><td>几十种现成 Plugin，企业集成成熟</td></tr>
+  <tr><td>微软生态 + 长期演进方向</td><td class="mono">MAF</td><td>官方推荐的 SK + AutoGen 统一继任者</td></tr>
+</table>
+<p>注意：这些<strong>不是互斥</strong>的。MAF 的 Agent / ChatClient 可以配 LangGraph 的编排；SK 和 MAF 能共存渐进迁移。选型是“主线选谁”，不是“非黑即白”。</p>
+
 <div class="card key">
   <div class="tag">✅ 关键要点</div>
   <ul>
@@ -8231,7 +8242,54 @@ SK:        ~25k  (企业用户基数大)</pre>
   MAF 把"图编排"和"多 Agent 对话"<strong>统一到同一个框架</strong>——你不用在 LangGraph 和 AutoGen 之间二选一。
   预置编排是糖，底层 Workflow 是引擎，两者可以混用。
 </div>
-</div></section>
+<div class="selftest">
+<h2>🧪 自测 · 想一想为什么这么设计</h2>
+<div class="quiz">
+  <div class="qn">1. MAF 同时给了底层 <code>WorkflowBuilder</code>（手画图）和上层预置编排（Sequential / Concurrent / …）。相比 LangGraph 只有手画图这一级，这种“两层”设计的好处是？</div>
+  <ol class="opts">
+    <li>强制所有人都用图，统一心智</li>
+    <li>让框架代码量更大，显得更专业</li>
+    <li>因为预置编排比手画图跑得快</li>
+    <li>简单任务用预置编排几行搞定，复杂拓扑再下沉到手画图——不用为简单场景付出“手画每条边”的成本</li>
+  </ol>
+  <details class="accordion" open>
+    <summary>看答案与解析 <span class="hint">点击展开</span></summary>
+    <div class="acc-body"><div class="qa"><div class="a"><strong>答案：D</strong>。抽象分层让你<strong>按需选粒度</strong>：约 80% 场景预置编排就够（低心智负担），剩下复杂拓扑再下沉到 <code>WorkflowBuilder</code>。LangGraph 只有图这一级，简单串行也得手画节点和边。</div></div></div>
+  </details>
+</div>
+<div class="quiz">
+  <div class="qn">2. 为什么说“新项目直接上 MAF”对许多 SK / AutoGen 用户通常是合理建议？</div>
+  <ol class="opts">
+    <li>MAF 是微软把 SK 和 AutoGen 统一演进的继任方向，吸收了二者能力（连接器 / Planner + 多 Agent），且维护重心已转向 MAF</li>
+    <li>因为 SK 和 AutoGen 已经被删除了</li>
+    <li>因为 MAF 是其中唯一开源的</li>
+    <li>因为 MAF 不兼容任何旧代码，必须全部重写</li>
+  </ol>
+  <details class="accordion" open>
+    <summary>看答案与解析 <span class="hint">点击展开</span></summary>
+    <div class="acc-body"><div class="qa"><div class="a"><strong>答案：A</strong>。MAF 继承 SK 的企业连接器 / Planner 思想和 AutoGen 的 Magentic-One（指挥官 + 工人）多 Agent 范式，再加图编排 / DurableTask / 统一 <code>ChatClient</code>。官方把它定位为“下一代”，所以新项目可直接用，老项目能渐进迁移、共存。</div></div></div>
+  </details>
+</div>
+<div class="quiz">
+  <div class="qn">3. 关于“MAF vs LangGraph”，下面哪个说法最准确？</div>
+  <ol class="opts">
+    <li>用了 MAF 就不能再碰任何 LangChain 生态</li>
+    <li>它们不一定二选一：可以用 MAF 的 Agent / ChatClient 配 LangGraph 的编排，因为编排层是可替换的</li>
+    <li>LangGraph 不支持检查点</li>
+    <li>两者底层其实是同一份代码</li>
+  </ol>
+  <details class="accordion" open>
+    <summary>看答案与解析 <span class="hint">点击展开</span></summary>
+    <div class="acc-body"><div class="qa"><div class="a"><strong>答案：B</strong>。框架边界是<strong>分层</strong>的——Agent / ChatClient 抽象与编排层可以解耦。混用可行（MAF 做 Agent，LangGraph 做图编排）。选型是“主线选谁”，而不是互斥的非黑即白。</div></div></div>
+  </details>
+</div>
+<div class="card spark">
+  <div class="tag">💭 发散思考（没有标准答案，动手或动脑想想）</div>
+  <ul>
+    <li>你的团队已有一套 Semantic Kernel 代码，现在要做一个需要“多 Agent 协作 + 检查点恢复”的新功能。基于本课对比，说说你会<strong>直接重写成 MAF</strong> 还是 <strong>SK / MAF 共存渐进迁移</strong>，并给出两条支撑你决定的具体理由（结合生产特性与迁移成本）。</li>
+  </ul>
+</div>
+</div></div></section>
 <section class="print-lesson"><div class="wrap"><div class="lesson-head"><div class="lp">第七部分 · 番外篇</div><h1><span class="ln">27 ·</span> 全栈坐标系 & 学习地图</h1></div>
 <p class="lead">最后一课，缩放镜头：把 MAF 放进<strong>AI 全栈</strong>的坐标系里——
 看看你现在在哪，隔壁层还有什么值得学。</p>
@@ -8253,6 +8311,22 @@ SK:        ~25k  (企业用户基数大)</pre>
   <div class="layer l-core"><div class="lh"><span class="badge">L4</span><span class="name">向量检索 / RAG</span></div>
     <div class="ld">Embeddings · pgvector · Qdrant · Azure AI Search。</div></div>
 </div>
+
+<h2>一个请求怎么穿过这几层</h2>
+<div class="flow">
+  <div class="node"><div class="nt">用户提问</div><div class="nd">L7 应用层</div></div>
+  <div class="arrow">→</div>
+  <div class="node hl"><div class="nt">MAF 编排</div><div class="nd">L6 ← 你在这</div></div>
+  <div class="arrow">→</div>
+  <div class="node"><div class="nt">RAG 取上下文</div><div class="nd">L4 向量检索</div></div>
+  <div class="arrow">→</div>
+  <div class="node"><div class="nt">模型推理</div><div class="nd">L5 OpenAI / vLLM</div></div>
+  <div class="arrow">→</div>
+  <div class="node"><div class="nt">编排组装回复</div><div class="nd">L6</div></div>
+  <div class="arrow">→</div>
+  <div class="node"><div class="nt">渲染返回</div><div class="nd">L7 → 用户</div></div>
+</div>
+<p>一次问答会<strong>上下穿过好几层</strong>：你写的 MAF 编排（L6）夹在中间——向上接应用，向下调推理、必要时先到 L4 取知识。看懂这条数据流，就知道“接水管接电线”该去哪一层：要私有模型改 L5，要知识库改 L4，要换前端改 L7，<strong>而 Agent 逻辑（L6）基本不动</strong>。</p>
 
 <h2>编排流派一览</h2>
 <table class="t">
@@ -8435,5 +8509,52 @@ app = FastAPI()
   因此<strong>对上下层都有基本了解</strong>是成为 Agent 高手的关键。
   你不需要精通每一层，但需要知道它在做什么、怎么和你的层对接。
 </div>
-</div></section>
+<div class="selftest">
+<h2>🧪 自测 · 想一想为什么这么设计</h2>
+<div class="quiz">
+  <div class="qn">1. MAF 的 <code>OpenAIChatClient</code> 能指向 vLLM / llama.cpp server / Ollama。这给你带来的最大好处是？</div>
+  <ol class="opts">
+    <li>因为它们其实是同一个模型</li>
+    <li>这些后端会自动让模型变得更聪明</li>
+    <li>开发时用云端 OpenAI API，上线切私有 vLLM，Agent 代码一行不改——推理层与编排层解耦</li>
+    <li>只有这样才能使用工具调用</li>
+  </ol>
+  <details class="accordion" open>
+    <summary>看答案与解析 <span class="hint">点击展开</span></summary>
+    <div class="acc-body"><div class="qa"><div class="a"><strong>答案：C</strong>。只要端点兼容 OpenAI API，<code>ChatClient</code> 就能接。L5（推理）与 L6（编排）解耦，意味着私有化部署、成本 / 延迟优化只是“换 L5”，不波及你写的 Agent 逻辑。</div></div></div>
+  </details>
+</div>
+<div class="quiz">
+  <div class="qn">2. 本课把编排分成链 / 图 / 多 Agent 对话 / Planner / 声明式几大流派。MAF 的特别之处在于？</div>
+  <ol class="opts">
+    <li>它把“图”和“多 Agent 对话”统一进同一个框架，预置编排是糖、底层 Workflow 是引擎，可混用</li>
+    <li>它只支持声明式一种流派</li>
+    <li>它发明了链式管道</li>
+    <li>它要求每个项目只能选一种流派</li>
+  </ol>
+  <details class="accordion" open>
+    <summary>看答案与解析 <span class="hint">点击展开</span></summary>
+    <div class="acc-body"><div class="qa"><div class="a"><strong>答案：A</strong>。多数框架押注单一流派（LangChain=链、LangGraph=图、AutoGen=对话、SK=Planner）。MAF 把图编排和多 Agent 对话收进<strong>一个引擎</strong>，让你在同一项目里按场景混搭，而不必跨框架拼装。</div></div></div>
+  </details>
+</div>
+<div class="quiz">
+  <div class="qn">3. 你想给现有 MAF Agent 加“基于公司知识库回答”。按全栈分层，这主要是在改哪一层、为什么 Agent 逻辑基本不用动？</div>
+  <ol class="opts">
+    <li>必须把 Agent 拆成多个才能加知识</li>
+    <li>改 L7 应用层的 CSS</li>
+    <li>改 L5 推理层的 GPU 驱动</li>
+    <li>主要改 L4（向量检索 / RAG），把检索到的上下文喂给 L6 的 Agent；分层让“加知识”变成接入新层，而不是重构</li>
+  </ol>
+  <details class="accordion" open>
+    <summary>看答案与解析 <span class="hint">点击展开</span></summary>
+    <div class="acc-body"><div class="qa"><div class="a"><strong>答案：D</strong>。全栈分层让每种需求对应一层：私有模型→L5，知识库→L4，换前端→L7。RAG 是在 L4 取上下文再注入 L6 的 Agent，所以 Agent 编排逻辑稳定——这正是“看懂楼层布局才知道去哪接管线”。</div></div></div>
+  </details>
+</div>
+<div class="card spark">
+  <div class="tag">💭 发散思考（没有标准答案，动手或动脑想想）</div>
+  <ul>
+    <li>把你这门课学到的 MAF 能力放进本课的全栈坐标系：你主要在哪一层工作？如果要做一个“私有部署 + 带公司知识库 + 网页聊天界面”的产品，请分别说出你会在 L7 / L6 / L5 / L4 各做什么，以及为什么这种分层能让团队<strong>并行开发</strong>。</li>
+  </ul>
+</div>
+</div></div></section>
 </body></html>

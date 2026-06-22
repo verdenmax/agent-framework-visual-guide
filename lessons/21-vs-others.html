@@ -439,6 +439,17 @@ SK:        ~25k  (企业用户基数大)</pre>
   </div>
 </details>
 
+<h2>一张选型决策表</h2>
+<table class="t">
+  <tr><th>如果你最看重…</th><th>更适合</th><th>为什么</th></tr>
+  <tr><td>原型到生产一条龙（检查点 / HITL / OTel）</td><td class="mono">MAF</td><td>生产特性是一等公民，预置编排 + 手动图两层覆盖</td></tr>
+  <tr><td>最细粒度的图控制流</td><td class="mono">LangGraph</td><td>StateGraph 让你手画每个节点和边，控制最精确</td></tr>
+  <tr><td>多 Agent 对话 / 学术探索</td><td class="mono">AutoGen</td><td>“多 Agent 群聊”范式发源地，研究社区活跃</td></tr>
+  <tr><td>已有大量企业连接器 / Plugin</td><td class="mono">Semantic Kernel</td><td>几十种现成 Plugin，企业集成成熟</td></tr>
+  <tr><td>微软生态 + 长期演进方向</td><td class="mono">MAF</td><td>官方推荐的 SK + AutoGen 统一继任者</td></tr>
+</table>
+<p>注意：这些<strong>不是互斥</strong>的。MAF 的 Agent / ChatClient 可以配 LangGraph 的编排；SK 和 MAF 能共存渐进迁移。选型是“主线选谁”，不是“非黑即白”。</p>
+
 <div class="card key">
   <div class="tag">✅ 关键要点</div>
   <ul>
@@ -454,7 +465,54 @@ SK:        ~25k  (企业用户基数大)</pre>
   MAF 把"图编排"和"多 Agent 对话"<strong>统一到同一个框架</strong>——你不用在 LangGraph 和 AutoGen 之间二选一。
   预置编排是糖，底层 Workflow 是引擎，两者可以混用。
 </div>
+<div class="selftest">
+<h2>🧪 自测 · 想一想为什么这么设计</h2>
+<div class="quiz">
+  <div class="qn">1. MAF 同时给了底层 <code>WorkflowBuilder</code>（手画图）和上层预置编排（Sequential / Concurrent / …）。相比 LangGraph 只有手画图这一级，这种“两层”设计的好处是？</div>
+  <ol class="opts">
+    <li>强制所有人都用图，统一心智</li>
+    <li>让框架代码量更大，显得更专业</li>
+    <li>因为预置编排比手画图跑得快</li>
+    <li>简单任务用预置编排几行搞定，复杂拓扑再下沉到手画图——不用为简单场景付出“手画每条边”的成本</li>
+  </ol>
+  <details class="accordion">
+    <summary>看答案与解析 <span class="hint">点击展开</span></summary>
+    <div class="acc-body"><div class="qa"><div class="a"><strong>答案：D</strong>。抽象分层让你<strong>按需选粒度</strong>：约 80% 场景预置编排就够（低心智负担），剩下复杂拓扑再下沉到 <code>WorkflowBuilder</code>。LangGraph 只有图这一级，简单串行也得手画节点和边。</div></div></div>
+  </details>
 </div>
+<div class="quiz">
+  <div class="qn">2. 为什么说“新项目直接上 MAF”对许多 SK / AutoGen 用户通常是合理建议？</div>
+  <ol class="opts">
+    <li>MAF 是微软把 SK 和 AutoGen 统一演进的继任方向，吸收了二者能力（连接器 / Planner + 多 Agent），且维护重心已转向 MAF</li>
+    <li>因为 SK 和 AutoGen 已经被删除了</li>
+    <li>因为 MAF 是其中唯一开源的</li>
+    <li>因为 MAF 不兼容任何旧代码，必须全部重写</li>
+  </ol>
+  <details class="accordion">
+    <summary>看答案与解析 <span class="hint">点击展开</span></summary>
+    <div class="acc-body"><div class="qa"><div class="a"><strong>答案：A</strong>。MAF 继承 SK 的企业连接器 / Planner 思想和 AutoGen 的 Magentic-One（指挥官 + 工人）多 Agent 范式，再加图编排 / DurableTask / 统一 <code>ChatClient</code>。官方把它定位为“下一代”，所以新项目可直接用，老项目能渐进迁移、共存。</div></div></div>
+  </details>
+</div>
+<div class="quiz">
+  <div class="qn">3. 关于“MAF vs LangGraph”，下面哪个说法最准确？</div>
+  <ol class="opts">
+    <li>用了 MAF 就不能再碰任何 LangChain 生态</li>
+    <li>它们不一定二选一：可以用 MAF 的 Agent / ChatClient 配 LangGraph 的编排，因为编排层是可替换的</li>
+    <li>LangGraph 不支持检查点</li>
+    <li>两者底层其实是同一份代码</li>
+  </ol>
+  <details class="accordion">
+    <summary>看答案与解析 <span class="hint">点击展开</span></summary>
+    <div class="acc-body"><div class="qa"><div class="a"><strong>答案：B</strong>。框架边界是<strong>分层</strong>的——Agent / ChatClient 抽象与编排层可以解耦。混用可行（MAF 做 Agent，LangGraph 做图编排）。选型是“主线选谁”，而不是互斥的非黑即白。</div></div></div>
+  </details>
+</div>
+<div class="card spark">
+  <div class="tag">💭 发散思考（没有标准答案，动手或动脑想想）</div>
+  <ul>
+    <li>你的团队已有一套 Semantic Kernel 代码，现在要做一个需要“多 Agent 协作 + 检查点恢复”的新功能。基于本课对比，说说你会<strong>直接重写成 MAF</strong> 还是 <strong>SK / MAF 共存渐进迁移</strong>，并给出两条支撑你决定的具体理由（结合生产特性与迁移成本）。</li>
+  </ul>
+</div>
+</div></div>
 <div class="i18n" data-lang="en">
 <p class="lead">MAF isn't the only agent framework. This lesson compares four major ones to give you
 <strong>global coordinates</strong>.</p>
@@ -634,6 +692,17 @@ SK:        ~25k  (large enterprise user base)</pre>
   </div>
 </details>
 
+<h2>A one-glance selection table</h2>
+<table class="t">
+  <tr><th>If you value most…</th><th>Better fit</th><th>Why</th></tr>
+  <tr><td>Prototype-to-production in one stack (checkpoints / HITL / OTel)</td><td class="mono">MAF</td><td>Production features are first-class; prebuilt orchestrations + manual graph cover both ends</td></tr>
+  <tr><td>The finest-grained graph control flow</td><td class="mono">LangGraph</td><td>StateGraph lets you hand-draw every node and edge for maximum precision</td></tr>
+  <tr><td>Multi-agent chat / academic exploration</td><td class="mono">AutoGen</td><td>Birthplace of the &quot;multi-agent group chat&quot; paradigm, active research community</td></tr>
+  <tr><td>An existing trove of enterprise connectors / plugins</td><td class="mono">Semantic Kernel</td><td>Dozens of ready-made plugins, mature enterprise integration</td></tr>
+  <tr><td>Microsoft ecosystem + long-term direction</td><td class="mono">MAF</td><td>The officially recommended successor unifying SK + AutoGen</td></tr>
+</table>
+<p>Note: these are <strong>not mutually exclusive</strong>. MAF's Agent / ChatClient can pair with LangGraph's orchestration; SK and MAF can coexist for gradual migration. Picking a framework is choosing the &quot;main line&quot;, not a black-and-white split.</p>
+
 <div class="card key">
   <div class="tag">✅ Key points</div>
   <ul>
@@ -649,7 +718,54 @@ SK:        ~25k  (large enterprise user base)</pre>
   MAF <strong>unifies graph orchestration and multi-agent chat in one framework</strong> — you don't have to choose
   between LangGraph and AutoGen. Prebuilt orchestrations are sugar; the underlying Workflow is the engine. Mix freely.
 </div>
+<div class="selftest">
+<h2>🧪 Self-test - think about the design</h2>
+<div class="quiz">
+  <div class="qn">1. MAF offers both a low-level <code>WorkflowBuilder</code> (hand-drawn graph) and high-level prebuilt orchestrations (Sequential / Concurrent / …). Versus LangGraph's single graph level, what's the benefit of this &quot;two-tier&quot; design?</div>
+  <ol class="opts">
+    <li>It forces everyone onto graphs for a uniform mental model</li>
+    <li>It makes the framework bigger and look more professional</li>
+    <li>Because prebuilt orchestrations run faster than hand-drawn graphs</li>
+    <li>Simple tasks need only a few lines of prebuilt orchestration; complex topologies drop down to the hand-drawn graph - you don't pay the &quot;draw every edge&quot; cost for simple cases</li>
+  </ol>
+  <details class="accordion">
+    <summary>Show answer &amp; explanation <span class="hint">click to expand</span></summary>
+    <div class="acc-body"><div class="qa"><div class="a"><strong>Answer: D</strong>. Layered abstractions let you <strong>pick granularity on demand</strong>: ~80% of cases are covered by prebuilt orchestrations (low cognitive load), and the rest drop to <code>WorkflowBuilder</code>. LangGraph has only the graph level, so even a simple sequence means hand-drawing nodes and edges.</div></div></div>
+  </details>
 </div>
+<div class="quiz">
+  <div class="qn">2. Why is &quot;use MAF directly for new projects&quot; usually sound advice for many SK / AutoGen users?</div>
+  <ol class="opts">
+    <li>MAF is Microsoft's converged successor to SK and AutoGen, absorbing both (connectors / Planner + multi-agent), and maintenance focus has shifted to MAF</li>
+    <li>Because SK and AutoGen have been deleted</li>
+    <li>Because MAF is the only open-source one</li>
+    <li>Because MAF is incompatible with all old code and forces a full rewrite</li>
+  </ol>
+  <details class="accordion">
+    <summary>Show answer &amp; explanation <span class="hint">click to expand</span></summary>
+    <div class="acc-body"><div class="qa"><div class="a"><strong>Answer: A</strong>. MAF inherits SK's enterprise connectors / Planner ideas and AutoGen's Magentic-One (manager + workers) multi-agent paradigm, plus graph orchestration / DurableTask / a unified <code>ChatClient</code>. It's positioned as the &quot;next generation&quot;, so new projects can adopt it directly while old ones migrate gradually and coexist.</div></div></div>
+  </details>
+</div>
+<div class="quiz">
+  <div class="qn">3. Regarding &quot;MAF vs LangGraph&quot;, which statement is most accurate?</div>
+  <ol class="opts">
+    <li>Using MAF means you can't touch any LangChain ecosystem</li>
+    <li>They aren't necessarily either/or: you can pair MAF's Agent / ChatClient with LangGraph's orchestration, because the orchestration layer is swappable</li>
+    <li>LangGraph doesn't support checkpointing</li>
+    <li>The two are really the same code underneath</li>
+  </ol>
+  <details class="accordion">
+    <summary>Show answer &amp; explanation <span class="hint">click to expand</span></summary>
+    <div class="acc-body"><div class="qa"><div class="a"><strong>Answer: B</strong>. Framework boundaries are <strong>layered</strong> - the Agent / ChatClient abstraction and the orchestration layer can be decoupled. Mixing is viable (MAF for Agents, LangGraph for graph orchestration). Picking is choosing a &quot;main line&quot;, not a mutually exclusive split.</div></div></div>
+  </details>
+</div>
+<div class="card spark">
+  <div class="tag">💭 Open questions (no single right answer - just think or try)</div>
+  <ul>
+    <li>Your team has a Semantic Kernel codebase and now needs a new feature requiring &quot;multi-agent collaboration + checkpoint recovery&quot;. Based on this lesson, would you <strong>rewrite directly in MAF</strong> or <strong>run SK / MAF side by side for gradual migration</strong>? Give two concrete reasons (weighing production features against migration cost).</li>
+  </ul>
+</div>
+</div></div>
   <div class="footnav"><a class="prev" href="27-eval-timetravel.html"><div class="dir"><span class="i18n" data-lang="zh">← 上一课</span><span class="i18n" data-lang="en">← Prev</span></div><div class="ttl"><span class="i18n" data-lang="zh">评估与时间旅行</span><span class="i18n" data-lang="en">Evaluation & Time-Travel</span></div></a><a class="next" href="22-stack-map.html"><div class="dir"><span class="i18n" data-lang="zh">下一课 →</span><span class="i18n" data-lang="en">Next →</span></div><div class="ttl"><span class="i18n" data-lang="zh">全栈坐标系 & 学习地图</span><span class="i18n" data-lang="en">Full-Stack Map & Learning Path</span></div></a></div>
 </div>
 

@@ -1876,6 +1876,80 @@ handler = DefaultRequestHandler(
 <span class="cm"># Starlette app with AgentCard + JSON-RPC routes</span></pre>
 </div>
 
+<h2>🧪 实战追踪：编排 Agent 通过 A2A 调用远程翻译 Agent</h2>
+<p>把抽象协议落到一次真实调用上。场景：一个<strong>编排 Agent</strong> 要把文本交给独立部署的<strong>翻译 Agent</strong>——两者在不同进程、不同机器，只靠 A2A 标准协议对话。跟着这条链路走一遍，"Agent 当服务"就具体了。</p>
+<div class="vflow">
+  <div class="step"><div class="num">1</div><div class="sc"><h4>构造本地代理（客户端）</h4><p><span class="mono">a2a = A2AAgent(url="http://translator/a2a")</span>。只给 <span class="mono">url</span> 时，内部用 <span class="mono">minimal_agent_card(url)</span>（<span class="mono">_agent.py:222</span>）合成一张最小 AgentCard；也可直接传 <span class="mono">agent_card=</span>。两者都不给会抛 <span class="mono">"Either agent_card or url must be provided"</span>（<span class="mono">:220</span>）。</p></div></div>
+  <div class="step"><div class="num">2</div><div class="sc"><h4>像本地 Agent 一样调用</h4><p><span class="mono">await a2a.run("把这段翻成法语")</span>。<span class="mono">A2AAgent</span>（<span class="mono">_agent.py:154</span>）把请求包装为 A2A <span class="mono">Message</span>，经 <strong>JSON-RPC over HTTP</strong> POST 给远程——调用方代码和调本地 Agent <strong>完全一样</strong>。</p></div></div>
+  <div class="step"><div class="num">3</div><div class="sc"><h4>远程侧执行</h4><p>远程的 <span class="mono">A2AExecutor.execute(context, event_queue)</span>（<span class="mono">_a2a_executor.py:139</span>）跑真正的翻译 Agent，把产出作为事件写回 <span class="mono">event_queue</span>；构造时 <span class="mono">stream=True</span>（<span class="mono">:92</span>）则增量回流。</p></div></div>
+  <div class="step"><div class="num">4</div><div class="sc"><h4>会话与续传</h4><p>客户端 <span class="mono">A2AAgentSession</span>（<span class="mono">_agent.py:51</span>）维护 <span class="mono">context_id / task_id / task_state</span>；长任务用 <span class="mono">A2AContinuationToken</span>（<span class="mono">:129</span>）拿回执续传，不必一次跑完。</p></div></div>
+  <div class="step"><div class="num">5</div><div class="sc"><h4>结果回流</h4><p>翻译结果回到编排 Agent，对它而言这<strong>就是一次普通的"子 Agent 调用"返回</strong>——远程 Agent 的实现、模型、部署位置全部被协议挡在背后。</p></div></div>
+</div>
+
+<div class="flow">
+  <div class="node hl"><div class="nt">编排 Agent</div><div class="nd">发起调用</div></div>
+  <div class="arrow">→</div>
+  <div class="node"><div class="nt">A2AAgent</div><div class="nd">本地代理 · 客户端</div></div>
+  <div class="arrow">→</div>
+  <div class="node"><div class="nt">HTTP / JSON-RPC</div><div class="nd">标准协议线</div></div>
+  <div class="arrow">→</div>
+  <div class="node"><div class="nt">A2AExecutor</div><div class="nd">远程服务端</div></div>
+  <div class="arrow">→</div>
+  <div class="node hl"><div class="nt">翻译 Agent</div><div class="nd">独立部署</div></div>
+</div>
+<p class="note">关键区分：<span class="mono">A2AAgent</span> 是<strong>调出去</strong>的本地代理（客户端），<span class="mono">A2AExecutor</span> 是<strong>被调用</strong>的服务端包装。同一个 Agent 可以既当别人的客户端、又把自己 expose 成服务端——这就是 Agent 网络能层层编排的根基。</p>
+
+<h2>🧪 实战追踪：把同一次执行实时推给前端用户</h2>
+<p>A2A 解决"Agent 找 Agent"，但用户还想<strong>看到过程</strong>。AG-UI 把同一次 Agent 执行变成一串<strong>结构化事件</strong>，经 SSE 推到浏览器。下面是一次带工具调用的完整事件时间线：</p>
+<div class="vflow">
+  <div class="step"><div class="num">1</div><div class="sc"><h4>挂上端点</h4><p>一行 <span class="mono">add_agent_framework_fastapi_endpoint(app, agent, path="/")</span>（<span class="mono">_endpoint.py:26</span>）把 Agent expose 成 AG-UI 端点；<span class="mono">agent</span> 可以是裸 Agent，也可以是 <span class="mono">AgentFrameworkAgent</span> 包装后的对象。</p></div></div>
+  <div class="step"><div class="num">2</div><div class="sc"><h4>开跑</h4><p>前端 POST 用户消息，端点开始 SSE 流。拿到首个 update（含服务端真实 ID）后，<span class="mono">yield RunStartedEvent(run_id, thread_id)</span>（<span class="mono">_agent_run.py:885</span>）。</p></div></div>
+  <div class="step"><div class="num">3</div><div class="sc"><h4>文本增量</h4><p><span class="mono">TextMessageStartEvent → TextMessageContentEvent(delta) × N → TextMessageEndEvent</span>——逐字推送，前端边收边渲染，体验上是"打字机"。</p></div></div>
+  <div class="step"><div class="num">4</div><div class="sc"><h4>工具调用可见</h4><p>Agent 调工具时依次发出 <span class="mono">ToolCallStartEvent → ToolCallArgsEvent → ToolCallEndEvent → ToolCallResultEvent</span>。用户能看见"正在调用翻译 Agent…"而不是干等一团黑盒。</p></div></div>
+  <div class="step"><div class="num">5</div><div class="sc"><h4>收尾</h4><p>正常结束发 <span class="mono">RunFinishedEvent</span>；出错则发 <span class="mono">RunErrorEvent</span>（<span class="mono">_endpoint.py:12</span>）。需要同步后台状态时还有 <span class="mono">StateSnapshotEvent</span> 把状态快照推给前端 UI。</p></div></div>
+</div>
+
+<div class="flow">
+  <div class="node hl"><div class="nt">RunStarted</div><div class="nd">开跑</div></div>
+  <div class="arrow">→</div>
+  <div class="node"><div class="nt">TextMessage*</div><div class="nd">Start·Content·End</div></div>
+  <div class="arrow">→</div>
+  <div class="node"><div class="nt">ToolCall*</div><div class="nd">Start·Args·End·Result</div></div>
+  <div class="arrow">→</div>
+  <div class="node hl"><div class="nt">RunFinished</div><div class="nd">收尾 / RunError</div></div>
+</div>
+<p class="note">这条时间线正是 <span class="mono">AgentFrameworkAgent</span> 的"简单线性流：RunStarted → 内容事件 → RunFinished"（<span class="mono">_agent.py:70</span> 原注释）。所有事件类型来自 <span class="mono">ag_ui.core</span>——AG-UI 是<strong>跨框架的开放协议</strong>，前端不绑定具体 Agent 实现，换后端不用改 UI。</p>
+
+<h2>🔍 真实源码：两个包的入口符号</h2>
+<div class="codefile">
+  <div class="cf-head"><span class="dot"></span><span class="path">a2a / ag-ui __init__.py</span><span class="ln">两个包对外导出的入口符号（逐字核对）</span></div>
+<pre class="code"><span class="cm"># agent_framework_a2a/__init__.py</span>
+<span class="kw">from</span> ._a2a_executor <span class="kw">import</span> A2AExecutor       <span class="cm"># 服务端：把本地 Agent expose 成 A2A 服务</span>
+<span class="kw">from</span> ._agent <span class="kw">import</span> A2AAgent, A2AAgentSession, A2AContinuationToken  <span class="cm"># 客户端 + 会话 + 续传</span>
+__all__ = [<span class="st">"A2AAgent"</span>, <span class="st">"A2AAgentSession"</span>, <span class="st">"A2AContinuationToken"</span>, <span class="st">"A2AExecutor"</span>]
+
+<span class="cm"># agent_framework_ag_ui/__init__.py</span>
+<span class="kw">from</span> ._agent <span class="kw">import</span> AgentFrameworkAgent
+<span class="kw">from</span> ._endpoint <span class="kw">import</span> add_agent_framework_fastapi_endpoint
+<span class="kw">from</span> ._event_converters <span class="kw">import</span> AGUIEventConverter
+<span class="kw">from</span> ._workflow <span class="kw">import</span> AgentFrameworkWorkflow, WorkflowFactory
+<span class="cm"># 入口签名（_endpoint.py:26）：</span>
+<span class="kw">def</span> <span class="fn">add_agent_framework_fastapi_endpoint</span>(app: FastAPI, agent, path: str = <span class="st">"/"</span>): ...</pre>
+</div>
+<p>两份 <span class="mono">__all__</span> 一眼看清"对外接口"：A2A 暴露 <strong>4 个</strong>符号（一个服务端 <span class="mono">A2AExecutor</span> + 一个客户端 <span class="mono">A2AAgent</span> + 会话 <span class="mono">A2AAgentSession</span> / 续传 <span class="mono">A2AContinuationToken</span>）；AG-UI 的核心是 <strong>包装类 + 一行端点函数</strong>。这正是"薄适配层"的体现——核心 Agent 不动，套上不同入口就接入不同协议。</p>
+
+<h2>为什么要"标准化"Agent 间 / Agent-UI 通信</h2>
+<p>没有标准协议时，每接一个新 Agent 或新前端都要写一套私有适配，连接数随规模爆炸；A2A 与 AG-UI 把这两条边各自<strong>收敛成一个协议</strong>，新成员只需"说同一种话"：</p>
+<table class="t">
+  <tr><th>维度</th><th>A2A（Agent ↔ Agent）</th><th>AG-UI（Agent ↔ 前端）</th></tr>
+  <tr><td><strong>通信形态</strong></td><td>请求/响应 · JSON-RPC over HTTP</td><td>单向事件流 · SSE</td></tr>
+  <tr><td><strong>发现机制</strong></td><td>AgentCard（能力/端点自描述）</td><td>端点 path + 事件 schema</td></tr>
+  <tr><td><strong>状态/续传</strong></td><td>context_id/task_id + ContinuationToken</td><td>thread_id/run_id + StateSnapshot</td></tr>
+  <tr><td><strong>典型消费者</strong></td><td>另一个 Agent / 编排器</td><td>浏览器 / 桌面 UI</td></tr>
+  <tr><td><strong>核心入口</strong></td><td class="mono">A2AAgent / A2AExecutor</td><td class="mono">add_agent_framework_fastapi_endpoint</td></tr>
+</table>
+<p>两者<strong>正交</strong>：一个管"横向"的 Agent 互联，一个管"纵向"的 Agent 向人汇报。真实系统常常<strong>同时用</strong>——编排 Agent 用 A2A 调远程子 Agent，同时用 AG-UI 把"正在调用 B…B 返回了…"实时画给用户。它们与 L24 的 <a href="24-mcp.html">MCP</a>（工具级互通）、L25 的 <a href="25-hosted-agents.html">Foundry Hosting</a>（云端托管）一起，构成 Agent <strong>对外通信的四个方向</strong>：工具、托管、Agent 互调、UI 推送——每个都是可选薄层，核心逻辑只写一次。</p>
+
 <details class="accordion">
   <summary><span class="badge-num">1</span> A2A 深入 <span class="hint">点击展开详解</span></summary>
   <div class="acc-body">
@@ -2075,6 +2149,80 @@ handler = DefaultRequestHandler(
 )
 <span class="cm"># Starlette app with AgentCard + JSON-RPC routes</span></pre>
 </div>
+
+<h2>🧪 Worked example: an orchestrator Agent calls a remote translator via A2A</h2>
+<p>Ground the abstract protocol in one real call. Scenario: an <strong>orchestrator Agent</strong> hands text to an independently deployed <strong>translator Agent</strong> — different processes, different machines, talking only over the A2A standard. Walk the path once and "Agent-as-a-service" becomes concrete.</p>
+<div class="vflow">
+  <div class="step"><div class="num">1</div><div class="sc"><h4>Build the local proxy (client)</h4><p><span class="mono">a2a = A2AAgent(url="http://translator/a2a")</span>. Given only a <span class="mono">url</span>, it synthesises a minimal AgentCard via <span class="mono">minimal_agent_card(url)</span> (<span class="mono">_agent.py:222</span>); you may also pass <span class="mono">agent_card=</span>. Neither raises <span class="mono">"Either agent_card or url must be provided"</span> (<span class="mono">:220</span>).</p></div></div>
+  <div class="step"><div class="num">2</div><div class="sc"><h4>Call it like a local Agent</h4><p><span class="mono">await a2a.run("Translate this to French")</span>. <span class="mono">A2AAgent</span> (<span class="mono">_agent.py:154</span>) wraps the request as an A2A <span class="mono">Message</span> and POSTs it over <strong>JSON-RPC over HTTP</strong> — the calling code is <strong>identical</strong> to calling a local Agent.</p></div></div>
+  <div class="step"><div class="num">3</div><div class="sc"><h4>The remote side executes</h4><p>The remote <span class="mono">A2AExecutor.execute(context, event_queue)</span> (<span class="mono">_a2a_executor.py:139</span>) runs the real translator Agent and writes output as events to <span class="mono">event_queue</span>; with <span class="mono">stream=True</span> (<span class="mono">:92</span>) deltas flow back incrementally.</p></div></div>
+  <div class="step"><div class="num">4</div><div class="sc"><h4>Session &amp; continuation</h4><p>The client <span class="mono">A2AAgentSession</span> (<span class="mono">_agent.py:51</span>) tracks <span class="mono">context_id / task_id / task_state</span>; long-running tasks use <span class="mono">A2AContinuationToken</span> (<span class="mono">:129</span>) to resume from a receipt rather than finishing in one shot.</p></div></div>
+  <div class="step"><div class="num">5</div><div class="sc"><h4>The result flows back</h4><p>The translation returns to the orchestrator, which sees it as <strong>just another "sub-Agent call" returning</strong> — the remote Agent's implementation, model and deployment location are all hidden behind the protocol.</p></div></div>
+</div>
+
+<div class="flow">
+  <div class="node hl"><div class="nt">Orchestrator</div><div class="nd">initiates call</div></div>
+  <div class="arrow">→</div>
+  <div class="node"><div class="nt">A2AAgent</div><div class="nd">local proxy · client</div></div>
+  <div class="arrow">→</div>
+  <div class="node"><div class="nt">HTTP / JSON-RPC</div><div class="nd">standard wire</div></div>
+  <div class="arrow">→</div>
+  <div class="node"><div class="nt">A2AExecutor</div><div class="nd">remote server</div></div>
+  <div class="arrow">→</div>
+  <div class="node hl"><div class="nt">Translator</div><div class="nd">deployed apart</div></div>
+</div>
+<p class="note">Key distinction: <span class="mono">A2AAgent</span> is the <strong>outbound</strong> local proxy (client); <span class="mono">A2AExecutor</span> is the <strong>inbound</strong> server-side wrapper. One Agent can be both someone's client <em>and</em> expose itself as a server — that's the basis for layered Agent orchestration.</p>
+
+<h2>🧪 Worked example: stream that same run to a frontend user</h2>
+<p>A2A handles "Agent finds Agent", but the user still wants to <strong>see the process</strong>. AG-UI turns the same Agent run into a stream of <strong>structured events</strong> pushed over SSE to the browser. Here is the full event timeline of a run that calls a tool:</p>
+<div class="vflow">
+  <div class="step"><div class="num">1</div><div class="sc"><h4>Mount the endpoint</h4><p>One line, <span class="mono">add_agent_framework_fastapi_endpoint(app, agent, path="/")</span> (<span class="mono">_endpoint.py:26</span>), exposes the Agent as an AG-UI endpoint; <span class="mono">agent</span> can be a raw Agent or an <span class="mono">AgentFrameworkAgent</span> wrapper.</p></div></div>
+  <div class="step"><div class="num">2</div><div class="sc"><h4>Kick off</h4><p>The frontend POSTs a user message and the endpoint opens an SSE stream. After the first update (carrying the service's real IDs) it does <span class="mono">yield RunStartedEvent(run_id, thread_id)</span> (<span class="mono">_agent_run.py:885</span>).</p></div></div>
+  <div class="step"><div class="num">3</div><div class="sc"><h4>Text deltas</h4><p><span class="mono">TextMessageStartEvent → TextMessageContentEvent(delta) × N → TextMessageEndEvent</span> — token by token, the frontend renders as it receives, giving the "typewriter" feel.</p></div></div>
+  <div class="step"><div class="num">4</div><div class="sc"><h4>Tool calls made visible</h4><p>When the Agent calls a tool it emits, in order, <span class="mono">ToolCallStartEvent → ToolCallArgsEvent → ToolCallEndEvent → ToolCallResultEvent</span>. The user sees "calling the translator Agent…" instead of staring at a black box.</p></div></div>
+  <div class="step"><div class="num">5</div><div class="sc"><h4>Wrap up</h4><p>A normal finish emits <span class="mono">RunFinishedEvent</span>; an error emits <span class="mono">RunErrorEvent</span> (<span class="mono">_endpoint.py:12</span>). To sync backend state there is also <span class="mono">StateSnapshotEvent</span> pushing a state snapshot to the UI.</p></div></div>
+</div>
+
+<div class="flow">
+  <div class="node hl"><div class="nt">RunStarted</div><div class="nd">kick off</div></div>
+  <div class="arrow">→</div>
+  <div class="node"><div class="nt">TextMessage*</div><div class="nd">Start·Content·End</div></div>
+  <div class="arrow">→</div>
+  <div class="node"><div class="nt">ToolCall*</div><div class="nd">Start·Args·End·Result</div></div>
+  <div class="arrow">→</div>
+  <div class="node hl"><div class="nt">RunFinished</div><div class="nd">wrap up / RunError</div></div>
+</div>
+<p class="note">This timeline is exactly <span class="mono">AgentFrameworkAgent</span>'s "simple linear flow: RunStarted → content events → RunFinished" (<span class="mono">_agent.py:70</span> original comment). All event types come from <span class="mono">ag_ui.core</span> — AG-UI is a <strong>cross-framework open protocol</strong>, so the frontend isn't bound to a specific Agent implementation; swap the backend without touching the UI.</p>
+
+<h2>🔍 Real source: the entry symbols of both packages</h2>
+<div class="codefile">
+  <div class="cf-head"><span class="dot"></span><span class="path">a2a / ag-ui __init__.py</span><span class="ln">the exported entry symbols of both packages (verified verbatim)</span></div>
+<pre class="code"><span class="cm"># agent_framework_a2a/__init__.py</span>
+<span class="kw">from</span> ._a2a_executor <span class="kw">import</span> A2AExecutor       <span class="cm"># server: expose a local Agent as an A2A service</span>
+<span class="kw">from</span> ._agent <span class="kw">import</span> A2AAgent, A2AAgentSession, A2AContinuationToken  <span class="cm"># client + session + continuation</span>
+__all__ = [<span class="st">"A2AAgent"</span>, <span class="st">"A2AAgentSession"</span>, <span class="st">"A2AContinuationToken"</span>, <span class="st">"A2AExecutor"</span>]
+
+<span class="cm"># agent_framework_ag_ui/__init__.py</span>
+<span class="kw">from</span> ._agent <span class="kw">import</span> AgentFrameworkAgent
+<span class="kw">from</span> ._endpoint <span class="kw">import</span> add_agent_framework_fastapi_endpoint
+<span class="kw">from</span> ._event_converters <span class="kw">import</span> AGUIEventConverter
+<span class="kw">from</span> ._workflow <span class="kw">import</span> AgentFrameworkWorkflow, WorkflowFactory
+<span class="cm"># entry signature (_endpoint.py:26):</span>
+<span class="kw">def</span> <span class="fn">add_agent_framework_fastapi_endpoint</span>(app: FastAPI, agent, path: str = <span class="st">"/"</span>): ...</pre>
+</div>
+<p>The two <span class="mono">__all__</span> lists make the "public surface" obvious: A2A exports <strong>4</strong> symbols (one server <span class="mono">A2AExecutor</span> + one client <span class="mono">A2AAgent</span> + session <span class="mono">A2AAgentSession</span> / continuation <span class="mono">A2AContinuationToken</span>); AG-UI's core is a <strong>wrapper class + a one-line endpoint function</strong>. This is the "thin adapter" idea in the flesh — the core Agent stays put, and a different entry point plugs it into a different protocol.</p>
+
+<h2>Why "standardize" Agent-to-Agent / Agent-to-UI communication</h2>
+<p>Without a standard, every new Agent or frontend needs its own private adapter and the connection count explodes with scale; A2A and AG-UI each <strong>collapse one of those edges into a single protocol</strong>, so a new member just has to "speak the same language":</p>
+<table class="t">
+  <tr><th>Dimension</th><th>A2A (Agent ↔ Agent)</th><th>AG-UI (Agent ↔ frontend)</th></tr>
+  <tr><td><strong>Shape</strong></td><td>request/response · JSON-RPC over HTTP</td><td>one-way event stream · SSE</td></tr>
+  <tr><td><strong>Discovery</strong></td><td>AgentCard (self-describes capabilities/endpoint)</td><td>endpoint path + event schema</td></tr>
+  <tr><td><strong>State/continuation</strong></td><td>context_id/task_id + ContinuationToken</td><td>thread_id/run_id + StateSnapshot</td></tr>
+  <tr><td><strong>Typical consumer</strong></td><td>another Agent / orchestrator</td><td>browser / desktop UI</td></tr>
+  <tr><td><strong>Core entry</strong></td><td class="mono">A2AAgent / A2AExecutor</td><td class="mono">add_agent_framework_fastapi_endpoint</td></tr>
+</table>
+<p>The two are <strong>orthogonal</strong>: one governs "horizontal" Agent interconnect, the other "vertical" Agent-to-human reporting. Real systems often use <strong>both at once</strong> — the orchestrator calls a remote sub-Agent over A2A while painting "calling B… B returned…" to the user over AG-UI. Together with L24's <a href="24-mcp.html">MCP</a> (tool-level interop) and L25's <a href="25-hosted-agents.html">Foundry Hosting</a> (cloud hosting), they form the <strong>four outward directions</strong> of Agent communication: tools, hosting, Agent interop, UI push — each an optional thin layer over core logic you write once.</p>
 
 <details class="accordion">
   <summary><span class="badge-num">1</span> A2A deep dive <span class="hint">expand</span></summary>

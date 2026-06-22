@@ -779,6 +779,76 @@ QUIZZES = {
             },
         ],
     },
+    "26-a2a-agui.html": {
+        "mcq": [
+            {
+                "q": {
+                    "zh": "<code>A2A</code> 与 <code>AG-UI</code> 两个协议的方向，最准确的概括是？",
+                    "en": "What most accurately captures the direction of the <code>A2A</code> and <code>AG-UI</code> protocols?",
+                },
+                "opts": [
+                    {
+                        "zh": "<strong>A2A 是 Agent↔Agent</strong>（请求/响应，JSON-RPC over HTTP）；<strong>AG-UI 是 Agent↔前端</strong>（单向事件流，SSE）",
+                        "en": "<strong>A2A is Agent↔Agent</strong> (request/response, JSON-RPC over HTTP); <strong>AG-UI is Agent↔frontend</strong> (one-way event stream, SSE)",
+                    },
+                    {"zh": "两者都是 Agent↔前端，只是编码不同", "en": "Both are Agent↔frontend, just different encodings"},
+                    {"zh": "A2A 管 UI，AG-UI 管 Agent 互调", "en": "A2A handles the UI, AG-UI handles Agent interop"},
+                    {"zh": "两者都只能在同一进程内使用", "en": "Both work only within a single process"},
+                ],
+                "answer": 0,
+                "why": {
+                    "zh": "两者<strong>正交</strong>：A2A 解决&quot;横向&quot;的 Agent 互联（一个 Agent 调用另一个 Agent，走 JSON-RPC over HTTP 的请求/响应），AG-UI 解决&quot;纵向&quot;的 Agent 向人汇报（把执行过程作为结构化事件经 SSE 推给前端）。真实系统常常同时用——编排 Agent 用 A2A 调远程子 Agent，同时用 AG-UI 把进度实时画给用户。",
+                    "en": "They are <strong>orthogonal</strong>: A2A solves &quot;horizontal&quot; Agent interconnect (one Agent calling another via request/response JSON-RPC over HTTP), while AG-UI solves &quot;vertical&quot; Agent-to-human reporting (pushing the run as structured events over SSE to the frontend). Real systems often use both — the orchestrator calls a remote sub-Agent over A2A while painting progress to the user over AG-UI.",
+                },
+            },
+            {
+                "q": {
+                    "zh": "在 A2A 里，<code>A2AAgent</code> 与 <code>A2AExecutor</code> 的角色分别是？",
+                    "en": "In A2A, what are the respective roles of <code>A2AAgent</code> and <code>A2AExecutor</code>?",
+                },
+                "opts": [
+                    {
+                        "zh": "<code>A2AAgent</code> 是<strong>调出去</strong>的本地代理（客户端）；<code>A2AExecutor</code> 是<strong>被调用</strong>的服务端包装",
+                        "en": "<code>A2AAgent</code> is the <strong>outbound</strong> local proxy (client); <code>A2AExecutor</code> is the <strong>inbound</strong> server-side wrapper",
+                    },
+                    {"zh": "两者都是客户端，只是一个同步一个异步", "en": "Both are clients, one sync one async"},
+                    {"zh": "<code>A2AAgent</code> 是服务端，<code>A2AExecutor</code> 是客户端", "en": "<code>A2AAgent</code> is the server, <code>A2AExecutor</code> is the client"},
+                    {"zh": "两者是同一个类的别名", "en": "They are aliases of the same class"},
+                ],
+                "answer": 0,
+                "why": {
+                    "zh": "<code>A2AAgent</code>（<code>_agent.py:154</code>）是本地代理：你像调本地 Agent 一样 <code>await a2a.run(...)</code>，它把请求经 JSON-RPC over HTTP 发往远程。<code>A2AExecutor</code>（<code>_a2a_executor.py:29</code>，<code>execute()</code>:139）在远程侧把本地 Agent 暴露为 A2A 服务。关键：同一个 Agent 可以既当别人的客户端、又把自己 expose 成服务端——这正是 Agent 网络层层编排的根基。",
+                    "en": "<code>A2AAgent</code> (<code>_agent.py:154</code>) is the local proxy: you <code>await a2a.run(...)</code> as if calling a local Agent, and it ships the request over JSON-RPC over HTTP to the remote. <code>A2AExecutor</code> (<code>_a2a_executor.py:29</code>, <code>execute()</code>:139) exposes a local Agent as an A2A service on the remote side. Crucially, one Agent can be both a client and a server — the basis for layered Agent orchestration.",
+                },
+            },
+            {
+                "q": {
+                    "zh": "用 <code>add_agent_framework_fastapi_endpoint</code> 暴露 Agent 后，一次正常 AG-UI 运行的事件顺序是？",
+                    "en": "After exposing an Agent with <code>add_agent_framework_fastapi_endpoint</code>, what is the event order of a normal AG-UI run?",
+                },
+                "opts": [
+                    {
+                        "zh": "<code>RunStarted</code> → 内容事件（<code>TextMessage*</code> / <code>ToolCall*</code>）→ <code>RunFinished</code>（出错则 <code>RunError</code>）",
+                        "en": "<code>RunStarted</code> → content events (<code>TextMessage*</code> / <code>ToolCall*</code>) → <code>RunFinished</code> (or <code>RunError</code> on failure)",
+                    },
+                    {"zh": "只发一个 <code>RunFinished</code>，没有中间事件", "en": "Just one <code>RunFinished</code>, no intermediate events"},
+                    {"zh": "<code>RunFinished</code> → <code>RunStarted</code> → 内容", "en": "<code>RunFinished</code> → <code>RunStarted</code> → content"},
+                    {"zh": "事件顺序随机，前端要自己排序", "en": "Events arrive in random order; the frontend must sort them"},
+                ],
+                "answer": 0,
+                "why": {
+                    "zh": "这就是 <code>AgentFrameworkAgent</code> 的&quot;简单线性流&quot;（<code>_agent.py:70</code> 原注释）：先 <code>yield RunStartedEvent(run_id, thread_id)</code>（<code>_agent_run.py:885</code>），中间是文本增量（<code>TextMessageStart/Content/End</code>）与工具调用（<code>ToolCallStart/Args/End/Result</code>），最后 <code>RunFinishedEvent</code>；出错发 <code>RunErrorEvent</code>（<code>_endpoint.py:12</code>）。所有事件类型来自 <code>ag_ui.core</code>，是跨框架开放协议。",
+                    "en": "This is <code>AgentFrameworkAgent</code>'s &quot;simple linear flow&quot; (<code>_agent.py:70</code> original comment): first <code>yield RunStartedEvent(run_id, thread_id)</code> (<code>_agent_run.py:885</code>), then text deltas (<code>TextMessageStart/Content/End</code>) and tool calls (<code>ToolCallStart/Args/End/Result</code>), and finally <code>RunFinishedEvent</code>; an error emits <code>RunErrorEvent</code> (<code>_endpoint.py:12</code>). All event types come from <code>ag_ui.core</code>, a cross-framework open protocol.",
+                },
+            },
+        ],
+        "open": [
+            {
+                "zh": "你在搭一个&quot;研究助手&quot;：编排 Agent 要调用一个独立部署的&quot;检索 Agent&quot;，同时让用户在网页上实时看到进度。(1) 这两条边你分别用 <code>A2A</code> 还是 <code>AG-UI</code>？为什么说它们&quot;正交&quot;、可以同时用？(2) 检索 Agent 在另一台机器上，<code>A2AAgent</code> 和 <code>A2AExecutor</code> 各自部署在哪一侧？(3) 用户能看到&quot;正在检索…检索完成&quot;，这背后对应哪几个 AG-UI 事件？",
+                "en": "You're building a &quot;research assistant&quot;: an orchestrator Agent calls an independently deployed &quot;retrieval Agent&quot; while the user watches progress live in a web page. (1) Which edge uses <code>A2A</code> vs <code>AG-UI</code>, and why are they &quot;orthogonal&quot; so you can use both at once? (2) The retrieval Agent runs on another machine — which side hosts <code>A2AAgent</code> vs <code>A2AExecutor</code>? (3) The user sees &quot;retrieving… done&quot; — which AG-UI events back that up?",
+            },
+        ],
+    },
 }
 
 

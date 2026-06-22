@@ -651,7 +651,7 @@ result = <span class="kw">await</span> agent.run(<span class="st">"What is the c
 <div class="card detail">
   <div class="tag">🔬 换厂商</div>
   把 <span class="inline">FoundryChatClient</span> 换成 <span class="inline">OpenAIChatClient</span>、
-  <span class="inline">AnthropicChatClient</span>、<span class="inline">OllamaChatClient</span>……Agent 那层<strong>一行都不用改</strong>。
+  <span class="inline">AnthropicClient</span>、<span class="inline">OllamaChatClient</span>……Agent 那层<strong>一行都不用改</strong>。
   各 client 来自对应 provider 包（见第 16 课）。
 </div>
 
@@ -939,7 +939,7 @@ with <span class="mono">stream=True</span> it returns an async iterator yielding
 <div class="card detail">
   <div class="tag">🔬 Switching vendors</div>
   Replace <span class="inline">FoundryChatClient</span> with <span class="inline">OpenAIChatClient</span>,
-  <span class="inline">AnthropicChatClient</span>, <span class="inline">OllamaChatClient</span>… and the Agent layer
+  <span class="inline">AnthropicClient</span>, <span class="inline">OllamaChatClient</span>… and the Agent layer
   <strong>doesn't change at all</strong>. Each client comes from its provider package (Lesson 16).
 </div>
 

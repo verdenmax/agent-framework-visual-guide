@@ -128,6 +128,13 @@ def main():
         if fname not in ORDER:
             add("ERR", "registry", f"CONTENT key not in PAGES: {fname}")
 
+    # every lesson must have a self-test quiz (M5/M6 coverage guard)
+    import quizzes  # noqa: E402
+    for fname, _t, _p in PAGES:
+        q = quizzes.QUIZZES.get(fname)
+        if not q or not q.get("mcq"):
+            add("ERR", fname, "missing self-test quiz (quizzes.QUIZZES entry with mcq)")
+
     index_path = os.path.join(ROOT, shell.INDEX_FILE)
     with open(index_path, encoding="utf-8") as fh:
         idx = fh.read()

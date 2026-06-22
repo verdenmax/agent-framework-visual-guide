@@ -60,7 +60,7 @@ client = FoundryChatClient(
     <div class="qa">
       <div class="q">🧪 示例</div>
       <div class="a">OpenAI 或 Azure OpenAI 均可：
-<pre class="code"><span class="kw">from</span> agent_framework <span class="kw">import</span> OpenAIChatClient
+<pre class="code"><span class="kw">from</span> agent_framework.openai <span class="kw">import</span> OpenAIChatClient
 
 <span class="cm"># OpenAI</span>
 client = OpenAIChatClient(
@@ -280,7 +280,7 @@ client = FoundryChatClient(
     <div class="qa">
       <div class="q">🧪 Example</div>
       <div class="a">Works with both OpenAI and Azure OpenAI:
-<pre class="code"><span class="kw">from</span> agent_framework <span class="kw">import</span> OpenAIChatClient
+<pre class="code"><span class="kw">from</span> agent_framework.openai <span class="kw">import</span> OpenAIChatClient
 
 <span class="cm"># OpenAI</span>
 client = OpenAIChatClient(
@@ -1562,7 +1562,8 @@ result = <span class="kw">await</span> workflow.run(<span class="st">"Write abou
     <div class="qa">
       <div class="q">🧪 示例</div>
       <div class="a">完整的 25-30 行可工作示例：
-<pre class="code"><span class="kw">from</span> agent_framework <span class="kw">import</span> Agent, tool, OpenAIChatClient
+<pre class="code"><span class="kw">from</span> agent_framework <span class="kw">import</span> Agent, tool
+<span class="kw">from</span> agent_framework.openai <span class="kw">import</span> OpenAIChatClient
 <span class="kw">from</span> agent_framework.orchestrations <span class="kw">import</span> SequentialBuilder
 <span class="kw">from</span> agent_framework <span class="kw">import</span> InMemoryCheckpointStorage
 
@@ -1787,7 +1788,8 @@ result = <span class="kw">await</span> workflow.run(<span class="st">"Write abou
     <div class="qa">
       <div class="q">🧪 Example</div>
       <div class="a">Full working example in ~25-30 lines:
-<pre class="code"><span class="kw">from</span> agent_framework <span class="kw">import</span> Agent, tool, OpenAIChatClient
+<pre class="code"><span class="kw">from</span> agent_framework <span class="kw">import</span> Agent, tool
+<span class="kw">from</span> agent_framework.openai <span class="kw">import</span> OpenAIChatClient
 <span class="kw">from</span> agent_framework.orchestrations <span class="kw">import</span> SequentialBuilder
 <span class="kw">from</span> agent_framework <span class="kw">import</span> InMemoryCheckpointStorage
 

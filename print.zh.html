@@ -275,7 +275,7 @@ h2, h3, h4 { break-after: avoid; }
   <div class="emoji">📘</div>
   <h1>Agent Framework 图解教程</h1>
   <div class="sub">从零理解整个项目 · 宏观 → 用法 → 源码 → 自己动手做 Agent</div>
-  <div class="meta">共 29 课 · 7 个部分 · 每课配真实代码对应与设计亮点<br>
+  <div class="meta">共 30 课 · 7 个部分 · 每课配真实代码对应与设计亮点<br>
     生成日期 2026-06-23 · verdenmax · Code MIT · Content CC BY 4.0</div>
 </section>
 <section class="print-toc"><div class="wrap"><h2>目录</h2>
@@ -306,28 +306,29 @@ h2, h3, h4 { break-after: avoid; }
 <ol>
 <li value="15">读源码 / 调试 / 测试 / 贡献</li>
 <li value="16">DevUI 可视化调试</li>
+<li value="17">可观测性深入</li>
 </ol>
 <div class="tp">第五部分 · 自己动手做 Agent</div>
 <ol>
-<li value="17">接入各家模型</li>
-<li value="18">声明式 Agent（YAML）</li>
-<li value="19">写自己的中间件</li>
-<li value="20">检查点 · 人在环 · 持久化</li>
-<li value="21">端到端实战：多 Agent 工作流</li>
-<li value="22">记忆后端</li>
+<li value="18">接入各家模型</li>
+<li value="19">声明式 Agent（YAML）</li>
+<li value="20">写自己的中间件</li>
+<li value="21">检查点 · 人在环 · 持久化</li>
+<li value="22">端到端实战：多 Agent 工作流</li>
+<li value="23">记忆后端</li>
 </ol>
 <div class="tp">第六部分 · 协议与生态</div>
 <ol>
-<li value="23">Agent Skills 技能系统</li>
-<li value="24">MCP 工具协议</li>
-<li value="25">Foundry 托管 Agent</li>
-<li value="26">A2A + AG-UI 协议</li>
-<li value="27">评估与时间旅行</li>
+<li value="24">Agent Skills 技能系统</li>
+<li value="25">MCP 工具协议</li>
+<li value="26">Foundry 托管 Agent</li>
+<li value="27">A2A + AG-UI 协议</li>
+<li value="28">评估与时间旅行</li>
 </ol>
 <div class="tp">第七部分 · 番外篇</div>
 <ol>
-<li value="28">横向对比：AF vs 其他框架</li>
-<li value="29">全栈坐标系 & 学习地图</li>
+<li value="29">横向对比：AF vs 其他框架</li>
+<li value="30">全栈坐标系 & 学习地图</li>
 </ol></div></section>
 <section class="print-lesson"><div class="wrap"><div class="lesson-head"><div class="lp">第一部分 · 宏观全景</div><h1><span class="ln">01 ·</span> Agent Framework 是什么</h1></div>
 <p class="lead" style="font-size:1.06rem;color:var(--muted);margin-top:-.6rem">
@@ -5230,7 +5231,209 @@ serve(entities=[agent], auto_open=<span class="kw">True</span>)   <span class="c
   </ul>
 </div>
 </div></div></section>
-<section class="print-lesson"><div class="wrap"><div class="lesson-head"><div class="lp">第五部分 · 自己动手做 Agent</div><h1><span class="ln">17 ·</span> 接入各家模型</h1></div>
+<section class="print-lesson"><div class="wrap"><div class="lesson-head"><div class="lp">第四部分 · 进阶实战</div><h1><span class="ln">17 ·</span> 可观测性深入</h1></div>
+<p class="lead">第 14 课你已见过「流式 + span 树」的合体——那是从<strong>流式</strong>视角顺带认识可观测。本课反过来：以<strong>可观测</strong>为主角，
+讲清 Agent Framework 怎么把每一次运行变成可查询的 <strong>trace / metric / log</strong>，以及生产里你靠它定位延迟、失败和成本。</p>
+
+<div class="card analogy">
+  <div class="tag">🚗 生活类比</div>
+  trace 像车上的<strong>行车记录仪</strong>：平时不看，出事了倒回去逐帧看「哪一步、花了多久、谁先动的」。
+  metric 像<strong>仪表盘读数</strong>（平均时速、油耗），log 像<strong>维修师傅的文字记录</strong>。三者配齐，才能从"它好像变慢了"精确到"是第 2 次 chat 调用慢了 800ms"。
+</div>
+
+<h2>可观测的三根支柱</h2>
+<p>OpenTelemetry（OTel）把"可观测"拆成三类信号，Agent Framework 对三类都做了内建埋点：</p>
+<div class="layers">
+  <div class="layer l-core"><div class="lh"><span class="badge">Trace 链路</span><span class="name">spans</span></div>
+    <div class="ld">一次运行的 <span class="mono">invoke_agent → chat → execute_tool</span> span 树：每步耗时、父子调用关系、哪一步抛错（<span class="mono">error.type</span>）。回答"<strong>慢在哪一步</strong>"。</div></div>
+  <div class="layer l-main"><div class="lh"><span class="badge">Metric 指标</span><span class="name">histograms</span></div>
+    <div class="ld"><span class="mono">gen_ai.client.token.usage</span>、<span class="mono">gen_ai.client.operation.duration</span>、<span class="mono">agent_framework.function.invocation.duration</span>：聚合的延迟分布、token 用量、失败率。回答"<strong>整体健康度</strong>"。</div></div>
+  <div class="layer l-part"><div class="lh"><span class="badge">Log 日志</span><span class="name">events</span></div>
+    <div class="ld">结构化日志与事件。消息内容、工具参数等<strong>敏感数据</strong>默认<strong>不</strong>记录，需显式 <span class="mono">enable_sensitive_data</span>（仅测试/开发）。回答"<strong>具体发生了什么</strong>"。</div></div>
+</div>
+
+<h2>一行启动：把遥测接到后端</h2>
+<div class="flow">
+  <div class="node hl"><div class="nt">configure_otel_providers()</div><div class="nd">启动时调一次</div></div>
+  <div class="arrow">→</div>
+  <div class="node"><div class="nt">框架埋点</div><div class="nd">Agent/Chat/Tool 自动出 span+metric</div></div>
+  <div class="arrow">→</div>
+  <div class="node"><div class="nt">exporter</div><div class="nd">OTLP → :4317</div></div>
+  <div class="arrow">→</div>
+  <div class="node"><div class="nt">后端</div><div class="nd">Jaeger / Azure Monitor…</div></div>
+</div>
+<p>你只需在应用启动时<strong>调一次</strong> <span class="mono">configure_otel_providers()</span>；之后框架的 <span class="mono">AgentTelemetryLayer</span> / <span class="mono">ChatTelemetryLayer</span> 会自动给每次
+<span class="mono">run</span> / <span class="mono">get_response</span> / 工具调用挂上 span 和 metric，按 OTLP 协议吐到你配的后端。<strong>无需在业务代码里手写任何埋点。</strong></p>
+
+<h2>走一遍：一次 run 产生的 span 树</h2>
+<p>同样是"巴黎天气如何？"这次只盯<strong>可观测</strong>那条线（流式细节见第 14 课）。一次带工具的运行会长出这样一棵 span 树：</p>
+<div class="vflow">
+  <div class="step"><div class="num">1</div><div class="sc">
+    <h4>开根 span：invoke_agent</h4>
+    <p><span class="mono">agent.run("巴黎天气如何？")</span> 一进来，框架开根 span <span class="mono">invoke_agent WeatherAgent</span>
+      （<span class="mono">AGENT_INVOKE_OPERATION="invoke_agent"</span>，<span class="mono">observability.py:294</span>），属性带 <span class="mono">gen_ai.agent.name</span>。</p>
+  </div></div>
+  <div class="step"><div class="num">2</div><div class="sc">
+    <h4>子 span：第一次 chat，模型决定调工具</h4>
+    <p>子 span <span class="mono">chat gpt-4o</span> 开启（<span class="mono">CHAT_COMPLETION_OPERATION="chat"</span>，<span class="mono">:289</span>），
+      属性 <span class="mono">gen_ai.request.model=gpt-4o</span>，最终 <span class="mono">gen_ai.response.finish_reasons=[tool_calls]</span>。</p>
+  </div></div>
+  <div class="step"><div class="num">3</div><div class="sc">
+    <h4>更深一层：execute_tool 嵌在 chat 之内</h4>
+    <p>工具执行的 span <span class="mono">execute_tool get_weather</span>（<span class="mono">:291</span>）<strong>挂在 chat span 之下</strong>——
+      源码里"内层工具执行被 parent 到这个 chat span"（<span class="mono">observability.py:1556</span>）。属性带 <span class="mono">gen_ai.tool.name</span>、<span class="mono">gen_ai.tool.call.id</span>。</p>
+  </div></div>
+  <div class="step"><div class="num">4</div><div class="sc">
+    <h4>第二次 chat：带工具结果生成最终文本</h4>
+    <p>再开一个 <span class="mono">chat gpt-4o</span> span，这次 <span class="mono">finish_reasons=[stop]</span>，
+      属性记下 <span class="mono">gen_ai.usage.input_tokens</span> / <span class="mono">output_tokens</span>。</p>
+  </div></div>
+  <div class="step"><div class="num">5</div><div class="sc">
+    <h4>自底向上关闭，吐出 metric</h4>
+    <p>span 依调用栈<strong>自底向上</strong>依次关闭，每个都记下精确耗时；同时发出 metric：
+      <span class="mono">gen_ai.client.token.usage</span>、<span class="mono">gen_ai.client.operation.duration</span>、<span class="mono">agent_framework.function.invocation.duration</span>。根 span 还会把内层 chat 的 token 累加上来。</p>
+  </div></div>
+</div>
+<p>这棵树长这样——子 span 的耗时<strong>滚动累加</strong>进父 span，所以你一眼能看出时间花在哪：</p>
+<pre class="code">invoke_agent WeatherAgent              <span class="cm"># 根：总耗时 1.9s</span>
+└─ chat gpt-4o                         <span class="cm"># 第一次模型调用 → tool_calls</span>
+   └─ execute_tool get_weather         <span class="cm"># 工具执行（嵌在 chat 内）120ms</span>
+└─ chat gpt-4o                         <span class="cm"># 第二次：带结果生成文本 → stop</span></pre>
+<table class="t">
+  <tr><th>span</th><th>operation</th><th>关键属性</th></tr>
+  <tr><td class="mono">invoke_agent WeatherAgent</td><td class="mono">invoke_agent</td><td class="mono">gen_ai.agent.name · usage.*（累加）</td></tr>
+  <tr><td class="mono">chat gpt-4o</td><td class="mono">chat</td><td class="mono">gen_ai.request.model · response.finish_reasons</td></tr>
+  <tr><td class="mono">execute_tool get_weather</td><td class="mono">execute_tool</td><td class="mono">gen_ai.tool.name · gen_ai.tool.call.id</td></tr>
+</table>
+
+<h2>真实源码：一次性接好 OTel</h2>
+<div class="codefile">
+  <div class="cf-head"><span class="dot"></span><span class="path">observability.py</span><span class="ln">configure_otel_providers（简化自 :1151）</span></div>
+<pre><span class="kw">from</span> agent_framework.observability <span class="kw">import</span> configure_otel_providers
+
+<span class="cm"># 应用启动时调用一次，且只调一次（在产生任何遥测之前）</span>
+configure_otel_providers(
+    enable_sensitive_data=<span class="kw">False</span>,       <span class="cm"># 记录消息/参数等敏感内容？仅测试/开发开</span>
+    enable_console_exporters=<span class="kw">False</span>,    <span class="cm"># 把 trace/metric/log 打到控制台（本地调试）</span>
+    exporters=<span class="kw">None</span>,                    <span class="cm"># 额外追加自定义 OTLP exporter</span>
+    views=<span class="kw">None</span>,                        <span class="cm"># metric 视图：过滤/裁剪要采集的指标</span>
+    vs_code_extension_port=<span class="kw">None</span>,       <span class="cm"># 接 VS Code AI Toolkit / Foundry 扩展</span>
+)
+<span class="cm"># 也可全靠环境变量，例如：</span>
+<span class="cm">#   OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:4317</span>
+<span class="cm">#   ENABLE_CONSOLE_EXPORTERS=true</span></pre>
+</div>
+<p>注意它是<strong>纯关键字参数</strong>（签名里的 <span class="mono">*</span>），且文档明确"<strong>只调一次</strong>"。它读标准 OTel 环境变量（<span class="mono">OTEL_EXPORTER_OTLP_ENDPOINT</span> 等），
+所以多数情况下你函数体里什么都不传，全用环境变量配置。想更细控制开关，可直接用 <span class="mono">ObservabilitySettings</span>（<span class="mono">:666</span>），它对应 <span class="mono">ENABLE_INSTRUMENTATION</span> / <span class="mono">ENABLE_SENSITIVE_DATA</span> / <span class="mono">ENABLE_CONSOLE_EXPORTERS</span> 这些环境变量。</p>
+
+<details class="accordion" open>
+  <summary><span class="badge-num">1</span> 为什么把埋点做进框架，而不是让你手写 <span class="hint">点击展开详解</span></summary>
+  <div class="acc-body">
+    <div class="qa">
+      <div class="q">🧪 示例</div>
+      <div class="a">你不写一行埋点代码，<span class="mono">agent.run(...)</span> 就自动产出 <span class="mono">invoke_agent</span> span；换 ChatClient、加工具，span 树自动跟着变。开关只在启动处一句 <span class="mono">configure_otel_providers()</span>。</div>
+    </div>
+    <div class="qa">
+      <div class="q">❓ 为什么这件事必要</div>
+      <div class="a">手写埋点既啰嗦又容易漏（漏埋的那条路恰恰是出事的路）。而且埋点散落业务代码里，迟早和逻辑纠缠。框架统一埋点 = 覆盖完整、风格一致、可一键开关。</div>
+    </div>
+    <div class="qa">
+      <div class="q">✅ MAF 的做法与优点</div>
+      <div class="a">埋点放在 <span class="mono">AgentTelemetryLayer</span> / <span class="mono">ChatTelemetryLayer</span> 这些<strong>层</strong>里（和中间件同构的"洋葱"思路），对你的 Agent/工具代码透明。属性遵循 OpenTelemetry <strong>GenAI 语义约定</strong>（<span class="mono">gen_ai.*</span>），所以任何兼容后端都能直接读懂。</div>
+    </div>
+    <div class="qa">
+      <div class="q">🔀 还有什么其他方案</div>
+      <div class="a">每个厂商 SDK 自带的私有日志（格式各异、跨厂商对不上）、或自己包一层 trace（重复造轮子）。用 OTel 标准 + 框架内建，是"写一次、到处可观测"的最省力路径。</div>
+    </div>
+  </div>
+</details>
+
+<details class="accordion" open>
+  <summary><span class="badge-num">2</span> 生产里它到底帮你定位什么 <span class="hint">点击展开详解</span></summary>
+  <div class="acc-body">
+    <div class="qa">
+      <div class="q">🧪 示例</div>
+      <div class="a">"用户反馈变慢了"——打开 trace，看到 <span class="mono">invoke_agent</span> 1.9s 里有 1.4s 花在第二次 <span class="mono">chat</span>；再看 metric，<span class="mono">operation.duration</span> 的 p95 确实抬高；问题锁定在模型侧而非工具。</div>
+    </div>
+    <div class="qa">
+      <div class="q">❓ 为什么这件事必要</div>
+      <div class="a">Agent 是<strong>分布式、异步、多步</strong>的：一次回答串起模型 + 多个工具 + 检索。没有 trace，"哪一步慢/错/贵"全靠猜；有了 span 树，因果关系一目了然。</div>
+    </div>
+    <div class="qa">
+      <div class="q">✅ MAF 的做法与优点</div>
+      <div class="a"><strong>延迟</strong>看 span 耗时与 <span class="mono">operation.duration</span>；<strong>失败</strong>看带 <span class="mono">error.type</span> 的 span；<strong>成本</strong>看 <span class="mono">gen_ai.usage.input_tokens/output_tokens</span> 与 <span class="mono">token.usage</span> 指标，可按 agent/模型归因。三件事一套信号全覆盖。</div>
+    </div>
+    <div class="qa">
+      <div class="q">🔀 还有什么其他方案</div>
+      <div class="a">只看应用日志（缺少跨步因果、难聚合）、只看模型厂商账单（只有总量、无法归因到某个 agent）。trace+metric 的组合才能同时回答"哪一步"和"整体趋势"。</div>
+    </div>
+  </div>
+</details>
+
+<div class="card key">
+  <div class="tag">✅ 关键要点</div>
+  <ul>
+    <li>三根支柱：<strong>trace</strong>（span 树·哪一步）、<strong>metric</strong>（聚合·整体趋势）、<strong>log</strong>（事件·发生了啥）。</li>
+    <li>span 命名 <span class="mono">invoke_agent</span> / <span class="mono">chat</span> / <span class="mono">execute_tool</span>；工具 span 嵌在 chat span 之内，耗时滚动累加进父 span。</li>
+    <li>启动时调一次 <span class="mono">configure_otel_providers()</span>（纯关键字参数），其余用 OTel 环境变量；埋点由框架的 telemetry 层自动完成。</li>
+    <li>敏感数据（消息/参数）默认不记录，需 <span class="mono">enable_sensitive_data</span>；属性遵循 <span class="mono">gen_ai.*</span> 语义约定。</li>
+  </ul>
+</div>
+
+<div class="card spark">
+  <div class="tag">💡 设计亮点</div>
+  <strong>可观测是一层，不是一堆散落的日志。</strong>埋点收进 <span class="mono">AgentTelemetryLayer</span>/<span class="mono">ChatTelemetryLayer</span>，与中间件同构地包在调用外面——
+  你的 Agent 代码对"被观测"毫不知情，却能产出符合 OpenTelemetry GenAI 标准的完整 trace。开/关只是启动处一行。
+</div>
+<div class="selftest">
+<h2>🧪 自测 · 想一想为什么这么设计</h2>
+<div class="quiz">
+  <div class="qn">1. 一次带工具的 <code>run()</code> 产生的 span 树，下面哪条描述与框架实际行为一致？</div>
+  <ol class="opts">
+    <li>只有一个扁平的 <code>invoke_agent</code> span，没有任何子 span</li>
+    <li><code>invoke_agent</code> 是根 span，<code>chat</code> 是它的子 span，而工具执行 <code>execute_tool</code> 嵌在 <code>chat</code> span 之内；子 span 耗时滚动累加进父 span</li>
+    <li><code>execute_tool</code> 是根 span，<code>invoke_agent</code> 反而是它的子 span</li>
+    <li>span 之间互相平级，没有父子关系</li>
+  </ol>
+  <details class="accordion" open>
+    <summary>看答案与解析 <span class="hint">点击展开</span></summary>
+    <div class="acc-body"><div class="qa"><div class="a"><strong>答案：B</strong>。框架开根 span <code>invoke_agent {agent}</code>，其下是 <code>chat {model}</code>；源码把「内层工具执行」parent 到这个 chat span（<code>observability.py:1556</code>），所以 <code>execute_tool</code> 嵌在 <code>chat</code> 之内。span 树天然让子调用耗时累加进父 span，因此能定位「慢在哪一步」。</div></div></div>
+  </details>
+</div>
+<div class="quiz">
+  <div class="qn">2. 要在生产里给 Agent Framework 接上 OpenTelemetry，标准做法是？</div>
+  <ol class="opts">
+    <li>在每个工具函数里手写 span 创建/关闭代码</li>
+    <li>必须 fork 框架源码才能加埋点</li>
+    <li>每次 <code>run()</code> 前后都重新初始化一遍 OTel</li>
+    <li>应用启动时调一次 <code>configure_otel_providers()</code>（纯关键字参数），其余靠 OTel 环境变量；埋点由框架的 telemetry 层自动完成</li>
+  </ol>
+  <details class="accordion" open>
+    <summary>看答案与解析 <span class="hint">点击展开</span></summary>
+    <div class="acc-body"><div class="qa"><div class="a"><strong>答案：D</strong>。<code>configure_otel_providers()</code>（<code>observability.py:1151</code>）文档明确「只调一次、在产生任何遥测前」，它读标准 OTel 环境变量。之后 <code>AgentTelemetryLayer</code>/<code>ChatTelemetryLayer</code> 自动给每次调用挂 span+metric——业务代码零埋点。</div></div></div>
+  </details>
+</div>
+<div class="quiz">
+  <div class="qn">3. 可观测的「三根支柱」里，<strong>metric（指标）</strong>最适合回答下面哪类问题？</div>
+  <ol class="opts">
+    <li>模型内部的权重值</li>
+    <li>聚合趋势：整体延迟分布（p95）、token 用量、失败率</li>
+    <li>这一次调用里，第 2 步具体比第 1 步慢多少</li>
+    <li>某条消息的逐字内容</li>
+  </ol>
+  <details class="accordion" open>
+    <summary>看答案与解析 <span class="hint">点击展开</span></summary>
+    <div class="acc-body"><div class="qa"><div class="a"><strong>答案：B</strong>。trace 回答「单次、哪一步」（span 树），metric 回答「聚合、整体趋势」（直方图，如 <code>gen_ai.client.operation.duration</code>、<code>token.usage</code>），log 回答「具体发生了啥」（事件，敏感内容需显式开）。三者分工互补。</div></div></div>
+  </details>
+</div>
+<div class="card spark">
+  <div class="tag">💭 发散思考（没有标准答案，动手或动脑想想）</div>
+  <ul>
+    <li>假设线上某个 Agent「偶尔很慢」。请用本课的三根支柱设计一套排查路径：你会先看 trace 的哪些 span、再看哪些 metric、什么时候才需要打开 <code>enable_sensitive_data</code> 看 log？并说说为什么把敏感数据默认关掉是合理的取舍。</li>
+  </ul>
+</div>
+</div></div></section>
+<section class="print-lesson"><div class="wrap"><div class="lesson-head"><div class="lp">第五部分 · 自己动手做 Agent</div><h1><span class="ln">18 ·</span> 接入各家模型</h1></div>
 <p class="lead">MAF 的 ChatClient 是厂商无关的——但你总要选一个具体厂商来<strong>接入模型</strong>。
 本课过一遍主要 provider 包，教你<strong>怎么从"import 到 run"走完全程</strong>。</p>
 
@@ -5508,7 +5711,7 @@ agent = client.as_agent(
   </ul>
 </div>
 </div></div></section>
-<section class="print-lesson"><div class="wrap"><div class="lesson-head"><div class="lp">第五部分 · 自己动手做 Agent</div><h1><span class="ln">18 ·</span> 声明式 Agent（YAML）</h1></div>
+<section class="print-lesson"><div class="wrap"><div class="lesson-head"><div class="lp">第五部分 · 自己动手做 Agent</div><h1><span class="ln">19 ·</span> 声明式 Agent（YAML）</h1></div>
 <p class="lead">不想写代码？用 <strong>YAML</strong> 定义一个 Agent——名字、指令、工具、模型全写在配置文件里。</p>
 
 <div class="card analogy">
@@ -5741,7 +5944,7 @@ workflow:
   </ul>
 </div>
 </div></div></section>
-<section class="print-lesson"><div class="wrap"><div class="lesson-head"><div class="lp">第五部分 · 自己动手做 Agent</div><h1><span class="ln">19 ·</span> 写自己的中间件</h1></div>
+<section class="print-lesson"><div class="wrap"><div class="lesson-head"><div class="lp">第五部分 · 自己动手做 Agent</div><h1><span class="ln">20 ·</span> 写自己的中间件</h1></div>
 <p class="lead">第 11 课讲了中间件<em>是什么</em>；本课教你<strong>写一个自己的</strong>——从零到能用。</p>
 
 <div class="card analogy">
@@ -5995,7 +6198,7 @@ logger = logging.getLogger(__name__)
   </ul>
 </div>
 </div></div></section>
-<section class="print-lesson"><div class="wrap"><div class="lesson-head"><div class="lp">第五部分 · 自己动手做 Agent</div><h1><span class="ln">20 ·</span> 检查点 · 人在环 · 持久化</h1></div>
+<section class="print-lesson"><div class="wrap"><div class="lesson-head"><div class="lp">第五部分 · 自己动手做 Agent</div><h1><span class="ln">21 ·</span> 检查点 · 人在环 · 持久化</h1></div>
 <p class="lead">生产环境需要：<strong>跑到一半能存盘</strong>（检查点）、<strong>关键操作人工审批</strong>（人在环）、
 <strong>挂了能续跑</strong>（持久化）。MAF 把这三件事做成一等公民。</p>
 
@@ -6228,7 +6431,7 @@ workflow = SequentialBuilder(
   </ul>
 </div>
 </div></div></section>
-<section class="print-lesson"><div class="wrap"><div class="lesson-head"><div class="lp">第五部分 · 自己动手做 Agent</div><h1><span class="ln">21 ·</span> 端到端实战：多 Agent 工作流</h1></div>
+<section class="print-lesson"><div class="wrap"><div class="lesson-head"><div class="lp">第五部分 · 自己动手做 Agent</div><h1><span class="ln">22 ·</span> 端到端实战：多 Agent 工作流</h1></div>
 <p class="lead">最后一课实战：把前面学的<strong>Agent + 工具 + 编排 + 检查点</strong>拼成一个
 <strong>多 Agent 工作流</strong>。</p>
 
@@ -6501,7 +6704,7 @@ logging.basicConfig(level=logging.INFO)</pre>
   </ul>
 </div>
 </div></div></section>
-<section class="print-lesson"><div class="wrap"><div class="lesson-head"><div class="lp">第五部分 · 自己动手做 Agent</div><h1><span class="ln">22 ·</span> 记忆后端</h1></div>
+<section class="print-lesson"><div class="wrap"><div class="lesson-head"><div class="lp">第五部分 · 自己动手做 Agent</div><h1><span class="ln">23 ·</span> 记忆后端</h1></div>
 <p class="lead">前面几课的 Agent 都是<strong>金鱼记忆</strong>——一次 <span class="mono">run()</span> 结束，什么都不记得。
 本课教你给它接上<strong>记忆后端</strong>：用 Redis / Mem0 / Cosmos 把对话历史和长期记忆存到进程之外，
 靠两类抽象——<span class="mono">ContextProvider</span> 与 <span class="mono">HistoryProvider</span>——把"记住"这件事插进每一次运行。</p>
@@ -6733,7 +6936,7 @@ Cosmos 只做 <span class="mono">HistoryProvider</span>（专注持久历史）�
   </ul>
 </div>
 </div></div></section>
-<section class="print-lesson"><div class="wrap"><div class="lesson-head"><div class="lp">第六部分 · 协议与生态</div><h1><span class="ln">23 ·</span> Agent Skills 技能系统</h1></div>
+<section class="print-lesson"><div class="wrap"><div class="lesson-head"><div class="lp">第六部分 · 协议与生态</div><h1><span class="ln">24 ·</span> Agent Skills 技能系统</h1></div>
 <p class="lead"><strong>Agent Skills（技能）</strong>让你把领域知识打包成可发现、可复用的模块——
 Agent 不再只有工具，还有<strong>知识库</strong>。</p>
 
@@ -7100,7 +7303,7 @@ source = AggregatingSkillsSource(sources=[
   </ul>
 </div>
 </div></div></section>
-<section class="print-lesson"><div class="wrap"><div class="lesson-head"><div class="lp">第六部分 · 协议与生态</div><h1><span class="ln">24 ·</span> MCP 工具协议</h1></div>
+<section class="print-lesson"><div class="wrap"><div class="lesson-head"><div class="lp">第六部分 · 协议与生态</div><h1><span class="ln">25 ·</span> MCP 工具协议</h1></div>
 <p class="lead"><strong>MCP（Model Context Protocol）</strong>是连接工具/资源到 LLM 的<strong>开放标准</strong>——
 MAF 既能<strong>调用</strong> MCP 服务器上的工具，也能把 Agent 自身<strong>暴露为</strong> MCP 服务器。</p>
 
@@ -7448,7 +7651,7 @@ MCPStdioTool(name=<span class="st">"fs"</span>, command=<span class="st">"npx"</
   </ul>
 </div>
 </div></div></section>
-<section class="print-lesson"><div class="wrap"><div class="lesson-head"><div class="lp">第六部分 · 协议与生态</div><h1><span class="ln">25 ·</span> Foundry 托管 Agent</h1></div>
+<section class="print-lesson"><div class="wrap"><div class="lesson-head"><div class="lp">第六部分 · 协议与生态</div><h1><span class="ln">26 ·</span> Foundry 托管 Agent</h1></div>
 <p class="lead"><strong>Foundry 托管 Agent</strong>——只需 ~2 行额外代码，就能把本地 Agent 部署到 Azure AI Foundry 云端，
 获得自动伸缩、会话管理和企业级监控。</p>
 
@@ -7789,7 +7992,7 @@ server = InvocationsHostServer(agent=agent)
   </ul>
 </div>
 </div></div></section>
-<section class="print-lesson"><div class="wrap"><div class="lesson-head"><div class="lp">第六部分 · 协议与生态</div><h1><span class="ln">26 ·</span> A2A + AG-UI 协议</h1></div>
+<section class="print-lesson"><div class="wrap"><div class="lesson-head"><div class="lp">第六部分 · 协议与生态</div><h1><span class="ln">27 ·</span> A2A + AG-UI 协议</h1></div>
 <p class="lead"><strong>A2A（Agent-to-Agent）</strong>让 Agent 作为服务暴露给其他 Agent 调用；
 <strong>AG-UI</strong>让 Agent 与前端 UI 实时结构化通信——两个协议合力打通"Agent ↔ Agent"和"Agent ↔ 用户界面"。</p>
 
@@ -8108,7 +8311,7 @@ add_agent_framework_fastapi_endpoint(app, ag_ui_agent)
   </ul>
 </div>
 </div></div></section>
-<section class="print-lesson"><div class="wrap"><div class="lesson-head"><div class="lp">第六部分 · 协议与生态</div><h1><span class="ln">27 ·</span> 评估与时间旅行</h1></div>
+<section class="print-lesson"><div class="wrap"><div class="lesson-head"><div class="lp">第六部分 · 协议与生态</div><h1><span class="ln">28 ·</span> 评估与时间旅行</h1></div>
 <p class="lead"><strong>Evaluation（评估）</strong>系统化测试 Agent 输出质量；
 <strong>Time-travel（时间旅行）</strong>通过检查点回放调试工作流——两者合力让 Agent 从"能跑"进化到"可靠"。</p>
 
@@ -8467,7 +8670,7 @@ results = <span class="kw">await</span> evaluate_agent(agent=agent, queries=[...
   </ul>
 </div>
 </div></div></section>
-<section class="print-lesson"><div class="wrap"><div class="lesson-head"><div class="lp">第七部分 · 番外篇</div><h1><span class="ln">28 ·</span> 横向对比：AF vs 其他框架</h1></div>
+<section class="print-lesson"><div class="wrap"><div class="lesson-head"><div class="lp">第七部分 · 番外篇</div><h1><span class="ln">29 ·</span> 横向对比：AF vs 其他框架</h1></div>
 <p class="lead">Agent 框架不止 MAF 一个。本课横向对比四大框架，帮你建立<strong>全局坐标</strong>。</p>
 
 <div class="card analogy">
@@ -8716,7 +8919,7 @@ SK:        ~25k  (企业用户基数大)</pre>
   </ul>
 </div>
 </div></div></section>
-<section class="print-lesson"><div class="wrap"><div class="lesson-head"><div class="lp">第七部分 · 番外篇</div><h1><span class="ln">29 ·</span> 全栈坐标系 & 学习地图</h1></div>
+<section class="print-lesson"><div class="wrap"><div class="lesson-head"><div class="lp">第七部分 · 番外篇</div><h1><span class="ln">30 ·</span> 全栈坐标系 & 学习地图</h1></div>
 <p class="lead">最后一课，缩放镜头：把 MAF 放进<strong>AI 全栈</strong>的坐标系里——
 看看你现在在哪，隔壁层还有什么值得学。</p>
 

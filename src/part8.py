@@ -678,3 +678,316 @@ serve(entities=[agent], auto_open=<span class="kw">True</span>)   <span class="c
   Even observability (trace) is just one switch, <span class="mono">instrumentation_enabled</span>, reusing the framework's existing OpenTelemetry rather than a parallel system.
 </div>
 """
+
+# ---------------------------------------------------------------------------
+L30_ZH = r"""
+<p class="lead">第 14 课你已见过「流式 + span 树」的合体——那是从<strong>流式</strong>视角顺带认识可观测。本课反过来：以<strong>可观测</strong>为主角，
+讲清 Agent Framework 怎么把每一次运行变成可查询的 <strong>trace / metric / log</strong>，以及生产里你靠它定位延迟、失败和成本。</p>
+
+<div class="card analogy">
+  <div class="tag">🚗 生活类比</div>
+  trace 像车上的<strong>行车记录仪</strong>：平时不看，出事了倒回去逐帧看「哪一步、花了多久、谁先动的」。
+  metric 像<strong>仪表盘读数</strong>（平均时速、油耗），log 像<strong>维修师傅的文字记录</strong>。三者配齐，才能从"它好像变慢了"精确到"是第 2 次 chat 调用慢了 800ms"。
+</div>
+
+<h2>可观测的三根支柱</h2>
+<p>OpenTelemetry（OTel）把"可观测"拆成三类信号，Agent Framework 对三类都做了内建埋点：</p>
+<div class="layers">
+  <div class="layer l-core"><div class="lh"><span class="badge">Trace 链路</span><span class="name">spans</span></div>
+    <div class="ld">一次运行的 <span class="mono">invoke_agent → chat → execute_tool</span> span 树：每步耗时、父子调用关系、哪一步抛错（<span class="mono">error.type</span>）。回答"<strong>慢在哪一步</strong>"。</div></div>
+  <div class="layer l-main"><div class="lh"><span class="badge">Metric 指标</span><span class="name">histograms</span></div>
+    <div class="ld"><span class="mono">gen_ai.client.token.usage</span>、<span class="mono">gen_ai.client.operation.duration</span>、<span class="mono">agent_framework.function.invocation.duration</span>：聚合的延迟分布、token 用量、失败率。回答"<strong>整体健康度</strong>"。</div></div>
+  <div class="layer l-part"><div class="lh"><span class="badge">Log 日志</span><span class="name">events</span></div>
+    <div class="ld">结构化日志与事件。消息内容、工具参数等<strong>敏感数据</strong>默认<strong>不</strong>记录，需显式 <span class="mono">enable_sensitive_data</span>（仅测试/开发）。回答"<strong>具体发生了什么</strong>"。</div></div>
+</div>
+
+<h2>一行启动：把遥测接到后端</h2>
+<div class="flow">
+  <div class="node hl"><div class="nt">configure_otel_providers()</div><div class="nd">启动时调一次</div></div>
+  <div class="arrow">→</div>
+  <div class="node"><div class="nt">框架埋点</div><div class="nd">Agent/Chat/Tool 自动出 span+metric</div></div>
+  <div class="arrow">→</div>
+  <div class="node"><div class="nt">exporter</div><div class="nd">OTLP → :4317</div></div>
+  <div class="arrow">→</div>
+  <div class="node"><div class="nt">后端</div><div class="nd">Jaeger / Azure Monitor…</div></div>
+</div>
+<p>你只需在应用启动时<strong>调一次</strong> <span class="mono">configure_otel_providers()</span>；之后框架的 <span class="mono">AgentTelemetryLayer</span> / <span class="mono">ChatTelemetryLayer</span> 会自动给每次
+<span class="mono">run</span> / <span class="mono">get_response</span> / 工具调用挂上 span 和 metric，按 OTLP 协议吐到你配的后端。<strong>无需在业务代码里手写任何埋点。</strong></p>
+
+<h2>走一遍：一次 run 产生的 span 树</h2>
+<p>同样是"巴黎天气如何？"这次只盯<strong>可观测</strong>那条线（流式细节见第 14 课）。一次带工具的运行会长出这样一棵 span 树：</p>
+<div class="vflow">
+  <div class="step"><div class="num">1</div><div class="sc">
+    <h4>开根 span：invoke_agent</h4>
+    <p><span class="mono">agent.run("巴黎天气如何？")</span> 一进来，框架开根 span <span class="mono">invoke_agent WeatherAgent</span>
+      （<span class="mono">AGENT_INVOKE_OPERATION="invoke_agent"</span>，<span class="mono">observability.py:294</span>），属性带 <span class="mono">gen_ai.agent.name</span>。</p>
+  </div></div>
+  <div class="step"><div class="num">2</div><div class="sc">
+    <h4>子 span：第一次 chat，模型决定调工具</h4>
+    <p>子 span <span class="mono">chat gpt-4o</span> 开启（<span class="mono">CHAT_COMPLETION_OPERATION="chat"</span>，<span class="mono">:289</span>），
+      属性 <span class="mono">gen_ai.request.model=gpt-4o</span>，最终 <span class="mono">gen_ai.response.finish_reasons=[tool_calls]</span>。</p>
+  </div></div>
+  <div class="step"><div class="num">3</div><div class="sc">
+    <h4>更深一层：execute_tool 嵌在 chat 之内</h4>
+    <p>工具执行的 span <span class="mono">execute_tool get_weather</span>（<span class="mono">:291</span>）<strong>挂在 chat span 之下</strong>——
+      源码里"内层工具执行被 parent 到这个 chat span"（<span class="mono">observability.py:1556</span>）。属性带 <span class="mono">gen_ai.tool.name</span>、<span class="mono">gen_ai.tool.call.id</span>。</p>
+  </div></div>
+  <div class="step"><div class="num">4</div><div class="sc">
+    <h4>第二次 chat：带工具结果生成最终文本</h4>
+    <p>再开一个 <span class="mono">chat gpt-4o</span> span，这次 <span class="mono">finish_reasons=[stop]</span>，
+      属性记下 <span class="mono">gen_ai.usage.input_tokens</span> / <span class="mono">output_tokens</span>。</p>
+  </div></div>
+  <div class="step"><div class="num">5</div><div class="sc">
+    <h4>自底向上关闭，吐出 metric</h4>
+    <p>span 依调用栈<strong>自底向上</strong>依次关闭，每个都记下精确耗时；同时发出 metric：
+      <span class="mono">gen_ai.client.token.usage</span>、<span class="mono">gen_ai.client.operation.duration</span>、<span class="mono">agent_framework.function.invocation.duration</span>。根 span 还会把内层 chat 的 token 累加上来。</p>
+  </div></div>
+</div>
+<p>这棵树长这样——子 span 的耗时<strong>滚动累加</strong>进父 span，所以你一眼能看出时间花在哪：</p>
+<pre class="code">invoke_agent WeatherAgent              <span class="cm"># 根：总耗时 1.9s</span>
+└─ chat gpt-4o                         <span class="cm"># 第一次模型调用 → tool_calls</span>
+   └─ execute_tool get_weather         <span class="cm"># 工具执行（嵌在 chat 内）120ms</span>
+└─ chat gpt-4o                         <span class="cm"># 第二次：带结果生成文本 → stop</span></pre>
+<table class="t">
+  <tr><th>span</th><th>operation</th><th>关键属性</th></tr>
+  <tr><td class="mono">invoke_agent WeatherAgent</td><td class="mono">invoke_agent</td><td class="mono">gen_ai.agent.name · usage.*（累加）</td></tr>
+  <tr><td class="mono">chat gpt-4o</td><td class="mono">chat</td><td class="mono">gen_ai.request.model · response.finish_reasons</td></tr>
+  <tr><td class="mono">execute_tool get_weather</td><td class="mono">execute_tool</td><td class="mono">gen_ai.tool.name · gen_ai.tool.call.id</td></tr>
+</table>
+
+<h2>真实源码：一次性接好 OTel</h2>
+<div class="codefile">
+  <div class="cf-head"><span class="dot"></span><span class="path">observability.py</span><span class="ln">configure_otel_providers（简化自 :1151）</span></div>
+<pre><span class="kw">from</span> agent_framework.observability <span class="kw">import</span> configure_otel_providers
+
+<span class="cm"># 应用启动时调用一次，且只调一次（在产生任何遥测之前）</span>
+configure_otel_providers(
+    enable_sensitive_data=<span class="kw">False</span>,       <span class="cm"># 记录消息/参数等敏感内容？仅测试/开发开</span>
+    enable_console_exporters=<span class="kw">False</span>,    <span class="cm"># 把 trace/metric/log 打到控制台（本地调试）</span>
+    exporters=<span class="kw">None</span>,                    <span class="cm"># 额外追加自定义 OTLP exporter</span>
+    views=<span class="kw">None</span>,                        <span class="cm"># metric 视图：过滤/裁剪要采集的指标</span>
+    vs_code_extension_port=<span class="kw">None</span>,       <span class="cm"># 接 VS Code AI Toolkit / Foundry 扩展</span>
+)
+<span class="cm"># 也可全靠环境变量，例如：</span>
+<span class="cm">#   OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:4317</span>
+<span class="cm">#   ENABLE_CONSOLE_EXPORTERS=true</span></pre>
+</div>
+<p>注意它是<strong>纯关键字参数</strong>（签名里的 <span class="mono">*</span>），且文档明确"<strong>只调一次</strong>"。它读标准 OTel 环境变量（<span class="mono">OTEL_EXPORTER_OTLP_ENDPOINT</span> 等），
+所以多数情况下你函数体里什么都不传，全用环境变量配置。想更细控制开关，可直接用 <span class="mono">ObservabilitySettings</span>（<span class="mono">:666</span>），它对应 <span class="mono">ENABLE_INSTRUMENTATION</span> / <span class="mono">ENABLE_SENSITIVE_DATA</span> / <span class="mono">ENABLE_CONSOLE_EXPORTERS</span> 这些环境变量。</p>
+
+<details class="accordion">
+  <summary><span class="badge-num">1</span> 为什么把埋点做进框架，而不是让你手写 <span class="hint">点击展开详解</span></summary>
+  <div class="acc-body">
+    <div class="qa">
+      <div class="q">🧪 示例</div>
+      <div class="a">你不写一行埋点代码，<span class="mono">agent.run(...)</span> 就自动产出 <span class="mono">invoke_agent</span> span；换 ChatClient、加工具，span 树自动跟着变。开关只在启动处一句 <span class="mono">configure_otel_providers()</span>。</div>
+    </div>
+    <div class="qa">
+      <div class="q">❓ 为什么这件事必要</div>
+      <div class="a">手写埋点既啰嗦又容易漏（漏埋的那条路恰恰是出事的路）。而且埋点散落业务代码里，迟早和逻辑纠缠。框架统一埋点 = 覆盖完整、风格一致、可一键开关。</div>
+    </div>
+    <div class="qa">
+      <div class="q">✅ MAF 的做法与优点</div>
+      <div class="a">埋点放在 <span class="mono">AgentTelemetryLayer</span> / <span class="mono">ChatTelemetryLayer</span> 这些<strong>层</strong>里（和中间件同构的"洋葱"思路），对你的 Agent/工具代码透明。属性遵循 OpenTelemetry <strong>GenAI 语义约定</strong>（<span class="mono">gen_ai.*</span>），所以任何兼容后端都能直接读懂。</div>
+    </div>
+    <div class="qa">
+      <div class="q">🔀 还有什么其他方案</div>
+      <div class="a">每个厂商 SDK 自带的私有日志（格式各异、跨厂商对不上）、或自己包一层 trace（重复造轮子）。用 OTel 标准 + 框架内建，是"写一次、到处可观测"的最省力路径。</div>
+    </div>
+  </div>
+</details>
+
+<details class="accordion">
+  <summary><span class="badge-num">2</span> 生产里它到底帮你定位什么 <span class="hint">点击展开详解</span></summary>
+  <div class="acc-body">
+    <div class="qa">
+      <div class="q">🧪 示例</div>
+      <div class="a">"用户反馈变慢了"——打开 trace，看到 <span class="mono">invoke_agent</span> 1.9s 里有 1.4s 花在第二次 <span class="mono">chat</span>；再看 metric，<span class="mono">operation.duration</span> 的 p95 确实抬高；问题锁定在模型侧而非工具。</div>
+    </div>
+    <div class="qa">
+      <div class="q">❓ 为什么这件事必要</div>
+      <div class="a">Agent 是<strong>分布式、异步、多步</strong>的：一次回答串起模型 + 多个工具 + 检索。没有 trace，"哪一步慢/错/贵"全靠猜；有了 span 树，因果关系一目了然。</div>
+    </div>
+    <div class="qa">
+      <div class="q">✅ MAF 的做法与优点</div>
+      <div class="a"><strong>延迟</strong>看 span 耗时与 <span class="mono">operation.duration</span>；<strong>失败</strong>看带 <span class="mono">error.type</span> 的 span；<strong>成本</strong>看 <span class="mono">gen_ai.usage.input_tokens/output_tokens</span> 与 <span class="mono">token.usage</span> 指标，可按 agent/模型归因。三件事一套信号全覆盖。</div>
+    </div>
+    <div class="qa">
+      <div class="q">🔀 还有什么其他方案</div>
+      <div class="a">只看应用日志（缺少跨步因果、难聚合）、只看模型厂商账单（只有总量、无法归因到某个 agent）。trace+metric 的组合才能同时回答"哪一步"和"整体趋势"。</div>
+    </div>
+  </div>
+</details>
+
+<div class="card key">
+  <div class="tag">✅ 关键要点</div>
+  <ul>
+    <li>三根支柱：<strong>trace</strong>（span 树·哪一步）、<strong>metric</strong>（聚合·整体趋势）、<strong>log</strong>（事件·发生了啥）。</li>
+    <li>span 命名 <span class="mono">invoke_agent</span> / <span class="mono">chat</span> / <span class="mono">execute_tool</span>；工具 span 嵌在 chat span 之内，耗时滚动累加进父 span。</li>
+    <li>启动时调一次 <span class="mono">configure_otel_providers()</span>（纯关键字参数），其余用 OTel 环境变量；埋点由框架的 telemetry 层自动完成。</li>
+    <li>敏感数据（消息/参数）默认不记录，需 <span class="mono">enable_sensitive_data</span>；属性遵循 <span class="mono">gen_ai.*</span> 语义约定。</li>
+  </ul>
+</div>
+
+<div class="card spark">
+  <div class="tag">💡 设计亮点</div>
+  <strong>可观测是一层，不是一堆散落的日志。</strong>埋点收进 <span class="mono">AgentTelemetryLayer</span>/<span class="mono">ChatTelemetryLayer</span>，与中间件同构地包在调用外面——
+  你的 Agent 代码对"被观测"毫不知情，却能产出符合 OpenTelemetry GenAI 标准的完整 trace。开/关只是启动处一行。
+</div>
+"""
+
+L30_EN = r"""
+<p class="lead">In Lesson 14 you met "streaming + the span tree"&mdash;observability seen from the <strong>streaming</strong> angle. This lesson flips it: with <strong>observability</strong> as the lead,
+it shows how Agent Framework turns every run into queryable <strong>trace / metric / log</strong>, and how in production you use it to pinpoint latency, failures and cost.</p>
+
+<div class="card analogy">
+  <div class="tag">🚗 Analogy</div>
+  A trace is like a <strong>dashcam</strong>: ignored day to day, but after an incident you rewind frame by frame to see "which step, how long, who moved first".
+  Metrics are like <strong>dashboard gauges</strong> (avg speed, fuel use); logs are the <strong>mechanic's written notes</strong>. Together they take you from "it feels slower" to "the 2nd chat call was 800ms slow".
+</div>
+
+<h2>The three pillars of observability</h2>
+<p>OpenTelemetry (OTel) splits "observability" into three signal types; Agent Framework instruments all three out of the box:</p>
+<div class="layers">
+  <div class="layer l-core"><div class="lh"><span class="badge">Trace</span><span class="name">spans</span></div>
+    <div class="ld">A run's <span class="mono">invoke_agent → chat → execute_tool</span> span tree: per-step duration, parent/child call relationships, which step threw (<span class="mono">error.type</span>). Answers "<strong>where is it slow</strong>".</div></div>
+  <div class="layer l-main"><div class="lh"><span class="badge">Metric</span><span class="name">histograms</span></div>
+    <div class="ld"><span class="mono">gen_ai.client.token.usage</span>, <span class="mono">gen_ai.client.operation.duration</span>, <span class="mono">agent_framework.function.invocation.duration</span>: aggregated latency distribution, token usage, failure rate. Answers "<strong>overall health</strong>".</div></div>
+  <div class="layer l-part"><div class="lh"><span class="badge">Log</span><span class="name">events</span></div>
+    <div class="ld">Structured logs and events. <strong>Sensitive data</strong> like message content and tool args is <strong>not</strong> recorded by default; it needs an explicit <span class="mono">enable_sensitive_data</span> (test/dev only). Answers "<strong>what exactly happened</strong>".</div></div>
+</div>
+
+<h2>One line to wire telemetry to a backend</h2>
+<div class="flow">
+  <div class="node hl"><div class="nt">configure_otel_providers()</div><div class="nd">call once at startup</div></div>
+  <div class="arrow">→</div>
+  <div class="node"><div class="nt">framework instrumentation</div><div class="nd">Agent/Chat/Tool auto span+metric</div></div>
+  <div class="arrow">→</div>
+  <div class="node"><div class="nt">exporter</div><div class="nd">OTLP → :4317</div></div>
+  <div class="arrow">→</div>
+  <div class="node"><div class="nt">backend</div><div class="nd">Jaeger / Azure Monitor…</div></div>
+</div>
+<p>You just <strong>call once</strong> at startup: <span class="mono">configure_otel_providers()</span>. After that the framework's <span class="mono">AgentTelemetryLayer</span> / <span class="mono">ChatTelemetryLayer</span> automatically attach spans and metrics to every
+<span class="mono">run</span> / <span class="mono">get_response</span> / tool call, exporting over OTLP to your configured backend. <strong>No hand-written instrumentation in business code.</strong></p>
+
+<h2>Worked example: the span tree from one run</h2>
+<p>Same "What's the weather in Paris?", but this time we watch only the <strong>observability</strong> line (streaming details are in Lesson 14). A tool-using run grows this span tree:</p>
+<div class="vflow">
+  <div class="step"><div class="num">1</div><div class="sc">
+    <h4>Open the root span: invoke_agent</h4>
+    <p>The moment <span class="mono">agent.run("What's the weather in Paris?")</span> enters, the framework opens the root span <span class="mono">invoke_agent WeatherAgent</span>
+      (<span class="mono">AGENT_INVOKE_OPERATION="invoke_agent"</span>, <span class="mono">observability.py:294</span>), with attribute <span class="mono">gen_ai.agent.name</span>.</p>
+  </div></div>
+  <div class="step"><div class="num">2</div><div class="sc">
+    <h4>Child span: first chat, the model decides to call a tool</h4>
+    <p>A child span <span class="mono">chat gpt-4o</span> opens (<span class="mono">CHAT_COMPLETION_OPERATION="chat"</span>, <span class="mono">:289</span>),
+      with <span class="mono">gen_ai.request.model=gpt-4o</span> and eventually <span class="mono">gen_ai.response.finish_reasons=[tool_calls]</span>.</p>
+  </div></div>
+  <div class="step"><div class="num">3</div><div class="sc">
+    <h4>One level deeper: execute_tool nests inside chat</h4>
+    <p>The tool-execution span <span class="mono">execute_tool get_weather</span> (<span class="mono">:291</span>) <strong>hangs under the chat span</strong>&mdash;
+      the source parents "inner tool execution" under this chat span (<span class="mono">observability.py:1556</span>). Attributes: <span class="mono">gen_ai.tool.name</span>, <span class="mono">gen_ai.tool.call.id</span>.</p>
+  </div></div>
+  <div class="step"><div class="num">4</div><div class="sc">
+    <h4>Second chat: produce the final text with the tool result</h4>
+    <p>Another <span class="mono">chat gpt-4o</span> span opens, this time with <span class="mono">finish_reasons=[stop]</span>,
+      recording <span class="mono">gen_ai.usage.input_tokens</span> / <span class="mono">output_tokens</span>.</p>
+  </div></div>
+  <div class="step"><div class="num">5</div><div class="sc">
+    <h4>Close bottom-up, emit metrics</h4>
+    <p>Spans close <strong>bottom-up</strong> along the call stack, each recording an exact duration; metrics fire alongside:
+      <span class="mono">gen_ai.client.token.usage</span>, <span class="mono">gen_ai.client.operation.duration</span>, <span class="mono">agent_framework.function.invocation.duration</span>. The root span also rolls up token usage from the inner chats.</p>
+  </div></div>
+</div>
+<p>The tree looks like this&mdash;child durations <strong>roll up</strong> into the parent, so you can see at a glance where the time went:</p>
+<pre class="code">invoke_agent WeatherAgent              <span class="cm"># root: total 1.9s</span>
+└─ chat gpt-4o                         <span class="cm"># first model call → tool_calls</span>
+   └─ execute_tool get_weather         <span class="cm"># tool exec (nested in chat) 120ms</span>
+└─ chat gpt-4o                         <span class="cm"># second: text with result → stop</span></pre>
+<table class="t">
+  <tr><th>span</th><th>operation</th><th>key attributes</th></tr>
+  <tr><td class="mono">invoke_agent WeatherAgent</td><td class="mono">invoke_agent</td><td class="mono">gen_ai.agent.name · usage.* (rolled up)</td></tr>
+  <tr><td class="mono">chat gpt-4o</td><td class="mono">chat</td><td class="mono">gen_ai.request.model · response.finish_reasons</td></tr>
+  <tr><td class="mono">execute_tool get_weather</td><td class="mono">execute_tool</td><td class="mono">gen_ai.tool.name · gen_ai.tool.call.id</td></tr>
+</table>
+
+<h2>Real source: wire up OTel once</h2>
+<div class="codefile">
+  <div class="cf-head"><span class="dot"></span><span class="path">observability.py</span><span class="ln">configure_otel_providers (simplified from :1151)</span></div>
+<pre><span class="kw">from</span> agent_framework.observability <span class="kw">import</span> configure_otel_providers
+
+<span class="cm"># Call once at app startup, and only once (before any telemetry is captured)</span>
+configure_otel_providers(
+    enable_sensitive_data=<span class="kw">False</span>,       <span class="cm"># record messages/args etc.? test/dev only</span>
+    enable_console_exporters=<span class="kw">False</span>,    <span class="cm"># print trace/metric/log to console (local debug)</span>
+    exporters=<span class="kw">None</span>,                    <span class="cm"># add custom OTLP exporters</span>
+    views=<span class="kw">None</span>,                        <span class="cm"># metric views: filter/trim which metrics to collect</span>
+    vs_code_extension_port=<span class="kw">None</span>,       <span class="cm"># attach VS Code AI Toolkit / Foundry extension</span>
+)
+<span class="cm"># Or configure entirely via env vars, e.g.:</span>
+<span class="cm">#   OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:4317</span>
+<span class="cm">#   ENABLE_CONSOLE_EXPORTERS=true</span></pre>
+</div>
+<p>Note it's <strong>keyword-only</strong> (the <span class="mono">*</span> in the signature) and the docs say "<strong>call once</strong>". It reads standard OTel env vars (<span class="mono">OTEL_EXPORTER_OTLP_ENDPOINT</span>, etc.),
+so usually you pass nothing and configure via the environment. For finer control over switches, use <span class="mono">ObservabilitySettings</span> (<span class="mono">:666</span>), which maps to env vars like <span class="mono">ENABLE_INSTRUMENTATION</span> / <span class="mono">ENABLE_SENSITIVE_DATA</span> / <span class="mono">ENABLE_CONSOLE_EXPORTERS</span>.</p>
+
+<details class="accordion">
+  <summary><span class="badge-num">1</span> Why bake instrumentation into the framework instead of making you write it <span class="hint">click to expand</span></summary>
+  <div class="acc-body">
+    <div class="qa">
+      <div class="q">🧪 Example</div>
+      <div class="a">You write zero instrumentation code, yet <span class="mono">agent.run(...)</span> auto-emits an <span class="mono">invoke_agent</span> span; swap the ChatClient or add a tool and the span tree follows. The only switch is one <span class="mono">configure_otel_providers()</span> at startup.</div>
+    </div>
+    <div class="qa">
+      <div class="q">❓ Why it's necessary</div>
+      <div class="a">Hand-written instrumentation is verbose and easy to miss&mdash;and the un-instrumented path is exactly the one that breaks. It also tangles with business logic over time. Framework-level instrumentation = complete coverage, consistent style, one-switch control.</div>
+    </div>
+    <div class="qa">
+      <div class="q">✅ MAF's approach &amp; benefits</div>
+      <div class="a">Instrumentation lives in <strong>layers</strong> like <span class="mono">AgentTelemetryLayer</span> / <span class="mono">ChatTelemetryLayer</span> (the same "onion" idea as middleware), transparent to your Agent/tool code. Attributes follow the OpenTelemetry <strong>GenAI semantic conventions</strong> (<span class="mono">gen_ai.*</span>), so any compatible backend understands them directly.</div>
+    </div>
+    <div class="qa">
+      <div class="q">🔀 Alternatives</div>
+      <div class="a">Each vendor SDK's private logging (different formats, can't correlate across vendors), or wrapping your own trace layer (reinventing the wheel). OTel standard + built-in instrumentation is the "write once, observable everywhere" path.</div>
+    </div>
+  </div>
+</details>
+
+<details class="accordion">
+  <summary><span class="badge-num">2</span> What it actually pinpoints in production <span class="hint">click to expand</span></summary>
+  <div class="acc-body">
+    <div class="qa">
+      <div class="q">🧪 Example</div>
+      <div class="a">"Users say it got slower"&mdash;open the trace, see <span class="mono">invoke_agent</span> is 1.9s with 1.4s in the second <span class="mono">chat</span>; check metrics, <span class="mono">operation.duration</span> p95 is indeed up; the problem is on the model side, not the tool.</div>
+    </div>
+    <div class="qa">
+      <div class="q">❓ Why it's necessary</div>
+      <div class="a">Agents are <strong>distributed, async, multi-step</strong>: one answer chains a model + several tools + retrieval. Without traces, "which step is slow/failing/expensive" is guesswork; with a span tree, causality is obvious.</div>
+    </div>
+    <div class="qa">
+      <div class="q">✅ MAF's approach &amp; benefits</div>
+      <div class="a"><strong>Latency</strong>: span durations and <span class="mono">operation.duration</span>; <strong>failures</strong>: spans carrying <span class="mono">error.type</span>; <strong>cost</strong>: <span class="mono">gen_ai.usage.input_tokens/output_tokens</span> and the <span class="mono">token.usage</span> metric, attributable per agent/model. One signal set covers all three.</div>
+    </div>
+    <div class="qa">
+      <div class="q">🔀 Alternatives</div>
+      <div class="a">App logs only (no cross-step causality, hard to aggregate), or vendor billing only (totals, not attributable to a specific agent). Trace + metric together answer both "which step" and "overall trend".</div>
+    </div>
+  </div>
+</details>
+
+<div class="card key">
+  <div class="tag">✅ Key points</div>
+  <ul>
+    <li>Three pillars: <strong>trace</strong> (span tree · which step), <strong>metric</strong> (aggregate · overall trend), <strong>log</strong> (events · what happened).</li>
+    <li>Spans are named <span class="mono">invoke_agent</span> / <span class="mono">chat</span> / <span class="mono">execute_tool</span>; the tool span nests inside the chat span, and durations roll up into the parent.</li>
+    <li>Call <span class="mono">configure_otel_providers()</span> once at startup (keyword-only); configure the rest via OTel env vars; instrumentation is done by the framework's telemetry layers.</li>
+    <li>Sensitive data (messages/args) is off by default and needs <span class="mono">enable_sensitive_data</span>; attributes follow the <span class="mono">gen_ai.*</span> semantic conventions.</li>
+  </ul>
+</div>
+
+<div class="card spark">
+  <div class="tag">💡 Design highlight</div>
+  <strong>Observability is a layer, not scattered logs.</strong> Instrumentation is folded into <span class="mono">AgentTelemetryLayer</span>/<span class="mono">ChatTelemetryLayer</span>, wrapping the call like middleware&mdash;
+  your Agent code has no idea it's being observed, yet emits a complete trace conforming to the OpenTelemetry GenAI conventions. On or off is a single line at startup.
+</div>
+"""

@@ -1038,6 +1038,76 @@ QUIZZES = {
             },
         ],
     },
+    "30-observability.html": {
+        "mcq": [
+            {
+                "q": {
+                    "zh": "一次带工具的 <code>run()</code> 产生的 span 树，下面哪条描述与框架实际行为一致？",
+                    "en": "For the span tree from a tool-using <code>run()</code>, which matches the framework's actual behavior?",
+                },
+                "opts": [
+                    {
+                        "zh": "<code>invoke_agent</code> 是根 span，<code>chat</code> 是它的子 span，而工具执行 <code>execute_tool</code> 嵌在 <code>chat</code> span 之内；子 span 耗时滚动累加进父 span",
+                        "en": "<code>invoke_agent</code> is the root span, <code>chat</code> is its child, and tool execution <code>execute_tool</code> nests inside the <code>chat</code> span; child durations roll up into the parent",
+                    },
+                    {"zh": "只有一个扁平的 <code>invoke_agent</code> span，没有任何子 span", "en": "Just one flat <code>invoke_agent</code> span with no children"},
+                    {"zh": "<code>execute_tool</code> 是根 span，<code>invoke_agent</code> 反而是它的子 span", "en": "<code>execute_tool</code> is the root and <code>invoke_agent</code> is its child"},
+                    {"zh": "span 之间互相平级，没有父子关系", "en": "Spans are all siblings with no parent/child relationship"},
+                ],
+                "answer": 0,
+                "why": {
+                    "zh": "框架开根 span <code>invoke_agent {agent}</code>，其下是 <code>chat {model}</code>；源码把「内层工具执行」parent 到这个 chat span（<code>observability.py:1556</code>），所以 <code>execute_tool</code> 嵌在 <code>chat</code> 之内。span 树天然让子调用耗时累加进父 span，因此能定位「慢在哪一步」。",
+                    "en": "The framework opens root <code>invoke_agent {agent}</code>, then <code>chat {model}</code>; the source parents inner tool execution under that chat span (<code>observability.py:1556</code>), so <code>execute_tool</code> nests inside <code>chat</code>. A span tree rolls child durations into parents, which is how you locate &quot;which step is slow&quot;.",
+                },
+            },
+            {
+                "q": {
+                    "zh": "要在生产里给 Agent Framework 接上 OpenTelemetry，标准做法是？",
+                    "en": "The standard way to wire OpenTelemetry into Agent Framework in production is?",
+                },
+                "opts": [
+                    {
+                        "zh": "应用启动时调一次 <code>configure_otel_providers()</code>（纯关键字参数），其余靠 OTel 环境变量；埋点由框架的 telemetry 层自动完成",
+                        "en": "Call <code>configure_otel_providers()</code> once at startup (keyword-only), configure the rest via OTel env vars; the framework's telemetry layers instrument automatically",
+                    },
+                    {"zh": "在每个工具函数里手写 span 创建/关闭代码", "en": "Hand-write span open/close code inside every tool function"},
+                    {"zh": "每次 <code>run()</code> 前后都重新初始化一遍 OTel", "en": "Re-initialize OTel before and after every <code>run()</code>"},
+                    {"zh": "必须 fork 框架源码才能加埋点", "en": "You must fork the framework source to add instrumentation"},
+                ],
+                "answer": 0,
+                "why": {
+                    "zh": "<code>configure_otel_providers()</code>（<code>observability.py:1151</code>）文档明确「只调一次、在产生任何遥测前」，它读标准 OTel 环境变量。之后 <code>AgentTelemetryLayer</code>/<code>ChatTelemetryLayer</code> 自动给每次调用挂 span+metric——业务代码零埋点。",
+                    "en": "<code>configure_otel_providers()</code> (<code>observability.py:1151</code>) is documented to be called once, before any telemetry, and reads standard OTel env vars. After that, <code>AgentTelemetryLayer</code>/<code>ChatTelemetryLayer</code> attach spans+metrics to every call&mdash;zero instrumentation in business code.",
+                },
+            },
+            {
+                "q": {
+                    "zh": "可观测的「三根支柱」里，<strong>metric（指标）</strong>最适合回答下面哪类问题？",
+                    "en": "Among the three pillars, <strong>metrics</strong> are best suited to answer which kind of question?",
+                },
+                "opts": [
+                    {
+                        "zh": "聚合趋势：整体延迟分布（p95）、token 用量、失败率",
+                        "en": "Aggregate trends: overall latency distribution (p95), token usage, failure rate",
+                    },
+                    {"zh": "这一次调用里，第 2 步具体比第 1 步慢多少", "en": "In this single call, exactly how much slower step 2 was than step 1"},
+                    {"zh": "某条消息的逐字内容", "en": "The verbatim content of one specific message"},
+                    {"zh": "模型内部的权重值", "en": "The model's internal weight values"},
+                ],
+                "answer": 0,
+                "why": {
+                    "zh": "trace 回答「单次、哪一步」（span 树），metric 回答「聚合、整体趋势」（直方图，如 <code>gen_ai.client.operation.duration</code>、<code>token.usage</code>），log 回答「具体发生了啥」（事件，敏感内容需显式开）。三者分工互补。",
+                    "en": "Traces answer &quot;single run, which step&quot; (span tree); metrics answer &quot;aggregate trend&quot; (histograms like <code>gen_ai.client.operation.duration</code>, <code>token.usage</code>); logs answer &quot;what exactly happened&quot; (events, sensitive content opt-in). The three are complementary.",
+                },
+            },
+        ],
+        "open": [
+            {
+                "zh": "假设线上某个 Agent「偶尔很慢」。请用本课的三根支柱设计一套排查路径：你会先看 trace 的哪些 span、再看哪些 metric、什么时候才需要打开 <code>enable_sensitive_data</code> 看 log？并说说为什么把敏感数据默认关掉是合理的取舍。",
+                "en": "Suppose a production Agent is &quot;occasionally slow&quot;. Using this lesson's three pillars, design an investigation path: which trace spans would you look at first, which metrics next, and when would you actually need to flip <code>enable_sensitive_data</code> to inspect logs? Also explain why defaulting sensitive data off is a reasonable tradeoff.",
+            },
+        ],
+    },
     "16-providers.html": {
         "mcq": [
             {

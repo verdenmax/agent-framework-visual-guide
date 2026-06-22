@@ -275,7 +275,7 @@ h2, h3, h4 { break-after: avoid; }
   <div class="emoji">📘</div>
   <h1>Agent Framework Visual Guide</h1>
   <div class="sub">Understand the whole project from scratch · Big picture → Usage → Internals → Build your own</div>
-  <div class="meta">29 lessons · 7 parts · real source-code references in every lesson<br>
+  <div class="meta">30 lessons · 7 parts · real source-code references in every lesson<br>
     Generated 2026-06-23 · verdenmax · Code MIT · Content CC BY 4.0</div>
 </section>
 <section class="print-toc"><div class="wrap"><h2>Table of Contents</h2>
@@ -306,28 +306,29 @@ h2, h3, h4 { break-after: avoid; }
 <ol>
 <li value="15">Read, Debug, Test, Contribute</li>
 <li value="16">DevUI Visual Debugging</li>
+<li value="17">Observability Deep-Dive</li>
 </ol>
 <div class="tp">Part 5 · Build Your Own</div>
 <ol>
-<li value="17">Model Providers</li>
-<li value="18">Declarative Agents (YAML)</li>
-<li value="19">Writing Your Own Middleware</li>
-<li value="20">Checkpointing, HITL & Durability</li>
-<li value="21">Capstone: A Multi-Agent Workflow</li>
-<li value="22">Memory Backends</li>
+<li value="18">Model Providers</li>
+<li value="19">Declarative Agents (YAML)</li>
+<li value="20">Writing Your Own Middleware</li>
+<li value="21">Checkpointing, HITL & Durability</li>
+<li value="22">Capstone: A Multi-Agent Workflow</li>
+<li value="23">Memory Backends</li>
 </ol>
 <div class="tp">Part 6 · Protocols & Ecosystem</div>
 <ol>
-<li value="23">Agent Skills</li>
-<li value="24">MCP Tool Protocol</li>
-<li value="25">Foundry Hosted Agents</li>
-<li value="26">A2A & AG-UI Protocols</li>
-<li value="27">Evaluation & Time-Travel</li>
+<li value="24">Agent Skills</li>
+<li value="25">MCP Tool Protocol</li>
+<li value="26">Foundry Hosted Agents</li>
+<li value="27">A2A & AG-UI Protocols</li>
+<li value="28">Evaluation & Time-Travel</li>
 </ol>
 <div class="tp">Part 7 · Bonus</div>
 <ol>
-<li value="28">AF vs Other Frameworks</li>
-<li value="29">Full-Stack Map & Learning Path</li>
+<li value="29">AF vs Other Frameworks</li>
+<li value="30">Full-Stack Map & Learning Path</li>
 </ol></div></section>
 <section class="print-lesson"><div class="wrap"><div class="lesson-head"><div class="lp">Part 1 · Big Picture</div><h1><span class="ln">01 ·</span> What is Agent Framework</h1></div>
 <p class="lead" style="font-size:1.06rem;color:var(--muted);margin-top:-.6rem">
@@ -5282,7 +5283,209 @@ serve(entities=[agent], auto_open=<span class="kw">True</span>)   <span class="c
   </ul>
 </div>
 </div></div></section>
-<section class="print-lesson"><div class="wrap"><div class="lesson-head"><div class="lp">Part 5 · Build Your Own</div><h1><span class="ln">17 ·</span> Model Providers</h1></div>
+<section class="print-lesson"><div class="wrap"><div class="lesson-head"><div class="lp">Part 4 · Advanced</div><h1><span class="ln">17 ·</span> Observability Deep-Dive</h1></div>
+<p class="lead">In Lesson 14 you met "streaming + the span tree"&mdash;observability seen from the <strong>streaming</strong> angle. This lesson flips it: with <strong>observability</strong> as the lead,
+it shows how Agent Framework turns every run into queryable <strong>trace / metric / log</strong>, and how in production you use it to pinpoint latency, failures and cost.</p>
+
+<div class="card analogy">
+  <div class="tag">🚗 Analogy</div>
+  A trace is like a <strong>dashcam</strong>: ignored day to day, but after an incident you rewind frame by frame to see "which step, how long, who moved first".
+  Metrics are like <strong>dashboard gauges</strong> (avg speed, fuel use); logs are the <strong>mechanic's written notes</strong>. Together they take you from "it feels slower" to "the 2nd chat call was 800ms slow".
+</div>
+
+<h2>The three pillars of observability</h2>
+<p>OpenTelemetry (OTel) splits "observability" into three signal types; Agent Framework instruments all three out of the box:</p>
+<div class="layers">
+  <div class="layer l-core"><div class="lh"><span class="badge">Trace</span><span class="name">spans</span></div>
+    <div class="ld">A run's <span class="mono">invoke_agent → chat → execute_tool</span> span tree: per-step duration, parent/child call relationships, which step threw (<span class="mono">error.type</span>). Answers "<strong>where is it slow</strong>".</div></div>
+  <div class="layer l-main"><div class="lh"><span class="badge">Metric</span><span class="name">histograms</span></div>
+    <div class="ld"><span class="mono">gen_ai.client.token.usage</span>, <span class="mono">gen_ai.client.operation.duration</span>, <span class="mono">agent_framework.function.invocation.duration</span>: aggregated latency distribution, token usage, failure rate. Answers "<strong>overall health</strong>".</div></div>
+  <div class="layer l-part"><div class="lh"><span class="badge">Log</span><span class="name">events</span></div>
+    <div class="ld">Structured logs and events. <strong>Sensitive data</strong> like message content and tool args is <strong>not</strong> recorded by default; it needs an explicit <span class="mono">enable_sensitive_data</span> (test/dev only). Answers "<strong>what exactly happened</strong>".</div></div>
+</div>
+
+<h2>One line to wire telemetry to a backend</h2>
+<div class="flow">
+  <div class="node hl"><div class="nt">configure_otel_providers()</div><div class="nd">call once at startup</div></div>
+  <div class="arrow">→</div>
+  <div class="node"><div class="nt">framework instrumentation</div><div class="nd">Agent/Chat/Tool auto span+metric</div></div>
+  <div class="arrow">→</div>
+  <div class="node"><div class="nt">exporter</div><div class="nd">OTLP → :4317</div></div>
+  <div class="arrow">→</div>
+  <div class="node"><div class="nt">backend</div><div class="nd">Jaeger / Azure Monitor…</div></div>
+</div>
+<p>You just <strong>call once</strong> at startup: <span class="mono">configure_otel_providers()</span>. After that the framework's <span class="mono">AgentTelemetryLayer</span> / <span class="mono">ChatTelemetryLayer</span> automatically attach spans and metrics to every
+<span class="mono">run</span> / <span class="mono">get_response</span> / tool call, exporting over OTLP to your configured backend. <strong>No hand-written instrumentation in business code.</strong></p>
+
+<h2>Worked example: the span tree from one run</h2>
+<p>Same "What's the weather in Paris?", but this time we watch only the <strong>observability</strong> line (streaming details are in Lesson 14). A tool-using run grows this span tree:</p>
+<div class="vflow">
+  <div class="step"><div class="num">1</div><div class="sc">
+    <h4>Open the root span: invoke_agent</h4>
+    <p>The moment <span class="mono">agent.run("What's the weather in Paris?")</span> enters, the framework opens the root span <span class="mono">invoke_agent WeatherAgent</span>
+      (<span class="mono">AGENT_INVOKE_OPERATION="invoke_agent"</span>, <span class="mono">observability.py:294</span>), with attribute <span class="mono">gen_ai.agent.name</span>.</p>
+  </div></div>
+  <div class="step"><div class="num">2</div><div class="sc">
+    <h4>Child span: first chat, the model decides to call a tool</h4>
+    <p>A child span <span class="mono">chat gpt-4o</span> opens (<span class="mono">CHAT_COMPLETION_OPERATION="chat"</span>, <span class="mono">:289</span>),
+      with <span class="mono">gen_ai.request.model=gpt-4o</span> and eventually <span class="mono">gen_ai.response.finish_reasons=[tool_calls]</span>.</p>
+  </div></div>
+  <div class="step"><div class="num">3</div><div class="sc">
+    <h4>One level deeper: execute_tool nests inside chat</h4>
+    <p>The tool-execution span <span class="mono">execute_tool get_weather</span> (<span class="mono">:291</span>) <strong>hangs under the chat span</strong>&mdash;
+      the source parents "inner tool execution" under this chat span (<span class="mono">observability.py:1556</span>). Attributes: <span class="mono">gen_ai.tool.name</span>, <span class="mono">gen_ai.tool.call.id</span>.</p>
+  </div></div>
+  <div class="step"><div class="num">4</div><div class="sc">
+    <h4>Second chat: produce the final text with the tool result</h4>
+    <p>Another <span class="mono">chat gpt-4o</span> span opens, this time with <span class="mono">finish_reasons=[stop]</span>,
+      recording <span class="mono">gen_ai.usage.input_tokens</span> / <span class="mono">output_tokens</span>.</p>
+  </div></div>
+  <div class="step"><div class="num">5</div><div class="sc">
+    <h4>Close bottom-up, emit metrics</h4>
+    <p>Spans close <strong>bottom-up</strong> along the call stack, each recording an exact duration; metrics fire alongside:
+      <span class="mono">gen_ai.client.token.usage</span>, <span class="mono">gen_ai.client.operation.duration</span>, <span class="mono">agent_framework.function.invocation.duration</span>. The root span also rolls up token usage from the inner chats.</p>
+  </div></div>
+</div>
+<p>The tree looks like this&mdash;child durations <strong>roll up</strong> into the parent, so you can see at a glance where the time went:</p>
+<pre class="code">invoke_agent WeatherAgent              <span class="cm"># root: total 1.9s</span>
+└─ chat gpt-4o                         <span class="cm"># first model call → tool_calls</span>
+   └─ execute_tool get_weather         <span class="cm"># tool exec (nested in chat) 120ms</span>
+└─ chat gpt-4o                         <span class="cm"># second: text with result → stop</span></pre>
+<table class="t">
+  <tr><th>span</th><th>operation</th><th>key attributes</th></tr>
+  <tr><td class="mono">invoke_agent WeatherAgent</td><td class="mono">invoke_agent</td><td class="mono">gen_ai.agent.name · usage.* (rolled up)</td></tr>
+  <tr><td class="mono">chat gpt-4o</td><td class="mono">chat</td><td class="mono">gen_ai.request.model · response.finish_reasons</td></tr>
+  <tr><td class="mono">execute_tool get_weather</td><td class="mono">execute_tool</td><td class="mono">gen_ai.tool.name · gen_ai.tool.call.id</td></tr>
+</table>
+
+<h2>Real source: wire up OTel once</h2>
+<div class="codefile">
+  <div class="cf-head"><span class="dot"></span><span class="path">observability.py</span><span class="ln">configure_otel_providers (simplified from :1151)</span></div>
+<pre><span class="kw">from</span> agent_framework.observability <span class="kw">import</span> configure_otel_providers
+
+<span class="cm"># Call once at app startup, and only once (before any telemetry is captured)</span>
+configure_otel_providers(
+    enable_sensitive_data=<span class="kw">False</span>,       <span class="cm"># record messages/args etc.? test/dev only</span>
+    enable_console_exporters=<span class="kw">False</span>,    <span class="cm"># print trace/metric/log to console (local debug)</span>
+    exporters=<span class="kw">None</span>,                    <span class="cm"># add custom OTLP exporters</span>
+    views=<span class="kw">None</span>,                        <span class="cm"># metric views: filter/trim which metrics to collect</span>
+    vs_code_extension_port=<span class="kw">None</span>,       <span class="cm"># attach VS Code AI Toolkit / Foundry extension</span>
+)
+<span class="cm"># Or configure entirely via env vars, e.g.:</span>
+<span class="cm">#   OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:4317</span>
+<span class="cm">#   ENABLE_CONSOLE_EXPORTERS=true</span></pre>
+</div>
+<p>Note it's <strong>keyword-only</strong> (the <span class="mono">*</span> in the signature) and the docs say "<strong>call once</strong>". It reads standard OTel env vars (<span class="mono">OTEL_EXPORTER_OTLP_ENDPOINT</span>, etc.),
+so usually you pass nothing and configure via the environment. For finer control over switches, use <span class="mono">ObservabilitySettings</span> (<span class="mono">:666</span>), which maps to env vars like <span class="mono">ENABLE_INSTRUMENTATION</span> / <span class="mono">ENABLE_SENSITIVE_DATA</span> / <span class="mono">ENABLE_CONSOLE_EXPORTERS</span>.</p>
+
+<details class="accordion" open>
+  <summary><span class="badge-num">1</span> Why bake instrumentation into the framework instead of making you write it <span class="hint">click to expand</span></summary>
+  <div class="acc-body">
+    <div class="qa">
+      <div class="q">🧪 Example</div>
+      <div class="a">You write zero instrumentation code, yet <span class="mono">agent.run(...)</span> auto-emits an <span class="mono">invoke_agent</span> span; swap the ChatClient or add a tool and the span tree follows. The only switch is one <span class="mono">configure_otel_providers()</span> at startup.</div>
+    </div>
+    <div class="qa">
+      <div class="q">❓ Why it's necessary</div>
+      <div class="a">Hand-written instrumentation is verbose and easy to miss&mdash;and the un-instrumented path is exactly the one that breaks. It also tangles with business logic over time. Framework-level instrumentation = complete coverage, consistent style, one-switch control.</div>
+    </div>
+    <div class="qa">
+      <div class="q">✅ MAF's approach &amp; benefits</div>
+      <div class="a">Instrumentation lives in <strong>layers</strong> like <span class="mono">AgentTelemetryLayer</span> / <span class="mono">ChatTelemetryLayer</span> (the same "onion" idea as middleware), transparent to your Agent/tool code. Attributes follow the OpenTelemetry <strong>GenAI semantic conventions</strong> (<span class="mono">gen_ai.*</span>), so any compatible backend understands them directly.</div>
+    </div>
+    <div class="qa">
+      <div class="q">🔀 Alternatives</div>
+      <div class="a">Each vendor SDK's private logging (different formats, can't correlate across vendors), or wrapping your own trace layer (reinventing the wheel). OTel standard + built-in instrumentation is the "write once, observable everywhere" path.</div>
+    </div>
+  </div>
+</details>
+
+<details class="accordion" open>
+  <summary><span class="badge-num">2</span> What it actually pinpoints in production <span class="hint">click to expand</span></summary>
+  <div class="acc-body">
+    <div class="qa">
+      <div class="q">🧪 Example</div>
+      <div class="a">"Users say it got slower"&mdash;open the trace, see <span class="mono">invoke_agent</span> is 1.9s with 1.4s in the second <span class="mono">chat</span>; check metrics, <span class="mono">operation.duration</span> p95 is indeed up; the problem is on the model side, not the tool.</div>
+    </div>
+    <div class="qa">
+      <div class="q">❓ Why it's necessary</div>
+      <div class="a">Agents are <strong>distributed, async, multi-step</strong>: one answer chains a model + several tools + retrieval. Without traces, "which step is slow/failing/expensive" is guesswork; with a span tree, causality is obvious.</div>
+    </div>
+    <div class="qa">
+      <div class="q">✅ MAF's approach &amp; benefits</div>
+      <div class="a"><strong>Latency</strong>: span durations and <span class="mono">operation.duration</span>; <strong>failures</strong>: spans carrying <span class="mono">error.type</span>; <strong>cost</strong>: <span class="mono">gen_ai.usage.input_tokens/output_tokens</span> and the <span class="mono">token.usage</span> metric, attributable per agent/model. One signal set covers all three.</div>
+    </div>
+    <div class="qa">
+      <div class="q">🔀 Alternatives</div>
+      <div class="a">App logs only (no cross-step causality, hard to aggregate), or vendor billing only (totals, not attributable to a specific agent). Trace + metric together answer both "which step" and "overall trend".</div>
+    </div>
+  </div>
+</details>
+
+<div class="card key">
+  <div class="tag">✅ Key points</div>
+  <ul>
+    <li>Three pillars: <strong>trace</strong> (span tree · which step), <strong>metric</strong> (aggregate · overall trend), <strong>log</strong> (events · what happened).</li>
+    <li>Spans are named <span class="mono">invoke_agent</span> / <span class="mono">chat</span> / <span class="mono">execute_tool</span>; the tool span nests inside the chat span, and durations roll up into the parent.</li>
+    <li>Call <span class="mono">configure_otel_providers()</span> once at startup (keyword-only); configure the rest via OTel env vars; instrumentation is done by the framework's telemetry layers.</li>
+    <li>Sensitive data (messages/args) is off by default and needs <span class="mono">enable_sensitive_data</span>; attributes follow the <span class="mono">gen_ai.*</span> semantic conventions.</li>
+  </ul>
+</div>
+
+<div class="card spark">
+  <div class="tag">💡 Design highlight</div>
+  <strong>Observability is a layer, not scattered logs.</strong> Instrumentation is folded into <span class="mono">AgentTelemetryLayer</span>/<span class="mono">ChatTelemetryLayer</span>, wrapping the call like middleware&mdash;
+  your Agent code has no idea it's being observed, yet emits a complete trace conforming to the OpenTelemetry GenAI conventions. On or off is a single line at startup.
+</div>
+<div class="selftest">
+<h2>🧪 Self-test - think about the design</h2>
+<div class="quiz">
+  <div class="qn">1. For the span tree from a tool-using <code>run()</code>, which matches the framework's actual behavior?</div>
+  <ol class="opts">
+    <li>Just one flat <code>invoke_agent</code> span with no children</li>
+    <li><code>invoke_agent</code> is the root span, <code>chat</code> is its child, and tool execution <code>execute_tool</code> nests inside the <code>chat</code> span; child durations roll up into the parent</li>
+    <li><code>execute_tool</code> is the root and <code>invoke_agent</code> is its child</li>
+    <li>Spans are all siblings with no parent/child relationship</li>
+  </ol>
+  <details class="accordion" open>
+    <summary>Show answer &amp; explanation <span class="hint">click to expand</span></summary>
+    <div class="acc-body"><div class="qa"><div class="a"><strong>Answer: B</strong>. The framework opens root <code>invoke_agent {agent}</code>, then <code>chat {model}</code>; the source parents inner tool execution under that chat span (<code>observability.py:1556</code>), so <code>execute_tool</code> nests inside <code>chat</code>. A span tree rolls child durations into parents, which is how you locate &quot;which step is slow&quot;.</div></div></div>
+  </details>
+</div>
+<div class="quiz">
+  <div class="qn">2. The standard way to wire OpenTelemetry into Agent Framework in production is?</div>
+  <ol class="opts">
+    <li>Hand-write span open/close code inside every tool function</li>
+    <li>You must fork the framework source to add instrumentation</li>
+    <li>Re-initialize OTel before and after every <code>run()</code></li>
+    <li>Call <code>configure_otel_providers()</code> once at startup (keyword-only), configure the rest via OTel env vars; the framework's telemetry layers instrument automatically</li>
+  </ol>
+  <details class="accordion" open>
+    <summary>Show answer &amp; explanation <span class="hint">click to expand</span></summary>
+    <div class="acc-body"><div class="qa"><div class="a"><strong>Answer: D</strong>. <code>configure_otel_providers()</code> (<code>observability.py:1151</code>) is documented to be called once, before any telemetry, and reads standard OTel env vars. After that, <code>AgentTelemetryLayer</code>/<code>ChatTelemetryLayer</code> attach spans+metrics to every call&mdash;zero instrumentation in business code.</div></div></div>
+  </details>
+</div>
+<div class="quiz">
+  <div class="qn">3. Among the three pillars, <strong>metrics</strong> are best suited to answer which kind of question?</div>
+  <ol class="opts">
+    <li>The model's internal weight values</li>
+    <li>Aggregate trends: overall latency distribution (p95), token usage, failure rate</li>
+    <li>In this single call, exactly how much slower step 2 was than step 1</li>
+    <li>The verbatim content of one specific message</li>
+  </ol>
+  <details class="accordion" open>
+    <summary>Show answer &amp; explanation <span class="hint">click to expand</span></summary>
+    <div class="acc-body"><div class="qa"><div class="a"><strong>Answer: B</strong>. Traces answer &quot;single run, which step&quot; (span tree); metrics answer &quot;aggregate trend&quot; (histograms like <code>gen_ai.client.operation.duration</code>, <code>token.usage</code>); logs answer &quot;what exactly happened&quot; (events, sensitive content opt-in). The three are complementary.</div></div></div>
+  </details>
+</div>
+<div class="card spark">
+  <div class="tag">💭 Open questions (no single right answer - just think or try)</div>
+  <ul>
+    <li>Suppose a production Agent is &quot;occasionally slow&quot;. Using this lesson's three pillars, design an investigation path: which trace spans would you look at first, which metrics next, and when would you actually need to flip <code>enable_sensitive_data</code> to inspect logs? Also explain why defaulting sensitive data off is a reasonable tradeoff.</li>
+  </ul>
+</div>
+</div></div></section>
+<section class="print-lesson"><div class="wrap"><div class="lesson-head"><div class="lp">Part 5 · Build Your Own</div><h1><span class="ln">18 ·</span> Model Providers</h1></div>
 <p class="lead">MAF's ChatClient is vendor-agnostic — but you pick a concrete vendor to <strong>connect a model</strong>.
 This lesson surveys the main provider packages and shows the <strong>import-to-run path</strong>.</p>
 
@@ -5560,7 +5763,7 @@ agent = client.as_agent(
   </ul>
 </div>
 </div></div></section>
-<section class="print-lesson"><div class="wrap"><div class="lesson-head"><div class="lp">Part 5 · Build Your Own</div><h1><span class="ln">18 ·</span> Declarative Agents (YAML)</h1></div>
+<section class="print-lesson"><div class="wrap"><div class="lesson-head"><div class="lp">Part 5 · Build Your Own</div><h1><span class="ln">19 ·</span> Declarative Agents (YAML)</h1></div>
 <p class="lead">Don't want to write code? Define an Agent in <strong>YAML</strong> — name, instructions, tools
 and model all in a config file.</p>
 
@@ -5795,7 +5998,7 @@ Current limitation: complex routing logic in workflows is best expressed in code
   </ul>
 </div>
 </div></div></section>
-<section class="print-lesson"><div class="wrap"><div class="lesson-head"><div class="lp">Part 5 · Build Your Own</div><h1><span class="ln">19 ·</span> Writing Your Own Middleware</h1></div>
+<section class="print-lesson"><div class="wrap"><div class="lesson-head"><div class="lp">Part 5 · Build Your Own</div><h1><span class="ln">20 ·</span> Writing Your Own Middleware</h1></div>
 <p class="lead">Lesson 11 explained what middleware <em>is</em>; this lesson teaches you to
 <strong>write your own</strong> — from scratch to working.</p>
 
@@ -6052,7 +6255,7 @@ On failure: log error, optionally retry, optionally return fallback. Pattern: ca
   </ul>
 </div>
 </div></div></section>
-<section class="print-lesson"><div class="wrap"><div class="lesson-head"><div class="lp">Part 5 · Build Your Own</div><h1><span class="ln">20 ·</span> Checkpointing, HITL & Durability</h1></div>
+<section class="print-lesson"><div class="wrap"><div class="lesson-head"><div class="lp">Part 5 · Build Your Own</div><h1><span class="ln">21 ·</span> Checkpointing, HITL & Durability</h1></div>
 <p class="lead">Production needs: <strong>save progress mid-run</strong> (checkpoints), <strong>human approval at
 critical steps</strong> (HITL), <strong>resume after crashes</strong> (durability). MAF makes all three first-class.</p>
 
@@ -6285,7 +6488,7 @@ Switching backends is a one-line change. All checkpoint APIs stay the same.
   </ul>
 </div>
 </div></div></section>
-<section class="print-lesson"><div class="wrap"><div class="lesson-head"><div class="lp">Part 5 · Build Your Own</div><h1><span class="ln">21 ·</span> Capstone: A Multi-Agent Workflow</h1></div>
+<section class="print-lesson"><div class="wrap"><div class="lesson-head"><div class="lp">Part 5 · Build Your Own</div><h1><span class="ln">22 ·</span> Capstone: A Multi-Agent Workflow</h1></div>
 <p class="lead">Capstone: assemble <strong>Agent + tools + orchestration + checkpoints</strong> from earlier lessons
 into a <strong>multi-Agent workflow</strong>.</p>
 
@@ -6559,7 +6762,7 @@ Checklist of gaps from demo to production.
   </ul>
 </div>
 </div></div></section>
-<section class="print-lesson"><div class="wrap"><div class="lesson-head"><div class="lp">Part 5 · Build Your Own</div><h1><span class="ln">22 ·</span> Memory Backends</h1></div>
+<section class="print-lesson"><div class="wrap"><div class="lesson-head"><div class="lp">Part 5 · Build Your Own</div><h1><span class="ln">23 ·</span> Memory Backends</h1></div>
 <p class="lead">So far our agents have had <strong>goldfish memory</strong>: the moment a <span class="mono">run()</span> ends, they forget everything.
 This lesson wires in a <strong>memory backend</strong>: Redis / Mem0 / Cosmos store conversation history and long-term memory outside the process,
 through two abstractions&mdash;<span class="mono">ContextProvider</span> and <span class="mono">HistoryProvider</span>&mdash;that splice "remembering" into every run.</p>
@@ -6791,7 +6994,7 @@ Cosmos only does <span class="mono">HistoryProvider</span> (focused on durable h
   </ul>
 </div>
 </div></div></section>
-<section class="print-lesson"><div class="wrap"><div class="lesson-head"><div class="lp">Part 6 · Protocols & Ecosystem</div><h1><span class="ln">23 ·</span> Agent Skills</h1></div>
+<section class="print-lesson"><div class="wrap"><div class="lesson-head"><div class="lp">Part 6 · Protocols & Ecosystem</div><h1><span class="ln">24 ·</span> Agent Skills</h1></div>
 <p class="lead"><strong>Agent Skills</strong> let you package domain knowledge into discoverable, reusable modules —
 Agents get not just tools but <strong>knowledge bases</strong>.</p>
 
@@ -7163,7 +7366,7 @@ source = AggregatingSkillsSource(sources=[
   </ul>
 </div>
 </div></div></section>
-<section class="print-lesson"><div class="wrap"><div class="lesson-head"><div class="lp">Part 6 · Protocols & Ecosystem</div><h1><span class="ln">24 ·</span> MCP Tool Protocol</h1></div>
+<section class="print-lesson"><div class="wrap"><div class="lesson-head"><div class="lp">Part 6 · Protocols & Ecosystem</div><h1><span class="ln">25 ·</span> MCP Tool Protocol</h1></div>
 <p class="lead"><strong>MCP (Model Context Protocol)</strong> is the <strong>open standard</strong> for connecting tools and
 resources to LLMs — MAF can both <strong>call</strong> MCP servers and <strong>expose</strong> an Agent as one.</p>
 
@@ -7512,7 +7715,7 @@ MCPStdioTool(name=<span class="st">"fs"</span>, command=<span class="st">"npx"</
   </ul>
 </div>
 </div></div></section>
-<section class="print-lesson"><div class="wrap"><div class="lesson-head"><div class="lp">Part 6 · Protocols & Ecosystem</div><h1><span class="ln">25 ·</span> Foundry Hosted Agents</h1></div>
+<section class="print-lesson"><div class="wrap"><div class="lesson-head"><div class="lp">Part 6 · Protocols & Ecosystem</div><h1><span class="ln">26 ·</span> Foundry Hosted Agents</h1></div>
 <p class="lead"><strong>Foundry Hosted Agents</strong> — with ~2 extra lines of code, deploy your local Agent to Azure AI
 Foundry cloud and get auto-scaling, session management and enterprise monitoring for free.</p>
 
@@ -7856,7 +8059,7 @@ server = InvocationsHostServer(agent=agent)
   </ul>
 </div>
 </div></div></section>
-<section class="print-lesson"><div class="wrap"><div class="lesson-head"><div class="lp">Part 6 · Protocols & Ecosystem</div><h1><span class="ln">26 ·</span> A2A & AG-UI Protocols</h1></div>
+<section class="print-lesson"><div class="wrap"><div class="lesson-head"><div class="lp">Part 6 · Protocols & Ecosystem</div><h1><span class="ln">27 ·</span> A2A & AG-UI Protocols</h1></div>
 <p class="lead"><strong>A2A (Agent-to-Agent)</strong> exposes an Agent as a service for other Agents to call;
 <strong>AG-UI</strong> gives Agents a structured real-time channel to the frontend —
 together they connect "Agent ↔ Agent" and "Agent ↔ User Interface".</p>
@@ -8179,7 +8382,7 @@ add_agent_framework_fastapi_endpoint(app, ag_ui_agent)
   </ul>
 </div>
 </div></div></section>
-<section class="print-lesson"><div class="wrap"><div class="lesson-head"><div class="lp">Part 6 · Protocols & Ecosystem</div><h1><span class="ln">27 ·</span> Evaluation & Time-Travel</h1></div>
+<section class="print-lesson"><div class="wrap"><div class="lesson-head"><div class="lp">Part 6 · Protocols & Ecosystem</div><h1><span class="ln">28 ·</span> Evaluation & Time-Travel</h1></div>
 <p class="lead"><strong>Evaluation</strong> systematically tests Agent output quality;
 <strong>Time-travel</strong> replays workflow runs from checkpoints for debugging —
 together they take Agents from "it runs" to "it's reliable".</p>
@@ -8540,7 +8743,7 @@ results = <span class="kw">await</span> evaluate_agent(agent=agent, queries=[...
   </ul>
 </div>
 </div></div></section>
-<section class="print-lesson"><div class="wrap"><div class="lesson-head"><div class="lp">Part 7 · Bonus</div><h1><span class="ln">28 ·</span> AF vs Other Frameworks</h1></div>
+<section class="print-lesson"><div class="wrap"><div class="lesson-head"><div class="lp">Part 7 · Bonus</div><h1><span class="ln">29 ·</span> AF vs Other Frameworks</h1></div>
 <p class="lead">MAF isn't the only agent framework. This lesson compares four major ones to give you
 <strong>global coordinates</strong>.</p>
 
@@ -8793,7 +8996,7 @@ SK:        ~25k  (large enterprise user base)</pre>
   </ul>
 </div>
 </div></div></section>
-<section class="print-lesson"><div class="wrap"><div class="lesson-head"><div class="lp">Part 7 · Bonus</div><h1><span class="ln">29 ·</span> Full-Stack Map & Learning Path</h1></div>
+<section class="print-lesson"><div class="wrap"><div class="lesson-head"><div class="lp">Part 7 · Bonus</div><h1><span class="ln">30 ·</span> Full-Stack Map & Learning Path</h1></div>
 <p class="lead">Final lesson — zoom out: place MAF in the <strong>AI full-stack</strong> coordinate system and see
 what's worth learning next door.</p>
 

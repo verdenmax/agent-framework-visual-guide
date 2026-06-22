@@ -30,6 +30,7 @@ CONTENT = {
     "14-streaming-observability.html": {"zh": part3.L14_ZH, "en": part3.L14_EN},
     "15-contributing.html": {"zh": part4.L15_ZH, "en": part4.L15_EN},
     "29-devui.html": {"zh": part8.L29_ZH, "en": part8.L29_EN},
+    "30-observability.html": {"zh": part8.L30_ZH, "en": part8.L30_EN},
     "16-providers.html": {"zh": part5.L16_ZH, "en": part5.L16_EN},
     "17-declarative.html": {"zh": part5.L17_ZH, "en": part5.L17_EN},
     "18-custom-middleware.html": {"zh": part5.L18_ZH, "en": part5.L18_EN},

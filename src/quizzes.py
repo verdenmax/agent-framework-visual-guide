@@ -222,6 +222,73 @@ QUIZZES = {
             },
         ],
     },
+    "10-tool-internals.html": {
+        "mcq": [
+            {
+                "q": {
+                    "zh": "一个 <code>@tool</code> 函数发给模型的 JSON Schema 是从哪来的？",
+                    "en": "Where does the JSON Schema sent to the model for a <code>@tool</code> function come from?",
+                },
+                "opts": [
+                    {"zh": "你必须手写一份 schema 字典传给 <code>@tool</code>", "en": "You must hand-write a schema dict and pass it to <code>@tool</code>"},
+                    {
+                        "zh": "由函数签名自动生成：<code>create_model</code> 造 Pydantic 模型 → <code>model_json_schema()</code>",
+                        "en": "Auto-generated from the signature: <code>create_model</code> builds a Pydantic model → <code>model_json_schema()</code>",
+                    },
+                    {"zh": "模型自己猜测函数的参数", "en": "The model guesses the function's parameters itself"},
+                    {"zh": "从函数运行时的第一次调用里采样得到", "en": "Sampled from the first runtime call of the function"},
+                ],
+                "answer": 1,
+                "why": {
+                    "zh": "<code>_resolve_input_model()</code>（<code>_tools.py:481</code>）用 <code>inspect.signature</code> 读签名、<code>create_model</code> 造 Pydantic 模型，<code>model_json_schema()</code>（<code>:780</code>）直接吐出 schema，<code>to_json_schema_spec()</code>（<code>:866</code>）再套上 function 外壳。框架一行 schema 都没手写。也可用 <code>@tool(schema=…)</code> 显式覆盖。",
+                    "en": "<code>_resolve_input_model()</code> (<code>_tools.py:481</code>) reads the signature via <code>inspect.signature</code>, <code>create_model</code> builds a Pydantic model, <code>model_json_schema()</code> (<code>:780</code>) emits the schema, and <code>to_json_schema_spec()</code> (<code>:866</code>) wraps the function shell. The framework hand-writes no schema. You can still override via <code>@tool(schema=…)</code>.",
+                },
+            },
+            {
+                "q": {
+                    "zh": "一个<strong>没有默认值</strong>的参数（如 <code>city: str</code>），在生成的 schema 里会怎样？",
+                    "en": "A parameter with <strong>no default value</strong> (e.g. <code>city: str</code>) ends up how in the generated schema?",
+                },
+                "opts": [
+                    {"zh": "被放进 <code>required</code> 列表", "en": "Placed into the <code>required</code> list"},
+                    {"zh": "被忽略，不出现在 schema 里", "en": "Ignored — it doesn't appear in the schema"},
+                    {"zh": "自动获得 <code>null</code> 默认值", "en": "Automatically given a <code>null</code> default"},
+                    {"zh": "被标成 <code>readOnly</code>", "en": "Marked as <code>readOnly</code>"},
+                ],
+                "answer": 0,
+                "why": {
+                    "zh": "<code>_resolve_input_model</code> 给无默认值的参数填入 <code>...</code>（Pydantic 的&quot;必填&quot;哨兵），于是 Pydantic 自动把它放进 schema 的 <code>required</code>；有默认值的参数（如 <code>unit=&quot;celsius&quot;</code>）则进 <code>default</code>、不必填。",
+                    "en": "<code>_resolve_input_model</code> assigns <code>...</code> (Pydantic's &quot;required&quot; sentinel) to params without a default, so Pydantic auto-places them in the schema's <code>required</code>; params with a default (e.g. <code>unit=&quot;celsius&quot;</code>) go into <code>default</code> and are optional.",
+                },
+            },
+            {
+                "q": {
+                    "zh": "<code>@tool</code> 从你的函数签名造出的<strong>同一个</strong> Pydantic 模型，同时承担了哪两件事？",
+                    "en": "The <strong>single</strong> Pydantic model <code>@tool</code> builds from your signature does which two jobs at once?",
+                },
+                "opts": [
+                    {
+                        "zh": "对外生成 schema 描述参数；对内校验模型传回的 arguments",
+                        "en": "Outward: emit the schema describing params; inward: validate the arguments the model returns",
+                    },
+                    {"zh": "训练模型，并缓存模型的回复", "en": "Train the model, and cache its replies"},
+                    {"zh": "压缩消息，并加密参数", "en": "Compact messages, and encrypt arguments"},
+                    {"zh": "管理网络重试，并记录遥测", "en": "Manage network retries, and record telemetry"},
+                ],
+                "answer": 0,
+                "why": {
+                    "zh": "一次 <code>create_model</code> 身兼两职：作为 schema 向模型描述参数（第②步），作为校验器在执行前给 <code>arguments</code> 把关（第⑤步）。正因来自同一处签名，&quot;描述&quot;与&quot;校验&quot;永远一致——这就是&quot;签名即契约&quot;，连校验逻辑都不必另写。",
+                    "en": "One <code>create_model</code> serves twice: as the schema describing params to the model (step ②), and as the validator guarding <code>arguments</code> before execution (step ⑤). Because both come from the one signature, &quot;describe&quot; and &quot;validate&quot; always agree — &quot;signature as contract&quot;, with validation logic free.",
+                },
+            },
+        ],
+        "open": [
+            {
+                "zh": "&quot;手写函数 + 手写 JSON Schema&quot;这种两份独立维护的写法，最典型的 bug 是什么？请用一个具体场景说明，并解释 MAF 的&quot;单一事实来源&quot;（从签名派生 schema）如何根除它、又付出了什么代价（提示：<code>@tool(schema=…)</code>）。",
+                "en": "What is the most typical bug of the &quot;hand-write the function + hand-write the JSON Schema&quot; two-copies approach? Give a concrete scenario, then explain how MAF's &quot;single source of truth&quot; (deriving the schema from the signature) eliminates it — and what it costs (hint: <code>@tool(schema=…)</code>).",
+            },
+        ],
+    },
 }
 
 

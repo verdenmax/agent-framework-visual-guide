@@ -1186,12 +1186,89 @@ L10_ZH = r"""
     <p>返回值打包成 <span class="mono">function_result</span> Content，追加进消息，回到第 3 步让模型继续。</p></div></div>
 </div>
 
+<h2>追踪一次真实工具调用：get_weather(&quot;北京&quot;)</h2>
+<p>上面是抽象闭环，我们用一个<strong>具体函数</strong>端到端走一遍，每步都给出当时的<strong>真实数据快照</strong>——
+看一个普通 Python 函数如何变成模型能读的 schema，又如何被模型&quot;点名&quot;并执行：</p>
+
+<div class="vflow">
+  <div class="step"><div class="num">1</div><div class="sc"><h4>你写的函数（带类型注解）</h4>
+    <p>注意：<span class="mono">city</span> 无默认值（必填），<span class="mono">unit</span> 有默认值（可选）：</p>
+<pre class="code"><span class="nb">@tool</span>
+<span class="kw">def</span> <span class="fn">get_weather</span>(
+    city: Annotated[str, Field(description=<span class="st">&quot;城市名&quot;</span>)],
+    unit: str = <span class="st">&quot;celsius&quot;</span>,
+) -&gt; str:
+    <span class="st">&quot;&quot;&quot;查询某城市的当前天气&quot;&quot;&quot;</span>
+    <span class="kw">return</span> f<span class="st">&quot;{city}: 18°C 晴&quot;</span></pre></div></div>
+  <div class="step"><div class="num">2</div><div class="sc"><h4>签名 → Pydantic 模型 → JSON Schema</h4>
+    <p><span class="mono">_resolve_input_model()</span>（<span class="mono">_tools.py:481</span>）用 <span class="mono">inspect.signature</span> 读出参数，
+    <span class="mono">create_model(&quot;get_weather_input&quot;, **fields)</span> 造出一个 Pydantic 模型，再 <span class="mono">.model_json_schema()</span> 生成：</p>
+<pre class="code">{
+  <span class="st">&quot;type&quot;</span>: <span class="st">&quot;object&quot;</span>,
+  <span class="st">&quot;properties&quot;</span>: {
+    <span class="st">&quot;city&quot;</span>: {<span class="st">&quot;type&quot;</span>: <span class="st">&quot;string&quot;</span>, <span class="st">&quot;description&quot;</span>: <span class="st">&quot;城市名&quot;</span>},
+    <span class="st">&quot;unit&quot;</span>: {<span class="st">&quot;type&quot;</span>: <span class="st">&quot;string&quot;</span>, <span class="st">&quot;default&quot;</span>: <span class="st">&quot;celsius&quot;</span>}},
+  <span class="st">&quot;required&quot;</span>: [<span class="st">&quot;city&quot;</span>]   <span class="cm"># 无默认值的参数自动进 required</span>
+}</pre></div></div>
+  <div class="step"><div class="num">3</div><div class="sc"><h4>包成 function spec，随请求发出</h4>
+    <p><span class="mono">to_json_schema_spec()</span>（<span class="mono">_tools.py:866</span>）把上面的 schema 套进 OpenAI 工具格式，ChatClient 在 <span class="mono">tools</span> 字段里带上它：</p>
+<pre class="code">{<span class="st">&quot;type&quot;</span>: <span class="st">&quot;function&quot;</span>,
+ <span class="st">&quot;function&quot;</span>: {<span class="st">&quot;name&quot;</span>: <span class="st">&quot;get_weather&quot;</span>,
+              <span class="st">&quot;description&quot;</span>: <span class="st">&quot;查询某城市的当前天气&quot;</span>,
+              <span class="st">&quot;parameters&quot;</span>: { … 第②步那份 … }}}</pre></div></div>
+  <div class="step"><div class="num">4</div><div class="sc"><h4>模型点名这个工具</h4>
+    <p>模型读 schema 后决定调用，回一个 <span class="mono">function_call</span> 内容（<span class="mono">arguments</span> 是 JSON <strong>字符串</strong>）：</p>
+<pre class="code">Content.from_function_call(       <span class="cm"># _types.py:788</span>
+  call_id=<span class="st">&quot;call_1&quot;</span>, name=<span class="st">&quot;get_weather&quot;</span>,
+  arguments=<span class="st">'{&quot;city&quot;: &quot;北京&quot;}'</span>)   <span class="cm"># 模型只填了必填项</span></pre></div></div>
+  <div class="step"><div class="num">5</div><div class="sc"><h4>校验参数 → 反序列化 → 执行</h4>
+    <p><span class="mono">FunctionTool.invoke()</span>（<span class="mono">_tools.py:574</span>）拿第②步那个 Pydantic 模型校验 <span class="mono">arguments</span>，
+    校验通过后 <span class="mono">unit</span> 自动补上默认值 <span class="mono">&quot;celsius&quot;</span>，再调用你的函数：</p>
+<pre class="code">get_weather(city=<span class="st">&quot;北京&quot;</span>, unit=<span class="st">&quot;celsius&quot;</span>)
+<span class="cm"># → &quot;北京: 18°C 晴&quot;</span></pre></div></div>
+  <div class="step"><div class="num">6</div><div class="sc"><h4>结果包成 function_result 回灌</h4>
+    <p><span class="mono">parse_result()</span>（<span class="mono">_tools.py:825</span>）把返回值规整成 <span class="mono">list[Content]</span>，再包成 function_result 追加进消息列表，回到第 3 步让模型续写：</p>
+<pre class="code">Content.from_function_result(     <span class="cm"># _types.py:812</span>
+  call_id=<span class="st">&quot;call_1&quot;</span>, result=<span class="st">&quot;北京: 18°C 晴&quot;</span>)</pre></div></div>
+</div>
+
+<div class="card detail">
+  <div class="tag">🔬 读懂这条轨迹</div>
+  注意第 ② 步和第 ⑤ 步用的是<strong>同一个 Pydantic 模型</strong>：一次 <span class="mono">create_model</span> 同时承担了
+  &quot;对模型描述参数&quot;（生成 schema）和&quot;对参数把关&quot;（执行前校验）两件事。这就是&quot;签名即契约&quot;——
+  你<strong>从未手写过一行 schema，也从未手写过一行校验</strong>，两者却永远一致，因为它们来自同一处签名。
+</div>
+
+<h2>签名即 Schema：一一对照</h2>
+<p>第②步那次&quot;签名 → schema&quot;到底怎么映射？下表逐项拆开，看 Python 的每个语法元素分别变成 JSON Schema 的哪个字段：</p>
+<table class="t">
+  <tr><th>Python 函数里的写法</th><th>JSON Schema 里的字段</th><th>谁负责</th></tr>
+  <tr><td class="mono">def get_weather(…)</td><td class="mono">function.name = &quot;get_weather&quot;</td><td><span class="mono">__name__</span>（可被 <span class="mono">@tool(name=…)</span> 覆盖）</td></tr>
+  <tr><td>函数 docstring</td><td class="mono">function.description</td><td><span class="mono">@tool</span> 取 docstring</td></tr>
+  <tr><td class="mono">city: str</td><td class="mono">properties.city.type = &quot;string&quot;</td><td>Pydantic 由类型注解推断</td></tr>
+  <tr><td class="mono">Field(description=&quot;城市名&quot;)</td><td class="mono">properties.city.description</td><td><span class="mono">Annotated</span> + <span class="mono">Field</span></td></tr>
+  <tr><td class="mono">unit: str = &quot;celsius&quot;</td><td class="mono">properties.unit.default</td><td>参数默认值</td></tr>
+  <tr><td>无默认值的参数</td><td class="mono">required: [&quot;city&quot;]</td><td><span class="mono">_resolve_input_model</span> 用 <span class="mono">...</span> 标记</td></tr>
+</table>
+
+<h2>Schema 生成流水线</h2>
+<p>把第②③步连起来看，从函数到&quot;模型能读的 function spec&quot;是一条四段流水线，全程<strong>无需人工</strong>：</p>
+<div class="flow">
+  <div class="node"><div class="nt">函数签名</div><div class="nd">inspect.signature</div></div>
+  <div class="arrow">→</div>
+  <div class="node"><div class="nt">create_model</div><div class="nd">造 Pydantic 模型</div></div>
+  <div class="arrow">→</div>
+  <div class="node hl"><div class="nt">model_json_schema()</div><div class="nd">Pydantic 生成 schema</div></div>
+  <div class="arrow">→</div>
+  <div class="node"><div class="nt">to_json_schema_spec()</div><div class="nd">套 function 外壳</div></div>
+</div>
+
 <details class="accordion">
   <summary><span class="badge-num">1</span> FunctionTool 里装了什么？ <span class="hint">点击展开详解</span></summary>
   <div class="acc-body">
     <div class="qa"><div class="q">🧪 示例</div><div class="a"><span class="mono">FunctionTool</span>（<span class="mono">_tools.py:240</span>）持有：原始函数引用、生成的 JSON Schema、
       <span class="mono">approval_mode</span>（调用前是否需要人工审批）、函数名、描述。
-      <span class="mono">@tool</span>（<span class="mono">_tools.py:1145</span>）是构造 <span class="mono">FunctionTool</span> 的语法糖。</div></div>
+      <span class="mono">@tool</span>（<span class="mono">_tools.py:1176</span>）是构造 <span class="mono">FunctionTool</span> 的语法糖。</div></div>
     <div class="qa"><div class="q">❓ 为什么这件事必要</div><div class="a">知道 <span class="mono">FunctionTool</span> 的结构，才能理解 schema 是怎么生成的、
       执行时参数怎么验证的、<span class="mono">approval_mode</span> 在哪里拦截。调试工具调用问题必须从这里入手。</div></div>
     <div class="qa"><div class="q">✅ MAF 的做法与优点</div><div class="a"><span class="mono">FunctionTool</span> 把函数元信息（名字、描述、schema）和运行时行为
@@ -1293,12 +1370,49 @@ Content(
   </div>
 </details>
 
+<h2>🔍 真实源码：从签名到 function spec</h2>
+<div class="codefile">
+  <div class="cf-head"><span class="dot"></span><span class="path">_tools.py</span><span class="ln">签名 → schema（简化自 :481 / :780 / :866）</span></div>
+<pre class="code"><span class="cm"># ① 从函数签名造 Pydantic 模型（_resolve_input_model :481）</span>
+sig = inspect.signature(func)
+fields = {
+    pname: (annotation_of(param),
+            param.default <span class="kw">if</span> has_default(param) <span class="kw">else</span> ...)  <span class="cm"># ... = 必填</span>
+    <span class="kw">for</span> pname, param <span class="kw">in</span> sig.parameters.items()
+    <span class="kw">if</span> pname <span class="kw">not in</span> {<span class="st">&quot;self&quot;</span>, <span class="st">&quot;cls&quot;</span>}}
+input_model = create_model(f<span class="st">&quot;{name}_input&quot;</span>, **fields)
+
+<span class="cm"># ② Pydantic 直接吐 JSON Schema（_input_schema :780）</span>
+<span class="kw">def</span> <span class="fn">parameters</span>(self):
+    <span class="kw">return</span> self.input_model.model_json_schema()
+
+<span class="cm"># ③ 套上 function 外壳（to_json_schema_spec :866）</span>
+<span class="kw">def</span> <span class="fn">to_json_schema_spec</span>(self):
+    <span class="kw">return</span> {<span class="st">&quot;type&quot;</span>: <span class="st">&quot;function&quot;</span>, <span class="st">&quot;function&quot;</span>: {
+        <span class="st">&quot;name&quot;</span>: self.name,
+        <span class="st">&quot;description&quot;</span>: self.description,
+        <span class="st">&quot;parameters&quot;</span>: self.parameters()}}</pre>
+</div>
+<p>三段全是<strong>从源码直接简化</strong>而来：框架自己<strong>一行 schema 都没手写</strong>——它把活儿交给
+<span class="mono">inspect</span>（读签名）和 <span class="mono">Pydantic</span>（出 schema）。无默认值的参数被标成 <span class="mono">...</span>，于是 Pydantic 自动把它放进
+<span class="mono">required</span>。这正是上面&quot;签名即 Schema&quot;对照表能成立的代码出处。</p>
+
+<h2>为什么让类型注解自动生成 Schema</h2>
+<p>最朴素的做法是让你<strong>手写两份东西</strong>：一份 Python 函数、一份描述它的 JSON Schema。问题是这两份会
+<strong>各自漂移</strong>——你给函数加了个参数，却忘了改 schema；模型于是按旧 schema 生成参数，运行时直接炸。
+凡是&quot;同一个事实写两遍&quot;的设计，迟早会因为两遍不同步而出 bug。</p>
+<p>MAF 选择<strong>单一事实来源</strong>（single source of truth）：函数签名是<strong>唯一</strong>的真相，schema 由它<strong>派生</strong>。
+你改签名，schema 下次生成时自动跟着变，永不漂移——这就是 DRY（Don't Repeat Yourself）原则在工具系统里的体现。
+更妙的是同一个 Pydantic 模型<strong>身兼两职</strong>：对外当 schema 描述参数，对内当校验器把关入参，连&quot;校验逻辑&quot;都不必另写。</p>
+<p>代价是你得接受框架的&quot;约定&quot;：用 <span class="mono">Annotated[..., Field(description=…)]</span> 写参数说明、用类型注解表达类型。
+但这点约束换来的是<strong>代码即文档、文档永不过期</strong>。需要完全自定义时，<span class="mono">@tool(schema=…)</span> 仍允许你显式传入 schema——又是&quot;窄默认 + 逃生舱口&quot;的老套路。</p>
+
 <div class="card key">
   <div class="tag">✅ 关键要点</div>
   <ul>
     <li><span class="mono">@tool</span> → <span class="mono">FunctionTool</span> → JSON Schema → 随请求发给模型。</li>
     <li>模型回 <span class="mono">function_call</span> → 框架执行 → <span class="mono">function_result</span> 回灌 → 再让模型继续。</li>
-    <li>整个循环在 Agent 内部自动跑，调用方无感。</li>
+    <li>这个循环在 ChatClient 一侧的 <span class="mono">FunctionInvocationLayer</span> 里自动跑（不在 Agent 里），调用方无感。</li>
   </ul>
 </div>
 
@@ -1336,13 +1450,90 @@ Python function to JSON Schema and back through the model's <strong>full round-t
     <p>The return value is packed as <span class="mono">function_result</span> Content, appended to messages, back to step 3.</p></div></div>
 </div>
 
+<h2>Tracing a real tool call: get_weather(&quot;Beijing&quot;)</h2>
+<p>That was the abstract loop; let's walk one <strong>concrete function</strong> end to end, with a <strong>real data snapshot</strong> at each step —
+watch how an ordinary Python function becomes a model-readable schema, then gets &quot;named&quot; by the model and executed:</p>
+
+<div class="vflow">
+  <div class="step"><div class="num">1</div><div class="sc"><h4>The function you write (with type hints)</h4>
+    <p>Note: <span class="mono">city</span> has no default (required); <span class="mono">unit</span> has a default (optional):</p>
+<pre class="code"><span class="nb">@tool</span>
+<span class="kw">def</span> <span class="fn">get_weather</span>(
+    city: Annotated[str, Field(description=<span class="st">&quot;city name&quot;</span>)],
+    unit: str = <span class="st">&quot;celsius&quot;</span>,
+) -&gt; str:
+    <span class="st">&quot;&quot;&quot;Get the current weather for a city&quot;&quot;&quot;</span>
+    <span class="kw">return</span> f<span class="st">&quot;{city}: 18°C sunny&quot;</span></pre></div></div>
+  <div class="step"><div class="num">2</div><div class="sc"><h4>Signature → Pydantic model → JSON Schema</h4>
+    <p><span class="mono">_resolve_input_model()</span> (<span class="mono">_tools.py:481</span>) reads params via <span class="mono">inspect.signature</span>,
+    <span class="mono">create_model(&quot;get_weather_input&quot;, **fields)</span> builds a Pydantic model, then <span class="mono">.model_json_schema()</span> emits:</p>
+<pre class="code">{
+  <span class="st">&quot;type&quot;</span>: <span class="st">&quot;object&quot;</span>,
+  <span class="st">&quot;properties&quot;</span>: {
+    <span class="st">&quot;city&quot;</span>: {<span class="st">&quot;type&quot;</span>: <span class="st">&quot;string&quot;</span>, <span class="st">&quot;description&quot;</span>: <span class="st">&quot;city name&quot;</span>},
+    <span class="st">&quot;unit&quot;</span>: {<span class="st">&quot;type&quot;</span>: <span class="st">&quot;string&quot;</span>, <span class="st">&quot;default&quot;</span>: <span class="st">&quot;celsius&quot;</span>}},
+  <span class="st">&quot;required&quot;</span>: [<span class="st">&quot;city&quot;</span>]   <span class="cm"># params without a default auto-go into required</span>
+}</pre></div></div>
+  <div class="step"><div class="num">3</div><div class="sc"><h4>Wrap as a function spec, send with the request</h4>
+    <p><span class="mono">to_json_schema_spec()</span> (<span class="mono">_tools.py:866</span>) nests that schema in the OpenAI tool shape; the ChatClient includes it in the <span class="mono">tools</span> field:</p>
+<pre class="code">{<span class="st">&quot;type&quot;</span>: <span class="st">&quot;function&quot;</span>,
+ <span class="st">&quot;function&quot;</span>: {<span class="st">&quot;name&quot;</span>: <span class="st">&quot;get_weather&quot;</span>,
+              <span class="st">&quot;description&quot;</span>: <span class="st">&quot;Get the current weather for a city&quot;</span>,
+              <span class="st">&quot;parameters&quot;</span>: { … the step ② schema … }}}</pre></div></div>
+  <div class="step"><div class="num">4</div><div class="sc"><h4>The model names this tool</h4>
+    <p>After reading the schema the model decides to call it, returning a <span class="mono">function_call</span> (its <span class="mono">arguments</span> is a JSON <strong>string</strong>):</p>
+<pre class="code">Content.from_function_call(       <span class="cm"># _types.py:788</span>
+  call_id=<span class="st">&quot;call_1&quot;</span>, name=<span class="st">&quot;get_weather&quot;</span>,
+  arguments=<span class="st">'{&quot;city&quot;: &quot;Beijing&quot;}'</span>)   <span class="cm"># model filled only the required field</span></pre></div></div>
+  <div class="step"><div class="num">5</div><div class="sc"><h4>Validate args → deserialize → execute</h4>
+    <p><span class="mono">FunctionTool.invoke()</span> (<span class="mono">_tools.py:574</span>) validates <span class="mono">arguments</span> with that step-② Pydantic model;
+    on success <span class="mono">unit</span> auto-fills its default <span class="mono">&quot;celsius&quot;</span>, then your function runs:</p>
+<pre class="code">get_weather(city=<span class="st">&quot;Beijing&quot;</span>, unit=<span class="st">&quot;celsius&quot;</span>)
+<span class="cm"># → &quot;Beijing: 18°C sunny&quot;</span></pre></div></div>
+  <div class="step"><div class="num">6</div><div class="sc"><h4>Result packed as function_result, fed back</h4>
+    <p><span class="mono">parse_result()</span> (<span class="mono">_tools.py:825</span>) normalizes the return into <span class="mono">list[Content]</span>, packed as function_result and appended; back to step 3 for the model to continue:</p>
+<pre class="code">Content.from_function_result(     <span class="cm"># _types.py:812</span>
+  call_id=<span class="st">&quot;call_1&quot;</span>, result=<span class="st">&quot;Beijing: 18°C sunny&quot;</span>)</pre></div></div>
+</div>
+
+<div class="card detail">
+  <div class="tag">🔬 Reading this trace</div>
+  Notice steps ② and ⑤ use the <strong>same Pydantic model</strong>: one <span class="mono">create_model</span> does double duty —
+  &quot;describe params to the model&quot; (emit schema) and &quot;guard the params&quot; (validate before execution). That is &quot;signature as contract&quot; —
+  you <strong>never hand-wrote a line of schema, nor a line of validation</strong>, yet the two always agree, because both come from the one signature.
+</div>
+
+<h2>Signature IS the schema: a field-by-field map</h2>
+<p>How exactly does that step-② &quot;signature → schema&quot; map? The table below breaks it down — which Python syntax element becomes which JSON Schema field:</p>
+<table class="t">
+  <tr><th>In the Python function</th><th>In the JSON Schema</th><th>Who does it</th></tr>
+  <tr><td class="mono">def get_weather(…)</td><td class="mono">function.name = &quot;get_weather&quot;</td><td><span class="mono">__name__</span> (override via <span class="mono">@tool(name=…)</span>)</td></tr>
+  <tr><td>function docstring</td><td class="mono">function.description</td><td><span class="mono">@tool</span> reads the docstring</td></tr>
+  <tr><td class="mono">city: str</td><td class="mono">properties.city.type = &quot;string&quot;</td><td>Pydantic infers from the annotation</td></tr>
+  <tr><td class="mono">Field(description=&quot;city name&quot;)</td><td class="mono">properties.city.description</td><td><span class="mono">Annotated</span> + <span class="mono">Field</span></td></tr>
+  <tr><td class="mono">unit: str = &quot;celsius&quot;</td><td class="mono">properties.unit.default</td><td>parameter default</td></tr>
+  <tr><td>params without a default</td><td class="mono">required: [&quot;city&quot;]</td><td><span class="mono">_resolve_input_model</span> marks with <span class="mono">...</span></td></tr>
+</table>
+
+<h2>The schema-generation pipeline</h2>
+<p>Chaining steps ②③, the path from function to &quot;model-readable function spec&quot; is a four-stage pipeline, <strong>fully hands-off</strong>:</p>
+<div class="flow">
+  <div class="node"><div class="nt">function signature</div><div class="nd">inspect.signature</div></div>
+  <div class="arrow">→</div>
+  <div class="node"><div class="nt">create_model</div><div class="nd">build Pydantic model</div></div>
+  <div class="arrow">→</div>
+  <div class="node hl"><div class="nt">model_json_schema()</div><div class="nd">Pydantic emits schema</div></div>
+  <div class="arrow">→</div>
+  <div class="node"><div class="nt">to_json_schema_spec()</div><div class="nd">wrap in function shell</div></div>
+</div>
+
 <details class="accordion">
   <summary><span class="badge-num">1</span> What's inside a FunctionTool? <span class="hint">expand</span></summary>
   <div class="acc-body">
     <div class="qa"><div class="q">🧪 Example</div><div class="a"><span class="mono">FunctionTool</span> (<span class="mono">_tools.py:240</span>) holds: the original function reference,
       the generated JSON Schema, <span class="mono">approval_mode</span> (whether human approval is needed before invocation),
       the function name and description.
-      <span class="mono">@tool</span> (<span class="mono">_tools.py:1145</span>) is syntactic sugar for constructing a <span class="mono">FunctionTool</span>.</div></div>
+      <span class="mono">@tool</span> (<span class="mono">_tools.py:1176</span>) is syntactic sugar for constructing a <span class="mono">FunctionTool</span>.</div></div>
     <div class="qa"><div class="q">❓ Why this matters</div><div class="a">Knowing <span class="mono">FunctionTool</span>'s structure helps you understand how schemas are generated,
       how arguments are validated at execution, and where <span class="mono">approval_mode</span> intercepts. Debugging tool calls starts here.</div></div>
     <div class="qa"><div class="q">✅ How MAF does it</div><div class="a"><span class="mono">FunctionTool</span> bundles function metadata (name, description, schema) and runtime behavior
@@ -1444,12 +1635,50 @@ Content(
   </div>
 </details>
 
+<h2>🔍 Real source: from signature to function spec</h2>
+<div class="codefile">
+  <div class="cf-head"><span class="dot"></span><span class="path">_tools.py</span><span class="ln">signature → schema (simplified from :481 / :780 / :866)</span></div>
+<pre class="code"><span class="cm"># ① Build a Pydantic model from the signature (_resolve_input_model :481)</span>
+sig = inspect.signature(func)
+fields = {
+    pname: (annotation_of(param),
+            param.default <span class="kw">if</span> has_default(param) <span class="kw">else</span> ...)  <span class="cm"># ... = required</span>
+    <span class="kw">for</span> pname, param <span class="kw">in</span> sig.parameters.items()
+    <span class="kw">if</span> pname <span class="kw">not in</span> {<span class="st">&quot;self&quot;</span>, <span class="st">&quot;cls&quot;</span>}}
+input_model = create_model(f<span class="st">&quot;{name}_input&quot;</span>, **fields)
+
+<span class="cm"># ② Pydantic emits the JSON Schema directly (_input_schema :780)</span>
+<span class="kw">def</span> <span class="fn">parameters</span>(self):
+    <span class="kw">return</span> self.input_model.model_json_schema()
+
+<span class="cm"># ③ Wrap in the function shell (to_json_schema_spec :866)</span>
+<span class="kw">def</span> <span class="fn">to_json_schema_spec</span>(self):
+    <span class="kw">return</span> {<span class="st">&quot;type&quot;</span>: <span class="st">&quot;function&quot;</span>, <span class="st">&quot;function&quot;</span>: {
+        <span class="st">&quot;name&quot;</span>: self.name,
+        <span class="st">&quot;description&quot;</span>: self.description,
+        <span class="st">&quot;parameters&quot;</span>: self.parameters()}}</pre>
+</div>
+<p>All three are <strong>simplified straight from the source</strong>: the framework <strong>hand-writes zero schema</strong> — it delegates to
+<span class="mono">inspect</span> (read the signature) and <span class="mono">Pydantic</span> (emit the schema). Params without a default are marked <span class="mono">...</span>, so Pydantic
+auto-places them in <span class="mono">required</span>. This is exactly where the &quot;signature IS the schema&quot; table above comes from.</p>
+
+<h2>Why let type hints auto-generate the schema</h2>
+<p>The naive approach makes you <strong>write two things</strong>: a Python function, and a JSON Schema describing it. The trouble is they
+<strong>drift apart</strong> — you add a parameter to the function but forget to update the schema; the model then generates arguments per the
+old schema and blows up at runtime. Any design where &quot;the same fact is written twice&quot; eventually breaks when the two fall out of sync.</p>
+<p>MAF chooses a <strong>single source of truth</strong>: the signature is the <strong>only</strong> truth, and the schema is <strong>derived</strong> from it.
+Change the signature and the schema follows on next generation, never drifting — this is the DRY (Don't Repeat Yourself) principle applied to tools.
+Better still, the same Pydantic model <strong>does double duty</strong>: a schema to describe params outward, a validator to guard inputs inward — even the validation logic is free.</p>
+<p>The price is accepting the framework's &quot;convention&quot;: use <span class="mono">Annotated[..., Field(description=…)]</span> for param docs and type hints for types.
+What that small constraint buys is <strong>code as documentation, documentation that never goes stale</strong>. When you need full control, <span class="mono">@tool(schema=…)</span>
+still lets you pass an explicit schema — the same &quot;narrow default + escape hatch&quot; pattern again.</p>
+
 <div class="card key">
   <div class="tag">✅ Key points</div>
   <ul>
     <li><span class="mono">@tool</span> → <span class="mono">FunctionTool</span> → JSON Schema → sent with the request.</li>
     <li>Model replies <span class="mono">function_call</span> → framework executes → <span class="mono">function_result</span> fed back → model continues.</li>
-    <li>The whole loop runs automatically inside the Agent; callers are unaware.</li>
+    <li>This loop runs automatically inside the ChatClient's <span class="mono">FunctionInvocationLayer</span> (not the Agent); callers are unaware.</li>
   </ul>
 </div>
 

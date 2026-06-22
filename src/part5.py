@@ -16,7 +16,7 @@ L16_ZH = r"""
   <tr><th>Provider</th><th>包名</th><th>ChatClient 类</th></tr>
   <tr><td>Azure AI Foundry</td><td class="mono">agent-framework-foundry</td><td class="mono">FoundryChatClient</td></tr>
   <tr><td>OpenAI / Azure OpenAI</td><td class="mono">agent-framework（内置）</td><td class="mono">OpenAIChatClient</td></tr>
-  <tr><td>Anthropic Claude</td><td class="mono">agent-framework-anthropic</td><td class="mono">AnthropicChatClient</td></tr>
+  <tr><td>Anthropic Claude</td><td class="mono">agent-framework-anthropic</td><td class="mono">AnthropicClient</td></tr>
   <tr><td>Ollama（本地）</td><td class="mono">agent-framework-ollama</td><td class="mono">OllamaChatClient</td></tr>
   <tr><td>AWS Bedrock</td><td class="mono">agent-framework-bedrock</td><td class="mono">BedrockChatClient</td></tr>
 </table>
@@ -92,7 +92,7 @@ client = OpenAIChatClient(
 </details>
 
 <details class="accordion">
-  <summary><span class="badge-num">3</span> AnthropicChatClient 配置 <span class="hint">点击展开详解</span></summary>
+  <summary><span class="badge-num">3</span> AnthropicClient 配置 <span class="hint">点击展开详解</span></summary>
   <div class="acc-body">
     <div class="qa">
       <div class="q">🧪 示例</div>
@@ -101,9 +101,9 @@ client = OpenAIChatClient(
 pip install agent-framework-anthropic
 
 <span class="cm"># 使用</span>
-<span class="kw">from</span> agent_framework_anthropic <span class="kw">import</span> AnthropicChatClient
+<span class="kw">from</span> agent_framework_anthropic <span class="kw">import</span> AnthropicClient
 
-client = AnthropicChatClient(
+client = AnthropicClient(
     model=<span class="st">"claude-sonnet-4-5"</span>,
     api_key=os.environ[<span class="st">"ANTHROPIC_API_KEY"</span>]
 )
@@ -173,7 +173,7 @@ agent = client.as_agent(
 )
 
 <span class="cm"># 变体 2：Anthropic</span>
-client = AnthropicChatClient(model=<span class="st">"claude-sonnet-4-5"</span>, api_key=...)
+client = AnthropicClient(model=<span class="st">"claude-sonnet-4-5"</span>, api_key=...)
 agent = client.as_agent(
     name=<span class="st">"Assistant"</span>,
     instructions=<span class="st">"You are helpful."</span>,
@@ -236,7 +236,7 @@ This lesson surveys the main provider packages and shows the <strong>import-to-r
   <tr><th>Provider</th><th>Package</th><th>ChatClient class</th></tr>
   <tr><td>Azure AI Foundry</td><td class="mono">agent-framework-foundry</td><td class="mono">FoundryChatClient</td></tr>
   <tr><td>OpenAI / Azure OpenAI</td><td class="mono">agent-framework (built-in)</td><td class="mono">OpenAIChatClient</td></tr>
-  <tr><td>Anthropic Claude</td><td class="mono">agent-framework-anthropic</td><td class="mono">AnthropicChatClient</td></tr>
+  <tr><td>Anthropic Claude</td><td class="mono">agent-framework-anthropic</td><td class="mono">AnthropicClient</td></tr>
   <tr><td>Ollama (local)</td><td class="mono">agent-framework-ollama</td><td class="mono">OllamaChatClient</td></tr>
   <tr><td>AWS Bedrock</td><td class="mono">agent-framework-bedrock</td><td class="mono">BedrockChatClient</td></tr>
 </table>
@@ -312,7 +312,7 @@ client = OpenAIChatClient(
 </details>
 
 <details class="accordion">
-  <summary><span class="badge-num">3</span> AnthropicChatClient configuration <span class="hint">expand</span></summary>
+  <summary><span class="badge-num">3</span> AnthropicClient configuration <span class="hint">expand</span></summary>
   <div class="acc-body">
     <div class="qa">
       <div class="q">🧪 Example</div>
@@ -321,9 +321,9 @@ client = OpenAIChatClient(
 pip install agent-framework-anthropic
 
 <span class="cm"># Use</span>
-<span class="kw">from</span> agent_framework_anthropic <span class="kw">import</span> AnthropicChatClient
+<span class="kw">from</span> agent_framework_anthropic <span class="kw">import</span> AnthropicClient
 
-client = AnthropicChatClient(
+client = AnthropicClient(
     model=<span class="st">&quot;claude-sonnet-4-5&quot;</span>,
     api_key=os.environ[<span class="st">&quot;ANTHROPIC_API_KEY&quot;</span>]
 )
@@ -393,7 +393,7 @@ agent = client.as_agent(
 )
 
 <span class="cm"># Variant 2: Anthropic</span>
-client = AnthropicChatClient(model=<span class="st">&quot;claude-sonnet-4-5&quot;</span>, api_key=...)
+client = AnthropicClient(model=<span class="st">&quot;claude-sonnet-4-5&quot;</span>, api_key=...)
 agent = client.as_agent(
     name=<span class="st">&quot;Assistant&quot;</span>,
     instructions=<span class="st">&quot;You are helpful.&quot;</span>,
@@ -507,11 +507,11 @@ context_providers:
     <div class="qa">
       <div class="q">🧪 示例</div>
       <div class="a">从 YAML 加载到运行：
-<pre class="code"><span class="kw">from</span> agent_framework.declarative <span class="kw">import</span> load_agent
+<pre class="code"><span class="kw">from</span> agent_framework.declarative <span class="kw">import</span> AgentFactory
 
-agent = load_agent(<span class="st">"my_agent.yaml"</span>)
+agent = AgentFactory().create_agent_from_yaml_path(<span class="st">"my_agent.yaml"</span>)
 result = <span class="kw">await</span> agent.run(<span class="st">"Hello"</span>)</pre>
-仅 3 行代码。<span class="mono">load_agent</span> 读取 YAML → 构造完整配置的 Agent 实例。
+仅几行代码。<span class="mono">AgentFactory.create_agent_from_yaml_path</span> 读取 YAML → 构造完整配置的 Agent 实例。
       </div>
     </div>
     <div class="qa">
@@ -548,8 +548,8 @@ result = <span class="kw">await</span> agent.run(<span class="st">"Hello"</span>
 <span class="cm">#   tools:</span>
 <span class="cm">#     - my_custom_tool</span>
 
-<span class="cm"># 3. 加载时工具自动连接</span>
-agent = load_agent(<span class="st">"my_agent.yaml"</span>)</pre>
+<span class="cm"># 3. 通过 bindings 把 Python 工具按名称注入</span>
+agent = AgentFactory(bindings={<span class="st">"my_custom_tool"</span>: my_custom_tool}).create_agent_from_yaml_path(<span class="st">"my_agent.yaml"</span>)</pre>
 工作流：在 Python 中定义工具 → 在 YAML 中按名称引用 → 加载。
       </div>
     </div>
@@ -684,11 +684,11 @@ Each field explained: <span class="mono">name</span> (agent name), <span class="
     <div class="qa">
       <div class="q">🧪 Example</div>
       <div class="a">Load from YAML to running:
-<pre class="code"><span class="kw">from</span> agent_framework.declarative <span class="kw">import</span> load_agent
+<pre class="code"><span class="kw">from</span> agent_framework.declarative <span class="kw">import</span> AgentFactory
 
-agent = load_agent(<span class="st">&quot;my_agent.yaml&quot;</span>)
+agent = AgentFactory().create_agent_from_yaml_path(<span class="st">&quot;my_agent.yaml&quot;</span>)
 result = <span class="kw">await</span> agent.run(<span class="st">&quot;Hello&quot;</span>)</pre>
-Just 3 lines. <span class="mono">load_agent</span> reads YAML → gets fully configured Agent instance.
+Just a few lines. <span class="mono">AgentFactory.create_agent_from_yaml_path</span> reads YAML → fully configured Agent instance.
       </div>
     </div>
     <div class="qa">
@@ -725,8 +725,8 @@ Just 3 lines. <span class="mono">load_agent</span> reads YAML → gets fully con
 <span class="cm">#   tools:</span>
 <span class="cm">#     - my_custom_tool</span>
 
-<span class="cm"># 3. Load, tools wire automatically</span>
-agent = load_agent(<span class="st">&quot;my_agent.yaml&quot;</span>)</pre>
+<span class="cm"># 3. Inject Python tools by name via bindings</span>
+agent = AgentFactory(bindings={<span class="st">&quot;my_custom_tool&quot;</span>: my_custom_tool}).create_agent_from_yaml_path(<span class="st">&quot;my_agent.yaml&quot;</span>)</pre>
 Workflow: define tool in Python → reference by name in YAML → load.
       </div>
     </div>
@@ -1298,16 +1298,17 @@ answer = <span class="kw">await</span> request_info(<span class="st">&quot;Shoul
   <div class="acc-body">
     <div class="qa">
       <div class="q">🧪 示例</div>
-      <div class="a">从 <span class="mono">InMemoryCheckpointStorage</span> 切换到 Redis 或 Cosmos：
-<pre class="code"><span class="cm"># 安装包</span>
-pip install agent-framework-redis
-<span class="cm"># 或</span>
+      <div class="a">从 <span class="mono">InMemoryCheckpointStorage</span> 切换到 Cosmos（或本地 <span class="mono">FileCheckpointStorage</span>）：
+<pre class="code"><span class="cm"># 安装包（云端分布式后端）</span>
 pip install agent-framework-azure-cosmos
 
-<span class="cm"># 改一行配置</span>
-<span class="kw">from</span> agent_framework_redis <span class="kw">import</span> RedisCheckpointStorage
-storage = RedisCheckpointStorage(
-    connection_string=<span class="st">&quot;redis://...&quot;</span>
+<span class="cm"># 改一行配置：换成持久化后端</span>
+<span class="kw">from</span> agent_framework_azure_cosmos <span class="kw">import</span> CosmosCheckpointStorage
+storage = CosmosCheckpointStorage(
+    endpoint=<span class="st">&quot;https://...&quot;</span>,
+    database_name=<span class="st">&quot;agents&quot;</span>,
+    container_name=<span class="st">&quot;checkpoints&quot;</span>,
+    credential=<span class="st">&quot;...&quot;</span>,
 )
 
 <span class="cm"># 工作流构建保持不变</span>
@@ -1468,16 +1469,17 @@ Durability guarantees: state survives process restarts, supports long waits (hou
   <div class="acc-body">
     <div class="qa">
       <div class="q">🧪 Example</div>
-      <div class="a">Switch from <span class="mono">InMemoryCheckpointStorage</span> to Redis or Cosmos:
-<pre class="code"><span class="cm"># Install package</span>
-pip install agent-framework-redis
-<span class="cm"># or</span>
+      <div class="a">Switch from <span class="mono">InMemoryCheckpointStorage</span> to Cosmos (or local <span class="mono">FileCheckpointStorage</span>):
+<pre class="code"><span class="cm"># Install package (cloud distributed backend)</span>
 pip install agent-framework-azure-cosmos
 
-<span class="cm"># Change one line of config</span>
-<span class="kw">from</span> agent_framework_redis <span class="kw">import</span> RedisCheckpointStorage
-storage = RedisCheckpointStorage(
-    connection_string=<span class="st">&quot;redis://...&quot;</span>
+<span class="cm"># Change one line of config: use a persistent backend</span>
+<span class="kw">from</span> agent_framework_azure_cosmos <span class="kw">import</span> CosmosCheckpointStorage
+storage = CosmosCheckpointStorage(
+    endpoint=<span class="st">&quot;https://...&quot;</span>,
+    database_name=<span class="st">&quot;agents&quot;</span>,
+    container_name=<span class="st">&quot;checkpoints&quot;</span>,
+    credential=<span class="st">&quot;...&quot;</span>,
 )
 
 <span class="cm"># Workflow build stays the same</span>
@@ -1694,12 +1696,12 @@ reviewer = client.as_agent(
       <div class="q">🧪 示例</div>
       <div class="a">生产就绪检查清单：
 <pre class="code"><span class="cm"># ✓ 添加 OpenTelemetry 追踪</span>
-<span class="kw">from</span> agent_framework.telemetry <span class="kw">import</span> setup_otel
-setup_otel(service_name=<span class="st">&quot;my-agent&quot;</span>)
+<span class="kw">from</span> agent_framework.observability <span class="kw">import</span> configure_otel_providers
+configure_otel_providers()
 
 <span class="cm"># ✓ 切换到持久化存储</span>
-<span class="kw">from</span> agent_framework_redis <span class="kw">import</span> RedisCheckpointStorage
-storage = RedisCheckpointStorage(conn_string)
+<span class="kw">from</span> agent_framework <span class="kw">import</span> FileCheckpointStorage
+storage = FileCheckpointStorage(<span class="st">&quot;./checkpoints&quot;</span>)
 
 <span class="cm"># ✓ 添加错误处理中间件</span>
 middleware=[ErrorHandlingMiddleware(), RetryMiddleware()]
@@ -1919,12 +1921,12 @@ Before the article is published, a human must approve. Framework handles pausing
       <div class="q">🧪 Example</div>
       <div class="a">Production-ready checklist:
 <pre class="code"><span class="cm"># ✓ Add OpenTelemetry tracing</span>
-<span class="kw">from</span> agent_framework.telemetry <span class="kw">import</span> setup_otel
-setup_otel(service_name=<span class="st">&quot;my-agent&quot;</span>)
+<span class="kw">from</span> agent_framework.observability <span class="kw">import</span> configure_otel_providers
+configure_otel_providers()
 
 <span class="cm"># ✓ Switch to persistent storage</span>
-<span class="kw">from</span> agent_framework_redis <span class="kw">import</span> RedisCheckpointStorage
-storage = RedisCheckpointStorage(conn_string)
+<span class="kw">from</span> agent_framework <span class="kw">import</span> FileCheckpointStorage
+storage = FileCheckpointStorage(<span class="st">&quot;./checkpoints&quot;</span>)
 
 <span class="cm"># ✓ Add error handling middleware</span>
 middleware=[ErrorHandlingMiddleware(), RetryMiddleware()]

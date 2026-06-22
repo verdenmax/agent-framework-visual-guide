@@ -279,7 +279,7 @@ table.t td.mono, table.t td .mono { font-family: ui-monospace, monospace; font-s
   <tr><th>Provider</th><th>包名</th><th>ChatClient 类</th></tr>
   <tr><td>Azure AI Foundry</td><td class="mono">agent-framework-foundry</td><td class="mono">FoundryChatClient</td></tr>
   <tr><td>OpenAI / Azure OpenAI</td><td class="mono">agent-framework（内置）</td><td class="mono">OpenAIChatClient</td></tr>
-  <tr><td>Anthropic Claude</td><td class="mono">agent-framework-anthropic</td><td class="mono">AnthropicChatClient</td></tr>
+  <tr><td>Anthropic Claude</td><td class="mono">agent-framework-anthropic</td><td class="mono">AnthropicClient</td></tr>
   <tr><td>Ollama（本地）</td><td class="mono">agent-framework-ollama</td><td class="mono">OllamaChatClient</td></tr>
   <tr><td>AWS Bedrock</td><td class="mono">agent-framework-bedrock</td><td class="mono">BedrockChatClient</td></tr>
 </table>
@@ -355,7 +355,7 @@ client = OpenAIChatClient(
 </details>
 
 <details class="accordion">
-  <summary><span class="badge-num">3</span> AnthropicChatClient 配置 <span class="hint">点击展开详解</span></summary>
+  <summary><span class="badge-num">3</span> AnthropicClient 配置 <span class="hint">点击展开详解</span></summary>
   <div class="acc-body">
     <div class="qa">
       <div class="q">🧪 示例</div>
@@ -364,9 +364,9 @@ client = OpenAIChatClient(
 pip install agent-framework-anthropic
 
 <span class="cm"># 使用</span>
-<span class="kw">from</span> agent_framework_anthropic <span class="kw">import</span> AnthropicChatClient
+<span class="kw">from</span> agent_framework_anthropic <span class="kw">import</span> AnthropicClient
 
-client = AnthropicChatClient(
+client = AnthropicClient(
     model=<span class="st">"claude-sonnet-4-5"</span>,
     api_key=os.environ[<span class="st">"ANTHROPIC_API_KEY"</span>]
 )
@@ -436,7 +436,7 @@ agent = client.as_agent(
 )
 
 <span class="cm"># 变体 2：Anthropic</span>
-client = AnthropicChatClient(model=<span class="st">"claude-sonnet-4-5"</span>, api_key=...)
+client = AnthropicClient(model=<span class="st">"claude-sonnet-4-5"</span>, api_key=...)
 agent = client.as_agent(
     name=<span class="st">"Assistant"</span>,
     instructions=<span class="st">"You are helpful."</span>,
@@ -498,7 +498,7 @@ This lesson surveys the main provider packages and shows the <strong>import-to-r
   <tr><th>Provider</th><th>Package</th><th>ChatClient class</th></tr>
   <tr><td>Azure AI Foundry</td><td class="mono">agent-framework-foundry</td><td class="mono">FoundryChatClient</td></tr>
   <tr><td>OpenAI / Azure OpenAI</td><td class="mono">agent-framework (built-in)</td><td class="mono">OpenAIChatClient</td></tr>
-  <tr><td>Anthropic Claude</td><td class="mono">agent-framework-anthropic</td><td class="mono">AnthropicChatClient</td></tr>
+  <tr><td>Anthropic Claude</td><td class="mono">agent-framework-anthropic</td><td class="mono">AnthropicClient</td></tr>
   <tr><td>Ollama (local)</td><td class="mono">agent-framework-ollama</td><td class="mono">OllamaChatClient</td></tr>
   <tr><td>AWS Bedrock</td><td class="mono">agent-framework-bedrock</td><td class="mono">BedrockChatClient</td></tr>
 </table>
@@ -574,7 +574,7 @@ client = OpenAIChatClient(
 </details>
 
 <details class="accordion">
-  <summary><span class="badge-num">3</span> AnthropicChatClient configuration <span class="hint">expand</span></summary>
+  <summary><span class="badge-num">3</span> AnthropicClient configuration <span class="hint">expand</span></summary>
   <div class="acc-body">
     <div class="qa">
       <div class="q">🧪 Example</div>
@@ -583,9 +583,9 @@ client = OpenAIChatClient(
 pip install agent-framework-anthropic
 
 <span class="cm"># Use</span>
-<span class="kw">from</span> agent_framework_anthropic <span class="kw">import</span> AnthropicChatClient
+<span class="kw">from</span> agent_framework_anthropic <span class="kw">import</span> AnthropicClient
 
-client = AnthropicChatClient(
+client = AnthropicClient(
     model=<span class="st">&quot;claude-sonnet-4-5&quot;</span>,
     api_key=os.environ[<span class="st">&quot;ANTHROPIC_API_KEY&quot;</span>]
 )
@@ -655,7 +655,7 @@ agent = client.as_agent(
 )
 
 <span class="cm"># Variant 2: Anthropic</span>
-client = AnthropicChatClient(model=<span class="st">&quot;claude-sonnet-4-5&quot;</span>, api_key=...)
+client = AnthropicClient(model=<span class="st">&quot;claude-sonnet-4-5&quot;</span>, api_key=...)
 agent = client.as_agent(
     name=<span class="st">&quot;Assistant&quot;</span>,
     instructions=<span class="st">&quot;You are helpful.&quot;</span>,

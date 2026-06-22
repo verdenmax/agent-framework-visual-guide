@@ -329,11 +329,11 @@ context_providers:
     <div class="qa">
       <div class="q">🧪 示例</div>
       <div class="a">从 YAML 加载到运行：
-<pre class="code"><span class="kw">from</span> agent_framework.declarative <span class="kw">import</span> load_agent
+<pre class="code"><span class="kw">from</span> agent_framework.declarative <span class="kw">import</span> AgentFactory
 
-agent = load_agent(<span class="st">"my_agent.yaml"</span>)
+agent = AgentFactory().create_agent_from_yaml_path(<span class="st">"my_agent.yaml"</span>)
 result = <span class="kw">await</span> agent.run(<span class="st">"Hello"</span>)</pre>
-仅 3 行代码。<span class="mono">load_agent</span> 读取 YAML → 构造完整配置的 Agent 实例。
+仅几行代码。<span class="mono">AgentFactory.create_agent_from_yaml_path</span> 读取 YAML → 构造完整配置的 Agent 实例。
       </div>
     </div>
     <div class="qa">
@@ -370,8 +370,8 @@ result = <span class="kw">await</span> agent.run(<span class="st">"Hello"</span>
 <span class="cm">#   tools:</span>
 <span class="cm">#     - my_custom_tool</span>
 
-<span class="cm"># 3. 加载时工具自动连接</span>
-agent = load_agent(<span class="st">"my_agent.yaml"</span>)</pre>
+<span class="cm"># 3. 通过 bindings 把 Python 工具按名称注入</span>
+agent = AgentFactory(bindings={<span class="st">"my_custom_tool"</span>: my_custom_tool}).create_agent_from_yaml_path(<span class="st">"my_agent.yaml"</span>)</pre>
 工作流：在 Python 中定义工具 → 在 YAML 中按名称引用 → 加载。
       </div>
     </div>
@@ -505,11 +505,11 @@ Each field explained: <span class="mono">name</span> (agent name), <span class="
     <div class="qa">
       <div class="q">🧪 Example</div>
       <div class="a">Load from YAML to running:
-<pre class="code"><span class="kw">from</span> agent_framework.declarative <span class="kw">import</span> load_agent
+<pre class="code"><span class="kw">from</span> agent_framework.declarative <span class="kw">import</span> AgentFactory
 
-agent = load_agent(<span class="st">&quot;my_agent.yaml&quot;</span>)
+agent = AgentFactory().create_agent_from_yaml_path(<span class="st">&quot;my_agent.yaml&quot;</span>)
 result = <span class="kw">await</span> agent.run(<span class="st">&quot;Hello&quot;</span>)</pre>
-Just 3 lines. <span class="mono">load_agent</span> reads YAML → gets fully configured Agent instance.
+Just a few lines. <span class="mono">AgentFactory.create_agent_from_yaml_path</span> reads YAML → fully configured Agent instance.
       </div>
     </div>
     <div class="qa">
@@ -546,8 +546,8 @@ Just 3 lines. <span class="mono">load_agent</span> reads YAML → gets fully con
 <span class="cm">#   tools:</span>
 <span class="cm">#     - my_custom_tool</span>
 
-<span class="cm"># 3. Load, tools wire automatically</span>
-agent = load_agent(<span class="st">&quot;my_agent.yaml&quot;</span>)</pre>
+<span class="cm"># 3. Inject Python tools by name via bindings</span>
+agent = AgentFactory(bindings={<span class="st">&quot;my_custom_tool&quot;</span>: my_custom_tool}).create_agent_from_yaml_path(<span class="st">&quot;my_agent.yaml&quot;</span>)</pre>
 Workflow: define tool in Python → reference by name in YAML → load.
       </div>
     </div>

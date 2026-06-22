@@ -438,12 +438,12 @@ reviewer = client.as_agent(
       <div class="q">🧪 示例</div>
       <div class="a">生产就绪检查清单：
 <pre class="code"><span class="cm"># ✓ 添加 OpenTelemetry 追踪</span>
-<span class="kw">from</span> agent_framework.telemetry <span class="kw">import</span> setup_otel
-setup_otel(service_name=<span class="st">&quot;my-agent&quot;</span>)
+<span class="kw">from</span> agent_framework.observability <span class="kw">import</span> configure_otel_providers
+configure_otel_providers()
 
 <span class="cm"># ✓ 切换到持久化存储</span>
-<span class="kw">from</span> agent_framework_redis <span class="kw">import</span> RedisCheckpointStorage
-storage = RedisCheckpointStorage(conn_string)
+<span class="kw">from</span> agent_framework <span class="kw">import</span> FileCheckpointStorage
+storage = FileCheckpointStorage(<span class="st">&quot;./checkpoints&quot;</span>)
 
 <span class="cm"># ✓ 添加错误处理中间件</span>
 middleware=[ErrorHandlingMiddleware(), RetryMiddleware()]
@@ -662,12 +662,12 @@ Before the article is published, a human must approve. Framework handles pausing
       <div class="q">🧪 Example</div>
       <div class="a">Production-ready checklist:
 <pre class="code"><span class="cm"># ✓ Add OpenTelemetry tracing</span>
-<span class="kw">from</span> agent_framework.telemetry <span class="kw">import</span> setup_otel
-setup_otel(service_name=<span class="st">&quot;my-agent&quot;</span>)
+<span class="kw">from</span> agent_framework.observability <span class="kw">import</span> configure_otel_providers
+configure_otel_providers()
 
 <span class="cm"># ✓ Switch to persistent storage</span>
-<span class="kw">from</span> agent_framework_redis <span class="kw">import</span> RedisCheckpointStorage
-storage = RedisCheckpointStorage(conn_string)
+<span class="kw">from</span> agent_framework <span class="kw">import</span> FileCheckpointStorage
+storage = FileCheckpointStorage(<span class="st">&quot;./checkpoints&quot;</span>)
 
 <span class="cm"># ✓ Add error handling middleware</span>
 middleware=[ErrorHandlingMiddleware(), RetryMiddleware()]

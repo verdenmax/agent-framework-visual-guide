@@ -383,16 +383,17 @@ answer = <span class="kw">await</span> request_info(<span class="st">&quot;Shoul
   <div class="acc-body">
     <div class="qa">
       <div class="q">🧪 示例</div>
-      <div class="a">从 <span class="mono">InMemoryCheckpointStorage</span> 切换到 Redis 或 Cosmos：
-<pre class="code"><span class="cm"># 安装包</span>
-pip install agent-framework-redis
-<span class="cm"># 或</span>
+      <div class="a">从 <span class="mono">InMemoryCheckpointStorage</span> 切换到 Cosmos（或本地 <span class="mono">FileCheckpointStorage</span>）：
+<pre class="code"><span class="cm"># 安装包（云端分布式后端）</span>
 pip install agent-framework-azure-cosmos
 
-<span class="cm"># 改一行配置</span>
-<span class="kw">from</span> agent_framework_redis <span class="kw">import</span> RedisCheckpointStorage
-storage = RedisCheckpointStorage(
-    connection_string=<span class="st">&quot;redis://...&quot;</span>
+<span class="cm"># 改一行配置：换成持久化后端</span>
+<span class="kw">from</span> agent_framework_azure_cosmos <span class="kw">import</span> CosmosCheckpointStorage
+storage = CosmosCheckpointStorage(
+    endpoint=<span class="st">&quot;https://...&quot;</span>,
+    database_name=<span class="st">&quot;agents&quot;</span>,
+    container_name=<span class="st">&quot;checkpoints&quot;</span>,
+    credential=<span class="st">&quot;...&quot;</span>,
 )
 
 <span class="cm"># 工作流构建保持不变</span>
@@ -552,16 +553,17 @@ Durability guarantees: state survives process restarts, supports long waits (hou
   <div class="acc-body">
     <div class="qa">
       <div class="q">🧪 Example</div>
-      <div class="a">Switch from <span class="mono">InMemoryCheckpointStorage</span> to Redis or Cosmos:
-<pre class="code"><span class="cm"># Install package</span>
-pip install agent-framework-redis
-<span class="cm"># or</span>
+      <div class="a">Switch from <span class="mono">InMemoryCheckpointStorage</span> to Cosmos (or local <span class="mono">FileCheckpointStorage</span>):
+<pre class="code"><span class="cm"># Install package (cloud distributed backend)</span>
 pip install agent-framework-azure-cosmos
 
-<span class="cm"># Change one line of config</span>
-<span class="kw">from</span> agent_framework_redis <span class="kw">import</span> RedisCheckpointStorage
-storage = RedisCheckpointStorage(
-    connection_string=<span class="st">&quot;redis://...&quot;</span>
+<span class="cm"># Change one line of config: use a persistent backend</span>
+<span class="kw">from</span> agent_framework_azure_cosmos <span class="kw">import</span> CosmosCheckpointStorage
+storage = CosmosCheckpointStorage(
+    endpoint=<span class="st">&quot;https://...&quot;</span>,
+    database_name=<span class="st">&quot;agents&quot;</span>,
+    container_name=<span class="st">&quot;checkpoints&quot;</span>,
+    credential=<span class="st">&quot;...&quot;</span>,
 )
 
 <span class="cm"># Workflow build stays the same</span>

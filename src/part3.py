@@ -36,6 +36,97 @@ L08_ZH = r"""
     <p>循环结束，包装成 <span class="mono">AgentResponse</span>（或逐块 <span class="mono">AgentResponseUpdate</span>）。</p></div></div>
 </div>
 
+<h2>追踪一次真实 run()：「巴黎今天天气如何？」</h2>
+<p>抽象讲完了，我们用一个<strong>具体输入</strong>端到端走一遍。假设这个 Agent 带一个工具
+<span class="mono">get_weather(city)</span>，你调用 <span class="mono">agent.run(&quot;巴黎今天天气如何？&quot;)</span>。
+下面每一步都给出当时<strong>消息列表的真实快照</strong>——看它如何从 2 条长到 4 条，再收敛成一个 <span class="mono">AgentResponse</span>。</p>
+
+<div class="vflow">
+  <div class="step"><div class="num">1</div><div class="sc"><h4>组装初始消息（2 条）</h4>
+    <p><span class="mono">_prepare_run_context()</span>（<span class="mono">_agents.py:1150</span>）把 system 指令 + 你的输入拼成消息列表，并带上工具：</p>
+<pre class="code">messages = [
+  Message(<span class="st">&quot;system&quot;</span>,    [<span class="st">&quot;你是天气助手…&quot;</span>]),
+  Message(<span class="st">&quot;user&quot;</span>,      [<span class="st">&quot;巴黎今天天气如何？&quot;</span>]),
+]
+tools = [get_weather]   <span class="cm"># 随请求一起发出的工具 schema</span></pre></div></div>
+  <div class="step"><div class="num">2</div><div class="sc"><h4>交给 ChatClient（循环在它内部）</h4>
+    <p><span class="mono">_call_chat_client()</span>（<span class="mono">_agents.py:985</span>）只做一件事：<span class="mono">client.get_response(messages, options)</span>。
+    <strong>工具循环并不在 Agent 里</strong>——它发生在 ChatClient 一侧的 <span class="mono">FunctionInvocationLayer</span>（<span class="mono">_tools.py:2249</span>，下一课展开）。Agent 只调用一次。</p></div></div>
+  <div class="step"><div class="num">3</div><div class="sc"><h4>模型决定先调用工具</h4>
+    <p>第一轮模型不直接作答，而是回一个 <span class="mono">function_call</span> 内容：</p>
+<pre class="code">assistant_msg = Message(<span class="st">&quot;assistant&quot;</span>, [
+  Content.from_function_call(
+    call_id=<span class="st">&quot;call_1&quot;</span>, name=<span class="st">&quot;get_weather&quot;</span>,
+    arguments=<span class="st">'{&quot;city&quot;: &quot;Paris&quot;}'</span>),  <span class="cm"># arguments 是 JSON 字符串</span>
+])</pre></div></div>
+  <div class="step"><div class="num">4</div><div class="sc"><h4>执行工具，工作消息长到 4 条</h4>
+    <p>框架解析参数、调用你的 Python 函数 <span class="mono">get_weather(&quot;Paris&quot;)</span> 得 <span class="mono">&quot;18°C 晴&quot;</span>，
+    打包成 <span class="mono">function_result</span> 追加进去：</p>
+<pre class="code">prepped_messages = [
+  Message(<span class="st">&quot;system&quot;</span>,    [...]),
+  Message(<span class="st">&quot;user&quot;</span>,      [...]),
+  Message(<span class="st">&quot;assistant&quot;</span>, [function_call get_weather]),    <span class="cm"># 第 3 条</span>
+  Message(<span class="st">&quot;tool&quot;</span>,      [function_result <span class="st">&quot;18°C 晴&quot;</span>]),  <span class="cm"># 第 4 条</span>
+]</pre></div></div>
+  <div class="step"><div class="num">5</div><div class="sc"><h4>带着结果再问一次模型</h4>
+    <p>循环回到顶部，把这 4 条消息整体再发给模型。这次模型手里已经有了天气数据，不必再调工具。</p></div></div>
+  <div class="step"><div class="num">6</div><div class="sc"><h4>拿到最终文本，循环终止</h4>
+    <p>模型回 <span class="mono">Message(&quot;assistant&quot;, [&quot;巴黎今天 18°C，晴。&quot;])</span>，
+    没有新的 <span class="mono">function_call</span>、<span class="mono">finish_reason=&quot;stop&quot;</span> → <span class="mono">FunctionInvocationLayer</span> 退出循环（上限 <span class="mono">DEFAULT_MAX_ITERATIONS=40</span> 轮）。</p></div></div>
+  <div class="step"><div class="num">7</div><div class="sc"><h4>包装成 AgentResponse</h4>
+    <p><span class="mono">_parse_non_streaming_response()</span>（<span class="mono">_agents.py:1013</span>）把这个 <span class="mono">ChatResponse</span> 收进 <span class="mono">AgentResponse</span>：</p>
+<pre class="code">resp = AgentResponse(messages=response.messages, …)
+resp.text            <span class="cm"># &quot;巴黎今天 18°C，晴。&quot;</span>
+resp.messages        <span class="cm"># 本轮新产生的消息：function_call → function_result → 最终回答</span>
+resp.usage_details   <span class="cm"># 两轮模型调用累加的 token</span></pre></div></div>
+</div>
+
+<div class="card detail">
+  <div class="tag">🔬 读懂这条轨迹</div>
+  关键不在"走了几步"，而在<strong>消息列表是唯一的状态载体</strong>：每一轮模型调用本身是<strong>无状态</strong>的，
+  框架靠"把上一轮的 function_call 与 function_result 追加进<em>同一个</em> list 再发回去"，制造出"模型记得自己刚查过天气"的连续感。
+  还有一个常被误解的细节：循环内不断变长的是<strong>工作消息</strong>（<span class="mono">prepped_messages</span>），
+  而 <span class="mono">AgentResponse.messages</span> 只装<strong>本轮新产生</strong>的消息（不含你传入的 system/user）——所以别指望从返回值里读回原始输入。
+</div>
+
+<h2>三层组合：一个 Agent 的真身</h2>
+<p>你 <span class="mono">new</span> 出来的 <span class="mono">Agent</span> 其实是三层用 <strong>Python 多继承</strong>叠出来的。
+调用 <span class="mono">run()</span> 时，请求<strong>从外到内</strong>依次穿过这三层，最后才落到真正干活的 <span class="mono">RawAgent</span>：</p>
+<div class="layers">
+  <div class="layer l-app"><div class="lh"><span class="badge">最外</span><span class="name">AgentMiddlewareLayer</span></div>
+    <div class="ld">中间件层（<span class="mono">_middleware.py:1258</span>）。先跑你注册的 <span class="mono">AgentMiddleware</span>，可改请求 / 改结果 / 短路。</div></div>
+  <div class="layer l-main"><div class="lh"><span class="badge">中间</span><span class="name">AgentTelemetryLayer</span></div>
+    <div class="ld">遥测层（来自 <span class="mono">observability</span>）。开一个 OpenTelemetry span，记录这次 run 的耗时 / token / 异常。</div></div>
+  <div class="layer l-core"><div class="lh"><span class="badge">核心</span><span class="name">RawAgent</span></div>
+    <div class="ld">真正的循环骨架（<span class="mono">_agents.py:578</span>）：上面追踪的 7 步就在这里。</div></div>
+</div>
+<p>对应真实定义 <span class="mono">class Agent(AgentMiddlewareLayer, AgentTelemetryLayer, RawAgent, Generic[…])</span>
+（<span class="mono">_agents.py:1584</span>）。<strong>方法解析顺序（MRO）天然形成了洋葱</strong>：先中间件、再遥测、最后核心——你不需要手写任何"包裹"代码。</p>
+
+<h2>🔍 真实源码：run() 的三步骨架</h2>
+<div class="codefile">
+  <div class="cf-head"><span class="dot"></span><span class="path">_agents.py</span><span class="ln">RawAgent.run（简化自 :889）</span></div>
+<pre class="code"><span class="kw">def</span> <span class="fn">run</span>(self, messages=<span class="kw">None</span>, *, stream=<span class="kw">False</span>, session=<span class="kw">None</span>,
+        tools=<span class="kw">None</span>, options=<span class="kw">None</span>, …):
+    <span class="kw">async def</span> <span class="fn">_prepare_run_context</span>():
+        <span class="kw">return await</span> self._prepare_run_context(messages=messages, …)
+
+    <span class="kw">if not</span> stream:                          <span class="cm"># ① 非流式 → 返回 AgentResponse</span>
+        <span class="kw">async def</span> <span class="fn">_run_non_streaming</span>():
+            ctx = <span class="kw">await</span> _prepare_run_context()    <span class="cm"># 1. 组装上下文</span>
+            response = <span class="kw">await</span> self._call_chat_client(ctx, stream=<span class="kw">False</span>)  <span class="cm"># 2. 调 ChatClient</span>
+            <span class="kw">return await</span> self._parse_non_streaming_response(ctx, response)  <span class="cm"># 3. 解析</span>
+        <span class="kw">return</span> _run_non_streaming()
+
+    <span class="kw">async def</span> <span class="fn">_run_streaming</span>():            <span class="cm"># ② stream=True → 返回更新流</span>
+        ctx = <span class="kw">await</span> _prepare_run_context()
+        stream_response = self._call_chat_client(ctx, stream=<span class="kw">True</span>)
+        <span class="kw">return</span> self._parse_streaming_response(ctx, stream_response)
+    <span class="kw">return</span> ResponseStream.from_awaitable(_run_streaming())</pre>
+</div>
+<p>三步骨架一眼可见：<strong>①准备上下文 → ②调 ChatClient → ③解析响应</strong>。流式与非流式<strong>共用第①步</strong>，
+只在第②③步分叉——这正是"用一个 <span class="mono">stream</span> 布尔切换两种返回类型"的实现处，避免了写两个几乎一样的方法。</p>
+
 <details class="accordion">
   <summary><span class="badge-num">1</span> BaseAgent 定义了哪些接口？ <span class="hint">点击展开详解</span></summary>
   <div class="acc-body">
@@ -158,7 +249,9 @@ raw = RawAgent(name=<span class="st">&quot;bare&quot;</span>, client=client)</pr
       <div class="q">❓ 为什么看这段代码有价值</div>
       <div class="a">三步清晰可见：<strong>①准备上下文 → ②调 ChatClient → ③解析响应</strong>。
         流式和非流式共用同一个 <span class="mono">_prepare_run_context</span>，区别只在第②③步。
-        工具循环藏在 <span class="mono">_parse_non_streaming_response</span> 里——它会检查 function_call，执行工具，再回调 <span class="mono">_call_chat_client</span>。</div>
+        注意：<strong>工具循环不在这三步里</strong>——<span class="mono">_call_chat_client</span> 只调一次 <span class="mono">client.get_response()</span>，
+        多轮 function_call ↔ function_result 的循环发生在 ChatClient 一侧的 <span class="mono">FunctionInvocationLayer</span>（<span class="mono">_tools.py:2249</span>），
+        所以 <span class="mono">_parse_non_streaming_response</span> 拿到的 <span class="mono">ChatResponse</span> 已经是"跑完工具后的最终结果"。</div>
     </div>
     <div class="qa">
       <div class="q">✅ _call_chat_client 做了什么</div>
@@ -176,10 +269,18 @@ raw = RawAgent(name=<span class="st">&quot;bare&quot;</span>, client=client)</pr
   </div>
 </details>
 
+<h2>为什么这样设计</h2>
+<p><strong>① 模板方法 + 分层 = 可测试性。</strong> 把"循环骨架"钉死在基类、只把"怎么调模型"留给 <span class="mono">_call_chat_client()</span>，
+意味着单元测试时你只需覆写这<strong>一个</strong>方法返回假的 <span class="mono">ChatResponse</span>，就能在不联网、不烧 token 的情况下验证整条 run 逻辑。
+如果循环和网络调用揉在一个大函数里，这种隔离测试几乎不可能。</p>
+<p><strong>② Mixin 多继承 = 零运行时开销的可组合性。</strong> 中间件层、遥测层、核心层是三个独立类，靠 MRO 串成洋葱，
+而不是用 <span class="mono">if self.enable_telemetry:</span> 之类的运行时开关。需要轻量版？直接用 <span class="mono">RawAgent</span>，那两层<strong>根本不存在</strong>于 MRO 里，
+没有任何"判断后跳过"的分支成本；需要全功能？用 <span class="mono">Agent</span>，三层自动到位。功能的"有/无"在<strong>类定义期</strong>就确定了。</p>
+<p><strong>③ 把工具循环下放到 ChatClient = 关注点分离。</strong> Agent 只负责"组装上下文 + 解析结果"，而"反复和模型来回、执行工具"这件复杂的事
+交给 <span class="mono">FunctionInvocationLayer</span>。于是<strong>同一套工具循环能被任何 ChatClient 复用</strong>，
+而 Agent 这层始终保持"瘦"——这也是为什么换厂商不影响 Agent 代码（详见下一课）。</p>
+
 <div class="card key">
-  <div class="tag">✅ 关键要点</div>
-  <ul>
-    <li><span class="mono">BaseAgent</span>（抽象）定义协议；<span class="mono">Agent</span>（具体）实现组装 + 循环。</li>
     <li><span class="mono">run()</span> = 构建消息 → 注入上下文 → 调 ChatClient → 工具循环 → 返回。</li>
     <li>返回类型：非流式 <span class="mono">AgentResponse</span>；流式 <span class="mono">AgentResponseUpdate</span>。</li>
     <li>真实代码三步：<span class="mono">_prepare_run_context → _call_chat_client → _parse_response</span>。</li>
@@ -228,6 +329,98 @@ Understand them and you'll see how the framework drives an agent through its ful
   <div class="step"><div class="num">5</div><div class="sc"><h4>Return</h4>
     <p>Loop ends; wrap into <span class="mono">AgentResponse</span> (or stream <span class="mono">AgentResponseUpdate</span> chunks).</p></div></div>
 </div>
+
+<h2>Tracing a real run(): "What's the weather in Paris today?"</h2>
+<p>Enough abstraction — let's walk one <strong>concrete input</strong> end to end. Assume this Agent carries a tool
+<span class="mono">get_weather(city)</span> and you call <span class="mono">agent.run(&quot;What's the weather in Paris today?&quot;)</span>.
+Each step below shows a <strong>real snapshot of the message list</strong> — watch it grow from 2 entries to 4, then collapse into a single <span class="mono">AgentResponse</span>.</p>
+
+<div class="vflow">
+  <div class="step"><div class="num">1</div><div class="sc"><h4>Assemble the initial messages (2)</h4>
+    <p><span class="mono">_prepare_run_context()</span> (<span class="mono">_agents.py:1150</span>) concatenates the system instructions + your input, and attaches the tools:</p>
+<pre class="code">messages = [
+  Message(<span class="st">&quot;system&quot;</span>, [<span class="st">&quot;You are a weather assistant…&quot;</span>]),
+  Message(<span class="st">&quot;user&quot;</span>,   [<span class="st">&quot;What's the weather in Paris today?&quot;</span>]),
+]
+tools = [get_weather]   <span class="cm"># tool schemas sent with the request</span></pre></div></div>
+  <div class="step"><div class="num">2</div><div class="sc"><h4>Hand off to the ChatClient (the loop lives there)</h4>
+    <p><span class="mono">_call_chat_client()</span> (<span class="mono">_agents.py:985</span>) does exactly one thing: <span class="mono">client.get_response(messages, options)</span>.
+    <strong>The tool loop is not in the Agent</strong> — it runs in the ChatClient's <span class="mono">FunctionInvocationLayer</span> (<span class="mono">_tools.py:2249</span>, next lesson). The Agent calls once.</p></div></div>
+  <div class="step"><div class="num">3</div><div class="sc"><h4>The model chooses to call a tool first</h4>
+    <p>On the first turn the model doesn't answer directly; it returns a <span class="mono">function_call</span> content:</p>
+<pre class="code">assistant_msg = Message(<span class="st">&quot;assistant&quot;</span>, [
+  Content.from_function_call(
+    call_id=<span class="st">&quot;call_1&quot;</span>, name=<span class="st">&quot;get_weather&quot;</span>,
+    arguments=<span class="st">'{&quot;city&quot;: &quot;Paris&quot;}'</span>),  <span class="cm"># arguments is a JSON string</span>
+])</pre></div></div>
+  <div class="step"><div class="num">4</div><div class="sc"><h4>Execute the tool; the working list grows to 4</h4>
+    <p>The framework parses the args, calls your Python function <span class="mono">get_weather(&quot;Paris&quot;)</span> → <span class="mono">&quot;18°C sunny&quot;</span>,
+    packs it as a <span class="mono">function_result</span> and appends it:</p>
+<pre class="code">prepped_messages = [
+  Message(<span class="st">&quot;system&quot;</span>,    [...]),
+  Message(<span class="st">&quot;user&quot;</span>,      [...]),
+  Message(<span class="st">&quot;assistant&quot;</span>, [function_call get_weather]),     <span class="cm"># 3rd</span>
+  Message(<span class="st">&quot;tool&quot;</span>,      [function_result <span class="st">&quot;18°C sunny&quot;</span>]),  <span class="cm"># 4th</span>
+]</pre></div></div>
+  <div class="step"><div class="num">5</div><div class="sc"><h4>Ask the model again, now with the result</h4>
+    <p>The loop returns to the top and re-sends all 4 messages. This time the model has the weather data and need not call a tool.</p></div></div>
+  <div class="step"><div class="num">6</div><div class="sc"><h4>Get the final text; the loop terminates</h4>
+    <p>The model returns <span class="mono">Message(&quot;assistant&quot;, [&quot;It's 18°C and sunny in Paris.&quot;])</span> with no new
+    <span class="mono">function_call</span> and <span class="mono">finish_reason=&quot;stop&quot;</span> → <span class="mono">FunctionInvocationLayer</span> exits the loop (capped at <span class="mono">DEFAULT_MAX_ITERATIONS=40</span>).</p></div></div>
+  <div class="step"><div class="num">7</div><div class="sc"><h4>Wrap into an AgentResponse</h4>
+    <p><span class="mono">_parse_non_streaming_response()</span> (<span class="mono">_agents.py:1013</span>) folds that <span class="mono">ChatResponse</span> into an <span class="mono">AgentResponse</span>:</p>
+<pre class="code">resp = AgentResponse(messages=response.messages, …)
+resp.text            <span class="cm"># &quot;It's 18°C and sunny in Paris.&quot;</span>
+resp.messages        <span class="cm"># messages produced this run: function_call → function_result → final answer</span>
+resp.usage_details   <span class="cm"># tokens summed across both model calls</span></pre></div></div>
+</div>
+
+<div class="card detail">
+  <div class="tag">🔬 Reading this trace</div>
+  The point isn't "how many steps" but that <strong>the message list is the only carrier of state</strong>: each model call is
+  <strong>stateless</strong>, and the framework fabricates the illusion that "the model remembers it just checked the weather" purely by appending
+  the previous turn's function_call and function_result into <em>the same</em> list and re-sending it.
+  One commonly misread detail: the list that keeps growing inside the loop is the <strong>working list</strong> (<span class="mono">prepped_messages</span>),
+  whereas <span class="mono">AgentResponse.messages</span> holds only the <strong>newly produced</strong> messages (not the system/user you passed in) — so don't expect to read your original input back out of the response.
+</div>
+
+<h2>Three layers in one: an Agent's true shape</h2>
+<p>The <span class="mono">Agent</span> you <span class="mono">new</span> up is actually three layers stacked via <strong>Python multiple inheritance</strong>.
+On <span class="mono">run()</span>, the request passes through them <strong>outside-in</strong> before reaching the <span class="mono">RawAgent</span> that does the real work:</p>
+<div class="layers">
+  <div class="layer l-app"><div class="lh"><span class="badge">Outer</span><span class="name">AgentMiddlewareLayer</span></div>
+    <div class="ld">Middleware layer (<span class="mono">_middleware.py:1258</span>). Runs your registered <span class="mono">AgentMiddleware</span> first; can edit the request / result, or short-circuit.</div></div>
+  <div class="layer l-main"><div class="lh"><span class="badge">Middle</span><span class="name">AgentTelemetryLayer</span></div>
+    <div class="ld">Telemetry layer (from <span class="mono">observability</span>). Opens an OpenTelemetry span recording this run's latency / tokens / exceptions.</div></div>
+  <div class="layer l-core"><div class="lh"><span class="badge">Core</span><span class="name">RawAgent</span></div>
+    <div class="ld">The real loop skeleton (<span class="mono">_agents.py:578</span>): the 7 steps traced above live here.</div></div>
+</div>
+<p>This maps to the real definition <span class="mono">class Agent(AgentMiddlewareLayer, AgentTelemetryLayer, RawAgent, Generic[…])</span>
+(<span class="mono">_agents.py:1584</span>). <strong>The method resolution order (MRO) forms the onion for free</strong>: middleware first, telemetry next, core last — you write no wrapping code at all.</p>
+
+<h2>🔍 Real source: the three-step skeleton of run()</h2>
+<div class="codefile">
+  <div class="cf-head"><span class="dot"></span><span class="path">_agents.py</span><span class="ln">RawAgent.run (simplified from :889)</span></div>
+<pre class="code"><span class="kw">def</span> <span class="fn">run</span>(self, messages=<span class="kw">None</span>, *, stream=<span class="kw">False</span>, session=<span class="kw">None</span>,
+        tools=<span class="kw">None</span>, options=<span class="kw">None</span>, …):
+    <span class="kw">async def</span> <span class="fn">_prepare_run_context</span>():
+        <span class="kw">return await</span> self._prepare_run_context(messages=messages, …)
+
+    <span class="kw">if not</span> stream:                          <span class="cm"># ① non-streaming → returns AgentResponse</span>
+        <span class="kw">async def</span> <span class="fn">_run_non_streaming</span>():
+            ctx = <span class="kw">await</span> _prepare_run_context()    <span class="cm"># 1. assemble context</span>
+            response = <span class="kw">await</span> self._call_chat_client(ctx, stream=<span class="kw">False</span>)  <span class="cm"># 2. call ChatClient</span>
+            <span class="kw">return await</span> self._parse_non_streaming_response(ctx, response)  <span class="cm"># 3. parse</span>
+        <span class="kw">return</span> _run_non_streaming()
+
+    <span class="kw">async def</span> <span class="fn">_run_streaming</span>():            <span class="cm"># ② stream=True → returns an update stream</span>
+        ctx = <span class="kw">await</span> _prepare_run_context()
+        stream_response = self._call_chat_client(ctx, stream=<span class="kw">True</span>)
+        <span class="kw">return</span> self._parse_streaming_response(ctx, stream_response)
+    <span class="kw">return</span> ResponseStream.from_awaitable(_run_streaming())</pre>
+</div>
+<p>The three-step skeleton is plain to see: <strong>① prepare context → ② call ChatClient → ③ parse response</strong>. Streaming and non-streaming
+<strong>share step ①</strong> and diverge only at ②③ — this is exactly where one <span class="mono">stream</span> bool toggles two return types, sparing you two near-identical methods.</p>
 
 <details class="accordion">
   <summary><span class="badge-num">1</span> What does BaseAgent define? <span class="hint">expand</span></summary>
@@ -352,7 +545,9 @@ raw = RawAgent(name=<span class="st">&quot;bare&quot;</span>, client=client)</pr
       <div class="q">❓ Why this code matters</div>
       <div class="a">Three steps are clearly visible: <strong>①prepare context → ②call ChatClient → ③parse response</strong>.
         Streaming and non-streaming share the same <span class="mono">_prepare_run_context</span>; they differ only in steps ②③.
-        The tool loop hides inside <span class="mono">_parse_non_streaming_response</span> — it checks for function_call, executes tools, and calls back into <span class="mono">_call_chat_client</span>.</div>
+        Note: <strong>the tool loop is not in these three steps</strong> — <span class="mono">_call_chat_client</span> calls <span class="mono">client.get_response()</span> just once;
+        the multi-turn function_call ↔ function_result loop runs in the ChatClient's <span class="mono">FunctionInvocationLayer</span> (<span class="mono">_tools.py:2249</span>),
+        so the <span class="mono">ChatResponse</span> that <span class="mono">_parse_non_streaming_response</span> receives is already the "after the tools ran" final result.</div>
     </div>
     <div class="qa">
       <div class="q">✅ What _call_chat_client does</div>
@@ -369,6 +564,17 @@ raw = RawAgent(name=<span class="st">&quot;bare&quot;</span>, client=client)</pr
     </div>
   </div>
 </details>
+
+<h2>Why it's designed this way</h2>
+<p><strong>① Template method + layering = testability.</strong> Nailing the "loop skeleton" into the base class and leaving only "how to call the model"
+to <span class="mono">_call_chat_client()</span> means a unit test only has to override that <strong>one</strong> method to return a fake <span class="mono">ChatResponse</span> —
+letting you verify the entire run logic offline, without burning tokens. If the loop and the network call were fused into one big function, that isolation would be nearly impossible.</p>
+<p><strong>② Mixin inheritance = composability at zero runtime cost.</strong> The middleware, telemetry and core layers are three independent classes threaded into an onion by the MRO,
+not toggled with runtime flags like <span class="mono">if self.enable_telemetry:</span>. Want a lightweight variant? Use <span class="mono">RawAgent</span> and those two layers <strong>simply aren't in</strong> the MRO —
+no "check-then-skip" branch cost; want everything? Use <span class="mono">Agent</span> and all three snap into place. The presence/absence of a feature is decided at <strong>class-definition time</strong>.</p>
+<p><strong>③ Pushing the tool loop down into the ChatClient = separation of concerns.</strong> The Agent only "assembles context + parses results", while the complex job of
+"shuttling back and forth with the model and executing tools" belongs to <span class="mono">FunctionInvocationLayer</span>. As a result <strong>the same tool loop is reused by any ChatClient</strong>,
+and the Agent layer stays "thin" — which is also why swapping vendors doesn't touch Agent code (see the next lesson).</p>
 
 <div class="card key">
   <div class="tag">✅ Key points</div>

@@ -275,7 +275,7 @@ h2, h3, h4 { break-after: avoid; }
   <div class="emoji">📘</div>
   <h1>Agent Framework Visual Guide</h1>
   <div class="sub">Understand the whole project from scratch · Big picture → Usage → Internals → Build your own</div>
-  <div class="meta">28 lessons · 7 parts · real source-code references in every lesson<br>
+  <div class="meta">29 lessons · 7 parts · real source-code references in every lesson<br>
     Generated 2026-06-23 · verdenmax · Code MIT · Content CC BY 4.0</div>
 </section>
 <section class="print-toc"><div class="wrap"><h2>Table of Contents</h2>
@@ -305,28 +305,29 @@ h2, h3, h4 { break-after: avoid; }
 <div class="tp">Part 4 · Advanced</div>
 <ol>
 <li value="15">Read, Debug, Test, Contribute</li>
+<li value="16">DevUI Visual Debugging</li>
 </ol>
 <div class="tp">Part 5 · Build Your Own</div>
 <ol>
-<li value="16">Model Providers</li>
-<li value="17">Declarative Agents (YAML)</li>
-<li value="18">Writing Your Own Middleware</li>
-<li value="19">Checkpointing, HITL & Durability</li>
-<li value="20">Capstone: A Multi-Agent Workflow</li>
-<li value="21">Memory Backends</li>
+<li value="17">Model Providers</li>
+<li value="18">Declarative Agents (YAML)</li>
+<li value="19">Writing Your Own Middleware</li>
+<li value="20">Checkpointing, HITL & Durability</li>
+<li value="21">Capstone: A Multi-Agent Workflow</li>
+<li value="22">Memory Backends</li>
 </ol>
 <div class="tp">Part 6 · Protocols & Ecosystem</div>
 <ol>
-<li value="22">Agent Skills</li>
-<li value="23">MCP Tool Protocol</li>
-<li value="24">Foundry Hosted Agents</li>
-<li value="25">A2A & AG-UI Protocols</li>
-<li value="26">Evaluation & Time-Travel</li>
+<li value="23">Agent Skills</li>
+<li value="24">MCP Tool Protocol</li>
+<li value="25">Foundry Hosted Agents</li>
+<li value="26">A2A & AG-UI Protocols</li>
+<li value="27">Evaluation & Time-Travel</li>
 </ol>
 <div class="tp">Part 7 · Bonus</div>
 <ol>
-<li value="27">AF vs Other Frameworks</li>
-<li value="28">Full-Stack Map & Learning Path</li>
+<li value="28">AF vs Other Frameworks</li>
+<li value="29">Full-Stack Map & Learning Path</li>
 </ol></div></section>
 <section class="print-lesson"><div class="wrap"><div class="lesson-head"><div class="lp">Part 1 · Big Picture</div><h1><span class="ln">01 ·</span> What is Agent Framework</h1></div>
 <p class="lead" style="font-size:1.06rem;color:var(--muted);margin-top:-.6rem">
@@ -5089,7 +5090,199 @@ cat AGENTS.md</pre>
   </ul>
 </div>
 </div></div></section>
-<section class="print-lesson"><div class="wrap"><div class="lesson-head"><div class="lp">Part 5 · Build Your Own</div><h1><span class="ln">16 ·</span> Model Providers</h1></div>
+<section class="print-lesson"><div class="wrap"><div class="lesson-head"><div class="lp">Part 4 · Advanced</div><h1><span class="ln">16 ·</span> DevUI Visual Debugging</h1></div>
+<p class="lead">Debugging an agent with <span class="mono">print()</span> is like driving blindfolded&mdash;you see the final sentence but not <strong>which tool it called, what it streamed, or how long each step took</strong>.
+<strong>DevUI</strong> gives you a dashboard: one line, <span class="mono">serve(entities=[agent])</span>, launches a local server and you watch every step in the browser, live.</p>
+
+<div class="card analogy">
+  <div class="tag">🛩️ Analogy</div>
+  DevUI is like an aircraft <strong>cockpit</strong>: the engine (the Agent) works as usual, but now you have a row of gauges&mdash;altitude, fuel, heading (messages, tool calls, token stream).
+  Without it you guess from the engine noise (reading <span class="mono">print</span> logs); with it, every reading is <strong>visible</strong>.
+</div>
+
+<h2>One line to launch; the browser is your dashboard</h2>
+<div class="flow">
+  <div class="node"><div class="nt">your Agent</div><div class="nd">Agent(name, client, tools)</div></div>
+  <div class="arrow">→</div>
+  <div class="node hl"><div class="nt">serve(entities=[agent])</div><div class="nd">start local server</div></div>
+  <div class="arrow">→</div>
+  <div class="node"><div class="nt">browser UI</div><div class="nd">localhost:8080</div></div>
+  <div class="arrow">→</div>
+  <div class="node"><div class="nt">visible</div><div class="nd">messages / tools / stream / trace</div></div>
+</div>
+<p>Under the hood <span class="mono">serve()</span> uses <span class="mono">uvicorn</span> to start a local server with a web UI plus an <strong>OpenAI-compatible API</strong> (<span class="mono">/v1/*</span>), registering the <strong>entities (Agents or Workflows)</strong> you pass in.
+Open the browser: on the left is the list of discovered entities, on the right a chat panel&mdash;you send a line, and it draws <strong>every step</strong>.</p>
+
+<h2>Worked example: debugging a tool-using Agent in DevUI</h2>
+<p>Scenario: an agent that looks up weather. You want to see the chain "user asks → model decides to call a tool → tool returns → model composes the reply", not just the final sentence.</p>
+<div class="vflow">
+  <div class="step"><div class="num">1</div><div class="sc">
+    <h4>Write the Agent, add one serve line</h4>
+    <p>Change nothing in the Agent; just append one line to your script:</p>
+<pre class="code"><span class="kw">from</span> agent_framework.devui <span class="kw">import</span> serve
+serve(entities=[agent], auto_open=<span class="kw">True</span>)   <span class="cm"># auto-opens browser to localhost:8080</span></pre>
+  </div></div>
+  <div class="step"><div class="num">2</div><div class="sc">
+    <h4>Pick the entity in the browser, send a line</h4>
+    <p>Your <span class="mono">WeatherAgent</span> appears in the left list (DevUI auto-generates an ID for in-memory entities). Type "What's the weather in Paris?" in the chat box and send.</p>
+  </div></div>
+  <div class="step"><div class="num">3</div><div class="sc">
+    <h4>See the model "decide to call a tool" first</h4>
+    <p>The message timeline doesn't show text immediately&mdash;first a <strong>tool-call card</strong> pops up: <span class="mono">get_weather(city="Paris")</span>.
+      This is exactly Lesson 14's "the first chunks are tool_calls, not text"&mdash;previously imagined, now seen.</p>
+  </div></div>
+  <div class="step"><div class="num">4</div><div class="sc">
+    <h4>See the tool result fill in, tokens stream out</h4>
+    <p>The tool card expands to show the return value <span class="mono">"15°C, sunny"</span>; then the reply area starts streaming <strong>character by character</strong>&mdash;you feel the "quiet first, then burst" streaming rhythm directly.</p>
+  </div></div>
+  <div class="step"><div class="num">5</div><div class="sc">
+    <h4>(Optional) Open the trace, see the span tree</h4>
+    <p>If you pass <span class="mono">instrumentation_enabled=True</span> at launch, DevUI calls the framework's <span class="mono">enable_instrumentation()</span> (the observability switch from Lesson 30),
+      so the same run's <span class="mono">invoke_agent → chat → execute_tool → chat</span> span tree, with durations and attributes, is visible in the UI too.</p>
+  </div></div>
+</div>
+
+<h2>What the UI shows</h2>
+<table class="t">
+  <tr><th>Panel</th><th>What you see</th><th>Concept (lesson)</th></tr>
+  <tr><td>Entity discovery</td><td>list of registered Agents / Workflows</td><td class="mono">entities arg</td></tr>
+  <tr><td>Chat / request panel</td><td>your input, the Agent's reply</td><td>Message (L4)</td></tr>
+  <tr><td>Message timeline</td><td>system / user / assistant messages in order</td><td>run loop (L3)</td></tr>
+  <tr><td>Tool calls</td><td>FunctionCall name / args / return value</td><td>tool internals (L10)</td></tr>
+  <tr><td>Events / stream</td><td>per-token, streaming update events</td><td>streaming (L14)</td></tr>
+  <tr><td>Trace (optional)</td><td>span tree, durations, attributes</td><td>observability (L30)</td></tr>
+</table>
+
+<h2>Real source: the serve() signature</h2>
+<div class="codefile">
+  <div class="cf-head"><span class="dot"></span><span class="path">agent_framework_devui/__init__.py</span><span class="ln">serve (simplified from :89)</span></div>
+<pre><span class="kw">def</span> <span class="fn">serve</span>(
+    entities=<span class="kw">None</span>,             <span class="cm"># in-memory Agents / Workflows to debug</span>
+    entities_dir=<span class="kw">None</span>,         <span class="cm"># or: scan a directory for "discovery"</span>
+    port=<span class="nb">8080</span>,
+    host=<span class="st">"127.0.0.1"</span>,        <span class="cm"># binds to localhost by default</span>
+    auto_open=<span class="kw">False</span>,          <span class="cm"># auto-open the browser?</span>
+    cors_origins=<span class="kw">None</span>,
+    ui_enabled=<span class="kw">True</span>,           <span class="cm"># turn off to keep only the API, no web UI</span>
+    instrumentation_enabled=<span class="kw">False</span>,  <span class="cm"># turn on OpenTelemetry (see Lesson 30)</span>
+    mode=<span class="st">"developer"</span>,        <span class="cm"># developer=verbose errors / user=restricted+generic</span>
+    auth_enabled=<span class="kw">True</span>,         <span class="cm"># Bearer-token auth on by default</span>
+    auth_token=<span class="kw">None</span>,
+) -&gt; <span class="kw">None</span>:
+    <span class="cm"># start a uvicorn server, register entities, mount web UI + /v1/* compatible API</span>
+    ...</pre>
+</div>
+<p>Note a few informative defaults: <span class="mono">host="127.0.0.1"</span> (localhost only, safe), <span class="mono">auth_enabled=True</span> (auth on by default, dev token printed in startup logs),
+<span class="mono">mode="developer"</span> (verbose errors during development). The CLI entry point <span class="mono">main()</span> (<span class="mono">:202</span>) backs <span class="mono">devui ./agents</span>, which takes the <span class="mono">entities_dir</span> discovery path.</p>
+
+<details class="accordion" open>
+  <summary><span class="badge-num">1</span> What serve() actually does <span class="hint">click to expand</span></summary>
+  <div class="acc-body">
+    <div class="qa">
+      <div class="q">🧪 Example</div>
+      <div class="a">Inside <span class="mono">serve(entities=[agent])</span>: create a <span class="mono">DevServer</span>, stash entities as pending, grab its FastAPI <span class="mono">app</span>, then <span class="mono">uvicorn.run(app, host, port)</span>. With <span class="mono">auto_open=True</span> it also spawns a thread that opens the browser once <span class="mono">/health</span> is ready.</div>
+    </div>
+    <div class="qa">
+      <div class="q">❓ Why it's necessary</div>
+      <div class="a">You don't want to hand-build a frontend + an API just to "see how the agent runs". Folding that boilerplate into one <span class="mono">serve()</span> drops the debugging cost from "scaffold a project" to "add one line".</div>
+    </div>
+    <div class="qa">
+      <div class="q">✅ MAF's approach &amp; benefits</div>
+      <div class="a">DevUI exposes an <strong>OpenAI-compatible</strong> <span class="mono">/v1/*</span> API, so any OpenAI client can connect directly; the web UI is just a visual shell over that API. Flip <span class="mono">instrumentation_enabled</span> on and traces fold into the same view.</div>
+    </div>
+    <div class="qa">
+      <div class="q">🔀 Alternatives</div>
+      <div class="a">Pure CLI / <span class="mono">print</span> (no structure), wiring up an external platform like LangSmith (config, possibly paid), or building your own frontend (heavy). DevUI's tradeoff is "<strong>zero-config, local, batteries-included</strong>".</div>
+    </div>
+  </div>
+</details>
+
+<details class="accordion" open>
+  <summary><span class="badge-num">2</span> It's a "sample app", not a production server <span class="hint">click to expand</span></summary>
+  <div class="acc-body">
+    <div class="qa">
+      <div class="q">🧪 Example</div>
+      <div class="a">The docs state plainly that DevUI is a <strong>sample app</strong> for getting started and local debugging. For production you should <strong>build your own</strong> API server and UI with the Agent Framework SDK.</div>
+    </div>
+    <div class="qa">
+      <div class="q">❓ Why it's necessary</div>
+      <div class="a">Production needs around auth, rate-limiting, availability and custom UI far exceed a debugging tool. Treating DevUI as a production gateway will eventually bite you on security and scalability.</div>
+    </div>
+    <div class="qa">
+      <div class="q">✅ MAF's approach &amp; benefits</div>
+      <div class="a">DevUI defaults to <span class="mono">host=127.0.0.1</span> + <span class="mono">auth_enabled=True</span>&mdash;positioned for "local development". It and the real deployment path (e.g. Foundry hosting in Lesson 25) are <strong>two separate tracks</strong>, each doing its job.</div>
+    </div>
+    <div class="qa">
+      <div class="q">🔀 Alternatives</div>
+      <div class="a">When launched with no entities, DevUI shows a <strong>sample gallery</strong> you can download and run locally&mdash;making it a "learn/demo" tool too, not just a debugger.</div>
+    </div>
+  </div>
+</details>
+
+<div class="card key">
+  <div class="tag">✅ Key points</div>
+  <ul>
+    <li>One line, <span class="mono">serve(entities=[agent])</span>, gives a local server + browser dashboard, with <strong>no changes to Agent code</strong>.</li>
+    <li>You see: the message timeline, tool calls, streaming tokens; with <span class="mono">instrumentation_enabled</span> you also see the trace.</li>
+    <li>Under the hood it's <span class="mono">uvicorn</span> + an <strong>OpenAI-compatible API</strong> (<span class="mono">/v1/*</span>); the web UI is just its shell.</li>
+    <li>It's a <strong>sample debugging app</strong>, localhost-bound with auth by default; build your own server for production.</li>
+  </ul>
+</div>
+
+<div class="card spark">
+  <div class="tag">💡 Design highlight</div>
+  <strong>Debugging shouldn't require code changes.</strong> DevUI asks for no "debug hooks" on your Agent&mdash;the same <span class="mono">agent</span> object you normally <span class="mono">run()</span>, you can <span class="mono">serve()</span> to inspect.
+  Even observability (trace) is just one switch, <span class="mono">instrumentation_enabled</span>, reusing the framework's existing OpenTelemetry rather than a parallel system.
+</div>
+<div class="selftest">
+<h2>🧪 Self-test - think about the design</h2>
+<div class="quiz">
+  <div class="qn">1. <code>serve(entities=[agent])</code> launches DevUI. Which best describes what it does?</div>
+  <ol class="opts">
+    <li>Wipes all of the Agent's memory</li>
+    <li>Starts a local uvicorn server with a web UI + OpenAI-compatible API (<code>/v1/*</code>), registering your Agents/Workflows for visual debugging</li>
+    <li>Trains the Agent into a new model</li>
+    <li>Permanently deploys the Agent to cloud production</li>
+  </ol>
+  <details class="accordion" open>
+    <summary>Show answer &amp; explanation <span class="hint">click to expand</span></summary>
+    <div class="acc-body"><div class="qa"><div class="a"><strong>Answer: B</strong>. <code>serve()</code> creates a <code>DevServer</code>, grabs its FastAPI app, runs <code>uvicorn.run(app, host, port)</code>, and registers the passed entities. It exposes an OpenAI-compatible <code>/v1/*</code> API; the web UI is just a visual shell over it&mdash;purely for debugging, not training or deploying.</div></div></div>
+  </details>
+</div>
+<div class="quiz">
+  <div class="qn">2. Debugging a tool-using Agent in DevUI, which would you <strong>not</strong> see?</div>
+  <ol class="opts">
+    <li>Tool-call cards (name / args / return value)</li>
+    <li>The system/user/assistant message timeline</li>
+    <li>Tokens streaming out one by one</li>
+    <li>The model's internal neural-network weight values</li>
+  </ol>
+  <details class="accordion" open>
+    <summary>Show answer &amp; explanation <span class="hint">click to expand</span></summary>
+    <div class="acc-body"><div class="qa"><div class="a"><strong>Answer: D</strong>. DevUI makes the run visible: message timeline, tool calls, streaming tokens, and (with <code>instrumentation_enabled</code>) the span tree. But it observes <strong>framework-level</strong> behavior&mdash;the model's internal weights are neither visible nor relevant.</div></div></div>
+  </details>
+</div>
+<div class="quiz">
+  <div class="qn">3. DevUI defaults to <code>host="127.0.0.1"</code> with <code>auth_enabled=True</code>, and the docs call it a &quot;sample app&quot;. What do these defaults most clearly signal?</div>
+  <ol class="opts">
+    <li>It supports no authentication at all</li>
+    <li>It is already a hardened, production-grade gateway</li>
+    <li>It must be exposed to the public internet to work</li>
+    <li>It's positioned as a <strong>local dev / debugging</strong> tool; production should build a server with the SDK, not use DevUI as a production gateway</li>
+  </ol>
+  <details class="accordion" open>
+    <summary>Show answer &amp; explanation <span class="hint">click to expand</span></summary>
+    <div class="acc-body"><div class="qa"><div class="a"><strong>Answer: D</strong>. Localhost-only + auth-by-default is the safe posture for local development; the docs state DevUI is a sample app, and production should build its own API server and UI with the SDK. Debugging and deployment are separate tracks (deployment: Lesson 25, Foundry hosting).</div></div></div>
+  </details>
+</div>
+<div class="card spark">
+  <div class="tag">💭 Open questions (no single right answer - just think or try)</div>
+  <ul>
+    <li>Recall the one thing you most wanted to see but couldn't last time you debugged an agent with <code>print</code> (e.g. &quot;did it actually call a tool&quot;, &quot;why the long silence before text&quot;). Say which DevUI panel shows it directly, and how that changes your debugging loop. Then: why is &quot;debug without changing Agent code&quot; an important constraint?</li>
+  </ul>
+</div>
+</div></div></section>
+<section class="print-lesson"><div class="wrap"><div class="lesson-head"><div class="lp">Part 5 · Build Your Own</div><h1><span class="ln">17 ·</span> Model Providers</h1></div>
 <p class="lead">MAF's ChatClient is vendor-agnostic — but you pick a concrete vendor to <strong>connect a model</strong>.
 This lesson surveys the main provider packages and shows the <strong>import-to-run path</strong>.</p>
 
@@ -5367,7 +5560,7 @@ agent = client.as_agent(
   </ul>
 </div>
 </div></div></section>
-<section class="print-lesson"><div class="wrap"><div class="lesson-head"><div class="lp">Part 5 · Build Your Own</div><h1><span class="ln">17 ·</span> Declarative Agents (YAML)</h1></div>
+<section class="print-lesson"><div class="wrap"><div class="lesson-head"><div class="lp">Part 5 · Build Your Own</div><h1><span class="ln">18 ·</span> Declarative Agents (YAML)</h1></div>
 <p class="lead">Don't want to write code? Define an Agent in <strong>YAML</strong> — name, instructions, tools
 and model all in a config file.</p>
 
@@ -5602,7 +5795,7 @@ Current limitation: complex routing logic in workflows is best expressed in code
   </ul>
 </div>
 </div></div></section>
-<section class="print-lesson"><div class="wrap"><div class="lesson-head"><div class="lp">Part 5 · Build Your Own</div><h1><span class="ln">18 ·</span> Writing Your Own Middleware</h1></div>
+<section class="print-lesson"><div class="wrap"><div class="lesson-head"><div class="lp">Part 5 · Build Your Own</div><h1><span class="ln">19 ·</span> Writing Your Own Middleware</h1></div>
 <p class="lead">Lesson 11 explained what middleware <em>is</em>; this lesson teaches you to
 <strong>write your own</strong> — from scratch to working.</p>
 
@@ -5859,7 +6052,7 @@ On failure: log error, optionally retry, optionally return fallback. Pattern: ca
   </ul>
 </div>
 </div></div></section>
-<section class="print-lesson"><div class="wrap"><div class="lesson-head"><div class="lp">Part 5 · Build Your Own</div><h1><span class="ln">19 ·</span> Checkpointing, HITL & Durability</h1></div>
+<section class="print-lesson"><div class="wrap"><div class="lesson-head"><div class="lp">Part 5 · Build Your Own</div><h1><span class="ln">20 ·</span> Checkpointing, HITL & Durability</h1></div>
 <p class="lead">Production needs: <strong>save progress mid-run</strong> (checkpoints), <strong>human approval at
 critical steps</strong> (HITL), <strong>resume after crashes</strong> (durability). MAF makes all three first-class.</p>
 
@@ -6092,7 +6285,7 @@ Switching backends is a one-line change. All checkpoint APIs stay the same.
   </ul>
 </div>
 </div></div></section>
-<section class="print-lesson"><div class="wrap"><div class="lesson-head"><div class="lp">Part 5 · Build Your Own</div><h1><span class="ln">20 ·</span> Capstone: A Multi-Agent Workflow</h1></div>
+<section class="print-lesson"><div class="wrap"><div class="lesson-head"><div class="lp">Part 5 · Build Your Own</div><h1><span class="ln">21 ·</span> Capstone: A Multi-Agent Workflow</h1></div>
 <p class="lead">Capstone: assemble <strong>Agent + tools + orchestration + checkpoints</strong> from earlier lessons
 into a <strong>multi-Agent workflow</strong>.</p>
 
@@ -6366,7 +6559,7 @@ Checklist of gaps from demo to production.
   </ul>
 </div>
 </div></div></section>
-<section class="print-lesson"><div class="wrap"><div class="lesson-head"><div class="lp">Part 5 · Build Your Own</div><h1><span class="ln">21 ·</span> Memory Backends</h1></div>
+<section class="print-lesson"><div class="wrap"><div class="lesson-head"><div class="lp">Part 5 · Build Your Own</div><h1><span class="ln">22 ·</span> Memory Backends</h1></div>
 <p class="lead">So far our agents have had <strong>goldfish memory</strong>: the moment a <span class="mono">run()</span> ends, they forget everything.
 This lesson wires in a <strong>memory backend</strong>: Redis / Mem0 / Cosmos store conversation history and long-term memory outside the process,
 through two abstractions&mdash;<span class="mono">ContextProvider</span> and <span class="mono">HistoryProvider</span>&mdash;that splice "remembering" into every run.</p>
@@ -6598,7 +6791,7 @@ Cosmos only does <span class="mono">HistoryProvider</span> (focused on durable h
   </ul>
 </div>
 </div></div></section>
-<section class="print-lesson"><div class="wrap"><div class="lesson-head"><div class="lp">Part 6 · Protocols & Ecosystem</div><h1><span class="ln">22 ·</span> Agent Skills</h1></div>
+<section class="print-lesson"><div class="wrap"><div class="lesson-head"><div class="lp">Part 6 · Protocols & Ecosystem</div><h1><span class="ln">23 ·</span> Agent Skills</h1></div>
 <p class="lead"><strong>Agent Skills</strong> let you package domain knowledge into discoverable, reusable modules —
 Agents get not just tools but <strong>knowledge bases</strong>.</p>
 
@@ -6970,7 +7163,7 @@ source = AggregatingSkillsSource(sources=[
   </ul>
 </div>
 </div></div></section>
-<section class="print-lesson"><div class="wrap"><div class="lesson-head"><div class="lp">Part 6 · Protocols & Ecosystem</div><h1><span class="ln">23 ·</span> MCP Tool Protocol</h1></div>
+<section class="print-lesson"><div class="wrap"><div class="lesson-head"><div class="lp">Part 6 · Protocols & Ecosystem</div><h1><span class="ln">24 ·</span> MCP Tool Protocol</h1></div>
 <p class="lead"><strong>MCP (Model Context Protocol)</strong> is the <strong>open standard</strong> for connecting tools and
 resources to LLMs — MAF can both <strong>call</strong> MCP servers and <strong>expose</strong> an Agent as one.</p>
 
@@ -7319,7 +7512,7 @@ MCPStdioTool(name=<span class="st">"fs"</span>, command=<span class="st">"npx"</
   </ul>
 </div>
 </div></div></section>
-<section class="print-lesson"><div class="wrap"><div class="lesson-head"><div class="lp">Part 6 · Protocols & Ecosystem</div><h1><span class="ln">24 ·</span> Foundry Hosted Agents</h1></div>
+<section class="print-lesson"><div class="wrap"><div class="lesson-head"><div class="lp">Part 6 · Protocols & Ecosystem</div><h1><span class="ln">25 ·</span> Foundry Hosted Agents</h1></div>
 <p class="lead"><strong>Foundry Hosted Agents</strong> — with ~2 extra lines of code, deploy your local Agent to Azure AI
 Foundry cloud and get auto-scaling, session management and enterprise monitoring for free.</p>
 
@@ -7663,7 +7856,7 @@ server = InvocationsHostServer(agent=agent)
   </ul>
 </div>
 </div></div></section>
-<section class="print-lesson"><div class="wrap"><div class="lesson-head"><div class="lp">Part 6 · Protocols & Ecosystem</div><h1><span class="ln">25 ·</span> A2A & AG-UI Protocols</h1></div>
+<section class="print-lesson"><div class="wrap"><div class="lesson-head"><div class="lp">Part 6 · Protocols & Ecosystem</div><h1><span class="ln">26 ·</span> A2A & AG-UI Protocols</h1></div>
 <p class="lead"><strong>A2A (Agent-to-Agent)</strong> exposes an Agent as a service for other Agents to call;
 <strong>AG-UI</strong> gives Agents a structured real-time channel to the frontend —
 together they connect "Agent ↔ Agent" and "Agent ↔ User Interface".</p>
@@ -7986,7 +8179,7 @@ add_agent_framework_fastapi_endpoint(app, ag_ui_agent)
   </ul>
 </div>
 </div></div></section>
-<section class="print-lesson"><div class="wrap"><div class="lesson-head"><div class="lp">Part 6 · Protocols & Ecosystem</div><h1><span class="ln">26 ·</span> Evaluation & Time-Travel</h1></div>
+<section class="print-lesson"><div class="wrap"><div class="lesson-head"><div class="lp">Part 6 · Protocols & Ecosystem</div><h1><span class="ln">27 ·</span> Evaluation & Time-Travel</h1></div>
 <p class="lead"><strong>Evaluation</strong> systematically tests Agent output quality;
 <strong>Time-travel</strong> replays workflow runs from checkpoints for debugging —
 together they take Agents from "it runs" to "it's reliable".</p>
@@ -8347,7 +8540,7 @@ results = <span class="kw">await</span> evaluate_agent(agent=agent, queries=[...
   </ul>
 </div>
 </div></div></section>
-<section class="print-lesson"><div class="wrap"><div class="lesson-head"><div class="lp">Part 7 · Bonus</div><h1><span class="ln">27 ·</span> AF vs Other Frameworks</h1></div>
+<section class="print-lesson"><div class="wrap"><div class="lesson-head"><div class="lp">Part 7 · Bonus</div><h1><span class="ln">28 ·</span> AF vs Other Frameworks</h1></div>
 <p class="lead">MAF isn't the only agent framework. This lesson compares four major ones to give you
 <strong>global coordinates</strong>.</p>
 
@@ -8600,7 +8793,7 @@ SK:        ~25k  (large enterprise user base)</pre>
   </ul>
 </div>
 </div></div></section>
-<section class="print-lesson"><div class="wrap"><div class="lesson-head"><div class="lp">Part 7 · Bonus</div><h1><span class="ln">28 ·</span> Full-Stack Map & Learning Path</h1></div>
+<section class="print-lesson"><div class="wrap"><div class="lesson-head"><div class="lp">Part 7 · Bonus</div><h1><span class="ln">29 ·</span> Full-Stack Map & Learning Path</h1></div>
 <p class="lead">Final lesson — zoom out: place MAF in the <strong>AI full-stack</strong> coordinate system and see
 what's worth learning next door.</p>
 

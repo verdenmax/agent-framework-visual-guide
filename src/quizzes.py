@@ -971,6 +971,73 @@ QUIZZES = {
             },
         ],
     },
+    "29-devui.html": {
+        "mcq": [
+            {
+                "q": {
+                    "zh": "<code>serve(entities=[agent])</code> 启动 DevUI。下面哪条最准确地描述它做的事？",
+                    "en": "<code>serve(entities=[agent])</code> launches DevUI. Which best describes what it does?",
+                },
+                "opts": [
+                    {
+                        "zh": "用 uvicorn 起一个本地服务，挂上 Web UI + OpenAI 兼容 API（<code>/v1/*</code>），把你传入的 Agent/Workflow 注册进去供可视化调试",
+                        "en": "Starts a local uvicorn server with a web UI + OpenAI-compatible API (<code>/v1/*</code>), registering your Agents/Workflows for visual debugging",
+                    },
+                    {"zh": "把 Agent 训练成一个新模型", "en": "Trains the Agent into a new model"},
+                    {"zh": "把 Agent 永久部署到云端生产环境", "en": "Permanently deploys the Agent to cloud production"},
+                    {"zh": "删除 Agent 的所有记忆", "en": "Wipes all of the Agent's memory"},
+                ],
+                "answer": 0,
+                "why": {
+                    "zh": "<code>serve()</code> 底层创建 <code>DevServer</code>、取出 FastAPI app、<code>uvicorn.run(app, host, port)</code>，并注册传入的 entities。它暴露 <code>/v1/*</code> 的 OpenAI 兼容 API，Web UI 只是这套 API 的可视化壳——纯调试用途，不训练也不部署。",
+                    "en": "<code>serve()</code> creates a <code>DevServer</code>, grabs its FastAPI app, runs <code>uvicorn.run(app, host, port)</code>, and registers the passed entities. It exposes an OpenAI-compatible <code>/v1/*</code> API; the web UI is just a visual shell over it&mdash;purely for debugging, not training or deploying.",
+                },
+            },
+            {
+                "q": {
+                    "zh": "在 DevUI 里调一个带工具的 Agent，下面哪样是你<strong>看不到</strong>的？",
+                    "en": "Debugging a tool-using Agent in DevUI, which would you <strong>not</strong> see?",
+                },
+                "opts": [
+                    {"zh": "模型内部的神经网络权重数值", "en": "The model's internal neural-network weight values"},
+                    {"zh": "工具调用卡片（名称 / 参数 / 返回值）", "en": "Tool-call cards (name / args / return value)"},
+                    {"zh": "逐个流出的 token", "en": "Tokens streaming out one by one"},
+                    {"zh": "system/user/assistant 消息时间线", "en": "The system/user/assistant message timeline"},
+                ],
+                "answer": 0,
+                "why": {
+                    "zh": "DevUI 让运行过程「看得见」：消息时间线、工具调用、流式 token，开 <code>instrumentation_enabled</code> 还能看 span 树。但它观测的是<strong>框架层</strong>的行为，模型内部权重既看不到也无需看。",
+                    "en": "DevUI makes the run visible: message timeline, tool calls, streaming tokens, and (with <code>instrumentation_enabled</code>) the span tree. But it observes <strong>framework-level</strong> behavior&mdash;the model's internal weights are neither visible nor relevant.",
+                },
+            },
+            {
+                "q": {
+                    "zh": "DevUI 默认 <code>host=\"127.0.0.1\"</code> 且 <code>auth_enabled=True</code>，官方也强调它是「样例 App」。这组默认值最能说明什么？",
+                    "en": "DevUI defaults to <code>host=\"127.0.0.1\"</code> with <code>auth_enabled=True</code>, and the docs call it a &quot;sample app&quot;. What do these defaults most clearly signal?",
+                },
+                "opts": [
+                    {
+                        "zh": "它定位是<strong>本地开发 / 调试</strong>工具；生产应当用 SDK 自建 server，而不是直接拿 DevUI 当生产网关",
+                        "en": "It's positioned as a <strong>local dev / debugging</strong> tool; production should build a server with the SDK, not use DevUI as a production gateway",
+                    },
+                    {"zh": "它已经是经过加固的生产级网关", "en": "It is already a hardened, production-grade gateway"},
+                    {"zh": "它必须暴露到公网才能工作", "en": "It must be exposed to the public internet to work"},
+                    {"zh": "它不支持任何鉴权", "en": "It supports no authentication at all"},
+                ],
+                "answer": 0,
+                "why": {
+                    "zh": "只绑本机 + 默认带鉴权，正是「本机开发」的安全姿态；官方明确 DevUI 是 sample app，生产请用 Agent Framework SDK 自建 API server 与界面。调试与部署是两条线（部署见第 25 课 Foundry 托管）。",
+                    "en": "Localhost-only + auth-by-default is the safe posture for local development; the docs state DevUI is a sample app, and production should build its own API server and UI with the SDK. Debugging and deployment are separate tracks (deployment: Lesson 25, Foundry hosting).",
+                },
+            },
+        ],
+        "open": [
+            {
+                "zh": "回想你上次用 <code>print</code> 调 Agent 时最想知道却看不到的一件事（比如「它到底调没调工具」「为什么半天不出字」）。说说在 DevUI 的哪个面板能直接看到它，以及这如何改变你的调试节奏。再想想：为什么「不改 Agent 代码就能调试」是个重要约束？",
+                "en": "Recall the one thing you most wanted to see but couldn't last time you debugged an agent with <code>print</code> (e.g. &quot;did it actually call a tool&quot;, &quot;why the long silence before text&quot;). Say which DevUI panel shows it directly, and how that changes your debugging loop. Then: why is &quot;debug without changing Agent code&quot; an important constraint?",
+            },
+        ],
+    },
     "16-providers.html": {
         "mcq": [
             {

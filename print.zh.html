@@ -275,7 +275,7 @@ h2, h3, h4 { break-after: avoid; }
   <div class="emoji">📘</div>
   <h1>Agent Framework 图解教程</h1>
   <div class="sub">从零理解整个项目 · 宏观 → 用法 → 源码 → 自己动手做 Agent</div>
-  <div class="meta">共 28 课 · 7 个部分 · 每课配真实代码对应与设计亮点<br>
+  <div class="meta">共 29 课 · 7 个部分 · 每课配真实代码对应与设计亮点<br>
     生成日期 2026-06-23 · verdenmax · Code MIT · Content CC BY 4.0</div>
 </section>
 <section class="print-toc"><div class="wrap"><h2>目录</h2>
@@ -305,28 +305,29 @@ h2, h3, h4 { break-after: avoid; }
 <div class="tp">第四部分 · 进阶实战</div>
 <ol>
 <li value="15">读源码 / 调试 / 测试 / 贡献</li>
+<li value="16">DevUI 可视化调试</li>
 </ol>
 <div class="tp">第五部分 · 自己动手做 Agent</div>
 <ol>
-<li value="16">接入各家模型</li>
-<li value="17">声明式 Agent（YAML）</li>
-<li value="18">写自己的中间件</li>
-<li value="19">检查点 · 人在环 · 持久化</li>
-<li value="20">端到端实战：多 Agent 工作流</li>
-<li value="21">记忆后端</li>
+<li value="17">接入各家模型</li>
+<li value="18">声明式 Agent（YAML）</li>
+<li value="19">写自己的中间件</li>
+<li value="20">检查点 · 人在环 · 持久化</li>
+<li value="21">端到端实战：多 Agent 工作流</li>
+<li value="22">记忆后端</li>
 </ol>
 <div class="tp">第六部分 · 协议与生态</div>
 <ol>
-<li value="22">Agent Skills 技能系统</li>
-<li value="23">MCP 工具协议</li>
-<li value="24">Foundry 托管 Agent</li>
-<li value="25">A2A + AG-UI 协议</li>
-<li value="26">评估与时间旅行</li>
+<li value="23">Agent Skills 技能系统</li>
+<li value="24">MCP 工具协议</li>
+<li value="25">Foundry 托管 Agent</li>
+<li value="26">A2A + AG-UI 协议</li>
+<li value="27">评估与时间旅行</li>
 </ol>
 <div class="tp">第七部分 · 番外篇</div>
 <ol>
-<li value="27">横向对比：AF vs 其他框架</li>
-<li value="28">全栈坐标系 & 学习地图</li>
+<li value="28">横向对比：AF vs 其他框架</li>
+<li value="29">全栈坐标系 & 学习地图</li>
 </ol></div></section>
 <section class="print-lesson"><div class="wrap"><div class="lesson-head"><div class="lp">第一部分 · 宏观全景</div><h1><span class="ln">01 ·</span> Agent Framework 是什么</h1></div>
 <p class="lead" style="font-size:1.06rem;color:var(--muted);margin-top:-.6rem">
@@ -5037,7 +5038,199 @@ cat AGENTS.md</pre>
   </ul>
 </div>
 </div></div></section>
-<section class="print-lesson"><div class="wrap"><div class="lesson-head"><div class="lp">第五部分 · 自己动手做 Agent</div><h1><span class="ln">16 ·</span> 接入各家模型</h1></div>
+<section class="print-lesson"><div class="wrap"><div class="lesson-head"><div class="lp">第四部分 · 进阶实战</div><h1><span class="ln">16 ·</span> DevUI 可视化调试</h1></div>
+<p class="lead">用 <span class="mono">print()</span> 调 Agent 就像蒙着眼开车——你只看到终点的一句话，看不到中间它<strong>调了哪个工具、流式吐了什么、每步多久</strong>。
+<strong>DevUI</strong> 给你一块仪表盘：一行 <span class="mono">serve(entities=[agent])</span> 启动本地服务，浏览器里实时看 Agent 跑的每一步。</p>
+
+<div class="card analogy">
+  <div class="tag">🛩️ 生活类比</div>
+  DevUI 像飞机的<strong>驾驶舱</strong>：引擎（Agent）照常工作，但你面前多了一排仪表——高度、油量、航向（消息、工具调用、token 流）。
+  没有它，你只能听引擎声音猜（看 <span class="mono">print</span> 日志）；有了它，每个读数都<strong>看得见</strong>。
+</div>
+
+<h2>一行启动，浏览器即仪表盘</h2>
+<div class="flow">
+  <div class="node"><div class="nt">你的 Agent</div><div class="nd">Agent(name, client, tools)</div></div>
+  <div class="arrow">→</div>
+  <div class="node hl"><div class="nt">serve(entities=[agent])</div><div class="nd">起本地 server</div></div>
+  <div class="arrow">→</div>
+  <div class="node"><div class="nt">浏览器 UI</div><div class="nd">localhost:8080</div></div>
+  <div class="arrow">→</div>
+  <div class="node"><div class="nt">看得见</div><div class="nd">消息 / 工具 / 流 / trace</div></div>
+</div>
+<p><span class="mono">serve()</span> 在底层用 <span class="mono">uvicorn</span> 起一个带 Web 界面 + <strong>OpenAI 兼容 API</strong>（<span class="mono">/v1/*</span>）的本地服务，把你传进去的 <strong>entities（Agent 或 Workflow）</strong>注册进去。
+浏览器打开后，左边是发现到的实体列表，右边是聊天面板——你发一句话，它把<strong>每一步</strong>画出来。</p>
+
+<h2>走一遍：在 DevUI 里调一个带工具的 Agent</h2>
+<p>场景：一个会查天气的 Agent。你想看清"用户问天气 → 模型决定调工具 → 工具返回 → 模型组织答复"这条链，而不是只看到最后一句话。</p>
+<div class="vflow">
+  <div class="step"><div class="num">1</div><div class="sc">
+    <h4>写好 Agent，一行 serve</h4>
+    <p>不改 Agent 任何代码，只在脚本末尾加一行：</p>
+<pre class="code"><span class="kw">from</span> agent_framework.devui <span class="kw">import</span> serve
+serve(entities=[agent], auto_open=<span class="kw">True</span>)   <span class="cm"># 自动开浏览器到 localhost:8080</span></pre>
+  </div></div>
+  <div class="step"><div class="num">2</div><div class="sc">
+    <h4>浏览器里选中实体、发一句话</h4>
+    <p>左侧列表出现你的 <span class="mono">WeatherAgent</span>（DevUI 自动为内存实体生成 ID）。在右侧聊天框输入"巴黎天气如何？"并发送。</p>
+  </div></div>
+  <div class="step"><div class="num">3</div><div class="sc">
+    <h4>看到模型「先决定调工具」</h4>
+    <p>消息时间线上不是立刻出现文本，而是先冒出一个<strong>工具调用卡片</strong>：<span class="mono">get_weather(city="Paris")</span>。
+      这正是第 14 课讲的"首批 chunk 是 tool_calls 而非文本"——以前只能脑补，现在直接看见。</p>
+  </div></div>
+  <div class="step"><div class="num">4</div><div class="sc">
+    <h4>看到工具结果回填、token 逐个流出</h4>
+    <p>工具卡片展开显示返回值 <span class="mono">"15°C, 晴"</span>；紧接着答复区开始<strong>一个字一个字地流</strong>出来——你能直观感到"先静默、再爆发"的流式节奏。</p>
+  </div></div>
+  <div class="step"><div class="num">5</div><div class="sc">
+    <h4>（可选）打开 trace，看 span 树</h4>
+    <p>若启动时传 <span class="mono">instrumentation_enabled=True</span>，DevUI 会调用框架的 <span class="mono">enable_instrumentation()</span>（即第 30 课的可观测开关），
+      于是同一次运行的 <span class="mono">invoke_agent → chat → execute_tool → chat</span> span 树也能在界面里看到耗时与属性。</p>
+  </div></div>
+</div>
+
+<h2>界面能看到什么</h2>
+<table class="t">
+  <tr><th>面板</th><th>看到的内容</th><th>对应概念（课）</th></tr>
+  <tr><td>实体发现</td><td>注册进来的 Agent / Workflow 列表</td><td class="mono">entities 参数</td></tr>
+  <tr><td>聊天 / 请求面板</td><td>你发的输入、Agent 的回复</td><td>消息 Message（4 课）</td></tr>
+  <tr><td>消息时间线</td><td>system / user / assistant 消息按序展开</td><td>run 循环（3 课）</td></tr>
+  <tr><td>工具调用</td><td>FunctionCall 名称 / 参数 / 返回值</td><td>工具调用内部（10 课）</td></tr>
+  <tr><td>事件 / 流</td><td>逐个 token、流式更新事件</td><td>流式（14 课）</td></tr>
+  <tr><td>Trace（可选）</td><td>span 树、耗时、属性</td><td>可观测性（30 课）</td></tr>
+</table>
+
+<h2>真实源码：serve() 的签名</h2>
+<div class="codefile">
+  <div class="cf-head"><span class="dot"></span><span class="path">agent_framework_devui/__init__.py</span><span class="ln">serve（简化自 :89）</span></div>
+<pre><span class="kw">def</span> <span class="fn">serve</span>(
+    entities=<span class="kw">None</span>,             <span class="cm"># 内存里要调试的 Agent / Workflow 列表</span>
+    entities_dir=<span class="kw">None</span>,         <span class="cm"># 或：扫描一个目录做「发现」</span>
+    port=<span class="nb">8080</span>,
+    host=<span class="st">"127.0.0.1"</span>,        <span class="cm"># 默认只绑本机</span>
+    auto_open=<span class="kw">False</span>,          <span class="cm"># 是否自动开浏览器</span>
+    cors_origins=<span class="kw">None</span>,
+    ui_enabled=<span class="kw">True</span>,           <span class="cm"># 关掉就只剩 API，不出 Web 界面</span>
+    instrumentation_enabled=<span class="kw">False</span>,  <span class="cm"># 打开 OpenTelemetry（见第 30 课）</span>
+    mode=<span class="st">"developer"</span>,        <span class="cm"># developer=详细报错 / user=受限+通用报错</span>
+    auth_enabled=<span class="kw">True</span>,         <span class="cm"># 默认开 Bearer token 鉴权</span>
+    auth_token=<span class="kw">None</span>,
+) -&gt; <span class="kw">None</span>:
+    <span class="cm"># 起 uvicorn server，注册 entities，挂上 Web UI + /v1/* 兼容 API</span>
+    ...</pre>
+</div>
+<p>注意几个有信息量的默认值：<span class="mono">host="127.0.0.1"</span>（只绑本机，安全）、<span class="mono">auth_enabled=True</span>（默认带鉴权，启动时日志里打印开发 token）、
+<span class="mono">mode="developer"</span>（开发期给你详细报错）。命令行入口 <span class="mono">main()</span>（<span class="mono">:202</span>）对应 <span class="mono">devui ./agents</span>，走的是 <span class="mono">entities_dir</span> 目录发现那条路。</p>
+
+<details class="accordion" open>
+  <summary><span class="badge-num">1</span> serve() 到底做了什么 <span class="hint">点击展开详解</span></summary>
+  <div class="acc-body">
+    <div class="qa">
+      <div class="q">🧪 示例</div>
+      <div class="a"><span class="mono">serve(entities=[agent])</span> 内部：创建一个 <span class="mono">DevServer</span>，把 entities 暂存为待注册，取出它的 FastAPI <span class="mono">app</span>，最后 <span class="mono">uvicorn.run(app, host, port)</span>。<span class="mono">auto_open=True</span> 时还会起一个线程，等 <span class="mono">/health</span> 就绪后开浏览器。</div>
+    </div>
+    <div class="qa">
+      <div class="q">❓ 为什么这件事必要</div>
+      <div class="a">不想为了"看一眼 Agent 怎么跑的"就去手写一个前端 + 一套 API。把这套样板收进一个 <span class="mono">serve()</span>，调试成本从"搭个项目"降到"加一行"。</div>
+    </div>
+    <div class="qa">
+      <div class="q">✅ MAF 的做法与优点</div>
+      <div class="a">DevUI 暴露的是 <strong>OpenAI 兼容</strong>的 <span class="mono">/v1/*</span> 接口，所以任何 OpenAI 客户端都能直连调试；Web UI 只是这套 API 的一个可视化壳。<span class="mono">instrumentation_enabled</span> 一开，trace 也并进同一界面。</div>
+    </div>
+    <div class="qa">
+      <div class="q">🔀 还有什么其他方案</div>
+      <div class="a">纯 CLI / <span class="mono">print</span>（看不到结构）、自己接 LangSmith 之类外部平台（要配置、可能收费）、或自己写前端（重）。DevUI 的取舍是"<strong>零配置、本地、开箱即用</strong>"。</div>
+    </div>
+  </div>
+</details>
+
+<details class="accordion" open>
+  <summary><span class="badge-num">2</span> 它是「样例 App」，不是生产服务器 <span class="hint">点击展开详解</span></summary>
+  <div class="acc-body">
+    <div class="qa">
+      <div class="q">🧪 示例</div>
+      <div class="a">官方明确说 DevUI 是 <strong>sample app</strong>，用来快速上手与本地调试。生产环境应当用 Agent Framework SDK<strong>自建</strong> API server 和界面。</div>
+    </div>
+    <div class="qa">
+      <div class="q">❓ 为什么这件事必要</div>
+      <div class="a">生产对鉴权、限流、可用性、定制 UI 的要求远超一个调试工具。把 DevUI 当生产网关，迟早在安全和可扩展性上栽跟头。</div>
+    </div>
+    <div class="qa">
+      <div class="q">✅ MAF 的做法与优点</div>
+      <div class="a">DevUI 默认 <span class="mono">host=127.0.0.1</span> + <span class="mono">auth_enabled=True</span>，本就为"本机开发"定位；它和真正的部署路径（如 25 课的 Foundry 托管）是<strong>两条线</strong>，各司其职。</div>
+    </div>
+    <div class="qa">
+      <div class="q">🔀 还有什么其他方案</div>
+      <div class="a">无实体启动时，DevUI 会显示<strong>样例画廊</strong>，可下载官方示例本地跑——这让它也是个"学习/演示"工具，而不只是调试器。</div>
+    </div>
+  </div>
+</details>
+
+<div class="card key">
+  <div class="tag">✅ 关键要点</div>
+  <ul>
+    <li>一行 <span class="mono">serve(entities=[agent])</span> 起本地服务 + 浏览器仪表盘，<strong>不改 Agent 代码</strong>。</li>
+    <li>能看到：消息时间线、工具调用、流式 token，开 <span class="mono">instrumentation_enabled</span> 还能看 trace。</li>
+    <li>底层是 <span class="mono">uvicorn</span> + <strong>OpenAI 兼容 API</strong>（<span class="mono">/v1/*</span>）；Web UI 只是它的壳。</li>
+    <li>它是<strong>样例调试 App</strong>，默认绑本机 + 带鉴权；生产请自建 server。</li>
+  </ul>
+</div>
+
+<div class="card spark">
+  <div class="tag">💡 设计亮点</div>
+  <strong>调试不该需要改代码。</strong>DevUI 不要求你给 Agent 加任何"调试钩子"——同一个 <span class="mono">agent</span> 对象，平时 <span class="mono">run()</span>，想看就 <span class="mono">serve()</span>。
+  可观测能力（trace）也只是一个开关 <span class="mono">instrumentation_enabled</span>，复用框架既有的 OpenTelemetry，而不是另起一套。
+</div>
+<div class="selftest">
+<h2>🧪 自测 · 想一想为什么这么设计</h2>
+<div class="quiz">
+  <div class="qn">1. <code>serve(entities=[agent])</code> 启动 DevUI。下面哪条最准确地描述它做的事？</div>
+  <ol class="opts">
+    <li>删除 Agent 的所有记忆</li>
+    <li>用 uvicorn 起一个本地服务，挂上 Web UI + OpenAI 兼容 API（<code>/v1/*</code>），把你传入的 Agent/Workflow 注册进去供可视化调试</li>
+    <li>把 Agent 训练成一个新模型</li>
+    <li>把 Agent 永久部署到云端生产环境</li>
+  </ol>
+  <details class="accordion" open>
+    <summary>看答案与解析 <span class="hint">点击展开</span></summary>
+    <div class="acc-body"><div class="qa"><div class="a"><strong>答案：B</strong>。<code>serve()</code> 底层创建 <code>DevServer</code>、取出 FastAPI app、<code>uvicorn.run(app, host, port)</code>，并注册传入的 entities。它暴露 <code>/v1/*</code> 的 OpenAI 兼容 API，Web UI 只是这套 API 的可视化壳——纯调试用途，不训练也不部署。</div></div></div>
+  </details>
+</div>
+<div class="quiz">
+  <div class="qn">2. 在 DevUI 里调一个带工具的 Agent，下面哪样是你<strong>看不到</strong>的？</div>
+  <ol class="opts">
+    <li>工具调用卡片（名称 / 参数 / 返回值）</li>
+    <li>system/user/assistant 消息时间线</li>
+    <li>逐个流出的 token</li>
+    <li>模型内部的神经网络权重数值</li>
+  </ol>
+  <details class="accordion" open>
+    <summary>看答案与解析 <span class="hint">点击展开</span></summary>
+    <div class="acc-body"><div class="qa"><div class="a"><strong>答案：D</strong>。DevUI 让运行过程「看得见」：消息时间线、工具调用、流式 token，开 <code>instrumentation_enabled</code> 还能看 span 树。但它观测的是<strong>框架层</strong>的行为，模型内部权重既看不到也无需看。</div></div></div>
+  </details>
+</div>
+<div class="quiz">
+  <div class="qn">3. DevUI 默认 <code>host="127.0.0.1"</code> 且 <code>auth_enabled=True</code>，官方也强调它是「样例 App」。这组默认值最能说明什么？</div>
+  <ol class="opts">
+    <li>它不支持任何鉴权</li>
+    <li>它已经是经过加固的生产级网关</li>
+    <li>它必须暴露到公网才能工作</li>
+    <li>它定位是<strong>本地开发 / 调试</strong>工具；生产应当用 SDK 自建 server，而不是直接拿 DevUI 当生产网关</li>
+  </ol>
+  <details class="accordion" open>
+    <summary>看答案与解析 <span class="hint">点击展开</span></summary>
+    <div class="acc-body"><div class="qa"><div class="a"><strong>答案：D</strong>。只绑本机 + 默认带鉴权，正是「本机开发」的安全姿态；官方明确 DevUI 是 sample app，生产请用 Agent Framework SDK 自建 API server 与界面。调试与部署是两条线（部署见第 25 课 Foundry 托管）。</div></div></div>
+  </details>
+</div>
+<div class="card spark">
+  <div class="tag">💭 发散思考（没有标准答案，动手或动脑想想）</div>
+  <ul>
+    <li>回想你上次用 <code>print</code> 调 Agent 时最想知道却看不到的一件事（比如「它到底调没调工具」「为什么半天不出字」）。说说在 DevUI 的哪个面板能直接看到它，以及这如何改变你的调试节奏。再想想：为什么「不改 Agent 代码就能调试」是个重要约束？</li>
+  </ul>
+</div>
+</div></div></section>
+<section class="print-lesson"><div class="wrap"><div class="lesson-head"><div class="lp">第五部分 · 自己动手做 Agent</div><h1><span class="ln">17 ·</span> 接入各家模型</h1></div>
 <p class="lead">MAF 的 ChatClient 是厂商无关的——但你总要选一个具体厂商来<strong>接入模型</strong>。
 本课过一遍主要 provider 包，教你<strong>怎么从"import 到 run"走完全程</strong>。</p>
 
@@ -5315,7 +5508,7 @@ agent = client.as_agent(
   </ul>
 </div>
 </div></div></section>
-<section class="print-lesson"><div class="wrap"><div class="lesson-head"><div class="lp">第五部分 · 自己动手做 Agent</div><h1><span class="ln">17 ·</span> 声明式 Agent（YAML）</h1></div>
+<section class="print-lesson"><div class="wrap"><div class="lesson-head"><div class="lp">第五部分 · 自己动手做 Agent</div><h1><span class="ln">18 ·</span> 声明式 Agent（YAML）</h1></div>
 <p class="lead">不想写代码？用 <strong>YAML</strong> 定义一个 Agent——名字、指令、工具、模型全写在配置文件里。</p>
 
 <div class="card analogy">
@@ -5548,7 +5741,7 @@ workflow:
   </ul>
 </div>
 </div></div></section>
-<section class="print-lesson"><div class="wrap"><div class="lesson-head"><div class="lp">第五部分 · 自己动手做 Agent</div><h1><span class="ln">18 ·</span> 写自己的中间件</h1></div>
+<section class="print-lesson"><div class="wrap"><div class="lesson-head"><div class="lp">第五部分 · 自己动手做 Agent</div><h1><span class="ln">19 ·</span> 写自己的中间件</h1></div>
 <p class="lead">第 11 课讲了中间件<em>是什么</em>；本课教你<strong>写一个自己的</strong>——从零到能用。</p>
 
 <div class="card analogy">
@@ -5802,7 +5995,7 @@ logger = logging.getLogger(__name__)
   </ul>
 </div>
 </div></div></section>
-<section class="print-lesson"><div class="wrap"><div class="lesson-head"><div class="lp">第五部分 · 自己动手做 Agent</div><h1><span class="ln">19 ·</span> 检查点 · 人在环 · 持久化</h1></div>
+<section class="print-lesson"><div class="wrap"><div class="lesson-head"><div class="lp">第五部分 · 自己动手做 Agent</div><h1><span class="ln">20 ·</span> 检查点 · 人在环 · 持久化</h1></div>
 <p class="lead">生产环境需要：<strong>跑到一半能存盘</strong>（检查点）、<strong>关键操作人工审批</strong>（人在环）、
 <strong>挂了能续跑</strong>（持久化）。MAF 把这三件事做成一等公民。</p>
 
@@ -6035,7 +6228,7 @@ workflow = SequentialBuilder(
   </ul>
 </div>
 </div></div></section>
-<section class="print-lesson"><div class="wrap"><div class="lesson-head"><div class="lp">第五部分 · 自己动手做 Agent</div><h1><span class="ln">20 ·</span> 端到端实战：多 Agent 工作流</h1></div>
+<section class="print-lesson"><div class="wrap"><div class="lesson-head"><div class="lp">第五部分 · 自己动手做 Agent</div><h1><span class="ln">21 ·</span> 端到端实战：多 Agent 工作流</h1></div>
 <p class="lead">最后一课实战：把前面学的<strong>Agent + 工具 + 编排 + 检查点</strong>拼成一个
 <strong>多 Agent 工作流</strong>。</p>
 
@@ -6308,7 +6501,7 @@ logging.basicConfig(level=logging.INFO)</pre>
   </ul>
 </div>
 </div></div></section>
-<section class="print-lesson"><div class="wrap"><div class="lesson-head"><div class="lp">第五部分 · 自己动手做 Agent</div><h1><span class="ln">21 ·</span> 记忆后端</h1></div>
+<section class="print-lesson"><div class="wrap"><div class="lesson-head"><div class="lp">第五部分 · 自己动手做 Agent</div><h1><span class="ln">22 ·</span> 记忆后端</h1></div>
 <p class="lead">前面几课的 Agent 都是<strong>金鱼记忆</strong>——一次 <span class="mono">run()</span> 结束，什么都不记得。
 本课教你给它接上<strong>记忆后端</strong>：用 Redis / Mem0 / Cosmos 把对话历史和长期记忆存到进程之外，
 靠两类抽象——<span class="mono">ContextProvider</span> 与 <span class="mono">HistoryProvider</span>——把"记住"这件事插进每一次运行。</p>
@@ -6540,7 +6733,7 @@ Cosmos 只做 <span class="mono">HistoryProvider</span>（专注持久历史）�
   </ul>
 </div>
 </div></div></section>
-<section class="print-lesson"><div class="wrap"><div class="lesson-head"><div class="lp">第六部分 · 协议与生态</div><h1><span class="ln">22 ·</span> Agent Skills 技能系统</h1></div>
+<section class="print-lesson"><div class="wrap"><div class="lesson-head"><div class="lp">第六部分 · 协议与生态</div><h1><span class="ln">23 ·</span> Agent Skills 技能系统</h1></div>
 <p class="lead"><strong>Agent Skills（技能）</strong>让你把领域知识打包成可发现、可复用的模块——
 Agent 不再只有工具，还有<strong>知识库</strong>。</p>
 
@@ -6907,7 +7100,7 @@ source = AggregatingSkillsSource(sources=[
   </ul>
 </div>
 </div></div></section>
-<section class="print-lesson"><div class="wrap"><div class="lesson-head"><div class="lp">第六部分 · 协议与生态</div><h1><span class="ln">23 ·</span> MCP 工具协议</h1></div>
+<section class="print-lesson"><div class="wrap"><div class="lesson-head"><div class="lp">第六部分 · 协议与生态</div><h1><span class="ln">24 ·</span> MCP 工具协议</h1></div>
 <p class="lead"><strong>MCP（Model Context Protocol）</strong>是连接工具/资源到 LLM 的<strong>开放标准</strong>——
 MAF 既能<strong>调用</strong> MCP 服务器上的工具，也能把 Agent 自身<strong>暴露为</strong> MCP 服务器。</p>
 
@@ -7255,7 +7448,7 @@ MCPStdioTool(name=<span class="st">"fs"</span>, command=<span class="st">"npx"</
   </ul>
 </div>
 </div></div></section>
-<section class="print-lesson"><div class="wrap"><div class="lesson-head"><div class="lp">第六部分 · 协议与生态</div><h1><span class="ln">24 ·</span> Foundry 托管 Agent</h1></div>
+<section class="print-lesson"><div class="wrap"><div class="lesson-head"><div class="lp">第六部分 · 协议与生态</div><h1><span class="ln">25 ·</span> Foundry 托管 Agent</h1></div>
 <p class="lead"><strong>Foundry 托管 Agent</strong>——只需 ~2 行额外代码，就能把本地 Agent 部署到 Azure AI Foundry 云端，
 获得自动伸缩、会话管理和企业级监控。</p>
 
@@ -7596,7 +7789,7 @@ server = InvocationsHostServer(agent=agent)
   </ul>
 </div>
 </div></div></section>
-<section class="print-lesson"><div class="wrap"><div class="lesson-head"><div class="lp">第六部分 · 协议与生态</div><h1><span class="ln">25 ·</span> A2A + AG-UI 协议</h1></div>
+<section class="print-lesson"><div class="wrap"><div class="lesson-head"><div class="lp">第六部分 · 协议与生态</div><h1><span class="ln">26 ·</span> A2A + AG-UI 协议</h1></div>
 <p class="lead"><strong>A2A（Agent-to-Agent）</strong>让 Agent 作为服务暴露给其他 Agent 调用；
 <strong>AG-UI</strong>让 Agent 与前端 UI 实时结构化通信——两个协议合力打通"Agent ↔ Agent"和"Agent ↔ 用户界面"。</p>
 
@@ -7915,7 +8108,7 @@ add_agent_framework_fastapi_endpoint(app, ag_ui_agent)
   </ul>
 </div>
 </div></div></section>
-<section class="print-lesson"><div class="wrap"><div class="lesson-head"><div class="lp">第六部分 · 协议与生态</div><h1><span class="ln">26 ·</span> 评估与时间旅行</h1></div>
+<section class="print-lesson"><div class="wrap"><div class="lesson-head"><div class="lp">第六部分 · 协议与生态</div><h1><span class="ln">27 ·</span> 评估与时间旅行</h1></div>
 <p class="lead"><strong>Evaluation（评估）</strong>系统化测试 Agent 输出质量；
 <strong>Time-travel（时间旅行）</strong>通过检查点回放调试工作流——两者合力让 Agent 从"能跑"进化到"可靠"。</p>
 
@@ -8274,7 +8467,7 @@ results = <span class="kw">await</span> evaluate_agent(agent=agent, queries=[...
   </ul>
 </div>
 </div></div></section>
-<section class="print-lesson"><div class="wrap"><div class="lesson-head"><div class="lp">第七部分 · 番外篇</div><h1><span class="ln">27 ·</span> 横向对比：AF vs 其他框架</h1></div>
+<section class="print-lesson"><div class="wrap"><div class="lesson-head"><div class="lp">第七部分 · 番外篇</div><h1><span class="ln">28 ·</span> 横向对比：AF vs 其他框架</h1></div>
 <p class="lead">Agent 框架不止 MAF 一个。本课横向对比四大框架，帮你建立<strong>全局坐标</strong>。</p>
 
 <div class="card analogy">
@@ -8523,7 +8716,7 @@ SK:        ~25k  (企业用户基数大)</pre>
   </ul>
 </div>
 </div></div></section>
-<section class="print-lesson"><div class="wrap"><div class="lesson-head"><div class="lp">第七部分 · 番外篇</div><h1><span class="ln">28 ·</span> 全栈坐标系 & 学习地图</h1></div>
+<section class="print-lesson"><div class="wrap"><div class="lesson-head"><div class="lp">第七部分 · 番外篇</div><h1><span class="ln">29 ·</span> 全栈坐标系 & 学习地图</h1></div>
 <p class="lead">最后一课，缩放镜头：把 MAF 放进<strong>AI 全栈</strong>的坐标系里——
 看看你现在在哪，隔壁层还有什么值得学。</p>
 

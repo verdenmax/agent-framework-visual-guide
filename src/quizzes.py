@@ -80,11 +80,128 @@ QUIZZES = {
                     "en": "Agent Framework owns the engineering plumbing <em>around</em> the model (orchestration, observability, durability, approval); it does <strong>not</strong> train the model itself - training is out of scope.",
                 },
             },
+            {
+                "q": {
+                    "zh": "最小示例里要<strong>先建一个 ChatClient，再把它包成 Agent</strong>。为什么不干脆把“连模型”和“Agent 行为”塞进同一个类？",
+                    "en": "The minimal sample first builds a ChatClient, then wraps it in an Agent. Why not fold &quot;talk to the model&quot; and &quot;agent behavior&quot; into a single class?",
+                },
+                "opts": [
+                    {
+                        "zh": "ChatClient 负责“怎么和某厂商的模型通话”，Agent 负责“人设 / 工具 / 循环”；分层后换厂商只改 ChatClient 那一行，Agent 逻辑不动",
+                        "en": "ChatClient owns &quot;how to talk to a vendor's model&quot;, Agent owns &quot;persona / tools / loop&quot;; splitting them means switching vendors changes only the ChatClient line while Agent logic stays put",
+                    },
+                    {"zh": "因为 Python 不允许一个类做两件事", "en": "Because Python forbids a class from doing two things"},
+                    {"zh": "因为合在一起会让模型训练变慢", "en": "Because merging them slows down model training"},
+                    {"zh": "因为每个厂商都得重写一份 Agent", "en": "Because each vendor needs its own rewritten Agent"},
+                ],
+                "answer": 0,
+                "why": {
+                    "zh": "<code>ChatClient</code> 是厂商无关的“连接层”，<code>Agent</code> 是其上的“行为层”（name / instructions / tools / run 循环）。两层分离正是“换厂商基本只改一行”的根因——同一个 <code>Agent</code> 能套在任何 <code>ChatClient</code> 上（<code>Agent(client=…)</code> 或 <code>client.as_agent(…)</code>）。",
+                    "en": "<code>ChatClient</code> is the vendor-neutral connection layer; <code>Agent</code> is the behavior layer on top (name / instructions / tools / run loop). That separation is exactly why a vendor swap is &quot;basically one line&quot; - the same <code>Agent</code> wraps any <code>ChatClient</code> (<code>Agent(client=…)</code> or <code>client.as_agent(…)</code>).",
+                },
+            },
         ],
         "open": [
             {
                 "zh": "假设你已经用某厂商 SDK 直接写了一个聊天脚本。请列出迁移到 Agent Framework 后，你认为最先会“消失”的三段样板代码，并说明各自由框架的哪个概念接管（ChatClient / Message / @tool / Workflow 任选）。",
                 "en": "Suppose you already wrote a chat script directly against a vendor SDK. List the three pieces of boilerplate you expect to 'disappear' first after moving to Agent Framework, and say which framework concept (ChatClient / Message / @tool / Workflow) takes over each.",
+            },
+        ],
+    },
+    "02-monorepo.html": {
+        "mcq": [
+            {
+                "q": {
+                    "zh": "core 把 <code>Agent</code> / <code>Message</code> / <code>tool</code> / <code>Workflows</code> 都放进<strong>同一个</strong> <code>agent_framework</code> 包（一个包、多个 <code>_</code> 前缀文件），而不是拆成几十个小 PyPI 包。主要好处是？",
+                    "en": "core puts <code>Agent</code> / <code>Message</code> / <code>tool</code> / <code>Workflows</code> all in <strong>one</strong> <code>agent_framework</code> package (one package, many <code>_</code>-prefixed files) instead of dozens of tiny PyPI packages. The main benefit?",
+                },
+                "opts": [
+                    {
+                        "zh": "对外只有一个 import 路径、内部重构不影响用户代码，同时躲开“微包架构”的依赖地狱",
+                        "en": "One public import path, internal refactors don't touch user code, while avoiding the dependency hell of a micro-package architecture",
+                    },
+                    {"zh": "让程序运行得更快", "en": "It makes the program run faster"},
+                    {"zh": "强制所有人改用 .NET", "en": "It forces everyone onto .NET"},
+                    {"zh": "让 core 不依赖任何东西", "en": "It makes core depend on nothing"},
+                ],
+                "answer": 0,
+                "why": {
+                    "zh": "“单包多文件”是大框架常见折中：对外是一个 <code>from agent_framework import …</code>，对内用 <code>_</code> 前缀文件分层、靠 <code>__init__.py</code> 的 <code>__all__</code> 暴露公共 API。微包架构带来版本/依赖噩梦，god-module 又会循环依赖、加载慢——单包多文件兼顾两端。",
+                    "en": "&quot;One package, many files&quot; is the classic big-framework compromise: outside it's a single <code>from agent_framework import …</code>; inside, <code>_</code>-prefixed files layer the code and <code>__init__.py</code>'s <code>__all__</code> exposes the public API. Micro-packages bring version/dependency nightmares; a god-module brings circular imports and slow loads - one-package-many-files balances both.",
+                },
+            },
+            {
+                "q": {
+                    "zh": "<code>import agent_framework</code> 并不会拉起 <code>azure-identity</code>、<code>anthropic</code> 等重依赖；只有真正访问对应 ChatClient 时才加载。这靠的是？",
+                    "en": "<code>import agent_framework</code> does <em>not</em> pull in heavy deps like <code>azure-identity</code> or <code>anthropic</code>; they load only when you actually access the matching ChatClient. How?",
+                },
+                "opts": [
+                    {
+                        "zh": "provider 子模块用模块级 <code>__getattr__</code>（PEP 562）做懒加载，访问时才 import",
+                        "en": "Provider submodules use module-level <code>__getattr__</code> (PEP 562) for lazy loading - importing only on access",
+                    },
+                    {"zh": "把所有 provider 依赖都打包进 core", "en": "All provider deps are bundled into core"},
+                    {"zh": "每次 import 都全量加载所有厂商", "en": "Every import eagerly loads every vendor"},
+                    {"zh": "用一个全局 <code>try/except</code> 吞掉缺失依赖", "en": "A global <code>try/except</code> swallows missing deps"},
+                ],
+                "answer": 0,
+                "why": {
+                    "zh": "子模块 <code>__init__.py</code> 用 <code>__getattr__</code> 延迟 import：启动更快（少装一个 SDK 就少几十毫秒）、可选依赖没装也不会在 import 时报错、安装体积按需（<code>pip install agent-framework[azure]</code>）。core 因此保持轻量，新增厂商不碰 core。",
+                    "en": "A submodule's <code>__init__.py</code> defers imports via <code>__getattr__</code>: faster startup (each un-loaded SDK saves tens of ms), optional deps don't error at import time when absent, and install size stays on-demand (<code>pip install agent-framework[azure]</code>). core stays lightweight and adding a vendor never touches core.",
+                },
+            },
+        ],
+        "open": [
+            {
+                "zh": "假设你要给一个新厂商（比如某国产模型）写 provider 包。按 monorepo 的约定，它应该放在哪、依赖谁、要不要改动 core？请解释“新增厂商不碰 core”这条约束为什么值得坚持。",
+                "en": "Suppose you write a provider package for a new vendor. Following the monorepo's conventions, where should it live, what does it depend on, and does it require changes to core? Explain why the &quot;adding a vendor never touches core&quot; rule is worth keeping.",
+            },
+        ],
+    },
+    "03-lifecycle.html": {
+        "mcq": [
+            {
+                "q": {
+                    "zh": "你只写了一行 <code>await agent.run(&quot;…&quot;)</code>，但模型要调工具时会“调模型 → 执行工具 → 再调模型”地循环好几轮。这个循环发生在哪？",
+                    "en": "You wrote just one line <code>await agent.run(&quot;…&quot;)</code>, yet when the model needs tools it loops &quot;call model → run tool → call model&quot; several rounds. Where does that loop run?",
+                },
+                "opts": [
+                    {"zh": "在 <code>run()</code> 内部自动跑完，你对外只调用一次", "en": "Inside <code>run()</code>, completed automatically - you call it just once"},
+                    {"zh": "你必须自己写 <code>while</code> 循环反复调 <code>run()</code>", "en": "You must write your own <code>while</code> loop calling <code>run()</code> repeatedly"},
+                    {"zh": "在每个工具函数自己的代码里", "en": "Inside each tool function's own code"},
+                    {"zh": "在 <code>print()</code> 输出时", "en": "While <code>print()</code> renders output"},
+                ],
+                "answer": 0,
+                "why": {
+                    "zh": "这正是经典的 Agent 循环（think → act → observe）：模型产出 <code>function_call</code>，框架执行工具、把 <code>function_result</code> 追加进消息、再回到“调模型”那步，直到模型不再要工具（有上限 <code>DEFAULT_MAX_ITERATIONS=40</code>）。你对外只 <code>run</code> 一次。",
+                    "en": "This is the classic agent loop (think → act → observe): the model emits a <code>function_call</code>, the framework runs the tool, appends the <code>function_result</code> to the messages, and returns to &quot;call model&quot; until the model stops asking for tools (capped at <code>DEFAULT_MAX_ITERATIONS=40</code>). You only <code>run</code> once.",
+                },
+            },
+            {
+                "q": {
+                    "zh": "多轮对话里“模型记得上文”，本质靠的是什么？",
+                    "en": "In a multi-turn chat, what fundamentally makes &quot;the model remember earlier turns&quot; work?",
+                },
+                "opts": [
+                    {
+                        "zh": "把同一个 <code>session</code>（<code>AgentSession</code>）透传给每次 <code>run()</code>，历史自动累积进消息列表",
+                        "en": "Passing the same <code>session</code> (<code>AgentSession</code>) into each <code>run()</code>, so history accumulates into the message list",
+                    },
+                    {"zh": "模型内部存了一块持久记忆", "en": "The model keeps a block of persistent memory inside it"},
+                    {"zh": "框架用一个全局变量记住所有人的对话", "en": "The framework keeps everyone's chat in one global variable"},
+                    {"zh": "靠 <code>finish_reason</code> 字段携带历史", "en": "The <code>finish_reason</code> field carries the history"},
+                ],
+                "answer": 0,
+                "why": {
+                    "zh": "<code>run()</code> 默认<strong>无状态</strong>；要连续性就 <code>agent.create_session()</code> 再每次 <code>run(…, session=session)</code>，用户消息 + 回复会自动追加进会话历史。状态的唯一载体是不断变长的消息列表，而不是模型“记住”了什么。",
+                    "en": "<code>run()</code> is <strong>stateless</strong> by default; for continuity you call <code>agent.create_session()</code> then <code>run(…, session=session)</code> each time, and user messages + replies append to the session's history. The only carrier of state is the growing message list, not anything the model &quot;remembers&quot;.",
+                },
+            },
+        ],
+        "open": [
+            {
+                "zh": "<code>run()</code> 组装请求时把 instructions / 历史 / 当前输入 / 工具 schema 拼到一起发给模型。如果你的 Agent 挂了 20 个工具又开了很长对话，你预计哪部分会最先吃满上下文窗口？据此谈谈“工具数量”和“历史长度”各自带来的 token 成本与取舍。",
+                "en": "When <code>run()</code> assembles a request it stitches instructions / history / current input / tool schemas together for the model. If your Agent has 20 tools and a long conversation, which part do you expect to fill the context window first? Use that to discuss the token cost and tradeoffs of &quot;number of tools&quot; vs &quot;history length&quot;.",
             },
         ],
     },

@@ -490,7 +490,41 @@ agent = Agent(
   <strong>core 不依赖任何具体厂商</strong>：厂商代码全部下沉到独立 provider 包，
   通过懒加载接入。于是核心 API 稳定，新增厂商不动地基。
 </div>
+<div class="selftest">
+<h2>🧪 自测 · 想一想为什么这么设计</h2>
+<div class="quiz">
+  <div class="qn">1. core 把 <code>Agent</code> / <code>Message</code> / <code>tool</code> / <code>Workflows</code> 都放进<strong>同一个</strong> <code>agent_framework</code> 包（一个包、多个 <code>_</code> 前缀文件），而不是拆成几十个小 PyPI 包。主要好处是？</div>
+  <ol class="opts">
+    <li>对外只有一个 import 路径、内部重构不影响用户代码，同时躲开“微包架构”的依赖地狱</li>
+    <li>让程序运行得更快</li>
+    <li>让 core 不依赖任何东西</li>
+    <li>强制所有人改用 .NET</li>
+  </ol>
+  <details class="accordion">
+    <summary>看答案与解析 <span class="hint">点击展开</span></summary>
+    <div class="acc-body"><div class="qa"><div class="a"><strong>答案：A</strong>。“单包多文件”是大框架常见折中：对外是一个 <code>from agent_framework import …</code>，对内用 <code>_</code> 前缀文件分层、靠 <code>__init__.py</code> 的 <code>__all__</code> 暴露公共 API。微包架构带来版本/依赖噩梦，god-module 又会循环依赖、加载慢——单包多文件兼顾两端。</div></div></div>
+  </details>
 </div>
+<div class="quiz">
+  <div class="qn">2. <code>import agent_framework</code> 并不会拉起 <code>azure-identity</code>、<code>anthropic</code> 等重依赖；只有真正访问对应 ChatClient 时才加载。这靠的是？</div>
+  <ol class="opts">
+    <li>provider 子模块用模块级 <code>__getattr__</code>（PEP 562）做懒加载，访问时才 import</li>
+    <li>每次 import 都全量加载所有厂商</li>
+    <li>把所有 provider 依赖都打包进 core</li>
+    <li>用一个全局 <code>try/except</code> 吞掉缺失依赖</li>
+  </ol>
+  <details class="accordion">
+    <summary>看答案与解析 <span class="hint">点击展开</span></summary>
+    <div class="acc-body"><div class="qa"><div class="a"><strong>答案：A</strong>。子模块 <code>__init__.py</code> 用 <code>__getattr__</code> 延迟 import：启动更快（少装一个 SDK 就少几十毫秒）、可选依赖没装也不会在 import 时报错、安装体积按需（<code>pip install agent-framework[azure]</code>）。core 因此保持轻量，新增厂商不碰 core。</div></div></div>
+  </details>
+</div>
+<div class="card spark">
+  <div class="tag">💭 发散思考（没有标准答案，动手或动脑想想）</div>
+  <ul>
+    <li>假设你要给一个新厂商（比如某国产模型）写 provider 包。按 monorepo 的约定，它应该放在哪、依赖谁、要不要改动 core？请解释“新增厂商不碰 core”这条约束为什么值得坚持。</li>
+  </ul>
+</div>
+</div></div>
 <div class="i18n" data-lang="en">
 <p class="lead">MAF is a <strong>monorepo</strong>: one repository holds both the <strong>Python</strong> and
 <strong>.NET</strong> implementations, plus docs, declarative agents and schemas. Learn the layout and you
@@ -722,7 +756,41 @@ agent = Agent(
   <strong>core depends on no specific vendor</strong>: vendor code lives in separate provider packages and is
   wired in via lazy loading. The core API stays stable; adding a vendor never touches the foundation.
 </div>
+<div class="selftest">
+<h2>🧪 Self-test - think about the design</h2>
+<div class="quiz">
+  <div class="qn">1. core puts <code>Agent</code> / <code>Message</code> / <code>tool</code> / <code>Workflows</code> all in <strong>one</strong> <code>agent_framework</code> package (one package, many <code>_</code>-prefixed files) instead of dozens of tiny PyPI packages. The main benefit?</div>
+  <ol class="opts">
+    <li>One public import path, internal refactors don't touch user code, while avoiding the dependency hell of a micro-package architecture</li>
+    <li>It makes the program run faster</li>
+    <li>It makes core depend on nothing</li>
+    <li>It forces everyone onto .NET</li>
+  </ol>
+  <details class="accordion">
+    <summary>Show answer &amp; explanation <span class="hint">click to expand</span></summary>
+    <div class="acc-body"><div class="qa"><div class="a"><strong>Answer: A</strong>. &quot;One package, many files&quot; is the classic big-framework compromise: outside it's a single <code>from agent_framework import …</code>; inside, <code>_</code>-prefixed files layer the code and <code>__init__.py</code>'s <code>__all__</code> exposes the public API. Micro-packages bring version/dependency nightmares; a god-module brings circular imports and slow loads - one-package-many-files balances both.</div></div></div>
+  </details>
 </div>
+<div class="quiz">
+  <div class="qn">2. <code>import agent_framework</code> does <em>not</em> pull in heavy deps like <code>azure-identity</code> or <code>anthropic</code>; they load only when you actually access the matching ChatClient. How?</div>
+  <ol class="opts">
+    <li>Provider submodules use module-level <code>__getattr__</code> (PEP 562) for lazy loading - importing only on access</li>
+    <li>Every import eagerly loads every vendor</li>
+    <li>All provider deps are bundled into core</li>
+    <li>A global <code>try/except</code> swallows missing deps</li>
+  </ol>
+  <details class="accordion">
+    <summary>Show answer &amp; explanation <span class="hint">click to expand</span></summary>
+    <div class="acc-body"><div class="qa"><div class="a"><strong>Answer: A</strong>. A submodule's <code>__init__.py</code> defers imports via <code>__getattr__</code>: faster startup (each un-loaded SDK saves tens of ms), optional deps don't error at import time when absent, and install size stays on-demand (<code>pip install agent-framework[azure]</code>). core stays lightweight and adding a vendor never touches core.</div></div></div>
+  </details>
+</div>
+<div class="card spark">
+  <div class="tag">💭 Open questions (no single right answer - just think or try)</div>
+  <ul>
+    <li>Suppose you write a provider package for a new vendor. Following the monorepo's conventions, where should it live, what does it depend on, and does it require changes to core? Explain why the &quot;adding a vendor never touches core&quot; rule is worth keeping.</li>
+  </ul>
+</div>
+</div></div>
   <div class="footnav"><a class="prev" href="01-what-is-agent-framework.html"><div class="dir"><span class="i18n" data-lang="zh">← 上一课</span><span class="i18n" data-lang="en">← Prev</span></div><div class="ttl"><span class="i18n" data-lang="zh">Agent Framework 是什么</span><span class="i18n" data-lang="en">What is Agent Framework</span></div></a><a class="next" href="03-lifecycle.html"><div class="dir"><span class="i18n" data-lang="zh">下一课 →</span><span class="i18n" data-lang="en">Next →</span></div><div class="ttl"><span class="i18n" data-lang="zh">一次 run() 的生命周期</span><span class="i18n" data-lang="en">Lifecycle of a Run</span></div></a></div>
 </div>
 

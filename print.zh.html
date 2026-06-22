@@ -625,6 +625,19 @@ result = <span class="kw">await</span> agent.run(<span class="st">"先查上海�
     <div class="acc-body"><div class="qa"><div class="a"><strong>答案：C</strong>。Agent Framework 负责模型“周边”的工程管道（编排、可观测、持久化、审批），<strong>不</strong>负责训练模型本身——训练不在它的职责范围。</div></div></div>
   </details>
 </div>
+<div class="quiz">
+  <div class="qn">3. 最小示例里要<strong>先建一个 ChatClient，再把它包成 Agent</strong>。为什么不干脆把“连模型”和“Agent 行为”塞进同一个类？</div>
+  <ol class="opts">
+    <li>因为每个厂商都得重写一份 Agent</li>
+    <li>因为 Python 不允许一个类做两件事</li>
+    <li>因为合在一起会让模型训练变慢</li>
+    <li>ChatClient 负责“怎么和某厂商的模型通话”，Agent 负责“人设 / 工具 / 循环”；分层后换厂商只改 ChatClient 那一行，Agent 逻辑不动</li>
+  </ol>
+  <details class="accordion" open>
+    <summary>看答案与解析 <span class="hint">点击展开</span></summary>
+    <div class="acc-body"><div class="qa"><div class="a"><strong>答案：D</strong>。<code>ChatClient</code> 是厂商无关的“连接层”，<code>Agent</code> 是其上的“行为层”（name / instructions / tools / run 循环）。两层分离正是“换厂商基本只改一行”的根因——同一个 <code>Agent</code> 能套在任何 <code>ChatClient</code> 上（<code>Agent(client=…)</code> 或 <code>client.as_agent(…)</code>）。</div></div></div>
+  </details>
+</div>
 <div class="card spark">
   <div class="tag">💭 发散思考（没有标准答案，动手或动脑想想）</div>
   <ul>
@@ -858,7 +871,41 @@ agent = Agent(
   <strong>core 不依赖任何具体厂商</strong>：厂商代码全部下沉到独立 provider 包，
   通过懒加载接入。于是核心 API 稳定，新增厂商不动地基。
 </div>
-</div></section>
+<div class="selftest">
+<h2>🧪 自测 · 想一想为什么这么设计</h2>
+<div class="quiz">
+  <div class="qn">1. core 把 <code>Agent</code> / <code>Message</code> / <code>tool</code> / <code>Workflows</code> 都放进<strong>同一个</strong> <code>agent_framework</code> 包（一个包、多个 <code>_</code> 前缀文件），而不是拆成几十个小 PyPI 包。主要好处是？</div>
+  <ol class="opts">
+    <li>对外只有一个 import 路径、内部重构不影响用户代码，同时躲开“微包架构”的依赖地狱</li>
+    <li>让程序运行得更快</li>
+    <li>让 core 不依赖任何东西</li>
+    <li>强制所有人改用 .NET</li>
+  </ol>
+  <details class="accordion" open>
+    <summary>看答案与解析 <span class="hint">点击展开</span></summary>
+    <div class="acc-body"><div class="qa"><div class="a"><strong>答案：A</strong>。“单包多文件”是大框架常见折中：对外是一个 <code>from agent_framework import …</code>，对内用 <code>_</code> 前缀文件分层、靠 <code>__init__.py</code> 的 <code>__all__</code> 暴露公共 API。微包架构带来版本/依赖噩梦，god-module 又会循环依赖、加载慢——单包多文件兼顾两端。</div></div></div>
+  </details>
+</div>
+<div class="quiz">
+  <div class="qn">2. <code>import agent_framework</code> 并不会拉起 <code>azure-identity</code>、<code>anthropic</code> 等重依赖；只有真正访问对应 ChatClient 时才加载。这靠的是？</div>
+  <ol class="opts">
+    <li>provider 子模块用模块级 <code>__getattr__</code>（PEP 562）做懒加载，访问时才 import</li>
+    <li>每次 import 都全量加载所有厂商</li>
+    <li>把所有 provider 依赖都打包进 core</li>
+    <li>用一个全局 <code>try/except</code> 吞掉缺失依赖</li>
+  </ol>
+  <details class="accordion" open>
+    <summary>看答案与解析 <span class="hint">点击展开</span></summary>
+    <div class="acc-body"><div class="qa"><div class="a"><strong>答案：A</strong>。子模块 <code>__init__.py</code> 用 <code>__getattr__</code> 延迟 import：启动更快（少装一个 SDK 就少几十毫秒）、可选依赖没装也不会在 import 时报错、安装体积按需（<code>pip install agent-framework[azure]</code>）。core 因此保持轻量，新增厂商不碰 core。</div></div></div>
+  </details>
+</div>
+<div class="card spark">
+  <div class="tag">💭 发散思考（没有标准答案，动手或动脑想想）</div>
+  <ul>
+    <li>假设你要给一个新厂商（比如某国产模型）写 provider 包。按 monorepo 的约定，它应该放在哪、依赖谁、要不要改动 core？请解释“新增厂商不碰 core”这条约束为什么值得坚持。</li>
+  </ul>
+</div>
+</div></div></section>
 <section class="print-lesson"><div class="wrap"><div class="lesson-head"><div class="lp">第一部分 · 宏观全景</div><h1><span class="ln">03 ·</span> 一次 run() 的生命周期</h1></div>
 <p class="lead">你写的只是 <span class="inline">await agent.run("…")</span> 一行，但底下发生了一串事。
 看懂这条<strong>生命周期</strong>，后面所有"内部源码"课都会变得轻松。</p>
@@ -1082,7 +1129,41 @@ print(result.text)
   <strong>循环被封装在框架里</strong>：调用方只看到"输入→输出"，而"想—做—再想"的复杂度被 Agent 吸收，
   这正是它比裸调 LLM SDK 省心的根源。
 </div>
-</div></section>
+<div class="selftest">
+<h2>🧪 自测 · 想一想为什么这么设计</h2>
+<div class="quiz">
+  <div class="qn">1. 你只写了一行 <code>await agent.run(&quot;…&quot;)</code>，但模型要调工具时会“调模型 → 执行工具 → 再调模型”地循环好几轮。这个循环发生在哪？</div>
+  <ol class="opts">
+    <li>在 <code>run()</code> 内部自动跑完，你对外只调用一次</li>
+    <li>你必须自己写 <code>while</code> 循环反复调 <code>run()</code></li>
+    <li>在每个工具函数自己的代码里</li>
+    <li>在 <code>print()</code> 输出时</li>
+  </ol>
+  <details class="accordion" open>
+    <summary>看答案与解析 <span class="hint">点击展开</span></summary>
+    <div class="acc-body"><div class="qa"><div class="a"><strong>答案：A</strong>。这正是经典的 Agent 循环（think → act → observe）：模型产出 <code>function_call</code>，框架执行工具、把 <code>function_result</code> 追加进消息、再回到“调模型”那步，直到模型不再要工具（有上限 <code>DEFAULT_MAX_ITERATIONS=40</code>）。你对外只 <code>run</code> 一次。</div></div></div>
+  </details>
+</div>
+<div class="quiz">
+  <div class="qn">2. 多轮对话里“模型记得上文”，本质靠的是什么？</div>
+  <ol class="opts">
+    <li>模型内部存了一块持久记忆</li>
+    <li>靠 <code>finish_reason</code> 字段携带历史</li>
+    <li>框架用一个全局变量记住所有人的对话</li>
+    <li>把同一个 <code>session</code>（<code>AgentSession</code>）透传给每次 <code>run()</code>，历史自动累积进消息列表</li>
+  </ol>
+  <details class="accordion" open>
+    <summary>看答案与解析 <span class="hint">点击展开</span></summary>
+    <div class="acc-body"><div class="qa"><div class="a"><strong>答案：D</strong>。<code>run()</code> 默认<strong>无状态</strong>；要连续性就 <code>agent.create_session()</code> 再每次 <code>run(…, session=session)</code>，用户消息 + 回复会自动追加进会话历史。状态的唯一载体是不断变长的消息列表，而不是模型“记住”了什么。</div></div></div>
+  </details>
+</div>
+<div class="card spark">
+  <div class="tag">💭 发散思考（没有标准答案，动手或动脑想想）</div>
+  <ul>
+    <li><code>run()</code> 组装请求时把 instructions / 历史 / 当前输入 / 工具 schema 拼到一起发给模型。如果你的 Agent 挂了 20 个工具又开了很长对话，你预计哪部分会最先吃满上下文窗口？据此谈谈“工具数量”和“历史长度”各自带来的 token 成本与取舍。</li>
+  </ul>
+</div>
+</div></div></section>
 <section class="print-lesson"><div class="wrap"><div class="lesson-head"><div class="lp">第二部分 · 用户视角</div><h1><span class="ln">04 ·</span> 消息与内容</h1></div>
 <p class="lead">和模型对话，本质是来回传递一串<strong>消息</strong>。MAF 把消息做成<strong>结构化对象</strong>
 <span class="inline">Message</span>，而不是裸字典——类型更安全，还能携带工具调用、图片等多种内容。</p>

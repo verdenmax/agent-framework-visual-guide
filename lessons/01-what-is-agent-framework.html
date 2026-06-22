@@ -562,6 +562,19 @@ result = <span class="kw">await</span> agent.run(<span class="st">"先查上海�
     <div class="acc-body"><div class="qa"><div class="a"><strong>答案：C</strong>。Agent Framework 负责模型“周边”的工程管道（编排、可观测、持久化、审批），<strong>不</strong>负责训练模型本身——训练不在它的职责范围。</div></div></div>
   </details>
 </div>
+<div class="quiz">
+  <div class="qn">3. 最小示例里要<strong>先建一个 ChatClient，再把它包成 Agent</strong>。为什么不干脆把“连模型”和“Agent 行为”塞进同一个类？</div>
+  <ol class="opts">
+    <li>因为每个厂商都得重写一份 Agent</li>
+    <li>因为 Python 不允许一个类做两件事</li>
+    <li>因为合在一起会让模型训练变慢</li>
+    <li>ChatClient 负责“怎么和某厂商的模型通话”，Agent 负责“人设 / 工具 / 循环”；分层后换厂商只改 ChatClient 那一行，Agent 逻辑不动</li>
+  </ol>
+  <details class="accordion">
+    <summary>看答案与解析 <span class="hint">点击展开</span></summary>
+    <div class="acc-body"><div class="qa"><div class="a"><strong>答案：D</strong>。<code>ChatClient</code> 是厂商无关的“连接层”，<code>Agent</code> 是其上的“行为层”（name / instructions / tools / run 循环）。两层分离正是“换厂商基本只改一行”的根因——同一个 <code>Agent</code> 能套在任何 <code>ChatClient</code> 上（<code>Agent(client=…)</code> 或 <code>client.as_agent(…)</code>）。</div></div></div>
+  </details>
+</div>
 <div class="card spark">
   <div class="tag">💭 发散思考（没有标准答案，动手或动脑想想）</div>
   <ul>
@@ -872,6 +885,19 @@ result = <span class="kw">await</span> agent.run(<span class="st">"Check Shangha
   <details class="accordion">
     <summary>Show answer &amp; explanation <span class="hint">click to expand</span></summary>
     <div class="acc-body"><div class="qa"><div class="a"><strong>Answer: C</strong>. Agent Framework owns the engineering plumbing <em>around</em> the model (orchestration, observability, durability, approval); it does <strong>not</strong> train the model itself - training is out of scope.</div></div></div>
+  </details>
+</div>
+<div class="quiz">
+  <div class="qn">3. The minimal sample first builds a ChatClient, then wraps it in an Agent. Why not fold &quot;talk to the model&quot; and &quot;agent behavior&quot; into a single class?</div>
+  <ol class="opts">
+    <li>Because each vendor needs its own rewritten Agent</li>
+    <li>Because Python forbids a class from doing two things</li>
+    <li>Because merging them slows down model training</li>
+    <li>ChatClient owns &quot;how to talk to a vendor's model&quot;, Agent owns &quot;persona / tools / loop&quot;; splitting them means switching vendors changes only the ChatClient line while Agent logic stays put</li>
+  </ol>
+  <details class="accordion">
+    <summary>Show answer &amp; explanation <span class="hint">click to expand</span></summary>
+    <div class="acc-body"><div class="qa"><div class="a"><strong>Answer: D</strong>. <code>ChatClient</code> is the vendor-neutral connection layer; <code>Agent</code> is the behavior layer on top (name / instructions / tools / run loop). That separation is exactly why a vendor swap is &quot;basically one line&quot; - the same <code>Agent</code> wraps any <code>ChatClient</code> (<code>Agent(client=…)</code> or <code>client.as_agent(…)</code>).</div></div></div>
   </details>
 </div>
 <div class="card spark">

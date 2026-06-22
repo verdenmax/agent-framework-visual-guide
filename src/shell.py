@@ -316,6 +316,17 @@ table.t td.mono, table.t td .mono { font-family: ui-monospace, monospace; font-s
   background:var(--accent); color:#fff; border-radius:10px; font-size:.9rem; font-weight:650;
   box-shadow:var(--shadow); transition:.15s; }
 .pdf-btn:hover { background:var(--accent-ink); transform:translateY(-1px); }
+/* self-test quizzes (appended to each lesson by quizzes.render) */
+.selftest { margin: 2.2rem 0 0; border-top: 2px dashed var(--line); padding-top: 1.2rem; }
+.selftest > h2 { margin-top: .2rem; }
+.quiz { background: var(--panel); border: 1px solid var(--line); border-left: 4px solid var(--blue);
+  border-radius: 12px; padding: .9rem 1.1rem; margin: 1rem 0; box-shadow: var(--shadow); }
+.quiz .qn { font-weight: 650; }
+.quiz ol.opts { list-style: upper-alpha; margin: .55rem 0 .6rem 1.5rem; padding: 0; }
+.quiz ol.opts li { margin: .3rem 0; padding-left: .15rem; }
+.quiz details.accordion { margin: .5rem 0 0; }
+.selftest code { font-family: ui-monospace, monospace; font-size: .9em; color: var(--accent-ink);
+  background: var(--accent-soft); padding: 0 .28em; border-radius: 4px; }
 """
 
 # Early language init (in <head>, before render, to avoid a flash of both languages).

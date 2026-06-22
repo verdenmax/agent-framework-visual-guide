@@ -568,7 +568,41 @@ agent = Agent(
   <strong>"函数即工具"</strong>：你不用手写 JSON Schema，类型注解和 docstring 就是契约。
   代码与给模型的描述<strong>永远同步</strong>，因为它们本来就是同一份。
 </div>
+<div class="selftest">
+<h2>🧪 自测 · 想一想为什么这么设计</h2>
+<div class="quiz">
+  <div class="qn">1. 用 <code>@tool</code> 标注一个普通函数后，交给模型的那份工具 <strong>JSON Schema</strong> 是从哪来的？</div>
+  <ol class="opts">
+    <li>从函数签名 + 类型注解（<code>Annotated[…, Field(description=…)]</code>）+ docstring 自动生成</li>
+    <li>你必须手写一段 JSON Schema 字符串</li>
+    <li>模型自己猜参数</li>
+    <li>从一个外部数据库读取</li>
+  </ol>
+  <details class="accordion">
+    <summary>看答案与解析 <span class="hint">点击展开</span></summary>
+    <div class="acc-body"><div class="qa"><div class="a"><strong>答案：A</strong>。<code>@tool</code> 读取签名 / 注解 / docstring 自动产出 JSON Schema 交给模型：docstring 变工具描述，<code>Annotated</code> 里的 <code>Field(description=…)</code> 变参数说明，默认值/约束也带过去。所以“写好类型与 docstring”本质就是在写“给模型看的说明书”。</div></div></div>
+  </details>
 </div>
+<div class="quiz">
+  <div class="qn">2. 给 <code>@tool</code> 设 <code>approval_mode=&quot;always_require&quot;</code> 的意义是？</div>
+  <ol class="opts">
+    <li>自动批准所有调用</li>
+    <li>永远不调用这个工具</li>
+    <li>工具执行前暂停、要求人工确认（人在环）——适合写操作 / 花钱的操作</li>
+    <li>让工具运行得更快</li>
+  </ol>
+  <details class="accordion">
+    <summary>看答案与解析 <span class="hint">点击展开</span></summary>
+    <div class="acc-body"><div class="qa"><div class="a"><strong>答案：C</strong>。<code>ApprovalMode</code> 是 <code>Literal[&quot;always_require&quot;, &quot;never_require&quot;]</code>。把“要不要人审”做成工具上的一个<strong>声明式参数</strong>，而不是散落在业务逻辑里——危险操作（发布、删除、付款）默认就该 <code>always_require</code>，执行前框架自动暂停等确认。</div></div></div>
+  </details>
+</div>
+<div class="card spark">
+  <div class="tag">💭 发散思考（没有标准答案，动手或动脑想想）</div>
+  <ul>
+    <li>“普通 Python 函数 + 一个 <code>@tool</code> 装饰器”当工具，相比“专门的工具描述语言 / 配置文件”，在开发体验上有什么好处和潜在风险？（提示：docstring 或类型注解写得马虎会怎样？）</li>
+  </ul>
+</div>
+</div></div>
 <div class="i18n" data-lang="en">
 <p class="lead"><strong>Tools</strong> let an Agent not just "talk" but "do": fetch weather, read a database, call an API.
 Write an ordinary Python function, tag it with <span class="inline">@tool</span>, and the model can call it.</p>
@@ -875,7 +909,41 @@ agent = Agent(
   <strong>"A function is a tool"</strong>: you never hand-write JSON Schema — type hints and the docstring are the
   contract. Code and the model-facing description <strong>can't drift</strong>, because they're the same thing.
 </div>
+<div class="selftest">
+<h2>🧪 Self-test - think about the design</h2>
+<div class="quiz">
+  <div class="qn">1. After decorating a plain function with <code>@tool</code>, where does the tool's <strong>JSON Schema</strong> (handed to the model) come from?</div>
+  <ol class="opts">
+    <li>Auto-generated from the signature + type hints (<code>Annotated[…, Field(description=…)]</code>) + docstring</li>
+    <li>You must hand-write a JSON Schema string</li>
+    <li>The model guesses the parameters itself</li>
+    <li>Read from an external database</li>
+  </ol>
+  <details class="accordion">
+    <summary>Show answer &amp; explanation <span class="hint">click to expand</span></summary>
+    <div class="acc-body"><div class="qa"><div class="a"><strong>Answer: A</strong>. <code>@tool</code> reads the signature / hints / docstring to emit the JSON Schema for the model: the docstring becomes the tool description, <code>Field(description=…)</code> inside <code>Annotated</code> becomes parameter docs, and defaults/constraints carry over. So &quot;writing good types and a docstring&quot; <em>is</em> writing the model's instruction manual.</div></div></div>
+  </details>
 </div>
+<div class="quiz">
+  <div class="qn">2. What does <code>approval_mode=&quot;always_require&quot;</code> on a <code>@tool</code> mean?</div>
+  <ol class="opts">
+    <li>Auto-approves every call</li>
+    <li>Never calls this tool</li>
+    <li>Pause before the tool runs and require human confirmation (human-in-the-loop) - good for write / spend actions</li>
+    <li>Makes the tool run faster</li>
+  </ol>
+  <details class="accordion">
+    <summary>Show answer &amp; explanation <span class="hint">click to expand</span></summary>
+    <div class="acc-body"><div class="qa"><div class="a"><strong>Answer: C</strong>. <code>ApprovalMode</code> is <code>Literal[&quot;always_require&quot;, &quot;never_require&quot;]</code>. It makes &quot;needs human review?&quot; a <strong>declarative parameter</strong> on the tool rather than scattered through business logic - risky actions (publish, delete, pay) should default to <code>always_require</code>, and the framework pauses for confirmation before running.</div></div></div>
+  </details>
+</div>
+<div class="card spark">
+  <div class="tag">💭 Open questions (no single right answer - just think or try)</div>
+  <ul>
+    <li>Using &quot;a plain Python function + one <code>@tool</code> decorator&quot; as a tool - versus a dedicated tool-description language / config file - what are the developer-experience upsides and the hidden risks? (Hint: what happens if the docstring or type hints are sloppy?)</li>
+  </ul>
+</div>
+</div></div>
   <div class="footnav"><a class="prev" href="05-chat-models.html"><div class="dir"><span class="i18n" data-lang="zh">← 上一课</span><span class="i18n" data-lang="en">← Prev</span></div><div class="ttl"><span class="i18n" data-lang="zh">ChatClient 与创建 Agent</span><span class="i18n" data-lang="en">ChatClient & Creating Agents</span></div></a><a class="next" href="07-sessions-memory.html"><div class="dir"><span class="i18n" data-lang="zh">下一课 →</span><span class="i18n" data-lang="en">Next →</span></div><div class="ttl"><span class="i18n" data-lang="zh">会话与记忆</span><span class="i18n" data-lang="en">Sessions & Memory</span></div></a></div>
 </div>
 

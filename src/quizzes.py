@@ -205,6 +205,206 @@ QUIZZES = {
             },
         ],
     },
+    "04-messages.html": {
+        "mcq": [
+            {
+                "q": {
+                    "zh": "MAF 不给每种内容（文字 / 图片 / 工具调用 / 工具结果）各写一个类，而是用<strong>一个统一的 <code>Content</code></strong> 加 <code>type</code> 字段。这样做的核心好处是？",
+                    "en": "Instead of a separate class per content kind (text / image / function call / result), MAF uses <strong>one unified <code>Content</code></strong> with a <code>type</code> field. The core benefit?",
+                },
+                "opts": [
+                    {
+                        "zh": "一条 <code>Message</code> 的 <code>contents</code> 是 <code>Content</code> 列表，每个带 <code>type</code>（<code>&quot;text&quot;</code>/<code>&quot;uri&quot;</code>/<code>&quot;function_call&quot;</code>…），框架按 type 路由；加新内容类型只需加一个 type，老消息照常工作",
+                        "en": "A <code>Message</code>'s <code>contents</code> is a list of <code>Content</code>, each carrying a <code>type</code> (<code>&quot;text&quot;</code>/<code>&quot;uri&quot;</code>/<code>&quot;function_call&quot;</code>…); the framework routes by type, and a new kind is just a new type while old messages keep working",
+                    },
+                    {"zh": "因为 Python 不支持定义多个类", "en": "Because Python can't define multiple classes"},
+                    {"zh": "因为这样模型推理更准确", "en": "Because it makes the model reason more accurately"},
+                    {"zh": "因为每个厂商都需要独立的 Message 类", "en": "Because each vendor needs its own Message class"},
+                ],
+                "answer": 0,
+                "why": {
+                    "zh": "这是<strong>判别联合（discriminated union）</strong>：统一成 <code>Content</code> 列表后，代码只需关心“一条消息有多个内容块”，图文混排、工具调用 / 结果都用同一容器，并用工厂方法 <code>Content.from_text()</code> / <code>from_uri()</code> / <code>from_function_call()</code> 构造。跨厂商把各家格式归一成一套，业务代码零修改。",
+                    "en": "This is a <strong>discriminated union</strong>: with a unified <code>Content</code> list, code only cares that &quot;a message has several content blocks&quot;; mixed text+image and function call/result all share one container, built via factory methods <code>Content.from_text()</code> / <code>from_uri()</code> / <code>from_function_call()</code>. It normalizes every vendor's format into one, so business code never changes.",
+                },
+            },
+            {
+                "q": {
+                    "zh": "消息的 <code>role</code>（<code>&quot;system&quot;</code>/<code>&quot;user&quot;</code>/<code>&quot;assistant&quot;</code>/<code>&quot;tool&quot;</code>）在 MAF 里是什么类型？",
+                    "en": "What type is a message's <code>role</code> (<code>&quot;system&quot;</code>/<code>&quot;user&quot;</code>/<code>&quot;assistant&quot;</code>/<code>&quot;tool&quot;</code>) in MAF?",
+                },
+                "opts": [
+                    {
+                        "zh": "<code>Role</code> 是字符串型（<code>NewType</code> over <code>str</code>）——直接用字符串值，甚至能用自定义角色",
+                        "en": "<code>Role</code> is string-based (a <code>NewType</code> over <code>str</code>) - use the string value directly, even custom roles",
+                    },
+                    {"zh": "一个封闭的 <code>Enum</code>，无法扩展", "en": "A closed <code>Enum</code> that can't be extended"},
+                    {"zh": "一个整数 ID", "en": "An integer id"},
+                    {"zh": "每个角色一个子类", "en": "A subclass per role"},
+                ],
+                "answer": 0,
+                "why": {
+                    "zh": "<code>Role = NewType(&quot;Role&quot;, str)</code>，所以直接写 <code>Message(&quot;user&quot;, […])</code>。选字符串而非封闭 <code>Enum</code> 是“可扩展”取舍：将来出现新角色或厂商特有角色不必改框架；代价是少了 <code>Enum</code> 的编译期约束，靠约定与文档兜底。",
+                    "en": "<code>Role = NewType(&quot;Role&quot;, str)</code>, so you just write <code>Message(&quot;user&quot;, […])</code>. Choosing a string over a closed <code>Enum</code> is an extensibility tradeoff: future or vendor-specific roles need no framework change; the cost is losing the <code>Enum</code>'s compile-time guardrails, backed instead by convention and docs.",
+                },
+            },
+        ],
+        "open": [
+            {
+                "zh": "<code>Message</code> 的 <code>contents</code> 为什么设计成“列表”而不是“单个内容”？举一个必须用多内容块的真实场景（提示：多模态，或一轮里既有文字又有工具调用），并说说这对“跨厂商统一格式”有什么帮助。",
+                "en": "Why is <code>Message.contents</code> a <em>list</em> rather than a single content? Give a real scenario that needs multiple blocks (hint: multimodal, or text + a function call in one turn), and explain how that helps &quot;one format across vendors&quot;.",
+            },
+        ],
+    },
+    "05-chat-models.html": {
+        "mcq": [
+            {
+                "q": {
+                    "zh": "<code>Agent(client=…)</code> 和 <code>client.as_agent(…)</code> 是什么关系？",
+                    "en": "What's the relationship between <code>Agent(client=…)</code> and <code>client.as_agent(…)</code>?",
+                },
+                "opts": [
+                    {
+                        "zh": "两者等价，底下都构造同一个 <code>Agent</code>；<code>as_agent</code> 只是 ChatClient 上的便捷工厂方法",
+                        "en": "They're equivalent - both build the same <code>Agent</code>; <code>as_agent</code> is just a convenience factory on the ChatClient",
+                    },
+                    {"zh": "<code>as_agent</code> 会训练一个新模型", "en": "<code>as_agent</code> trains a new model"},
+                    {"zh": "<code>Agent(client=)</code> 是同步、<code>as_agent</code> 是异步", "en": "<code>Agent(client=)</code> is sync, <code>as_agent</code> is async"},
+                    {"zh": "两者产出互不兼容的类", "en": "They produce incompatible classes"},
+                ],
+                "answer": 0,
+                "why": {
+                    "zh": "<code>as_agent</code> 是 ChatClient 的便捷工厂，内部就是 <code>Agent(client=self, …)</code>。给两种写法只是风格选择；无论哪种，换厂商时改的都只是 <code>client</code> 实例化那一行，Agent 的行为层（name / instructions / tools）不动。",
+                    "en": "<code>as_agent</code> is a convenience factory on the ChatClient that internally does <code>Agent(client=self, …)</code>. Two spellings are just style; either way, switching vendors changes only the <code>client</code> construction line - the Agent's behavior layer (name / instructions / tools) stays put.",
+                },
+            },
+            {
+                "q": {
+                    "zh": "同一个 <code>agent.run()</code>，怎么从“一次拿到完整回答”切到“逐块流式输出”？",
+                    "en": "With the same <code>agent.run()</code>, how do you switch from &quot;full answer at once&quot; to &quot;token-by-token streaming&quot;?",
+                },
+                "opts": [
+                    {
+                        "zh": "传 <code>stream=True</code>：返回异步迭代器，逐块给 <code>AgentResponseUpdate</code>；不传则返回完整 <code>AgentResponse</code>",
+                        "en": "Pass <code>stream=True</code>: returns an async iterator yielding <code>AgentResponseUpdate</code> chunks; omit it for a complete <code>AgentResponse</code>",
+                    },
+                    {"zh": "调用另一个方法 <code>run_stream_v2()</code>", "en": "Call a different method <code>run_stream_v2()</code>"},
+                    {"zh": "必须新建一个 <code>StreamingAgent</code> 类", "en": "Build a separate <code>StreamingAgent</code> class"},
+                    {"zh": "在 instructions 里写一句 &quot;please stream&quot;", "en": "Write &quot;please stream&quot; in the instructions"},
+                ],
+                "answer": 0,
+                "why": {
+                    "zh": "流式与非流式共用 <code>run()</code>，由 <code>stream</code> 参数切换返回形态：完整的 <code>AgentResponse</code> vs 一串 <code>AgentResponseUpdate</code>。这样上层代码结构基本一致，流式时按需逐块渲染 <code>chunk.text</code> 即可。",
+                    "en": "Streaming and non-streaming share one <code>run()</code>; the <code>stream</code> flag switches the return shape: a full <code>AgentResponse</code> vs a sequence of <code>AgentResponseUpdate</code>. Upper-layer code stays structurally similar - just render <code>chunk.text</code> incrementally when streaming.",
+                },
+            },
+        ],
+        "open": [
+            {
+                "zh": "流式（<code>stream=True</code>）对“用户体感延迟”和“代码复杂度”各有什么影响？什么场景你反而宁愿用非流式（一次性拿 <code>AgentResponse</code>）？",
+                "en": "How does streaming (<code>stream=True</code>) affect &quot;perceived latency&quot; vs &quot;code complexity&quot;? In which scenarios would you actually prefer non-streaming (one <code>AgentResponse</code>)?",
+            },
+        ],
+    },
+    "06-tools.html": {
+        "mcq": [
+            {
+                "q": {
+                    "zh": "用 <code>@tool</code> 标注一个普通函数后，交给模型的那份工具 <strong>JSON Schema</strong> 是从哪来的？",
+                    "en": "After decorating a plain function with <code>@tool</code>, where does the tool's <strong>JSON Schema</strong> (handed to the model) come from?",
+                },
+                "opts": [
+                    {
+                        "zh": "从函数签名 + 类型注解（<code>Annotated[…, Field(description=…)]</code>）+ docstring 自动生成",
+                        "en": "Auto-generated from the signature + type hints (<code>Annotated[…, Field(description=…)]</code>) + docstring",
+                    },
+                    {"zh": "你必须手写一段 JSON Schema 字符串", "en": "You must hand-write a JSON Schema string"},
+                    {"zh": "模型自己猜参数", "en": "The model guesses the parameters itself"},
+                    {"zh": "从一个外部数据库读取", "en": "Read from an external database"},
+                ],
+                "answer": 0,
+                "why": {
+                    "zh": "<code>@tool</code> 读取签名 / 注解 / docstring 自动产出 JSON Schema 交给模型：docstring 变工具描述，<code>Annotated</code> 里的 <code>Field(description=…)</code> 变参数说明，默认值/约束也带过去。所以“写好类型与 docstring”本质就是在写“给模型看的说明书”。",
+                    "en": "<code>@tool</code> reads the signature / hints / docstring to emit the JSON Schema for the model: the docstring becomes the tool description, <code>Field(description=…)</code> inside <code>Annotated</code> becomes parameter docs, and defaults/constraints carry over. So &quot;writing good types and a docstring&quot; <em>is</em> writing the model's instruction manual.",
+                },
+            },
+            {
+                "q": {
+                    "zh": "给 <code>@tool</code> 设 <code>approval_mode=&quot;always_require&quot;</code> 的意义是？",
+                    "en": "What does <code>approval_mode=&quot;always_require&quot;</code> on a <code>@tool</code> mean?",
+                },
+                "opts": [
+                    {
+                        "zh": "工具执行前暂停、要求人工确认（人在环）——适合写操作 / 花钱的操作",
+                        "en": "Pause before the tool runs and require human confirmation (human-in-the-loop) - good for write / spend actions",
+                    },
+                    {"zh": "让工具运行得更快", "en": "Makes the tool run faster"},
+                    {"zh": "永远不调用这个工具", "en": "Never calls this tool"},
+                    {"zh": "自动批准所有调用", "en": "Auto-approves every call"},
+                ],
+                "answer": 0,
+                "why": {
+                    "zh": "<code>ApprovalMode</code> 是 <code>Literal[&quot;always_require&quot;, &quot;never_require&quot;]</code>。把“要不要人审”做成工具上的一个<strong>声明式参数</strong>，而不是散落在业务逻辑里——危险操作（发布、删除、付款）默认就该 <code>always_require</code>，执行前框架自动暂停等确认。",
+                    "en": "<code>ApprovalMode</code> is <code>Literal[&quot;always_require&quot;, &quot;never_require&quot;]</code>. It makes &quot;needs human review?&quot; a <strong>declarative parameter</strong> on the tool rather than scattered through business logic - risky actions (publish, delete, pay) should default to <code>always_require</code>, and the framework pauses for confirmation before running.",
+                },
+            },
+        ],
+        "open": [
+            {
+                "zh": "“普通 Python 函数 + 一个 <code>@tool</code> 装饰器”当工具，相比“专门的工具描述语言 / 配置文件”，在开发体验上有什么好处和潜在风险？（提示：docstring 或类型注解写得马虎会怎样？）",
+                "en": "Using &quot;a plain Python function + one <code>@tool</code> decorator&quot; as a tool - versus a dedicated tool-description language / config file - what are the developer-experience upsides and the hidden risks? (Hint: what happens if the docstring or type hints are sloppy?)",
+            },
+        ],
+    },
+    "07-sessions-memory.html": {
+        "mcq": [
+            {
+                "q": {
+                    "zh": "MAF 的 <code>run()</code> 默认<strong>无状态</strong>（不传 <code>session</code> 就不记历史）。这样设计的主要好处是？",
+                    "en": "MAF's <code>run()</code> is <strong>stateless</strong> by default (no <code>session</code> = no remembered history). The main benefit of that design?",
+                },
+                "opts": [
+                    {
+                        "zh": "并发安全 + 可测试：不同用户各自的 <code>session</code> 互不串、每个测试用例独立；需要状态时再显式传 <code>session</code>",
+                        "en": "Concurrency-safe + testable: each user's <code>session</code> stays isolated, each test case is independent; pass a <code>session</code> explicitly only when you want state",
+                    },
+                    {"zh": "让模型变得更聪明", "en": "Makes the model smarter"},
+                    {"zh": "节省磁盘空间", "en": "Saves disk space"},
+                    {"zh": "强制每次对话都换一个模型", "en": "Forces a new model each conversation"},
+                ],
+                "answer": 0,
+                "why": {
+                    "zh": "隐式全局状态会让不同用户对话串台、测试难隔离、并发互相干扰。MAF 选“无状态为默认、显式 <code>session</code> 为可选”：<code>agent.create_session()</code> 后把同一个 <code>session</code> 透传给每次 <code>run()</code>，历史才会累积——有没有记忆一目了然。",
+                    "en": "Implicit global state would cross users' chats, break test isolation, and let concurrent requests interfere. MAF chooses &quot;stateless by default, explicit <code>session</code> when wanted&quot;: call <code>agent.create_session()</code> then pass the same <code>session</code> into each <code>run()</code> for history to accumulate - making &quot;does it remember?&quot; obvious.",
+                },
+            },
+            {
+                "q": {
+                    "zh": "会话（<code>AgentSession</code>）和 <code>ContextProvider</code> 各自负责什么？",
+                    "en": "What does a session (<code>AgentSession</code>) handle vs a <code>ContextProvider</code>?",
+                },
+                "opts": [
+                    {
+                        "zh": "<code>session</code> 管“本轮对话内累积的历史”；<code>ContextProvider</code> 管“跨会话的长期记忆 / 每次 run 前注入的外部知识（RAG）”",
+                        "en": "<code>session</code> handles &quot;history accumulated within this conversation&quot;; <code>ContextProvider</code> handles &quot;cross-session long-term memory / external knowledge injected before each run (RAG)&quot;",
+                    },
+                    {"zh": "两者完全一样", "en": "They are exactly the same"},
+                    {"zh": "<code>session</code> 管工具、<code>ContextProvider</code> 管模型", "en": "<code>session</code> manages tools, <code>ContextProvider</code> manages the model"},
+                    {"zh": "<code>ContextProvider</code> 负责训练模型", "en": "<code>ContextProvider</code> trains the model"},
+                ],
+                "answer": 0,
+                "why": {
+                    "zh": "会话只在“这串对话”内累积消息；要跨会话记住用户偏好、或在回答前把检索到的知识塞进上下文，用 <code>context_providers=[…]</code>（如 <code>MemoryContextProvider</code>）。注意 <code>HistoryProvider</code> 本身就是 <code>ContextProvider</code> 的子类——历史与长期记忆走同一套“run 前注入”机制。",
+                    "en": "A session accumulates messages only within &quot;this conversation&quot;; to remember preferences across sessions or inject retrieved knowledge before answering, use <code>context_providers=[…]</code> (e.g. <code>MemoryContextProvider</code>). Note <code>HistoryProvider</code> is itself a subclass of <code>ContextProvider</code> - history and long-term memory share the same &quot;inject-before-run&quot; mechanism.",
+                },
+            },
+        ],
+        "open": [
+            {
+                "zh": "为什么“把记忆 / RAG 做成 <code>ContextProvider</code>、在 run 前自动注入”，通常比“每次 run 时手动把检索结果拼进 prompt”更好？请从<strong>可复用性</strong>和 <strong>Agent 代码整洁度</strong>两个角度谈谈。",
+                "en": "Why is &quot;modeling memory / RAG as a <code>ContextProvider</code> that auto-injects before each run&quot; usually better than &quot;manually stitching retrieval results into the prompt on every run&quot;? Discuss from both <strong>reusability</strong> and <strong>Agent-code cleanliness</strong>.",
+            },
+        ],
+    },
     "08-agent-internals.html": {
         "mcq": [
             {

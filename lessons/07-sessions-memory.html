@@ -562,7 +562,41 @@ session = agent.create_session()
   把"短期对话历史"（Session）和"长期可检索记忆"（ContextProvider）<strong>分成两层</strong>：
   前者简单透传，后者可插拔。需求小就只用 Session，需求大再加 Provider，复杂度按需付费。
 </div>
+<div class="selftest">
+<h2>🧪 自测 · 想一想为什么这么设计</h2>
+<div class="quiz">
+  <div class="qn">1. MAF 的 <code>run()</code> 默认<strong>无状态</strong>（不传 <code>session</code> 就不记历史）。这样设计的主要好处是？</div>
+  <ol class="opts">
+    <li>并发安全 + 可测试：不同用户各自的 <code>session</code> 互不串、每个测试用例独立；需要状态时再显式传 <code>session</code></li>
+    <li>强制每次对话都换一个模型</li>
+    <li>让模型变得更聪明</li>
+    <li>节省磁盘空间</li>
+  </ol>
+  <details class="accordion">
+    <summary>看答案与解析 <span class="hint">点击展开</span></summary>
+    <div class="acc-body"><div class="qa"><div class="a"><strong>答案：A</strong>。隐式全局状态会让不同用户对话串台、测试难隔离、并发互相干扰。MAF 选“无状态为默认、显式 <code>session</code> 为可选”：<code>agent.create_session()</code> 后把同一个 <code>session</code> 透传给每次 <code>run()</code>，历史才会累积——有没有记忆一目了然。</div></div></div>
+  </details>
 </div>
+<div class="quiz">
+  <div class="qn">2. 会话（<code>AgentSession</code>）和 <code>ContextProvider</code> 各自负责什么？</div>
+  <ol class="opts">
+    <li><code>session</code> 管“本轮对话内累积的历史”；<code>ContextProvider</code> 管“跨会话的长期记忆 / 每次 run 前注入的外部知识（RAG）”</li>
+    <li><code>ContextProvider</code> 负责训练模型</li>
+    <li><code>session</code> 管工具、<code>ContextProvider</code> 管模型</li>
+    <li>两者完全一样</li>
+  </ol>
+  <details class="accordion">
+    <summary>看答案与解析 <span class="hint">点击展开</span></summary>
+    <div class="acc-body"><div class="qa"><div class="a"><strong>答案：A</strong>。会话只在“这串对话”内累积消息；要跨会话记住用户偏好、或在回答前把检索到的知识塞进上下文，用 <code>context_providers=[…]</code>（如 <code>MemoryContextProvider</code>）。注意 <code>HistoryProvider</code> 本身就是 <code>ContextProvider</code> 的子类——历史与长期记忆走同一套“run 前注入”机制。</div></div></div>
+  </details>
+</div>
+<div class="card spark">
+  <div class="tag">💭 发散思考（没有标准答案，动手或动脑想想）</div>
+  <ul>
+    <li>为什么“把记忆 / RAG 做成 <code>ContextProvider</code>、在 run 前自动注入”，通常比“每次 run 时手动把检索结果拼进 prompt”更好？请从<strong>可复用性</strong>和 <strong>Agent 代码整洁度</strong>两个角度谈谈。</li>
+  </ul>
+</div>
+</div></div>
 <div class="i18n" data-lang="en">
 <p class="lead">By default each <span class="inline">run()</span> is "amnesiac". To make an Agent <strong>remember</strong>,
 pass the same <strong>session (<span class="mono">AgentSession</span>)</strong> across calls. For longer-term memory, use a
@@ -865,7 +899,41 @@ session = agent.create_session()
   the former is a simple pass-through, the latter is pluggable. Use just Session for small needs, add a Provider for
   big ones — complexity is pay-as-you-go.
 </div>
+<div class="selftest">
+<h2>🧪 Self-test - think about the design</h2>
+<div class="quiz">
+  <div class="qn">1. MAF's <code>run()</code> is <strong>stateless</strong> by default (no <code>session</code> = no remembered history). The main benefit of that design?</div>
+  <ol class="opts">
+    <li>Concurrency-safe + testable: each user's <code>session</code> stays isolated, each test case is independent; pass a <code>session</code> explicitly only when you want state</li>
+    <li>Forces a new model each conversation</li>
+    <li>Makes the model smarter</li>
+    <li>Saves disk space</li>
+  </ol>
+  <details class="accordion">
+    <summary>Show answer &amp; explanation <span class="hint">click to expand</span></summary>
+    <div class="acc-body"><div class="qa"><div class="a"><strong>Answer: A</strong>. Implicit global state would cross users' chats, break test isolation, and let concurrent requests interfere. MAF chooses &quot;stateless by default, explicit <code>session</code> when wanted&quot;: call <code>agent.create_session()</code> then pass the same <code>session</code> into each <code>run()</code> for history to accumulate - making &quot;does it remember?&quot; obvious.</div></div></div>
+  </details>
 </div>
+<div class="quiz">
+  <div class="qn">2. What does a session (<code>AgentSession</code>) handle vs a <code>ContextProvider</code>?</div>
+  <ol class="opts">
+    <li><code>session</code> handles &quot;history accumulated within this conversation&quot;; <code>ContextProvider</code> handles &quot;cross-session long-term memory / external knowledge injected before each run (RAG)&quot;</li>
+    <li><code>ContextProvider</code> trains the model</li>
+    <li><code>session</code> manages tools, <code>ContextProvider</code> manages the model</li>
+    <li>They are exactly the same</li>
+  </ol>
+  <details class="accordion">
+    <summary>Show answer &amp; explanation <span class="hint">click to expand</span></summary>
+    <div class="acc-body"><div class="qa"><div class="a"><strong>Answer: A</strong>. A session accumulates messages only within &quot;this conversation&quot;; to remember preferences across sessions or inject retrieved knowledge before answering, use <code>context_providers=[…]</code> (e.g. <code>MemoryContextProvider</code>). Note <code>HistoryProvider</code> is itself a subclass of <code>ContextProvider</code> - history and long-term memory share the same &quot;inject-before-run&quot; mechanism.</div></div></div>
+  </details>
+</div>
+<div class="card spark">
+  <div class="tag">💭 Open questions (no single right answer - just think or try)</div>
+  <ul>
+    <li>Why is &quot;modeling memory / RAG as a <code>ContextProvider</code> that auto-injects before each run&quot; usually better than &quot;manually stitching retrieval results into the prompt on every run&quot;? Discuss from both <strong>reusability</strong> and <strong>Agent-code cleanliness</strong>.</li>
+  </ul>
+</div>
+</div></div>
   <div class="footnav"><a class="prev" href="06-tools.html"><div class="dir"><span class="i18n" data-lang="zh">← 上一课</span><span class="i18n" data-lang="en">← Prev</span></div><div class="ttl"><span class="i18n" data-lang="zh">工具 Tools</span><span class="i18n" data-lang="en">Tools</span></div></a><a class="next" href="08-agent-internals.html"><div class="dir"><span class="i18n" data-lang="zh">下一课 →</span><span class="i18n" data-lang="en">Next →</span></div><div class="ttl"><span class="i18n" data-lang="zh">Agent 内部</span><span class="i18n" data-lang="en">Agent Internals</span></div></a></div>
 </div>
 

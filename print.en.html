@@ -1481,7 +1481,41 @@ msg_back = Message.from_dict(d2)  <span class="cm"># fully restored</span></pre>
   Text, images, tool calls and tool results are <strong>unified into one Content</strong>, discriminated by a
   <span class="mono">type</span> field. The message shape stays simple yet extensible — adding a content kind breaks nothing.
 </div>
-</div></section>
+<div class="selftest">
+<h2>🧪 Self-test - think about the design</h2>
+<div class="quiz">
+  <div class="qn">1. Instead of a separate class per content kind (text / image / function call / result), MAF uses <strong>one unified <code>Content</code></strong> with a <code>type</code> field. The core benefit?</div>
+  <ol class="opts">
+    <li>A <code>Message</code>'s <code>contents</code> is a list of <code>Content</code>, each carrying a <code>type</code> (<code>&quot;text&quot;</code>/<code>&quot;uri&quot;</code>/<code>&quot;function_call&quot;</code>…); the framework routes by type, and a new kind is just a new type while old messages keep working</li>
+    <li>Because it makes the model reason more accurately</li>
+    <li>Because each vendor needs its own Message class</li>
+    <li>Because Python can't define multiple classes</li>
+  </ol>
+  <details class="accordion" open>
+    <summary>Show answer &amp; explanation <span class="hint">click to expand</span></summary>
+    <div class="acc-body"><div class="qa"><div class="a"><strong>Answer: A</strong>. This is a <strong>discriminated union</strong>: with a unified <code>Content</code> list, code only cares that &quot;a message has several content blocks&quot;; mixed text+image and function call/result all share one container, built via factory methods <code>Content.from_text()</code> / <code>from_uri()</code> / <code>from_function_call()</code>. It normalizes every vendor's format into one, so business code never changes.</div></div></div>
+  </details>
+</div>
+<div class="quiz">
+  <div class="qn">2. What type is a message's <code>role</code> (<code>&quot;system&quot;</code>/<code>&quot;user&quot;</code>/<code>&quot;assistant&quot;</code>/<code>&quot;tool&quot;</code>) in MAF?</div>
+  <ol class="opts">
+    <li>A subclass per role</li>
+    <li>A closed <code>Enum</code> that can't be extended</li>
+    <li>An integer id</li>
+    <li><code>Role</code> is string-based (a <code>NewType</code> over <code>str</code>) - use the string value directly, even custom roles</li>
+  </ol>
+  <details class="accordion" open>
+    <summary>Show answer &amp; explanation <span class="hint">click to expand</span></summary>
+    <div class="acc-body"><div class="qa"><div class="a"><strong>Answer: D</strong>. <code>Role = NewType(&quot;Role&quot;, str)</code>, so you just write <code>Message(&quot;user&quot;, […])</code>. Choosing a string over a closed <code>Enum</code> is an extensibility tradeoff: future or vendor-specific roles need no framework change; the cost is losing the <code>Enum</code>'s compile-time guardrails, backed instead by convention and docs.</div></div></div>
+  </details>
+</div>
+<div class="card spark">
+  <div class="tag">💭 Open questions (no single right answer - just think or try)</div>
+  <ul>
+    <li>Why is <code>Message.contents</code> a <em>list</em> rather than a single content? Give a real scenario that needs multiple blocks (hint: multimodal, or text + a function call in one turn), and explain how that helps &quot;one format across vendors&quot;.</li>
+  </ul>
+</div>
+</div></div></section>
 <section class="print-lesson"><div class="wrap"><div class="lesson-head"><div class="lp">Part 2 · User's View</div><h1><span class="ln">05 ·</span> ChatClient & Creating Agents</h1></div>
 <p class="lead">A <strong>ChatClient</strong> is the vendor-agnostic "connect to a model" interface; an <strong>Agent</strong>
 adds a name, system instructions, tools and a loop on top. This lesson builds an Agent from a ChatClient and runs
@@ -1768,7 +1802,41 @@ support_agent = client.as_agent(
   <strong>Streaming and non-streaming share one <span class="mono">run()</span></strong>, toggled by a single
   <span class="mono">stream</span> flag. One mental model, no second API.
 </div>
-</div></section>
+<div class="selftest">
+<h2>🧪 Self-test - think about the design</h2>
+<div class="quiz">
+  <div class="qn">1. What's the relationship between <code>Agent(client=…)</code> and <code>client.as_agent(…)</code>?</div>
+  <ol class="opts">
+    <li>They produce incompatible classes</li>
+    <li>They're equivalent - both build the same <code>Agent</code>; <code>as_agent</code> is just a convenience factory on the ChatClient</li>
+    <li><code>Agent(client=)</code> is sync, <code>as_agent</code> is async</li>
+    <li><code>as_agent</code> trains a new model</li>
+  </ol>
+  <details class="accordion" open>
+    <summary>Show answer &amp; explanation <span class="hint">click to expand</span></summary>
+    <div class="acc-body"><div class="qa"><div class="a"><strong>Answer: B</strong>. <code>as_agent</code> is a convenience factory on the ChatClient that internally does <code>Agent(client=self, …)</code>. Two spellings are just style; either way, switching vendors changes only the <code>client</code> construction line - the Agent's behavior layer (name / instructions / tools) stays put.</div></div></div>
+  </details>
+</div>
+<div class="quiz">
+  <div class="qn">2. With the same <code>agent.run()</code>, how do you switch from &quot;full answer at once&quot; to &quot;token-by-token streaming&quot;?</div>
+  <ol class="opts">
+    <li>Pass <code>stream=True</code>: returns an async iterator yielding <code>AgentResponseUpdate</code> chunks; omit it for a complete <code>AgentResponse</code></li>
+    <li>Call a different method <code>run_stream_v2()</code></li>
+    <li>Write &quot;please stream&quot; in the instructions</li>
+    <li>Build a separate <code>StreamingAgent</code> class</li>
+  </ol>
+  <details class="accordion" open>
+    <summary>Show answer &amp; explanation <span class="hint">click to expand</span></summary>
+    <div class="acc-body"><div class="qa"><div class="a"><strong>Answer: A</strong>. Streaming and non-streaming share one <code>run()</code>; the <code>stream</code> flag switches the return shape: a full <code>AgentResponse</code> vs a sequence of <code>AgentResponseUpdate</code>. Upper-layer code stays structurally similar - just render <code>chunk.text</code> incrementally when streaming.</div></div></div>
+  </details>
+</div>
+<div class="card spark">
+  <div class="tag">💭 Open questions (no single right answer - just think or try)</div>
+  <ul>
+    <li>How does streaming (<code>stream=True</code>) affect &quot;perceived latency&quot; vs &quot;code complexity&quot;? In which scenarios would you actually prefer non-streaming (one <code>AgentResponse</code>)?</li>
+  </ul>
+</div>
+</div></div></section>
 <section class="print-lesson"><div class="wrap"><div class="lesson-head"><div class="lp">Part 2 · User's View</div><h1><span class="ln">06 ·</span> Tools</h1></div>
 <p class="lead"><strong>Tools</strong> let an Agent not just "talk" but "do": fetch weather, read a database, call an API.
 Write an ordinary Python function, tag it with <span class="inline">@tool</span>, and the model can call it.</p>
@@ -2075,7 +2143,41 @@ agent = Agent(
   <strong>"A function is a tool"</strong>: you never hand-write JSON Schema — type hints and the docstring are the
   contract. Code and the model-facing description <strong>can't drift</strong>, because they're the same thing.
 </div>
-</div></section>
+<div class="selftest">
+<h2>🧪 Self-test - think about the design</h2>
+<div class="quiz">
+  <div class="qn">1. After decorating a plain function with <code>@tool</code>, where does the tool's <strong>JSON Schema</strong> (handed to the model) come from?</div>
+  <ol class="opts">
+    <li>Auto-generated from the signature + type hints (<code>Annotated[…, Field(description=…)]</code>) + docstring</li>
+    <li>You must hand-write a JSON Schema string</li>
+    <li>The model guesses the parameters itself</li>
+    <li>Read from an external database</li>
+  </ol>
+  <details class="accordion" open>
+    <summary>Show answer &amp; explanation <span class="hint">click to expand</span></summary>
+    <div class="acc-body"><div class="qa"><div class="a"><strong>Answer: A</strong>. <code>@tool</code> reads the signature / hints / docstring to emit the JSON Schema for the model: the docstring becomes the tool description, <code>Field(description=…)</code> inside <code>Annotated</code> becomes parameter docs, and defaults/constraints carry over. So &quot;writing good types and a docstring&quot; <em>is</em> writing the model's instruction manual.</div></div></div>
+  </details>
+</div>
+<div class="quiz">
+  <div class="qn">2. What does <code>approval_mode=&quot;always_require&quot;</code> on a <code>@tool</code> mean?</div>
+  <ol class="opts">
+    <li>Auto-approves every call</li>
+    <li>Never calls this tool</li>
+    <li>Pause before the tool runs and require human confirmation (human-in-the-loop) - good for write / spend actions</li>
+    <li>Makes the tool run faster</li>
+  </ol>
+  <details class="accordion" open>
+    <summary>Show answer &amp; explanation <span class="hint">click to expand</span></summary>
+    <div class="acc-body"><div class="qa"><div class="a"><strong>Answer: C</strong>. <code>ApprovalMode</code> is <code>Literal[&quot;always_require&quot;, &quot;never_require&quot;]</code>. It makes &quot;needs human review?&quot; a <strong>declarative parameter</strong> on the tool rather than scattered through business logic - risky actions (publish, delete, pay) should default to <code>always_require</code>, and the framework pauses for confirmation before running.</div></div></div>
+  </details>
+</div>
+<div class="card spark">
+  <div class="tag">💭 Open questions (no single right answer - just think or try)</div>
+  <ul>
+    <li>Using &quot;a plain Python function + one <code>@tool</code> decorator&quot; as a tool - versus a dedicated tool-description language / config file - what are the developer-experience upsides and the hidden risks? (Hint: what happens if the docstring or type hints are sloppy?)</li>
+  </ul>
+</div>
+</div></div></section>
 <section class="print-lesson"><div class="wrap"><div class="lesson-head"><div class="lp">Part 2 · User's View</div><h1><span class="ln">07 ·</span> Sessions & Memory</h1></div>
 <p class="lead">By default each <span class="inline">run()</span> is "amnesiac". To make an Agent <strong>remember</strong>,
 pass the same <strong>session (<span class="mono">AgentSession</span>)</strong> across calls. For longer-term memory, use a
@@ -2378,7 +2480,41 @@ session = agent.create_session()
   the former is a simple pass-through, the latter is pluggable. Use just Session for small needs, add a Provider for
   big ones — complexity is pay-as-you-go.
 </div>
-</div></section>
+<div class="selftest">
+<h2>🧪 Self-test - think about the design</h2>
+<div class="quiz">
+  <div class="qn">1. MAF's <code>run()</code> is <strong>stateless</strong> by default (no <code>session</code> = no remembered history). The main benefit of that design?</div>
+  <ol class="opts">
+    <li>Concurrency-safe + testable: each user's <code>session</code> stays isolated, each test case is independent; pass a <code>session</code> explicitly only when you want state</li>
+    <li>Forces a new model each conversation</li>
+    <li>Makes the model smarter</li>
+    <li>Saves disk space</li>
+  </ol>
+  <details class="accordion" open>
+    <summary>Show answer &amp; explanation <span class="hint">click to expand</span></summary>
+    <div class="acc-body"><div class="qa"><div class="a"><strong>Answer: A</strong>. Implicit global state would cross users' chats, break test isolation, and let concurrent requests interfere. MAF chooses &quot;stateless by default, explicit <code>session</code> when wanted&quot;: call <code>agent.create_session()</code> then pass the same <code>session</code> into each <code>run()</code> for history to accumulate - making &quot;does it remember?&quot; obvious.</div></div></div>
+  </details>
+</div>
+<div class="quiz">
+  <div class="qn">2. What does a session (<code>AgentSession</code>) handle vs a <code>ContextProvider</code>?</div>
+  <ol class="opts">
+    <li><code>session</code> handles &quot;history accumulated within this conversation&quot;; <code>ContextProvider</code> handles &quot;cross-session long-term memory / external knowledge injected before each run (RAG)&quot;</li>
+    <li><code>ContextProvider</code> trains the model</li>
+    <li><code>session</code> manages tools, <code>ContextProvider</code> manages the model</li>
+    <li>They are exactly the same</li>
+  </ol>
+  <details class="accordion" open>
+    <summary>Show answer &amp; explanation <span class="hint">click to expand</span></summary>
+    <div class="acc-body"><div class="qa"><div class="a"><strong>Answer: A</strong>. A session accumulates messages only within &quot;this conversation&quot;; to remember preferences across sessions or inject retrieved knowledge before answering, use <code>context_providers=[…]</code> (e.g. <code>MemoryContextProvider</code>). Note <code>HistoryProvider</code> is itself a subclass of <code>ContextProvider</code> - history and long-term memory share the same &quot;inject-before-run&quot; mechanism.</div></div></div>
+  </details>
+</div>
+<div class="card spark">
+  <div class="tag">💭 Open questions (no single right answer - just think or try)</div>
+  <ul>
+    <li>Why is &quot;modeling memory / RAG as a <code>ContextProvider</code> that auto-injects before each run&quot; usually better than &quot;manually stitching retrieval results into the prompt on every run&quot;? Discuss from both <strong>reusability</strong> and <strong>Agent-code cleanliness</strong>.</li>
+  </ul>
+</div>
+</div></div></section>
 <section class="print-lesson"><div class="wrap"><div class="lesson-head"><div class="lp">Part 3 · Internals</div><h1><span class="ln">08 ·</span> Agent Internals</h1></div>
 <p class="lead">The <span class="inline">Agent</span> you use has two layers: the abstract
 <span class="inline">BaseAgent</span> at the bottom, and the concrete <span class="inline">Agent</span> on top.

@@ -1463,7 +1463,41 @@ msg_back = Message.from_dict(d2)  <span class="cm"># 完全恢复</span></pre>
   把"文本、图片、工具调用、工具结果"<strong>统一成一种 Content</strong>，靠 <span class="mono">type</span> 字段区分。
   消息结构因此既简单又可扩展——新增一种内容不破坏老代码。
 </div>
-</div></section>
+<div class="selftest">
+<h2>🧪 自测 · 想一想为什么这么设计</h2>
+<div class="quiz">
+  <div class="qn">1. MAF 不给每种内容（文字 / 图片 / 工具调用 / 工具结果）各写一个类，而是用<strong>一个统一的 <code>Content</code></strong> 加 <code>type</code> 字段。这样做的核心好处是？</div>
+  <ol class="opts">
+    <li>一条 <code>Message</code> 的 <code>contents</code> 是 <code>Content</code> 列表，每个带 <code>type</code>（<code>&quot;text&quot;</code>/<code>&quot;uri&quot;</code>/<code>&quot;function_call&quot;</code>…），框架按 type 路由；加新内容类型只需加一个 type，老消息照常工作</li>
+    <li>因为这样模型推理更准确</li>
+    <li>因为每个厂商都需要独立的 Message 类</li>
+    <li>因为 Python 不支持定义多个类</li>
+  </ol>
+  <details class="accordion" open>
+    <summary>看答案与解析 <span class="hint">点击展开</span></summary>
+    <div class="acc-body"><div class="qa"><div class="a"><strong>答案：A</strong>。这是<strong>判别联合（discriminated union）</strong>：统一成 <code>Content</code> 列表后，代码只需关心“一条消息有多个内容块”，图文混排、工具调用 / 结果都用同一容器，并用工厂方法 <code>Content.from_text()</code> / <code>from_uri()</code> / <code>from_function_call()</code> 构造。跨厂商把各家格式归一成一套，业务代码零修改。</div></div></div>
+  </details>
+</div>
+<div class="quiz">
+  <div class="qn">2. 消息的 <code>role</code>（<code>&quot;system&quot;</code>/<code>&quot;user&quot;</code>/<code>&quot;assistant&quot;</code>/<code>&quot;tool&quot;</code>）在 MAF 里是什么类型？</div>
+  <ol class="opts">
+    <li>每个角色一个子类</li>
+    <li>一个封闭的 <code>Enum</code>，无法扩展</li>
+    <li>一个整数 ID</li>
+    <li><code>Role</code> 是字符串型（<code>NewType</code> over <code>str</code>）——直接用字符串值，甚至能用自定义角色</li>
+  </ol>
+  <details class="accordion" open>
+    <summary>看答案与解析 <span class="hint">点击展开</span></summary>
+    <div class="acc-body"><div class="qa"><div class="a"><strong>答案：D</strong>。<code>Role = NewType(&quot;Role&quot;, str)</code>，所以直接写 <code>Message(&quot;user&quot;, […])</code>。选字符串而非封闭 <code>Enum</code> 是“可扩展”取舍：将来出现新角色或厂商特有角色不必改框架；代价是少了 <code>Enum</code> 的编译期约束，靠约定与文档兜底。</div></div></div>
+  </details>
+</div>
+<div class="card spark">
+  <div class="tag">💭 发散思考（没有标准答案，动手或动脑想想）</div>
+  <ul>
+    <li><code>Message</code> 的 <code>contents</code> 为什么设计成“列表”而不是“单个内容”？举一个必须用多内容块的真实场景（提示：多模态，或一轮里既有文字又有工具调用），并说说这对“跨厂商统一格式”有什么帮助。</li>
+  </ul>
+</div>
+</div></div></section>
 <section class="print-lesson"><div class="wrap"><div class="lesson-head"><div class="lp">第二部分 · 用户视角</div><h1><span class="ln">05 ·</span> ChatClient 与创建 Agent</h1></div>
 <p class="lead"><strong>ChatClient</strong> 是"连到某个模型"的厂商无关接口；<strong>Agent</strong> 在它之上加了
 名字、系统指令、工具和循环。本课讲怎么从 ChatClient 造出 Agent，并用 <span class="inline">run</span> 跑起来。</p>
@@ -1748,7 +1782,41 @@ support_agent = client.as_agent(
   <strong>流式与非流式共用一个 <span class="mono">run()</span></strong>，靠一个 <span class="mono">stream</span> 开关切换返回形态。
   调用心智统一，省掉两套 API。
 </div>
-</div></section>
+<div class="selftest">
+<h2>🧪 自测 · 想一想为什么这么设计</h2>
+<div class="quiz">
+  <div class="qn">1. <code>Agent(client=…)</code> 和 <code>client.as_agent(…)</code> 是什么关系？</div>
+  <ol class="opts">
+    <li>两者产出互不兼容的类</li>
+    <li>两者等价，底下都构造同一个 <code>Agent</code>；<code>as_agent</code> 只是 ChatClient 上的便捷工厂方法</li>
+    <li><code>Agent(client=)</code> 是同步、<code>as_agent</code> 是异步</li>
+    <li><code>as_agent</code> 会训练一个新模型</li>
+  </ol>
+  <details class="accordion" open>
+    <summary>看答案与解析 <span class="hint">点击展开</span></summary>
+    <div class="acc-body"><div class="qa"><div class="a"><strong>答案：B</strong>。<code>as_agent</code> 是 ChatClient 的便捷工厂，内部就是 <code>Agent(client=self, …)</code>。给两种写法只是风格选择；无论哪种，换厂商时改的都只是 <code>client</code> 实例化那一行，Agent 的行为层（name / instructions / tools）不动。</div></div></div>
+  </details>
+</div>
+<div class="quiz">
+  <div class="qn">2. 同一个 <code>agent.run()</code>，怎么从“一次拿到完整回答”切到“逐块流式输出”？</div>
+  <ol class="opts">
+    <li>传 <code>stream=True</code>：返回异步迭代器，逐块给 <code>AgentResponseUpdate</code>；不传则返回完整 <code>AgentResponse</code></li>
+    <li>调用另一个方法 <code>run_stream_v2()</code></li>
+    <li>在 instructions 里写一句 &quot;please stream&quot;</li>
+    <li>必须新建一个 <code>StreamingAgent</code> 类</li>
+  </ol>
+  <details class="accordion" open>
+    <summary>看答案与解析 <span class="hint">点击展开</span></summary>
+    <div class="acc-body"><div class="qa"><div class="a"><strong>答案：A</strong>。流式与非流式共用 <code>run()</code>，由 <code>stream</code> 参数切换返回形态：完整的 <code>AgentResponse</code> vs 一串 <code>AgentResponseUpdate</code>。这样上层代码结构基本一致，流式时按需逐块渲染 <code>chunk.text</code> 即可。</div></div></div>
+  </details>
+</div>
+<div class="card spark">
+  <div class="tag">💭 发散思考（没有标准答案，动手或动脑想想）</div>
+  <ul>
+    <li>流式（<code>stream=True</code>）对“用户体感延迟”和“代码复杂度”各有什么影响？什么场景你反而宁愿用非流式（一次性拿 <code>AgentResponse</code>）？</li>
+  </ul>
+</div>
+</div></div></section>
 <section class="print-lesson"><div class="wrap"><div class="lesson-head"><div class="lp">第二部分 · 用户视角</div><h1><span class="ln">06 ·</span> 工具 Tools</h1></div>
 <p class="lead"><strong>工具（Tool）</strong>让 Agent 不只是"会说"，还能"会做"：查天气、读数据库、调 API。
 你写一个普通 Python 函数，用 <span class="inline">@tool</span> 一标，模型就能调用它。</p>
@@ -2053,7 +2121,41 @@ agent = Agent(
   <strong>"函数即工具"</strong>：你不用手写 JSON Schema，类型注解和 docstring 就是契约。
   代码与给模型的描述<strong>永远同步</strong>，因为它们本来就是同一份。
 </div>
-</div></section>
+<div class="selftest">
+<h2>🧪 自测 · 想一想为什么这么设计</h2>
+<div class="quiz">
+  <div class="qn">1. 用 <code>@tool</code> 标注一个普通函数后，交给模型的那份工具 <strong>JSON Schema</strong> 是从哪来的？</div>
+  <ol class="opts">
+    <li>从函数签名 + 类型注解（<code>Annotated[…, Field(description=…)]</code>）+ docstring 自动生成</li>
+    <li>你必须手写一段 JSON Schema 字符串</li>
+    <li>模型自己猜参数</li>
+    <li>从一个外部数据库读取</li>
+  </ol>
+  <details class="accordion" open>
+    <summary>看答案与解析 <span class="hint">点击展开</span></summary>
+    <div class="acc-body"><div class="qa"><div class="a"><strong>答案：A</strong>。<code>@tool</code> 读取签名 / 注解 / docstring 自动产出 JSON Schema 交给模型：docstring 变工具描述，<code>Annotated</code> 里的 <code>Field(description=…)</code> 变参数说明，默认值/约束也带过去。所以“写好类型与 docstring”本质就是在写“给模型看的说明书”。</div></div></div>
+  </details>
+</div>
+<div class="quiz">
+  <div class="qn">2. 给 <code>@tool</code> 设 <code>approval_mode=&quot;always_require&quot;</code> 的意义是？</div>
+  <ol class="opts">
+    <li>自动批准所有调用</li>
+    <li>永远不调用这个工具</li>
+    <li>工具执行前暂停、要求人工确认（人在环）——适合写操作 / 花钱的操作</li>
+    <li>让工具运行得更快</li>
+  </ol>
+  <details class="accordion" open>
+    <summary>看答案与解析 <span class="hint">点击展开</span></summary>
+    <div class="acc-body"><div class="qa"><div class="a"><strong>答案：C</strong>。<code>ApprovalMode</code> 是 <code>Literal[&quot;always_require&quot;, &quot;never_require&quot;]</code>。把“要不要人审”做成工具上的一个<strong>声明式参数</strong>，而不是散落在业务逻辑里——危险操作（发布、删除、付款）默认就该 <code>always_require</code>，执行前框架自动暂停等确认。</div></div></div>
+  </details>
+</div>
+<div class="card spark">
+  <div class="tag">💭 发散思考（没有标准答案，动手或动脑想想）</div>
+  <ul>
+    <li>“普通 Python 函数 + 一个 <code>@tool</code> 装饰器”当工具，相比“专门的工具描述语言 / 配置文件”，在开发体验上有什么好处和潜在风险？（提示：docstring 或类型注解写得马虎会怎样？）</li>
+  </ul>
+</div>
+</div></div></section>
 <section class="print-lesson"><div class="wrap"><div class="lesson-head"><div class="lp">第二部分 · 用户视角</div><h1><span class="ln">07 ·</span> 会话与记忆</h1></div>
 <p class="lead">默认情况下，每次 <span class="inline">run()</span> 都是"失忆"的。要让 Agent <strong>记住上文</strong>，
 就把同一个 <strong>会话（<span class="mono">AgentSession</span>）</strong>传给连续的调用。更长期的记忆，则交给 <strong>ContextProvider</strong>。</p>
@@ -2352,7 +2454,41 @@ session = agent.create_session()
   把"短期对话历史"（Session）和"长期可检索记忆"（ContextProvider）<strong>分成两层</strong>：
   前者简单透传，后者可插拔。需求小就只用 Session，需求大再加 Provider，复杂度按需付费。
 </div>
-</div></section>
+<div class="selftest">
+<h2>🧪 自测 · 想一想为什么这么设计</h2>
+<div class="quiz">
+  <div class="qn">1. MAF 的 <code>run()</code> 默认<strong>无状态</strong>（不传 <code>session</code> 就不记历史）。这样设计的主要好处是？</div>
+  <ol class="opts">
+    <li>并发安全 + 可测试：不同用户各自的 <code>session</code> 互不串、每个测试用例独立；需要状态时再显式传 <code>session</code></li>
+    <li>强制每次对话都换一个模型</li>
+    <li>让模型变得更聪明</li>
+    <li>节省磁盘空间</li>
+  </ol>
+  <details class="accordion" open>
+    <summary>看答案与解析 <span class="hint">点击展开</span></summary>
+    <div class="acc-body"><div class="qa"><div class="a"><strong>答案：A</strong>。隐式全局状态会让不同用户对话串台、测试难隔离、并发互相干扰。MAF 选“无状态为默认、显式 <code>session</code> 为可选”：<code>agent.create_session()</code> 后把同一个 <code>session</code> 透传给每次 <code>run()</code>，历史才会累积——有没有记忆一目了然。</div></div></div>
+  </details>
+</div>
+<div class="quiz">
+  <div class="qn">2. 会话（<code>AgentSession</code>）和 <code>ContextProvider</code> 各自负责什么？</div>
+  <ol class="opts">
+    <li><code>session</code> 管“本轮对话内累积的历史”；<code>ContextProvider</code> 管“跨会话的长期记忆 / 每次 run 前注入的外部知识（RAG）”</li>
+    <li><code>ContextProvider</code> 负责训练模型</li>
+    <li><code>session</code> 管工具、<code>ContextProvider</code> 管模型</li>
+    <li>两者完全一样</li>
+  </ol>
+  <details class="accordion" open>
+    <summary>看答案与解析 <span class="hint">点击展开</span></summary>
+    <div class="acc-body"><div class="qa"><div class="a"><strong>答案：A</strong>。会话只在“这串对话”内累积消息；要跨会话记住用户偏好、或在回答前把检索到的知识塞进上下文，用 <code>context_providers=[…]</code>（如 <code>MemoryContextProvider</code>）。注意 <code>HistoryProvider</code> 本身就是 <code>ContextProvider</code> 的子类——历史与长期记忆走同一套“run 前注入”机制。</div></div></div>
+  </details>
+</div>
+<div class="card spark">
+  <div class="tag">💭 发散思考（没有标准答案，动手或动脑想想）</div>
+  <ul>
+    <li>为什么“把记忆 / RAG 做成 <code>ContextProvider</code>、在 run 前自动注入”，通常比“每次 run 时手动把检索结果拼进 prompt”更好？请从<strong>可复用性</strong>和 <strong>Agent 代码整洁度</strong>两个角度谈谈。</li>
+  </ul>
+</div>
+</div></div></section>
 <section class="print-lesson"><div class="wrap"><div class="lesson-head"><div class="lp">第三部分 · 内部源码</div><h1><span class="ln">08 ·</span> Agent 内部</h1></div>
 <p class="lead">你用的 <span class="inline">Agent</span> 背后有两层：最底层是抽象基类
 <span class="inline">BaseAgent</span>，上面是具体类 <span class="inline">Agent</span>。

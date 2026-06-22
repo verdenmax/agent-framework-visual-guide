@@ -548,7 +548,41 @@ support_agent = client.as_agent(
   <strong>流式与非流式共用一个 <span class="mono">run()</span></strong>，靠一个 <span class="mono">stream</span> 开关切换返回形态。
   调用心智统一，省掉两套 API。
 </div>
+<div class="selftest">
+<h2>🧪 自测 · 想一想为什么这么设计</h2>
+<div class="quiz">
+  <div class="qn">1. <code>Agent(client=…)</code> 和 <code>client.as_agent(…)</code> 是什么关系？</div>
+  <ol class="opts">
+    <li>两者产出互不兼容的类</li>
+    <li>两者等价，底下都构造同一个 <code>Agent</code>；<code>as_agent</code> 只是 ChatClient 上的便捷工厂方法</li>
+    <li><code>Agent(client=)</code> 是同步、<code>as_agent</code> 是异步</li>
+    <li><code>as_agent</code> 会训练一个新模型</li>
+  </ol>
+  <details class="accordion">
+    <summary>看答案与解析 <span class="hint">点击展开</span></summary>
+    <div class="acc-body"><div class="qa"><div class="a"><strong>答案：B</strong>。<code>as_agent</code> 是 ChatClient 的便捷工厂，内部就是 <code>Agent(client=self, …)</code>。给两种写法只是风格选择；无论哪种，换厂商时改的都只是 <code>client</code> 实例化那一行，Agent 的行为层（name / instructions / tools）不动。</div></div></div>
+  </details>
 </div>
+<div class="quiz">
+  <div class="qn">2. 同一个 <code>agent.run()</code>，怎么从“一次拿到完整回答”切到“逐块流式输出”？</div>
+  <ol class="opts">
+    <li>传 <code>stream=True</code>：返回异步迭代器，逐块给 <code>AgentResponseUpdate</code>；不传则返回完整 <code>AgentResponse</code></li>
+    <li>调用另一个方法 <code>run_stream_v2()</code></li>
+    <li>在 instructions 里写一句 &quot;please stream&quot;</li>
+    <li>必须新建一个 <code>StreamingAgent</code> 类</li>
+  </ol>
+  <details class="accordion">
+    <summary>看答案与解析 <span class="hint">点击展开</span></summary>
+    <div class="acc-body"><div class="qa"><div class="a"><strong>答案：A</strong>。流式与非流式共用 <code>run()</code>，由 <code>stream</code> 参数切换返回形态：完整的 <code>AgentResponse</code> vs 一串 <code>AgentResponseUpdate</code>。这样上层代码结构基本一致，流式时按需逐块渲染 <code>chunk.text</code> 即可。</div></div></div>
+  </details>
+</div>
+<div class="card spark">
+  <div class="tag">💭 发散思考（没有标准答案，动手或动脑想想）</div>
+  <ul>
+    <li>流式（<code>stream=True</code>）对“用户体感延迟”和“代码复杂度”各有什么影响？什么场景你反而宁愿用非流式（一次性拿 <code>AgentResponse</code>）？</li>
+  </ul>
+</div>
+</div></div>
 <div class="i18n" data-lang="en">
 <p class="lead">A <strong>ChatClient</strong> is the vendor-agnostic "connect to a model" interface; an <strong>Agent</strong>
 adds a name, system instructions, tools and a loop on top. This lesson builds an Agent from a ChatClient and runs
@@ -835,7 +869,41 @@ support_agent = client.as_agent(
   <strong>Streaming and non-streaming share one <span class="mono">run()</span></strong>, toggled by a single
   <span class="mono">stream</span> flag. One mental model, no second API.
 </div>
+<div class="selftest">
+<h2>🧪 Self-test - think about the design</h2>
+<div class="quiz">
+  <div class="qn">1. What's the relationship between <code>Agent(client=…)</code> and <code>client.as_agent(…)</code>?</div>
+  <ol class="opts">
+    <li>They produce incompatible classes</li>
+    <li>They're equivalent - both build the same <code>Agent</code>; <code>as_agent</code> is just a convenience factory on the ChatClient</li>
+    <li><code>Agent(client=)</code> is sync, <code>as_agent</code> is async</li>
+    <li><code>as_agent</code> trains a new model</li>
+  </ol>
+  <details class="accordion">
+    <summary>Show answer &amp; explanation <span class="hint">click to expand</span></summary>
+    <div class="acc-body"><div class="qa"><div class="a"><strong>Answer: B</strong>. <code>as_agent</code> is a convenience factory on the ChatClient that internally does <code>Agent(client=self, …)</code>. Two spellings are just style; either way, switching vendors changes only the <code>client</code> construction line - the Agent's behavior layer (name / instructions / tools) stays put.</div></div></div>
+  </details>
 </div>
+<div class="quiz">
+  <div class="qn">2. With the same <code>agent.run()</code>, how do you switch from &quot;full answer at once&quot; to &quot;token-by-token streaming&quot;?</div>
+  <ol class="opts">
+    <li>Pass <code>stream=True</code>: returns an async iterator yielding <code>AgentResponseUpdate</code> chunks; omit it for a complete <code>AgentResponse</code></li>
+    <li>Call a different method <code>run_stream_v2()</code></li>
+    <li>Write &quot;please stream&quot; in the instructions</li>
+    <li>Build a separate <code>StreamingAgent</code> class</li>
+  </ol>
+  <details class="accordion">
+    <summary>Show answer &amp; explanation <span class="hint">click to expand</span></summary>
+    <div class="acc-body"><div class="qa"><div class="a"><strong>Answer: A</strong>. Streaming and non-streaming share one <code>run()</code>; the <code>stream</code> flag switches the return shape: a full <code>AgentResponse</code> vs a sequence of <code>AgentResponseUpdate</code>. Upper-layer code stays structurally similar - just render <code>chunk.text</code> incrementally when streaming.</div></div></div>
+  </details>
+</div>
+<div class="card spark">
+  <div class="tag">💭 Open questions (no single right answer - just think or try)</div>
+  <ul>
+    <li>How does streaming (<code>stream=True</code>) affect &quot;perceived latency&quot; vs &quot;code complexity&quot;? In which scenarios would you actually prefer non-streaming (one <code>AgentResponse</code>)?</li>
+  </ul>
+</div>
+</div></div>
   <div class="footnav"><a class="prev" href="04-messages.html"><div class="dir"><span class="i18n" data-lang="zh">← 上一课</span><span class="i18n" data-lang="en">← Prev</span></div><div class="ttl"><span class="i18n" data-lang="zh">消息与内容</span><span class="i18n" data-lang="en">Messages & Content</span></div></a><a class="next" href="06-tools.html"><div class="dir"><span class="i18n" data-lang="zh">下一课 →</span><span class="i18n" data-lang="en">Next →</span></div><div class="ttl"><span class="i18n" data-lang="zh">工具 Tools</span><span class="i18n" data-lang="en">Tools</span></div></a></div>
 </div>
 

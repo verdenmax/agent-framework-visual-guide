@@ -639,6 +639,76 @@ QUIZZES = {
             },
         ],
     },
+    "24-mcp.html": {
+        "mcq": [
+            {
+                "q": {
+                    "zh": "下面哪句对 <code>MCPTool</code> 基类的描述是<strong>正确</strong>的？",
+                    "en": "Which statement about the <code>MCPTool</code> base class is <strong>correct</strong>?",
+                },
+                "opts": [
+                    {
+                        "zh": "它<strong>不能直接实例化</strong>，要用 <code>MCPStdioTool</code>/<code>MCPStreamableHTTPTool</code>/<code>MCPWebsocketTool</code> 之一；连接、工具发现、转发都在它里面",
+                        "en": "It <strong>cannot be instantiated directly</strong>; use one of <code>MCPStdioTool</code>/<code>MCPStreamableHTTPTool</code>/<code>MCPWebsocketTool</code>; connection, discovery and forwarding live in it",
+                    },
+                    {"zh": "它是一个具体的 stdio 实现，HTTP 要另写一套", "en": "It is a concrete stdio implementation; HTTP needs a separate stack"},
+                    {"zh": "它负责训练模型", "en": "It is responsible for training the model"},
+                    {"zh": "每种传输都有完全独立、互不共享的代码", "en": "Each transport has fully independent, non-shared code"},
+                ],
+                "answer": 0,
+                "why": {
+                    "zh": "<code>_mcp.py:263</code> 的文档明说 <code>MCPTool</code> 是基类、不能直接用，必须选一个传输子类。连接生命周期（<code>connect</code> <code>:801</code>）、工具发现（<code>load_tools</code> <code>:1208</code> → <code>list_tools</code>）、调用转发（<code>call_tool</code> <code>:1422</code> → <code>session.call_tool</code>）都在基类里；子类（<code>:2110/:2254/:2456</code>）只决定“拿什么 client 建连接”。所以换传输不用改 Agent 代码。",
+                    "en": "The docstring at <code>_mcp.py:263</code> says <code>MCPTool</code> is a base class you cannot use directly — you must pick a transport subclass. The connection lifecycle (<code>connect</code> <code>:801</code>), tool discovery (<code>load_tools</code> <code>:1208</code> → <code>list_tools</code>) and call forwarding (<code>call_tool</code> <code>:1422</code> → <code>session.call_tool</code>) all live in the base; subclasses (<code>:2110/:2254/:2456</code>) only decide “which client builds the connection”. That's why swapping transport needs no Agent change.",
+                },
+            },
+            {
+                "q": {
+                    "zh": "本地开发想接一个 CLI 式的工具服务器，最合适的传输是？",
+                    "en": "For local dev wiring up a CLI-style tool server, the most fitting transport is?",
+                },
+                "opts": [
+                    {
+                        "zh": "<code>MCPStdioTool</code>：启动<strong>本地子进程</strong>走 stdin/stdout，无需网络",
+                        "en": "<code>MCPStdioTool</code>: launches a <strong>local subprocess</strong> over stdin/stdout, no network needed",
+                    },
+                    {"zh": "<code>MCPStreamableHTTPTool</code>：必须先部署一个公网 HTTPS 服务", "en": "<code>MCPStreamableHTTPTool</code>: requires deploying a public HTTPS service first"},
+                    {"zh": "<code>MCPWebsocketTool</code>：必须先建立长连接网关", "en": "<code>MCPWebsocketTool</code>: requires standing up a long-connection gateway"},
+                    {"zh": "三者都不行，本地工具不能用 MCP", "en": "None work; local tools can't use MCP"},
+                ],
+                "answer": 0,
+                "why": {
+                    "zh": "<code>MCPStdioTool</code>（<code>:2110</code>）用 <code>command/args</code> 拉起一个本地子进程，经 stdio 通信，<strong>无需网络</strong>，是本地 CLI / 开发调试最顺手的选择；远程生产则首选 <code>MCPStreamableHTTPTool</code>（<code>:2254</code>，可带 <code>headers</code>/<code>header_provider</code> 鉴权），需要双向实时推送再用 <code>MCPWebsocketTool</code>（<code>:2456</code>）。三种传输上层 Agent 代码一致。",
+                    "en": "<code>MCPStdioTool</code> (<code>:2110</code>) uses <code>command/args</code> to launch a local subprocess and talks over stdio with <strong>no network</strong> — the smoothest pick for local CLIs / dev debugging; remote production favors <code>MCPStreamableHTTPTool</code> (<code>:2254</code>, with <code>headers</code>/<code>header_provider</code> for auth), and bidirectional real-time push uses <code>MCPWebsocketTool</code> (<code>:2456</code>). The Agent code is identical across all three.",
+                },
+            },
+            {
+                "q": {
+                    "zh": "MCP 服务器加了一个新工具。你的 Agent 要怎么改才能用上它？",
+                    "en": "An MCP server adds a new tool. What must your Agent change to use it?",
+                },
+                "opts": [
+                    {
+                        "zh": "基本<strong>不用改</strong>：<code>list_tools()</code> 在运行时发现新工具，自动包成本地 <code>FunctionTool</code> 交给模型",
+                        "en": "Basically <strong>nothing</strong>: <code>list_tools()</code> discovers it at run time and auto-wraps it as a local <code>FunctionTool</code> for the model",
+                    },
+                    {"zh": "要为新工具手写一个适配器类", "en": "Hand-write an adapter class for the new tool"},
+                    {"zh": "要重新训练模型认识它", "en": "Retrain the model to recognize it"},
+                    {"zh": "要把传输从 stdio 换成 HTTP", "en": "Switch the transport from stdio to HTTP"},
+                ],
+                "answer": 0,
+                "why": {
+                    "zh": "MCP 的工具是<strong>运行时发现</strong>的，不是写死的：连接后 <code>load_tools()</code>（<code>:1208</code>）调 <code>session.list_tools()</code> 拉清单，每个远端工具被包成本地 <code>FunctionTool</code> 放进 <code>.functions</code>（<code>:637</code>），其 schema 自动交给模型。这正是 MCP 把 N×M 对接降为 N+M 的关键——远端加工具，客户端零改动即可用。",
+                    "en": "MCP tools are <strong>discovered at run time</strong>, not hardcoded: after connecting, <code>load_tools()</code> (<code>:1208</code>) calls <code>session.list_tools()</code> to pull the list, each remote tool is wrapped as a local <code>FunctionTool</code> in <code>.functions</code> (<code>:637</code>), and its schema is handed to the model automatically. This is exactly how MCP turns N×M integration into N+M — the server adds a tool, the client needs zero changes.",
+                },
+            },
+        ],
+        "open": [
+            {
+                "zh": "你有一个内部“知识库检索”工具，想让公司里多个不同的 Agent 应用都能用。(1) 用 MCP 暴露成服务器后，对接成本如何从 N×M 降到 N+M？(2) 本地开发期与线上生产你会分别选哪种传输（<code>Stdio</code>/<code>HTTP</code>/<code>WebSocket</code>），为什么？(3) 既然 MCP 工具是“另一个进程”，为什么连接必须用 <code>async with</code> 成对管理？",
+                "en": "You have an internal “knowledge-base search” tool you want reachable from several different Agent apps in your company. (1) Once exposed as an MCP server, how does integration cost drop from N×M to N+M? (2) Which transport (<code>Stdio</code>/<code>HTTP</code>/<code>WebSocket</code>) would you pick for local dev vs production, and why? (3) Since an MCP tool is “another process”, why must the connection be managed in pairs with <code>async with</code>?",
+            },
+        ],
+    },
 }
 
 

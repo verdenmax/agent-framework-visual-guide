@@ -6135,6 +6135,105 @@ mcp_tool = MCPStdioTool(
     response = <span class="kw">await</span> agent.run(<span class="st">"List all .txt files"</span>)</pre>
 </div>
 
+<h2>追踪一次 MCP 工具调用</h2>
+<p>抽象讲完，我们端到端走一遍：一个 Agent 通过 <span class="mono">MCPStdioTool</span> 接上官方的 <strong>filesystem</strong> MCP 服务器，
+用户说<strong>「列出 /data 下所有 .txt 文件」</strong>。重点在于：MCP 工具<strong>不是</strong>你写的本地 Python 函数，
+而是<strong>另一个进程</strong>里的能力——框架要先<strong>连上它、问它有哪些工具</strong>，再把模型的调用请求<strong>经 stdio 转发</strong>过去执行。</p>
+
+<div class="vflow">
+  <div class="step"><div class="num">0</div><div class="sc"><h4>构造：只是描述，还没连接</h4>
+    <p><span class="mono">MCPStdioTool(name="filesystem", command="npx", args=[...])</span>（<span class="mono">_mcp.py:2110</span>）此刻只是<strong>一份连接说明</strong>，
+    子进程尚未启动。注意它继承自不能直接实例化的基类 <span class="mono">MCPTool</span>（<span class="mono">_mcp.py:263</span>）。</p></div></div>
+  <div class="step"><div class="num">1</div><div class="sc"><h4>进入上下文：启动子进程</h4>
+    <p><span class="mono">async with agent:</span> 触发工具的 <span class="mono">__aenter__</span>（<span class="mono">_mcp.py:2068</span>）→ <span class="mono">connect()</span>（<span class="mono">:801</span>）。
+    框架据 <span class="mono">command/args</span> 造出 <span class="mono">StdioServerParameters</span>，<span class="mono">npx</span> 拉起 filesystem 服务器子进程，建立 stdio 双向管道。</p></div></div>
+  <div class="step"><div class="num">2</div><div class="sc"><h4>问它有哪些工具：load_tools</h4>
+    <p>连上后调 <span class="mono">load_tools()</span>（<span class="mono">:1208</span>）→ <span class="mono">session.list_tools()</span>（<span class="mono">:1244</span>）。
+    远端报出 <span class="mono">list_directory</span> / <span class="mono">read_file</span> / … 每个被包成一个本地 <span class="mono">FunctionTool</span> 放进 <span class="mono">.functions</span>（<span class="mono">:637</span>），其 JSON Schema 转交给模型。</p>
+<pre class="code"><span class="cm"># 远端工具被翻译成模型可见的 schema（节选）</span>
+[FunctionTool(name=<span class="st">"list_directory"</span>, parameters={<span class="st">"path"</span>: <span class="st">"string"</span>}),
+ FunctionTool(name=<span class="st">"read_file"</span>,      parameters={<span class="st">"path"</span>: <span class="st">"string"</span>})]</pre></div></div>
+  <div class="step"><div class="num">3</div><div class="sc"><h4>模型决策：要列目录</h4>
+    <p>模型看到有 <span class="mono">list_directory</span>，发起一次工具调用 —— 与调用普通本地工具<strong>语法完全一样</strong>，它并不知道这是个远端进程：</p>
+<pre class="code">FunctionCallContent(name=<span class="st">"list_directory"</span>,
+                    arguments={<span class="st">"path"</span>: <span class="st">"/data"</span>})</pre></div></div>
+  <div class="step"><div class="num">4</div><div class="sc"><h4>经 stdio 转发：call_tool</h4>
+    <p>框架把调用交给 <span class="mono">call_tool("list_directory", path="/data")</span>（<span class="mono">:1422</span>）→
+    <span class="mono">session.call_tool(name, arguments=...)</span>（<span class="mono">:1481</span>），把一条 JSON-RPC 请求经 stdio 写给子进程。</p></div></div>
+  <div class="step"><div class="num">5</div><div class="sc"><h4>远端执行 → 结果回灌</h4>
+    <p>filesystem 子进程在<strong>真实文件系统</strong>上跑 <span class="mono">list_directory</span>，返回 <span class="mono">CallToolResult</span>；
+    默认解析器把它转成字符串/<span class="mono">Content</span> 回灌对话。模型据此筛出 <span class="mono">.txt</span> 并作答。</p></div></div>
+  <div class="step"><div class="num">6</div><div class="sc"><h4>退出上下文：收摊</h4>
+    <p><span class="mono">async with</span> 结束 → <span class="mono">__aexit__</span>（<span class="mono">_mcp.py:2089</span>）关闭 stdio 管道、终止子进程。连接<strong>有借有还</strong>。</p></div></div>
+</div>
+
+<div class="card detail">
+  <div class="tag">🔬 读懂这条轨迹</div>
+  三个关键点：①<strong>工具是「发现」来的，不是写死的</strong>——<span class="mono">list_tools()</span> 在运行时拉取远端工具清单，远端加了新工具，你的 Agent 无需改代码就能用；
+  ②<strong>模型对「远近」无感</strong>——远端工具被包成本地 <span class="mono">FunctionTool</span>，模型发 <span class="mono">FunctionCallContent</span> 的方式和调本地 <code>@tool</code> 一模一样（见<a href="06-tools.html">第 6 课</a>）；
+  ③<strong>连接是有状态的</strong>——必须 <span class="mono">async with</span>（或显式 <span class="mono">connect()</span>/<span class="mono">__aexit__</span>）成对管理子进程生命周期，这也是 MCP 工具与无状态本地函数最大的不同。
+</div>
+
+<h2>一个基类，三种传输</h2>
+<p>无论走子进程、HTTP 还是 WebSocket，<strong>上层 Agent 代码完全一样</strong>——差异被关进三个子类，共享同一个基类 <span class="mono">MCPTool</span>：</p>
+<div class="layers">
+  <div class="layer l-core"><div class="lh"><span class="badge">基类</span><span class="name">MCPTool</span></div>
+    <div class="ld"><span class="mono">_mcp.py:263</span>。<strong>不能直接实例化</strong>。负责连接生命周期、<span class="mono">load_tools/load_prompts</span>、<span class="mono">call_tool</span>、JSON-RPC 通信、审批与超时（<span class="mono">MCPTaskOptions</span>）。</div></div>
+  <div class="layer l-main"><div class="lh"><span class="badge">子类</span><span class="name">MCPStdioTool(command, args)</span></div>
+    <div class="ld"><span class="mono">:2110</span>。启动<strong>本地子进程</strong>，走 stdin/stdout。无需网络，本地 CLI / 开发调试最顺手。</div></div>
+  <div class="layer l-part"><div class="lh"><span class="badge">子类</span><span class="name">MCPStreamableHTTPTool(url)</span></div>
+    <div class="ld"><span class="mono">:2254</span>。连<strong>远程 HTTP/SSE</strong> 端点，可带 <span class="mono">headers</span> / <span class="mono">header_provider</span> 做鉴权。生产部署首选。</div></div>
+  <div class="layer l-app"><div class="lh"><span class="badge">子类</span><span class="name">MCPWebsocketTool(url)</span></div>
+    <div class="ld"><span class="mono">:2456</span>。走 <strong>WebSocket（wss://）</strong>，适合需要长连接、双向实时推送的场景。</div></div>
+</div>
+
+<p>把连接过程横过来看，就是一条固定的生命周期流水线——三种传输只在「第 1 步怎么连上」不同，后面都一样：</p>
+<div class="flow">
+  <div class="node"><div class="nt">构造</div><div class="nd">命令/URL · 未连接</div></div>
+  <div class="arrow">→</div>
+  <div class="node hl"><div class="nt">connect</div><div class="nd">子进程 / HTTP / WS</div></div>
+  <div class="arrow">→</div>
+  <div class="node"><div class="nt">list_tools</div><div class="nd">发现远端工具</div></div>
+  <div class="arrow">→</div>
+  <div class="node"><div class="nt">→ FunctionTool</div><div class="nd">包成本地工具</div></div>
+  <div class="arrow">→</div>
+  <div class="node hl"><div class="nt">call_tool</div><div class="nd">转发 · 执行 · 回灌</div></div>
+</div>
+
+<h2>🔍 真实源码：基类与传输子类的关系</h2>
+<div class="codefile">
+  <div class="cf-head"><span class="dot"></span><span class="path">_mcp.py</span><span class="ln">MCPTool / MCPStdioTool（简化自 :263 / :2110）</span></div>
+<pre class="code"><span class="kw">class</span> <span class="fn">MCPTool</span>:                                   <span class="cm"># :263 —— 基类，勿直接实例化</span>
+    <span class="kw">async def</span> <span class="fn">connect</span>(self, *, reset=<span class="kw">False</span>): ...      <span class="cm"># :801  建立传输（由子类提供 client）</span>
+    <span class="kw">async def</span> <span class="fn">load_tools</span>(self):                    <span class="cm"># :1208 列出远端工具…</span>
+        tool_list = <span class="kw">await</span> self.session.list_tools()  <span class="cm"># :1244 …包成本地 FunctionTool</span>
+    <span class="kw">async def</span> <span class="fn">call_tool</span>(self, tool_name, **kwargs):  <span class="cm"># :1422 转发一次调用</span>
+        <span class="kw">return await</span> self.session.call_tool(tool_name, arguments=kwargs)  <span class="cm"># :1481</span>
+    <span class="nb">@property</span>
+    <span class="kw">def</span> <span class="fn">functions</span>(self): ...                       <span class="cm"># :637  发现到的工具列表</span>
+
+<span class="kw">class</span> <span class="fn">MCPStdioTool</span>(MCPTool):                       <span class="cm"># :2110 —— 子进程传输</span>
+    <span class="kw">def</span> <span class="fn">__init__</span>(self, name, command, *, args=<span class="kw">None</span>, env=<span class="kw">None</span>, ...):
+        <span class="cm"># 用 command/args 造 StdioServerParameters → 启动子进程、走 stdio</span>
+        ...</pre>
+</div>
+<p>这解释了「为什么换传输不用改 Agent」：模型只与 <span class="mono">.functions</span> 里的 <span class="mono">FunctionTool</span> 打交道，
+而 <span class="mono">connect</span> / <span class="mono">call_tool</span> 这些动作全在基类里。子类只决定「拿什么 client 建连接」——
+<span class="mono">MCPStdioTool</span> 给的是 stdio client，<span class="mono">MCPStreamableHTTPTool</span> 给的是 HTTP client，仅此而已。</p>
+
+<h2>为什么要用 MCP 统一外部工具协议</h2>
+<p>没有 MCP 时，把 <span class="mono">M</span> 个工具接到 <span class="mono">N</span> 个 LLM 应用上，是一道 <strong>N×M 的定制对接题</strong>：每个应用都要为每个工具写一遍适配。
+MCP 把它降成 <strong>N+M</strong>：工具方实现一次 MCP 服务器，应用方实现一次 MCP 客户端，两边照协议即插即用。</p>
+<table class="t">
+  <tr><th>诉求</th><th>各写各的（无标准）</th><th>MCP（统一协议）</th></tr>
+  <tr><td><strong>对接成本</strong></td><td>N×M：每个 App × 每个工具都要定制</td><td>N+M：工具实现一次服务器，App 实现一次客户端</td></tr>
+  <tr><td><strong>工具发现</strong></td><td>硬编码，加工具要改 App 代码</td><td><span class="mono">list_tools()</span> 运行时拉取，远端加工具<strong>零改动</strong>可用</td></tr>
+  <tr><td><strong>能力复用</strong></td><td>一个工具集只能服务一个生态</td><td>同一个 MCP 服务器，任何 MCP 客户端都能接</td></tr>
+  <tr><td><strong>部署灵活</strong></td><td>传输方式与业务逻辑耦合</td><td>同一套工具可换 <span class="mono">Stdio/HTTP/WS</span> 传输，业务代码不变</td></tr>
+</table>
+<p>这正是 MAF 既能<strong>当客户端</strong>（用 <span class="mono">MCPStdioTool</span> 等调别人的服务器），也能<strong>当服务器</strong>（把自己的 Agent/工具暴露为 MCP）的意义所在。
+和<a href="23-skills.html">上一课的技能</a>对照看：技能管「私有知识怎么声明并按需装载」，MCP 管「外部能力怎么标准化接入」——两者都是为了别把一切都焊死在 prompt 与代码里。</p>
+
 <details class="accordion" open>
   <summary><span class="badge-num">1</span> 三种传输方式深入 <span class="hint">点击展开详解</span></summary>
   <div class="acc-body">
@@ -6299,7 +6398,54 @@ MCPStdioTool(name=<span class="st">"fs"</span>, command=<span class="st">"npx"</
   你可以从 @tool 起步做快速原型，之后把成熟的工具迁移为 MCP 服务，
   实现从本地开发到标准化分发的平滑过渡。
 </div>
-</div></section>
+<div class="selftest">
+<h2>🧪 自测 · 想一想为什么这么设计</h2>
+<div class="quiz">
+  <div class="qn">1. 下面哪句对 <code>MCPTool</code> 基类的描述是<strong>正确</strong>的？</div>
+  <ol class="opts">
+    <li>每种传输都有完全独立、互不共享的代码</li>
+    <li>它是一个具体的 stdio 实现，HTTP 要另写一套</li>
+    <li>它负责训练模型</li>
+    <li>它<strong>不能直接实例化</strong>，要用 <code>MCPStdioTool</code>/<code>MCPStreamableHTTPTool</code>/<code>MCPWebsocketTool</code> 之一；连接、工具发现、转发都在它里面</li>
+  </ol>
+  <details class="accordion" open>
+    <summary>看答案与解析 <span class="hint">点击展开</span></summary>
+    <div class="acc-body"><div class="qa"><div class="a"><strong>答案：D</strong>。<code>_mcp.py:263</code> 的文档明说 <code>MCPTool</code> 是基类、不能直接用，必须选一个传输子类。连接生命周期（<code>connect</code> <code>:801</code>）、工具发现（<code>load_tools</code> <code>:1208</code> → <code>list_tools</code>）、调用转发（<code>call_tool</code> <code>:1422</code> → <code>session.call_tool</code>）都在基类里；子类（<code>:2110/:2254/:2456</code>）只决定“拿什么 client 建连接”。所以换传输不用改 Agent 代码。</div></div></div>
+  </details>
+</div>
+<div class="quiz">
+  <div class="qn">2. 本地开发想接一个 CLI 式的工具服务器，最合适的传输是？</div>
+  <ol class="opts">
+    <li><code>MCPStreamableHTTPTool</code>：必须先部署一个公网 HTTPS 服务</li>
+    <li><code>MCPStdioTool</code>：启动<strong>本地子进程</strong>走 stdin/stdout，无需网络</li>
+    <li>三者都不行，本地工具不能用 MCP</li>
+    <li><code>MCPWebsocketTool</code>：必须先建立长连接网关</li>
+  </ol>
+  <details class="accordion" open>
+    <summary>看答案与解析 <span class="hint">点击展开</span></summary>
+    <div class="acc-body"><div class="qa"><div class="a"><strong>答案：B</strong>。<code>MCPStdioTool</code>（<code>:2110</code>）用 <code>command/args</code> 拉起一个本地子进程，经 stdio 通信，<strong>无需网络</strong>，是本地 CLI / 开发调试最顺手的选择；远程生产则首选 <code>MCPStreamableHTTPTool</code>（<code>:2254</code>，可带 <code>headers</code>/<code>header_provider</code> 鉴权），需要双向实时推送再用 <code>MCPWebsocketTool</code>（<code>:2456</code>）。三种传输上层 Agent 代码一致。</div></div></div>
+  </details>
+</div>
+<div class="quiz">
+  <div class="qn">3. MCP 服务器加了一个新工具。你的 Agent 要怎么改才能用上它？</div>
+  <ol class="opts">
+    <li>要为新工具手写一个适配器类</li>
+    <li>要把传输从 stdio 换成 HTTP</li>
+    <li>要重新训练模型认识它</li>
+    <li>基本<strong>不用改</strong>：<code>list_tools()</code> 在运行时发现新工具，自动包成本地 <code>FunctionTool</code> 交给模型</li>
+  </ol>
+  <details class="accordion" open>
+    <summary>看答案与解析 <span class="hint">点击展开</span></summary>
+    <div class="acc-body"><div class="qa"><div class="a"><strong>答案：D</strong>。MCP 的工具是<strong>运行时发现</strong>的，不是写死的：连接后 <code>load_tools()</code>（<code>:1208</code>）调 <code>session.list_tools()</code> 拉清单，每个远端工具被包成本地 <code>FunctionTool</code> 放进 <code>.functions</code>（<code>:637</code>），其 schema 自动交给模型。这正是 MCP 把 N×M 对接降为 N+M 的关键——远端加工具，客户端零改动即可用。</div></div></div>
+  </details>
+</div>
+<div class="card spark">
+  <div class="tag">💭 发散思考（没有标准答案，动手或动脑想想）</div>
+  <ul>
+    <li>你有一个内部“知识库检索”工具，想让公司里多个不同的 Agent 应用都能用。(1) 用 MCP 暴露成服务器后，对接成本如何从 N×M 降到 N+M？(2) 本地开发期与线上生产你会分别选哪种传输（<code>Stdio</code>/<code>HTTP</code>/<code>WebSocket</code>），为什么？(3) 既然 MCP 工具是“另一个进程”，为什么连接必须用 <code>async with</code> 成对管理？</li>
+  </ul>
+</div>
+</div></div></section>
 <section class="print-lesson"><div class="wrap"><div class="lesson-head"><div class="lp">第六部分 · 协议与生态</div><h1><span class="ln">23 ·</span> Foundry 托管 Agent</h1></div>
 <p class="lead"><strong>Foundry 托管 Agent</strong>——只需 ~2 行额外代码，就能把本地 Agent 部署到 Azure AI Foundry 云端，
 获得自动伸缩、会话管理和企业级监控。</p>

@@ -5893,6 +5893,17 @@ tools:
 <p>The <span class="mono">declarative</span> package reads this YAML and auto-constructs an <span class="mono">Agent</span>.
 Great for rapid prototyping and version control.</p>
 
+<h2>YAML fields → Agent config</h2>
+<table class="t">
+  <tr><th>YAML field</th><th>Maps to Agent config</th><th>Notes</th></tr>
+  <tr><td class="mono">name</td><td class="mono">Agent(name=…)</td><td>agent name</td></tr>
+  <tr><td class="mono">instructions</td><td class="mono">Agent(instructions=…)</td><td>system prompt</td></tr>
+  <tr><td class="mono">model</td><td>the ChatClient's model</td><td>e.g. gpt-4o</td></tr>
+  <tr><td class="mono">tools</td><td class="mono">Agent(tools=[…])</td><td>resolved by name (via bindings)</td></tr>
+  <tr><td class="mono">middleware</td><td class="mono">Agent(middleware=[…])</td><td>middleware list</td></tr>
+  <tr><td class="mono">context_providers</td><td class="mono">Agent(context_providers=[…])</td><td>context / memory providers</td></tr>
+</table>
+
 <h2>From YAML to running, end to end</h2>
 <div class="flow">
   <div class="node"><div class="nt">my_agent.yaml</div><div class="nd">name / instructions / tools</div></div>
@@ -5904,6 +5915,18 @@ Great for rapid prototyping and version control.</p>
   <div class="node"><div class="nt">agent.run(…)</div><div class="nd">called as usual</div></div>
 </div>
 <p>Key insight: YAML is just <strong>another way to construct</strong>. What <span class="mono">AgentFactory</span> emits after parsing is <strong>the same kind of object</strong> you'd build by hand with <span class="mono">Agent(client=…, tools=…)</span> - so downstream <span class="mono">run()</span>, tools and middleware all work unchanged. Config and code are <strong>isomorphic</strong>, which is what lets you move freely between the two styles.</p>
+
+<h2>The load pipeline</h2>
+<div class="vflow">
+  <div class="step"><div class="num">1</div><div class="sc"><h4>Read the YAML</h4>
+    <p><span class="mono">create_agent_from_yaml_path("my_agent.yaml")</span> reads the config file.</p></div></div>
+  <div class="step"><div class="num">2</div><div class="sc"><h4>Parse + validate</h4>
+    <p><span class="mono">AgentFactory</span> parses against a known schema; unknown fields raise a clear error instead of failing silently.</p></div></div>
+  <div class="step"><div class="num">3</div><div class="sc"><h4>Resolve tool names</h4>
+    <p>Names under <span class="mono">tools</span> are mapped to real Python functions via <span class="mono">bindings</span>.</p></div></div>
+  <div class="step"><div class="num">4</div><div class="sc"><h4>Construct the Agent</h4>
+    <p>Out comes an instance identical to a hand-written <span class="mono">Agent(client=…, tools=…)</span>; <span class="mono">run()</span> works as usual.</p></div></div>
+</div>
 
 <details class="accordion" open>
   <summary><span class="badge-num">1</span> Complete YAML schema <span class="hint">expand</span></summary>
@@ -6155,6 +6178,25 @@ Current limitation: complex routing logic in workflows is best expressed in code
 </div>
 <p><span class="mono">await call_next()</span> is the dividing line: code <strong>before</strong> it runs as the request goes &quot;in&quot;, code <strong>after</strong> it runs as the response comes &quot;out&quot; - so one middleware wraps both ends (the onion skin). <strong>Earlier middleware in the list sits further outside</strong>: first in, last out.</p>
 
+<h2>Three middleware layers (onion, outside in)</h2>
+<div class="layers">
+  <div class="layer l-core"><div class="lh"><span class="badge">outermost</span><span class="name">AgentMiddleware</span></div>
+    <div class="ld">Wraps the <strong>whole run()</strong>: context is <span class="mono">AgentContext</span>, seeing input messages and the final <span class="mono">AgentResponse</span>.</div></div>
+  <div class="layer l-main"><div class="lh"><span class="badge">middle</span><span class="name">FunctionMiddleware</span></div>
+    <div class="ld">Wraps <strong>each tool call</strong>: context is <span class="mono">FunctionInvocationContext</span>, seeing the function name, arguments and result.</div></div>
+  <div class="layer l-part"><div class="lh"><span class="badge">innermost</span><span class="name">ChatMiddleware</span></div>
+    <div class="ld">Wraps <strong>each LLM call</strong>: context is <span class="mono">ChatContext</span>, closest to the model, seeing the messages sent and the <span class="mono">ChatResponse</span>.</div></div>
+</div>
+<p>Every layer implements <span class="mono">process(self, context, call_next)</span>: before <span class="mono">await call_next()</span> is the "inbound" half, after it is the "outbound" half — no args, all data flows through <span class="mono">context</span>.</p>
+
+<h2>What each middleware kind intercepts</h2>
+<table class="t">
+  <tr><th>Middleware</th><th>Intercepts</th><th>Context type</th><th>Fires</th></tr>
+  <tr><td class="mono">AgentMiddleware</td><td>the whole agent.run()</td><td class="mono">AgentContext</td><td>once per run</td></tr>
+  <tr><td class="mono">FunctionMiddleware</td><td>a single tool / function call</td><td class="mono">FunctionInvocationContext</td><td>per tool call</td></tr>
+  <tr><td class="mono">ChatMiddleware</td><td>a single LLM call</td><td class="mono">ChatContext</td><td>per model request</td></tr>
+</table>
+
 <details class="accordion" open>
   <summary><span class="badge-num">1</span> Complete logging middleware <span class="hint">expand</span></summary>
   <div class="acc-body">
@@ -6378,9 +6420,28 @@ critical steps</strong> (HITL), <strong>resume after crashes</strong> (durabilit
 <p>Workflows auto-save at each superstep boundary. Default: <span class="mono">InMemoryCheckpointStorage</span>;
 swap to persistent storage (local <span class="mono">FileCheckpointStorage</span> or cloud <span class="mono">CosmosCheckpointStorage</span>) for production. After a crash, restart and resume from the latest save.</p>
 
+<h2>Checkpoint storage backends</h2>
+<table class="t">
+  <tr><th>Storage</th><th>Durability</th><th>Use case</th><th>From</th></tr>
+  <tr><td class="mono">InMemoryCheckpointStorage</td><td>in-process (lost on restart)</td><td>dev / tests</td><td>core package</td></tr>
+  <tr><td class="mono">FileCheckpointStorage</td><td>local file (persistent)</td><td>single-host prod / zero deps</td><td>core package</td></tr>
+  <tr><td class="mono">CosmosCheckpointStorage</td><td>cloud distributed (strong consistency)</td><td>distributed prod / HA</td><td class="mono">agent-framework-azure-cosmos</td></tr>
+</table>
+
 <h2>Human-in-the-Loop (HITL)</h2>
 <p>Tools can set <span class="mono">approval_mode="always_require"</span> to pause for human confirmation.
 At the workflow level, <span class="mono">request_info</span> lets a node pause, ask a question, and wait for a reply.</p>
+
+<h2>Tool approval (HITL) flow</h2>
+<div class="flow">
+  <div class="node"><div class="nt">Model wants a tool</div><div class="nd">e.g. publish_article</div></div>
+  <div class="arrow">→</div>
+  <div class="node"><div class="nt">approval_mode</div><div class="nd">always_require</div></div>
+  <div class="arrow">→</div>
+  <div class="node"><div class="nt">⏸ Pause for human</div><div class="nd">request approval</div></div>
+  <div class="arrow">→</div>
+  <div class="node hl"><div class="nt">✅ Approve → run</div><div class="nd">❌ Reject → skip</div></div>
+</div>
 
 <h2>A timeline with saves and pauses</h2>
 <div class="flow">
@@ -6397,6 +6458,16 @@ At the workflow level, <span class="mono">request_info</span> lets a node pause,
   <div class="node hl"><div class="nt">↺ resume</div><div class="nd">from latest save</div></div>
 </div>
 <p>Each concern owns a slice: <strong>checkpointing</strong> auto-saves at every superstep boundary; <strong>HITL</strong> <em>pauses</em> the flow at key nodes to wait for a human; the <strong>persistent backend</strong> (File / Cosmos) decides where saves live and whether you can recover after a crash. Note that <strong>the Redis package is for context / history memory, not workflow checkpoints</strong>.</p>
+
+<h2>Crash recovery: how a checkpoint saves progress</h2>
+<div class="vflow">
+  <div class="step"><div class="num">1</div><div class="sc"><h4>Run to a superstep boundary</h4>
+    <p>After each superstep, the workflow writes state to <span class="mono">CheckpointStorage</span> at the boundary.</p></div></div>
+  <div class="step"><div class="num">2</div><div class="sc"><h4>💥 Process crashes</h4>
+    <p>The machine dies, a deploy restarts, OOM… everything in memory is gone.</p></div></div>
+  <div class="step"><div class="num">3</div><div class="sc"><h4>↺ Resume from the latest checkpoint</h4>
+    <p>On restart, load the most recent checkpoint from the persistent backend and <strong>continue from there</strong> — completed supersteps are not re-run.</p></div></div>
+</div>
 
 <details class="accordion" open>
   <summary><span class="badge-num">1</span> InMemoryCheckpointStorage example <span class="hint">expand</span></summary>

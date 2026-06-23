@@ -311,6 +311,25 @@ table.t td.mono, table.t td .mono { font-family: ui-monospace, monospace; font-s
 </div>
 <p><span class="mono">await call_next()</span> 是分界线：它<strong>之前</strong>的代码在请求“进站”时跑，<strong>之后</strong>的代码在响应“出站”时跑——所以同一个中间件能同时包住前后两端（洋葱皮）。列表里<strong>越靠前的中间件越在外层</strong>：最先进、最后出。</p>
 
+<h2>三层中间件（洋葱由外到内）</h2>
+<div class="layers">
+  <div class="layer l-core"><div class="lh"><span class="badge">最外层</span><span class="name">AgentMiddleware</span></div>
+    <div class="ld">包住<strong>整轮 run()</strong>：context 是 <span class="mono">AgentContext</span>，能看到输入消息和最终 <span class="mono">AgentResponse</span>。</div></div>
+  <div class="layer l-main"><div class="lh"><span class="badge">中间层</span><span class="name">FunctionMiddleware</span></div>
+    <div class="ld">包住<strong>每次工具调用</strong>：context 是 <span class="mono">FunctionInvocationContext</span>，能看到函数名、参数和返回值。</div></div>
+  <div class="layer l-part"><div class="lh"><span class="badge">最内层</span><span class="name">ChatMiddleware</span></div>
+    <div class="ld">包住<strong>每次 LLM 调用</strong>：context 是 <span class="mono">ChatContext</span>，最贴近模型，能看到发出的消息和 <span class="mono">ChatResponse</span>。</div></div>
+</div>
+<p>每一层都实现 <span class="mono">process(self, context, call_next)</span>：<span class="mono">await call_next()</span> <strong>之前</strong>是"进站"、<strong>之后</strong>是"出站"——无参，数据全走 <span class="mono">context</span>。</p>
+
+<h2>三类中间件拦截什么</h2>
+<table class="t">
+  <tr><th>中间件</th><th>拦截的范围</th><th>context 类型</th><th>触发时机</th></tr>
+  <tr><td class="mono">AgentMiddleware</td><td>整轮 agent.run()</td><td class="mono">AgentContext</td><td>每次 run，一次</td></tr>
+  <tr><td class="mono">FunctionMiddleware</td><td>单次工具 / 函数调用</td><td class="mono">FunctionInvocationContext</td><td>每调用一个工具</td></tr>
+  <tr><td class="mono">ChatMiddleware</td><td>单次 LLM 调用</td><td class="mono">ChatContext</td><td>每次发请求给模型</td></tr>
+</table>
+
 <details class="accordion">
   <summary><span class="badge-num">1</span> 完整的日志中间件 <span class="hint">点击展开详解</span></summary>
   <div class="acc-body">
@@ -566,6 +585,25 @@ logger = logging.getLogger(__name__)
   <div class="node"><div class="nt">result</div><div class="nd">context.result</div></div>
 </div>
 <p><span class="mono">await call_next()</span> is the dividing line: code <strong>before</strong> it runs as the request goes &quot;in&quot;, code <strong>after</strong> it runs as the response comes &quot;out&quot; - so one middleware wraps both ends (the onion skin). <strong>Earlier middleware in the list sits further outside</strong>: first in, last out.</p>
+
+<h2>Three middleware layers (onion, outside in)</h2>
+<div class="layers">
+  <div class="layer l-core"><div class="lh"><span class="badge">outermost</span><span class="name">AgentMiddleware</span></div>
+    <div class="ld">Wraps the <strong>whole run()</strong>: context is <span class="mono">AgentContext</span>, seeing input messages and the final <span class="mono">AgentResponse</span>.</div></div>
+  <div class="layer l-main"><div class="lh"><span class="badge">middle</span><span class="name">FunctionMiddleware</span></div>
+    <div class="ld">Wraps <strong>each tool call</strong>: context is <span class="mono">FunctionInvocationContext</span>, seeing the function name, arguments and result.</div></div>
+  <div class="layer l-part"><div class="lh"><span class="badge">innermost</span><span class="name">ChatMiddleware</span></div>
+    <div class="ld">Wraps <strong>each LLM call</strong>: context is <span class="mono">ChatContext</span>, closest to the model, seeing the messages sent and the <span class="mono">ChatResponse</span>.</div></div>
+</div>
+<p>Every layer implements <span class="mono">process(self, context, call_next)</span>: before <span class="mono">await call_next()</span> is the "inbound" half, after it is the "outbound" half — no args, all data flows through <span class="mono">context</span>.</p>
+
+<h2>What each middleware kind intercepts</h2>
+<table class="t">
+  <tr><th>Middleware</th><th>Intercepts</th><th>Context type</th><th>Fires</th></tr>
+  <tr><td class="mono">AgentMiddleware</td><td>the whole agent.run()</td><td class="mono">AgentContext</td><td>once per run</td></tr>
+  <tr><td class="mono">FunctionMiddleware</td><td>a single tool / function call</td><td class="mono">FunctionInvocationContext</td><td>per tool call</td></tr>
+  <tr><td class="mono">ChatMiddleware</td><td>a single LLM call</td><td class="mono">ChatContext</td><td>per model request</td></tr>
+</table>
 
 <details class="accordion">
   <summary><span class="badge-num">1</span> Complete logging middleware <span class="hint">expand</span></summary>

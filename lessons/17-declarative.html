@@ -284,6 +284,17 @@ tools:
 <p>框架的 <span class="mono">declarative</span> 包读这个 YAML，自动构造出 <span class="mono">Agent</span> 实例。
 适合快速原型和版本控制。</p>
 
+<h2>YAML 字段 → Agent 配置</h2>
+<table class="t">
+  <tr><th>YAML 字段</th><th>对应 Agent 配置</th><th>说明</th></tr>
+  <tr><td class="mono">name</td><td class="mono">Agent(name=…)</td><td>Agent 名字</td></tr>
+  <tr><td class="mono">instructions</td><td class="mono">Agent(instructions=…)</td><td>系统提示</td></tr>
+  <tr><td class="mono">model</td><td>ChatClient 的模型名</td><td>如 gpt-4o</td></tr>
+  <tr><td class="mono">tools</td><td class="mono">Agent(tools=[…])</td><td>按名字解析（可配 bindings）</td></tr>
+  <tr><td class="mono">middleware</td><td class="mono">Agent(middleware=[…])</td><td>中间件列表</td></tr>
+  <tr><td class="mono">context_providers</td><td class="mono">Agent(context_providers=[…])</td><td>上下文 / 记忆提供者</td></tr>
+</table>
+
 <h2>从 YAML 到运行的一条龙</h2>
 <div class="flow">
   <div class="node"><div class="nt">my_agent.yaml</div><div class="nd">name / instructions / tools</div></div>
@@ -295,6 +306,18 @@ tools:
   <div class="node"><div class="nt">agent.run(…)</div><div class="nd">照常调用</div></div>
 </div>
 <p>关键洞察：YAML 只是<strong>另一种构造方式</strong>。<span class="mono">AgentFactory</span> 解析完配置吐出的，和你用 <span class="mono">Agent(client=…, tools=…)</span> 手写出来的<strong>是同一类对象</strong>——所以下游的 <span class="mono">run()</span>、工具、中间件全都照旧。配置与代码<strong>同构</strong>，你才能在两种风格间自由切换。</p>
+
+<h2>加载流水线</h2>
+<div class="vflow">
+  <div class="step"><div class="num">1</div><div class="sc"><h4>读取 YAML</h4>
+    <p><span class="mono">create_agent_from_yaml_path("my_agent.yaml")</span> 读入配置文件。</p></div></div>
+  <div class="step"><div class="num">2</div><div class="sc"><h4>解析 + 校验</h4>
+    <p><span class="mono">AgentFactory</span> 按已知 schema 解析；未知字段会报清晰的错误，而不是悄悄失败。</p></div></div>
+  <div class="step"><div class="num">3</div><div class="sc"><h4>解析工具名</h4>
+    <p>把 <span class="mono">tools</span> 里的名字通过 <span class="mono">bindings</span> 映射到真正的 Python 函数。</p></div></div>
+  <div class="step"><div class="num">4</div><div class="sc"><h4>构造 Agent</h4>
+    <p>吐出一个和手写 <span class="mono">Agent(client=…, tools=…)</span> 完全同型的实例，<span class="mono">run()</span> 照常用。</p></div></div>
+</div>
 
 <details class="accordion">
   <summary><span class="badge-num">1</span> 完整 YAML schema <span class="hint">点击展开详解</span></summary>
@@ -519,6 +542,17 @@ tools:
 <p>The <span class="mono">declarative</span> package reads this YAML and auto-constructs an <span class="mono">Agent</span>.
 Great for rapid prototyping and version control.</p>
 
+<h2>YAML fields → Agent config</h2>
+<table class="t">
+  <tr><th>YAML field</th><th>Maps to Agent config</th><th>Notes</th></tr>
+  <tr><td class="mono">name</td><td class="mono">Agent(name=…)</td><td>agent name</td></tr>
+  <tr><td class="mono">instructions</td><td class="mono">Agent(instructions=…)</td><td>system prompt</td></tr>
+  <tr><td class="mono">model</td><td>the ChatClient's model</td><td>e.g. gpt-4o</td></tr>
+  <tr><td class="mono">tools</td><td class="mono">Agent(tools=[…])</td><td>resolved by name (via bindings)</td></tr>
+  <tr><td class="mono">middleware</td><td class="mono">Agent(middleware=[…])</td><td>middleware list</td></tr>
+  <tr><td class="mono">context_providers</td><td class="mono">Agent(context_providers=[…])</td><td>context / memory providers</td></tr>
+</table>
+
 <h2>From YAML to running, end to end</h2>
 <div class="flow">
   <div class="node"><div class="nt">my_agent.yaml</div><div class="nd">name / instructions / tools</div></div>
@@ -530,6 +564,18 @@ Great for rapid prototyping and version control.</p>
   <div class="node"><div class="nt">agent.run(…)</div><div class="nd">called as usual</div></div>
 </div>
 <p>Key insight: YAML is just <strong>another way to construct</strong>. What <span class="mono">AgentFactory</span> emits after parsing is <strong>the same kind of object</strong> you'd build by hand with <span class="mono">Agent(client=…, tools=…)</span> - so downstream <span class="mono">run()</span>, tools and middleware all work unchanged. Config and code are <strong>isomorphic</strong>, which is what lets you move freely between the two styles.</p>
+
+<h2>The load pipeline</h2>
+<div class="vflow">
+  <div class="step"><div class="num">1</div><div class="sc"><h4>Read the YAML</h4>
+    <p><span class="mono">create_agent_from_yaml_path("my_agent.yaml")</span> reads the config file.</p></div></div>
+  <div class="step"><div class="num">2</div><div class="sc"><h4>Parse + validate</h4>
+    <p><span class="mono">AgentFactory</span> parses against a known schema; unknown fields raise a clear error instead of failing silently.</p></div></div>
+  <div class="step"><div class="num">3</div><div class="sc"><h4>Resolve tool names</h4>
+    <p>Names under <span class="mono">tools</span> are mapped to real Python functions via <span class="mono">bindings</span>.</p></div></div>
+  <div class="step"><div class="num">4</div><div class="sc"><h4>Construct the Agent</h4>
+    <p>Out comes an instance identical to a hand-written <span class="mono">Agent(client=…, tools=…)</span>; <span class="mono">run()</span> works as usual.</p></div></div>
+</div>
 
 <details class="accordion">
   <summary><span class="badge-num">1</span> Complete YAML schema <span class="hint">expand</span></summary>

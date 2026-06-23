@@ -5842,6 +5842,17 @@ tools:
 <p>框架的 <span class="mono">declarative</span> 包读这个 YAML，自动构造出 <span class="mono">Agent</span> 实例。
 适合快速原型和版本控制。</p>
 
+<h2>YAML 字段 → Agent 配置</h2>
+<table class="t">
+  <tr><th>YAML 字段</th><th>对应 Agent 配置</th><th>说明</th></tr>
+  <tr><td class="mono">name</td><td class="mono">Agent(name=…)</td><td>Agent 名字</td></tr>
+  <tr><td class="mono">instructions</td><td class="mono">Agent(instructions=…)</td><td>系统提示</td></tr>
+  <tr><td class="mono">model</td><td>ChatClient 的模型名</td><td>如 gpt-4o</td></tr>
+  <tr><td class="mono">tools</td><td class="mono">Agent(tools=[…])</td><td>按名字解析（可配 bindings）</td></tr>
+  <tr><td class="mono">middleware</td><td class="mono">Agent(middleware=[…])</td><td>中间件列表</td></tr>
+  <tr><td class="mono">context_providers</td><td class="mono">Agent(context_providers=[…])</td><td>上下文 / 记忆提供者</td></tr>
+</table>
+
 <h2>从 YAML 到运行的一条龙</h2>
 <div class="flow">
   <div class="node"><div class="nt">my_agent.yaml</div><div class="nd">name / instructions / tools</div></div>
@@ -5853,6 +5864,18 @@ tools:
   <div class="node"><div class="nt">agent.run(…)</div><div class="nd">照常调用</div></div>
 </div>
 <p>关键洞察：YAML 只是<strong>另一种构造方式</strong>。<span class="mono">AgentFactory</span> 解析完配置吐出的，和你用 <span class="mono">Agent(client=…, tools=…)</span> 手写出来的<strong>是同一类对象</strong>——所以下游的 <span class="mono">run()</span>、工具、中间件全都照旧。配置与代码<strong>同构</strong>，你才能在两种风格间自由切换。</p>
+
+<h2>加载流水线</h2>
+<div class="vflow">
+  <div class="step"><div class="num">1</div><div class="sc"><h4>读取 YAML</h4>
+    <p><span class="mono">create_agent_from_yaml_path("my_agent.yaml")</span> 读入配置文件。</p></div></div>
+  <div class="step"><div class="num">2</div><div class="sc"><h4>解析 + 校验</h4>
+    <p><span class="mono">AgentFactory</span> 按已知 schema 解析；未知字段会报清晰的错误，而不是悄悄失败。</p></div></div>
+  <div class="step"><div class="num">3</div><div class="sc"><h4>解析工具名</h4>
+    <p>把 <span class="mono">tools</span> 里的名字通过 <span class="mono">bindings</span> 映射到真正的 Python 函数。</p></div></div>
+  <div class="step"><div class="num">4</div><div class="sc"><h4>构造 Agent</h4>
+    <p>吐出一个和手写 <span class="mono">Agent(client=…, tools=…)</span> 完全同型的实例，<span class="mono">run()</span> 照常用。</p></div></div>
+</div>
 
 <details class="accordion" open>
   <summary><span class="badge-num">1</span> 完整 YAML schema <span class="hint">点击展开详解</span></summary>
@@ -6102,6 +6125,25 @@ workflow:
 </div>
 <p><span class="mono">await call_next()</span> 是分界线：它<strong>之前</strong>的代码在请求“进站”时跑，<strong>之后</strong>的代码在响应“出站”时跑——所以同一个中间件能同时包住前后两端（洋葱皮）。列表里<strong>越靠前的中间件越在外层</strong>：最先进、最后出。</p>
 
+<h2>三层中间件（洋葱由外到内）</h2>
+<div class="layers">
+  <div class="layer l-core"><div class="lh"><span class="badge">最外层</span><span class="name">AgentMiddleware</span></div>
+    <div class="ld">包住<strong>整轮 run()</strong>：context 是 <span class="mono">AgentContext</span>，能看到输入消息和最终 <span class="mono">AgentResponse</span>。</div></div>
+  <div class="layer l-main"><div class="lh"><span class="badge">中间层</span><span class="name">FunctionMiddleware</span></div>
+    <div class="ld">包住<strong>每次工具调用</strong>：context 是 <span class="mono">FunctionInvocationContext</span>，能看到函数名、参数和返回值。</div></div>
+  <div class="layer l-part"><div class="lh"><span class="badge">最内层</span><span class="name">ChatMiddleware</span></div>
+    <div class="ld">包住<strong>每次 LLM 调用</strong>：context 是 <span class="mono">ChatContext</span>，最贴近模型，能看到发出的消息和 <span class="mono">ChatResponse</span>。</div></div>
+</div>
+<p>每一层都实现 <span class="mono">process(self, context, call_next)</span>：<span class="mono">await call_next()</span> <strong>之前</strong>是"进站"、<strong>之后</strong>是"出站"——无参，数据全走 <span class="mono">context</span>。</p>
+
+<h2>三类中间件拦截什么</h2>
+<table class="t">
+  <tr><th>中间件</th><th>拦截的范围</th><th>context 类型</th><th>触发时机</th></tr>
+  <tr><td class="mono">AgentMiddleware</td><td>整轮 agent.run()</td><td class="mono">AgentContext</td><td>每次 run，一次</td></tr>
+  <tr><td class="mono">FunctionMiddleware</td><td>单次工具 / 函数调用</td><td class="mono">FunctionInvocationContext</td><td>每调用一个工具</td></tr>
+  <tr><td class="mono">ChatMiddleware</td><td>单次 LLM 调用</td><td class="mono">ChatContext</td><td>每次发请求给模型</td></tr>
+</table>
+
 <details class="accordion" open>
   <summary><span class="badge-num">1</span> 完整的日志中间件 <span class="hint">点击展开详解</span></summary>
   <div class="acc-body">
@@ -6324,9 +6366,28 @@ logger = logging.getLogger(__name__)
 <p>Workflow 在每个 superstep 边界自动存档。默认用 <span class="mono">InMemoryCheckpointStorage</span>；
 生产换成持久化存储（如本地 <span class="mono">FileCheckpointStorage</span> 或云端 <span class="mono">CosmosCheckpointStorage</span>）。崩溃后重启，从最近存档恢复。</p>
 
+<h2>检查点存储后端</h2>
+<table class="t">
+  <tr><th>存储</th><th>持久性</th><th>适用场景</th><th>来自</th></tr>
+  <tr><td class="mono">InMemoryCheckpointStorage</td><td>进程内（重启即失）</td><td>开发 / 测试</td><td>核心包</td></tr>
+  <tr><td class="mono">FileCheckpointStorage</td><td>本地文件（持久）</td><td>单机生产 / 零依赖</td><td>核心包</td></tr>
+  <tr><td class="mono">CosmosCheckpointStorage</td><td>云端分布式（强一致）</td><td>分布式生产 / 高可用</td><td class="mono">agent-framework-azure-cosmos</td></tr>
+</table>
+
 <h2>人在环（HITL）</h2>
 <p>工具可设置 <span class="mono">approval_mode="always_require"</span>，执行前暂停等人确认。
 工作流层面也有 <span class="mono">request_info</span> 机制：节点暂停、发问、等回答再继续。</p>
+
+<h2>工具审批（HITL）流程</h2>
+<div class="flow">
+  <div class="node"><div class="nt">模型想调工具</div><div class="nd">如 publish_article</div></div>
+  <div class="arrow">→</div>
+  <div class="node"><div class="nt">approval_mode</div><div class="nd">always_require</div></div>
+  <div class="arrow">→</div>
+  <div class="node"><div class="nt">⏸ 暂停等人</div><div class="nd">请求人工确认</div></div>
+  <div class="arrow">→</div>
+  <div class="node hl"><div class="nt">✅ 批准 → 执行</div><div class="nd">❌ 拒绝 → 跳过</div></div>
+</div>
 
 <h2>一条带存档与暂停的时间线</h2>
 <div class="flow">
@@ -6343,6 +6404,16 @@ logger = logging.getLogger(__name__)
   <div class="node hl"><div class="nt">↺ 续跑</div><div class="nd">从最近存档恢复</div></div>
 </div>
 <p>三件事各管一段：<strong>检查点</strong>在每个 superstep 边界自动存档；<strong>人在环</strong>在关键节点把流程<em>暂停</em>等人；<strong>持久化后端</strong>（File / Cosmos）决定存档放哪、崩溃后还能不能找回。注意 <strong>Redis 包是给上下文 / 历史记忆用的，不是工作流检查点</strong>。</p>
+
+<h2>崩溃恢复：存档怎么救回进度</h2>
+<div class="vflow">
+  <div class="step"><div class="num">1</div><div class="sc"><h4>跑到 superstep 边界</h4>
+    <p>Workflow 每跑完一个 superstep，就在边界把状态写入 <span class="mono">CheckpointStorage</span>。</p></div></div>
+  <div class="step"><div class="num">2</div><div class="sc"><h4>💥 进程崩溃</h4>
+    <p>机器挂了、部署重启、OOM……内存里的一切都没了。</p></div></div>
+  <div class="step"><div class="num">3</div><div class="sc"><h4>↺ 从最近存档恢复</h4>
+    <p>重启后从持久化后端读回最近一次 checkpoint，<strong>从断点继续</strong>，已完成的 superstep 不重跑。</p></div></div>
+</div>
 
 <details class="accordion" open>
   <summary><span class="badge-num">1</span> InMemoryCheckpointStorage 示例 <span class="hint">点击展开详解</span></summary>

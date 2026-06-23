@@ -62,7 +62,7 @@ uv run poe typing <span class="cm"># pyright 类型检查</span></pre></div></di
         Workspace 模式支持 monorepo，多个包可以一次性安装：
 <pre class="code"><span class="cm"># uv.lock 记录了整个依赖树</span>
 uv sync --all-packages  <span class="cm"># 装整个 monorepo</span>
-cd packages/core && uv run poe test  <span class="cm"># 单包测试</span></pre></div>
+cd packages/core &amp;&amp; uv run poe test  <span class="cm"># 单包测试</span></pre></div>
     </div>
     <div class="qa">
       <div class="q">❓ 为什么这件事必要</div>
@@ -190,7 +190,7 @@ uv run python main.py</pre>
       <div class="q">🧪 示例</div>
       <div class="a">分支命名：<span class="inline">feature/my-change</span> 或 <span class="inline">fix/issue-123</span>。
         本地运行质量门：
-<pre class="code">uv run poe lint && uv run poe typing && uv run poe test</pre>
+<pre class="code">uv run poe lint &amp;&amp; uv run poe typing &amp;&amp; uv run poe test</pre>
         阅读代码规范：
 <pre class="code">cat CODING_STANDARD.md
 cat AGENTS.md</pre>
@@ -299,7 +299,7 @@ The key is that <strong>the poe tasks you run locally are identical to CI</stron
         Workspace mode supports monorepos with multiple packages installed atomically:
 <pre class="code"><span class="cm"># uv.lock records the entire dependency tree</span>
 uv sync --all-packages  <span class="cm"># install entire monorepo</span>
-cd packages/core && uv run poe test  <span class="cm"># test single package</span></pre></div>
+cd packages/core &amp;&amp; uv run poe test  <span class="cm"># test single package</span></pre></div>
     </div>
     <div class="qa">
       <div class="q">❓ Why this matters</div>
@@ -427,7 +427,7 @@ uv run python main.py</pre>
       <div class="q">🧪 Example</div>
       <div class="a">Branch naming: <span class="inline">feature/my-change</span> or <span class="inline">fix/issue-123</span>.
         Run quality gates locally:
-<pre class="code">uv run poe lint && uv run poe typing && uv run poe test</pre>
+<pre class="code">uv run poe lint &amp;&amp; uv run poe typing &amp;&amp; uv run poe test</pre>
         Read style rules:
 <pre class="code">cat CODING_STANDARD.md
 cat AGENTS.md</pre>

@@ -328,7 +328,7 @@ h2, h3, h4 { break-after: avoid; }
 <div class="tp">第七部分 · 番外篇</div>
 <ol>
 <li value="29">横向对比：AF vs 其他框架</li>
-<li value="30">全栈坐标系 & 学习地图</li>
+<li value="30">全栈坐标系 &amp; 学习地图</li>
 </ol>
 <div class="tp">第八部分 · 速查</div>
 <ol>
@@ -2777,6 +2777,9 @@ raw = RawAgent(name=<span class="st">&quot;bare&quot;</span>, client=client)</pr
 而 Agent 这层始终保持"瘦"——这也是为什么换厂商不影响 Agent 代码（详见下一课）。</p>
 
 <div class="card key">
+  <div class="tag">✅ 关键要点</div>
+  <ul>
+    <li><span class="mono">BaseAgent</span>（抽象）定义协议；<span class="mono">Agent</span>（具体）实现组装 + 循环。</li>
     <li><span class="mono">run()</span> = 构建消息 → 注入上下文 → 调 ChatClient → 工具循环 → 返回。</li>
     <li>返回类型：非流式 <span class="mono">AgentResponse</span>；流式 <span class="mono">AgentResponseUpdate</span>。</li>
     <li>真实代码三步：<span class="mono">_prepare_run_context → _call_chat_client → _parse_response</span>。</li>
@@ -4828,7 +4831,7 @@ uv run poe typing <span class="cm"># pyright 类型检查</span></pre></div></di
         Workspace 模式支持 monorepo，多个包可以一次性安装：
 <pre class="code"><span class="cm"># uv.lock 记录了整个依赖树</span>
 uv sync --all-packages  <span class="cm"># 装整个 monorepo</span>
-cd packages/core && uv run poe test  <span class="cm"># 单包测试</span></pre></div>
+cd packages/core &amp;&amp; uv run poe test  <span class="cm"># 单包测试</span></pre></div>
     </div>
     <div class="qa">
       <div class="q">❓ 为什么这件事必要</div>
@@ -4956,7 +4959,7 @@ uv run python main.py</pre>
       <div class="q">🧪 示例</div>
       <div class="a">分支命名：<span class="inline">feature/my-change</span> 或 <span class="inline">fix/issue-123</span>。
         本地运行质量门：
-<pre class="code">uv run poe lint && uv run poe typing && uv run poe test</pre>
+<pre class="code">uv run poe lint &amp;&amp; uv run poe typing &amp;&amp; uv run poe test</pre>
         阅读代码规范：
 <pre class="code">cat CODING_STANDARD.md
 cat AGENTS.md</pre>
@@ -8928,7 +8931,7 @@ SK:        ~25k  (企业用户基数大)</pre>
   </ul>
 </div>
 </div></div></section>
-<section class="print-lesson"><div class="wrap"><div class="lesson-head"><div class="lp">第七部分 · 番外篇</div><h1><span class="ln">30 ·</span> 全栈坐标系 & 学习地图</h1></div>
+<section class="print-lesson"><div class="wrap"><div class="lesson-head"><div class="lp">第七部分 · 番外篇</div><h1><span class="ln">30 ·</span> 全栈坐标系 &amp; 学习地图</h1></div>
 <p class="lead">最后一课，缩放镜头：把 MAF 放进<strong>AI 全栈</strong>的坐标系里——
 看看你现在在哪，隔壁层还有什么值得学。</p>
 

@@ -545,7 +545,7 @@ happens underneath. Understand this <strong>lifecycle</strong> and every later "
   <div class="step"><div class="num">4</div><div class="sc"><h4>Need a tool?</h4>
     <p>If the response contains a <span class="mono">function_call</span>, the Agent <strong>executes the function</strong>,
       appends the <span class="mono">function_result</span> to the messages, and <strong>loops back to step 3</strong>.</p></div></div>
-  <div class="step"><div class="num">5</div><div class="sc"><h4>Converge & return</h4>
+  <div class="step"><div class="num">5</div><div class="sc"><h4>Converge &amp; return</h4>
     <p>When the model stops asking for tools, the loop ends with an <span class="mono">AgentResponse</span>
       (or a stream of <span class="mono">AgentResponseUpdate</span> when streaming).</p></div></div>
 </div>
@@ -568,7 +568,7 @@ agent = Agent(client=client, instructions=<span class="st">"…"</span>)
 session = agent.create_session()
 <span class="kw">await</span> agent.run(<span class="st">"My name is Sam"</span>, session=session)
 <span class="kw">await</span> agent.run(<span class="st">"What's my name?"</span>, session=session)  <span class="cm"># remembers "Sam"</span></pre>
-        <em>(Sessions & memory are Lesson 07; here just note history rides on the "session".)</em></div>
+        <em>(Sessions &amp; memory are Lesson 07; here just note history rides on the "session".)</em></div>
     </div>
   </div>
 </details>
@@ -785,7 +785,7 @@ print(result.text)
   </ul>
 </div>
 </div></div>
-  <div class="footnav"><a class="prev" href="02-monorepo.html"><div class="dir"><span class="i18n" data-lang="zh">← 上一课</span><span class="i18n" data-lang="en">← Prev</span></div><div class="ttl"><span class="i18n" data-lang="zh">Monorepo 全景</span><span class="i18n" data-lang="en">Monorepo Tour</span></div></a><a class="next" href="04-messages.html"><div class="dir"><span class="i18n" data-lang="zh">下一课 →</span><span class="i18n" data-lang="en">Next →</span></div><div class="ttl"><span class="i18n" data-lang="zh">消息与内容</span><span class="i18n" data-lang="en">Messages & Content</span></div></a></div>
+  <div class="footnav"><a class="prev" href="02-monorepo.html"><div class="dir"><span class="i18n" data-lang="zh">← 上一课</span><span class="i18n" data-lang="en">← Prev</span></div><div class="ttl"><span class="i18n" data-lang="zh">Monorepo 全景</span><span class="i18n" data-lang="en">Monorepo Tour</span></div></a><a class="next" href="04-messages.html"><div class="dir"><span class="i18n" data-lang="zh">下一课 →</span><span class="i18n" data-lang="en">Next →</span></div><div class="ttl"><span class="i18n" data-lang="zh">消息与内容</span><span class="i18n" data-lang="en">Messages &amp; Content</span></div></a></div>
 </div>
 
 <script>

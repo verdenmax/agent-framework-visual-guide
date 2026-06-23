@@ -61,7 +61,7 @@ P2 = {"zh": "第二部分 · 用户视角", "en": "Part 2 · User's View"}
 P3 = {"zh": "第三部分 · 内部源码", "en": "Part 3 · Internals"}
 P4 = {"zh": "第四部分 · 进阶实战", "en": "Part 4 · Advanced"}
 P5 = {"zh": "第五部分 · 自己动手做 Agent", "en": "Part 5 · Build Your Own"}
-P6 = {"zh": "第六部分 · 协议与生态", "en": "Part 6 · Protocols & Ecosystem"}
+P6 = {"zh": "第六部分 · 协议与生态", "en": "Part 6 · Protocols &amp; Ecosystem"}
 P7 = {"zh": "第七部分 · 番外篇", "en": "Part 7 · Bonus"}
 P8 = {"zh": "第八部分 · 速查", "en": "Part 8 · Quick Reference"}
 
@@ -69,34 +69,34 @@ PAGES = [
     ("01-what-is-agent-framework.html", {"zh": "Agent Framework 是什么", "en": "What is Agent Framework"}, P1),
     ("02-monorepo.html", {"zh": "Monorepo 全景", "en": "Monorepo Tour"}, P1),
     ("03-lifecycle.html", {"zh": "一次 run() 的生命周期", "en": "Lifecycle of a Run"}, P1),
-    ("04-messages.html", {"zh": "消息与内容", "en": "Messages & Content"}, P2),
-    ("05-chat-models.html", {"zh": "ChatClient 与创建 Agent", "en": "ChatClient & Creating Agents"}, P2),
+    ("04-messages.html", {"zh": "消息与内容", "en": "Messages &amp; Content"}, P2),
+    ("05-chat-models.html", {"zh": "ChatClient 与创建 Agent", "en": "ChatClient &amp; Creating Agents"}, P2),
     ("06-tools.html", {"zh": "工具 Tools", "en": "Tools"}, P2),
-    ("07-sessions-memory.html", {"zh": "会话与记忆", "en": "Sessions & Memory"}, P2),
+    ("07-sessions-memory.html", {"zh": "会话与记忆", "en": "Sessions &amp; Memory"}, P2),
     ("08-agent-internals.html", {"zh": "Agent 内部", "en": "Agent Internals"}, P3),
     ("09-chatclient-internals.html", {"zh": "ChatClient 内部", "en": "ChatClient Internals"}, P3),
     ("10-tool-internals.html", {"zh": "工具调用内部", "en": "Tool-Calling Internals"}, P3),
     ("11-middleware.html", {"zh": "中间件 Middleware", "en": "Middleware"}, P3),
     ("12-workflows.html", {"zh": "Workflows 工作流引擎", "en": "Workflows Engine"}, P3),
     ("13-orchestration.html", {"zh": "编排模式", "en": "Orchestration Patterns"}, P3),
-    ("14-streaming-observability.html", {"zh": "流式与可观测性", "en": "Streaming & Observability"}, P3),
+    ("14-streaming-observability.html", {"zh": "流式与可观测性", "en": "Streaming &amp; Observability"}, P3),
     ("15-contributing.html", {"zh": "读源码 / 调试 / 测试 / 贡献", "en": "Read, Debug, Test, Contribute"}, P4),
     ("29-devui.html", {"zh": "DevUI 可视化调试", "en": "DevUI Visual Debugging"}, P4),
     ("30-observability.html", {"zh": "可观测性深入", "en": "Observability Deep-Dive"}, P4),
     ("16-providers.html", {"zh": "接入各家模型", "en": "Model Providers"}, P5),
     ("17-declarative.html", {"zh": "声明式 Agent（YAML）", "en": "Declarative Agents (YAML)"}, P5),
     ("18-custom-middleware.html", {"zh": "写自己的中间件", "en": "Writing Your Own Middleware"}, P5),
-    ("19-durability-hitl.html", {"zh": "检查点 · 人在环 · 持久化", "en": "Checkpointing, HITL & Durability"}, P5),
+    ("19-durability-hitl.html", {"zh": "检查点 · 人在环 · 持久化", "en": "Checkpointing, HITL &amp; Durability"}, P5),
     ("20-capstone.html", {"zh": "端到端实战：多 Agent 工作流", "en": "Capstone: A Multi-Agent Workflow"}, P5),
     ("28-memory-backends.html", {"zh": "记忆后端", "en": "Memory Backends"}, P5),
     ("23-skills.html", {"zh": "Agent Skills 技能系统", "en": "Agent Skills"}, P6),
     ("24-mcp.html", {"zh": "MCP 工具协议", "en": "MCP Tool Protocol"}, P6),
     ("25-hosted-agents.html", {"zh": "Foundry 托管 Agent", "en": "Foundry Hosted Agents"}, P6),
-    ("26-a2a-agui.html", {"zh": "A2A + AG-UI 协议", "en": "A2A & AG-UI Protocols"}, P6),
-    ("27-eval-timetravel.html", {"zh": "评估与时间旅行", "en": "Evaluation & Time-Travel"}, P6),
+    ("26-a2a-agui.html", {"zh": "A2A + AG-UI 协议", "en": "A2A &amp; AG-UI Protocols"}, P6),
+    ("27-eval-timetravel.html", {"zh": "评估与时间旅行", "en": "Evaluation &amp; Time-Travel"}, P6),
     ("21-vs-others.html", {"zh": "横向对比：AF vs 其他框架", "en": "AF vs Other Frameworks"}, P7),
-    ("22-stack-map.html", {"zh": "全栈坐标系 & 学习地图", "en": "Full-Stack Map & Learning Path"}, P7),
-    ("31-glossary.html", {"zh": "术语表 · 速查", "en": "Glossary & Quick Reference"}, P8),
+    ("22-stack-map.html", {"zh": "全栈坐标系 &amp; 学习地图", "en": "Full-Stack Map &amp; Learning Path"}, P7),
+    ("31-glossary.html", {"zh": "术语表 · 速查", "en": "Glossary &amp; Quick Reference"}, P8),
 ]
 
 INDEX_FILE = "index.html"

@@ -9,7 +9,7 @@ one module but attach to different parts via shell.PAGES:
 * L31 glossary         -> Part 8 (quick reference, NEW): term grid + concept map.
 
 All content is raw HTML (no Markdown); emphasis uses <strong>/<em>. Inside <pre>
-blocks literal '<' is written as '&lt;' and '&' as '&amp;'. Each lesson body is
+blocks literal '<' is written as '&lt;' and '&amp;' as '&amp;'. Each lesson body is
 the INNER content only (shell.page() adds the <h1>).
 """
 

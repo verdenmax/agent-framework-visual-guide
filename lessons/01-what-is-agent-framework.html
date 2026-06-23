@@ -605,8 +605,8 @@ models — it owns all the <strong>plumbing around</strong> the model, and it is
   <tr><th>Pain</th><th>Without a framework</th><th>What MAF does</th></tr>
   <tr><td><strong>Vendor lock-in</strong></td><td>Switching models rewrites a lot of code</td><td>One <span class="mono">ChatClient</span> + <span class="mono">Agent</span>; switching vendors is ~one line</td></tr>
   <tr><td><strong>Assembling chat</strong></td><td>Hand-build role/content dicts</td><td>Structured <span class="mono">Message</span> / <span class="mono">Role</span> / <span class="mono">Content</span></td></tr>
-  <tr><td><strong>Calling tools</strong></td><td>Parse which function & args yourself</td><td><span class="mono">@tool</span> auto-generates schema + parses + executes</td></tr>
-  <tr><td><strong>Multi-step / multi-agent</strong></td><td>Hand-write the think–act loop & coordination</td><td><strong>Agent loop</strong> + graph-based <strong>Workflows</strong></td></tr>
+  <tr><td><strong>Calling tools</strong></td><td>Parse which function &amp; args yourself</td><td><span class="mono">@tool</span> auto-generates schema + parses + executes</td></tr>
+  <tr><td><strong>Multi-step / multi-agent</strong></td><td>Hand-write the think–act loop &amp; coordination</td><td><strong>Agent loop</strong> + graph-based <strong>Workflows</strong></td></tr>
   <tr><td><strong>Going to production</strong></td><td>Roll your own tracing, persistence, approvals</td><td>Built-in <strong>OpenTelemetry</strong>, checkpoints, human-in-the-loop, hosting</td></tr>
 </table>
 
@@ -651,7 +651,7 @@ result = <span class="kw">await</span> agent.run(<span class="st">"What is the c
       <div class="q">❓ One-line positioning</div>
       <div class="a">MAF is Microsoft's <strong>convergence</strong> of <strong>Semantic Kernel</strong>
         (enterprise, strongly typed, rich connectors) and <strong>AutoGen</strong> (multi-agent
-        conversations & research), into one framework aimed at <strong>prototype-to-production</strong>,
+        conversations &amp; research), into one framework aimed at <strong>prototype-to-production</strong>,
         with <strong>aligned Python and .NET</strong> implementations.</div>
     </div>
     <div class="qa">
@@ -702,7 +702,7 @@ agent = Agent(client=OpenAIChatClient(model=<span class="st">"gpt-4o"</span>), i
     </div>
     <div class="qa">
       <div class="q">🔀 Alternatives</div>
-      <div class="a">① <strong>LiteLLM</strong> — external proxy speaking OpenAI's protocol; simple, but one extra hop & service.<br>
+      <div class="a">① <strong>LiteLLM</strong> — external proxy speaking OpenAI's protocol; simple, but one extra hop &amp; service.<br>
         ② <strong>Hand-rolled adapter</strong> — exact fit for your domain, but you maintain streaming/tools/function-call differences.<br>
         ③ <strong>Cloud gateways</strong> (Azure AI Gateway / AWS Bedrock) — great for compliance &amp; quotas, still locks you to one cloud.</div>
     </div>

@@ -699,7 +699,7 @@ watch how an ordinary Python function becomes a model-readable schema, then gets
     <div class="qa"><div class="q">🧪 Example</div><div class="a">A <span class="mono">@tool</span> function:
 <pre class="code"><span class="nb">@tool</span>
 <span class="kw">def</span> <span class="fn">get_weather</span>(city: Annotated[str, Field(description=<span class="st">&quot;city name&quot;</span>)]) -&gt; str:
-    <span class="st">&amp;quot;&amp;quot;&amp;quot;Look up weather&amp;quot;&amp;quot;&amp;quot;</span>
+    <span class="st">&quot;&quot;&quot;Look up weather&quot;&quot;&quot;</span>
     ...</pre>
       Auto-generated schema (simplified):
 <pre class="code">{

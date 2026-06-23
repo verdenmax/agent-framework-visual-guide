@@ -281,6 +281,9 @@ raw = RawAgent(name=<span class="st">&quot;bare&quot;</span>, client=client)</pr
 而 Agent 这层始终保持"瘦"——这也是为什么换厂商不影响 Agent 代码（详见下一课）。</p>
 
 <div class="card key">
+  <div class="tag">✅ 关键要点</div>
+  <ul>
+    <li><span class="mono">BaseAgent</span>（抽象）定义协议；<span class="mono">Agent</span>（具体）实现组装 + 循环。</li>
     <li><span class="mono">run()</span> = 构建消息 → 注入上下文 → 调 ChatClient → 工具循环 → 返回。</li>
     <li>返回类型：非流式 <span class="mono">AgentResponse</span>；流式 <span class="mono">AgentResponseUpdate</span>。</li>
     <li>真实代码三步：<span class="mono">_prepare_run_context → _call_chat_client → _parse_response</span>。</li>
@@ -1549,7 +1552,7 @@ watch how an ordinary Python function becomes a model-readable schema, then gets
     <div class="qa"><div class="q">🧪 Example</div><div class="a">A <span class="mono">@tool</span> function:
 <pre class="code"><span class="nb">@tool</span>
 <span class="kw">def</span> <span class="fn">get_weather</span>(city: Annotated[str, Field(description=<span class="st">&quot;city name&quot;</span>)]) -&gt; str:
-    <span class="st">&amp;quot;&amp;quot;&amp;quot;Look up weather&amp;quot;&amp;quot;&amp;quot;</span>
+    <span class="st">&quot;&quot;&quot;Look up weather&quot;&quot;&quot;</span>
     ...</pre>
       Auto-generated schema (simplified):
 <pre class="code">{

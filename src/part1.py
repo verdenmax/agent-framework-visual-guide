@@ -296,8 +296,8 @@ models — it owns all the <strong>plumbing around</strong> the model, and it is
   <tr><th>Pain</th><th>Without a framework</th><th>What MAF does</th></tr>
   <tr><td><strong>Vendor lock-in</strong></td><td>Switching models rewrites a lot of code</td><td>One <span class="mono">ChatClient</span> + <span class="mono">Agent</span>; switching vendors is ~one line</td></tr>
   <tr><td><strong>Assembling chat</strong></td><td>Hand-build role/content dicts</td><td>Structured <span class="mono">Message</span> / <span class="mono">Role</span> / <span class="mono">Content</span></td></tr>
-  <tr><td><strong>Calling tools</strong></td><td>Parse which function & args yourself</td><td><span class="mono">@tool</span> auto-generates schema + parses + executes</td></tr>
-  <tr><td><strong>Multi-step / multi-agent</strong></td><td>Hand-write the think–act loop & coordination</td><td><strong>Agent loop</strong> + graph-based <strong>Workflows</strong></td></tr>
+  <tr><td><strong>Calling tools</strong></td><td>Parse which function &amp; args yourself</td><td><span class="mono">@tool</span> auto-generates schema + parses + executes</td></tr>
+  <tr><td><strong>Multi-step / multi-agent</strong></td><td>Hand-write the think–act loop &amp; coordination</td><td><strong>Agent loop</strong> + graph-based <strong>Workflows</strong></td></tr>
   <tr><td><strong>Going to production</strong></td><td>Roll your own tracing, persistence, approvals</td><td>Built-in <strong>OpenTelemetry</strong>, checkpoints, human-in-the-loop, hosting</td></tr>
 </table>
 
@@ -342,7 +342,7 @@ result = <span class="kw">await</span> agent.run(<span class="st">"What is the c
       <div class="q">❓ One-line positioning</div>
       <div class="a">MAF is Microsoft's <strong>convergence</strong> of <strong>Semantic Kernel</strong>
         (enterprise, strongly typed, rich connectors) and <strong>AutoGen</strong> (multi-agent
-        conversations & research), into one framework aimed at <strong>prototype-to-production</strong>,
+        conversations &amp; research), into one framework aimed at <strong>prototype-to-production</strong>,
         with <strong>aligned Python and .NET</strong> implementations.</div>
     </div>
     <div class="qa">
@@ -393,7 +393,7 @@ agent = Agent(client=OpenAIChatClient(model=<span class="st">"gpt-4o"</span>), i
     </div>
     <div class="qa">
       <div class="q">🔀 Alternatives</div>
-      <div class="a">① <strong>LiteLLM</strong> — external proxy speaking OpenAI's protocol; simple, but one extra hop & service.<br>
+      <div class="a">① <strong>LiteLLM</strong> — external proxy speaking OpenAI's protocol; simple, but one extra hop &amp; service.<br>
         ② <strong>Hand-rolled adapter</strong> — exact fit for your domain, but you maintain streaming/tools/function-call differences.<br>
         ③ <strong>Cloud gateways</strong> (Azure AI Gateway / AWS Bedrock) — great for compliance &amp; quotas, still locks you to one cloud.</div>
     </div>
@@ -808,14 +808,14 @@ have a <strong>source-navigation map</strong>.</p>
     <div class="ld">Core abstractions: <span class="mono">Agent</span> / <span class="mono">Message</span> / <span class="mono">tool</span> /
       middleware / <span class="mono">Workflows</span>, plus built-in OpenAI / Azure OpenAI support.</div></div>
   <div class="layer l-part"><div class="lh"><span class="badge">PROVIDERS</span><span class="name">packages/{foundry, anthropic, ollama, …}</span></div>
-    <div class="ld">Vendor / integration packages that extend core with concrete ChatClients & connectors.</div></div>
+    <div class="ld">Vendor / integration packages that extend core with concrete ChatClients &amp; connectors.</div></div>
   <div class="layer l-app"><div class="lh"><span class="badge">LAB</span><span class="name">packages/lab</span></div>
     <div class="ld">Experimental features: benchmarking, reinforcement learning, research.</div></div>
 </div>
 
 <table class="t">
   <tr><th>Looking for</th><th>Go to</th></tr>
-  <tr><td>Core types & Agent impl</td><td class="mono">python/packages/core/agent_framework/</td></tr>
+  <tr><td>Core types &amp; Agent impl</td><td class="mono">python/packages/core/agent_framework/</td></tr>
   <tr><td>Public API (<span class="mono">__all__</span>)</td><td class="mono">core/agent_framework/__init__.py</td></tr>
   <tr><td>Beginner samples</td><td class="mono">python/samples/01-get-started/</td></tr>
   <tr><td>.NET counterpart</td><td class="mono">dotnet/src/Microsoft.Agents.AI*/</td></tr>
@@ -841,7 +841,7 @@ have a <strong>source-navigation map</strong>.</p>
 ├── _types.py         <span class="cm"># Message / Role / Content union</span>
 ├── _workflows/       <span class="cm"># graph orchestration: nodes, edges, state, checkpoints</span>
 ├── observability/    <span class="cm"># OpenTelemetry traces / cost / token metrics</span>
-└── __init__.py       <span class="cm"># public API — what `from agent_framework import` exposes</span></pre></div>
+└── __init__.py       <span class="cm"># public API — what 'from agent_framework import' exposes</span></pre></div>
     </div>
     <div class="qa">
       <div class="q">❓ Why this matters</div>
@@ -1263,7 +1263,7 @@ happens underneath. Understand this <strong>lifecycle</strong> and every later "
   <div class="step"><div class="num">4</div><div class="sc"><h4>Need a tool?</h4>
     <p>If the response contains a <span class="mono">function_call</span>, the Agent <strong>executes the function</strong>,
       appends the <span class="mono">function_result</span> to the messages, and <strong>loops back to step 3</strong>.</p></div></div>
-  <div class="step"><div class="num">5</div><div class="sc"><h4>Converge & return</h4>
+  <div class="step"><div class="num">5</div><div class="sc"><h4>Converge &amp; return</h4>
     <p>When the model stops asking for tools, the loop ends with an <span class="mono">AgentResponse</span>
       (or a stream of <span class="mono">AgentResponseUpdate</span> when streaming).</p></div></div>
 </div>
@@ -1286,7 +1286,7 @@ agent = Agent(client=client, instructions=<span class="st">"…"</span>)
 session = agent.create_session()
 <span class="kw">await</span> agent.run(<span class="st">"My name is Sam"</span>, session=session)
 <span class="kw">await</span> agent.run(<span class="st">"What's my name?"</span>, session=session)  <span class="cm"># remembers "Sam"</span></pre>
-        <em>(Sessions & memory are Lesson 07; here just note history rides on the "session".)</em></div>
+        <em>(Sessions &amp; memory are Lesson 07; here just note history rides on the "session".)</em></div>
     </div>
   </div>
 </details>

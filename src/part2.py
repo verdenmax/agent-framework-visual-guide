@@ -356,7 +356,7 @@ Content.from_function_result(...)    <span class="cm"># tool execution result</s
     </div>
     <div class="qa">
       <div class="q">❓ Why this matters</div>
-      <div class="a">LLM capabilities go beyond "pure text Q&A": GPT-4o and Claude support image inputs, models can request tool calls and receive results. If each content kind uses separate fields (<span class="mono">text</span>, <span class="mono">image_url</span>, <span class="mono">tool_calls</span>…), the message shape becomes complex and non-extensible. Unifying into a <span class="mono">Content</span> list means code only cares about <strong>"a message has multiple content blocks"</strong>, with no special-casing per type.</div>
+      <div class="a">LLM capabilities go beyond "pure text Q&amp;A": GPT-4o and Claude support image inputs, models can request tool calls and receive results. If each content kind uses separate fields (<span class="mono">text</span>, <span class="mono">image_url</span>, <span class="mono">tool_calls</span>…), the message shape becomes complex and non-extensible. Unifying into a <span class="mono">Content</span> list means code only cares about <strong>"a message has multiple content blocks"</strong>, with no special-casing per type.</div>
     </div>
     <div class="qa">
       <div class="q">✅ How MAF does it</div>
@@ -1524,7 +1524,7 @@ result = <span class="kw">await</span> agent.run(<span class="st">"What's the we
     <p>A JSON Schema is built from the signature + <span class="mono">Annotated[..., Field(description=…)]</span> + docstring, and handed to the model.</p></div></div>
   <div class="step"><div class="num">2</div><div class="sc"><h4>Model decides to call</h4>
     <p>The model emits a <span class="mono">function_call</span> (function name + arguments) in its response.</p></div></div>
-  <div class="step"><div class="num">3</div><div class="sc"><h4>Framework executes & feeds back</h4>
+  <div class="step"><div class="num">3</div><div class="sc"><h4>Framework executes &amp; feeds back</h4>
     <p>The Agent runs your function, appends the <span class="mono">function_result</span>, and lets the model continue.</p></div></div>
 </div>
 

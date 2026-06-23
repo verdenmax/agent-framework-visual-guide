@@ -5,15 +5,16 @@ Run after build.py:
 
 Exits non-zero on any ERROR (used by CI). WARN/INFO print but don't fail.
 Checks each lesson + index:
-* balanced tags (div/details/table/pre/summary) and details<->summary
+* balanced tags (div/details/table/pre/summary/ul/ol/li) and details<->summary
 * a <title> + meta description; exactly one <h1> per lesson
 * both languages present (data-lang="zh" and data-lang="en" blocks)
 * no unescaped '<' inside <pre> code blocks
+* no double-escaped entities (&amp;lt; etc.) and no unescaped '&' in body text
 * cross-references "第 N 课" within 1..MAX_LESSON (forward refs allowed)
 * nav prev/next chain matches shell.PAGES order
 * index TOC lists every page; '共 N 课 · N 个部分' pill matches PAGES
 * registry CONTENT has non-empty zh+en for every PAGES filename (no orphan keys)
-* (WARN) every lesson has a key-points card, an analogy card, enough diagrams
+* every lesson has a self-test quiz; (WARN) key-points card, analogy card, enough diagrams
 """
 import os
 import re
@@ -54,7 +55,7 @@ def check_balance(name, html, tag):
 
 
 def check_lesson(fname, html):
-    for tag in ("div", "details", "table", "pre", "summary"):
+    for tag in ("div", "details", "table", "pre", "summary", "ul", "ol", "li"):
         check_balance(fname, html, tag)
     nd = len(re.findall(r"<details", html))
     ns = len(re.findall(r"<summary", html))
@@ -89,6 +90,16 @@ def check_lesson(fname, html):
             m = re.search(r"<(?!/).{0,20}", cleaned)
             add("ERR", fname, f"unescaped '<' in <pre>: {m.group(0)!r}")
             break
+
+    # entity hygiene (on body only — strip embedded CSS/JS where '&'/'&&' are legal)
+    body = re.sub(r"<style.*?</style>", "", html, flags=re.S)
+    body = re.sub(r"<script.*?</script>", "", body, flags=re.S)
+    md = re.search(r"&amp;(?:lt|gt|amp|quot|#x?[0-9a-fA-F]+);", body)
+    if md:
+        add("ERR", fname, f"double-escaped entity (write {md.group(0)[5:]!r} not {md.group(0)!r})")
+    ua = re.search(r"&(?![a-zA-Z][a-zA-Z0-9]*;|#[0-9]+;|#x[0-9a-fA-F]+;)", body)
+    if ua:
+        add("ERR", fname, f"unescaped '&' (use &amp;): {body[max(0, ua.start() - 12):ua.start() + 6]!r}")
 
     for m in re.finditer(r"第\s*([0-9、,，~\-－\s]+?)\s*课", html):
         nums = [int(x) for x in re.findall(r"[0-9]+", m.group(1))]

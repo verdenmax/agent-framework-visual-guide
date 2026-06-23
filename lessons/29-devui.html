@@ -1,0 +1,671 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-lang="zh"><head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>16 · DevUI 可视化调试 — DevUI Visual Debugging · Agent Framework 图解教程 · Visual Guide</title>
+<meta name="description" content="第四部分 · 进阶实战｜DevUI 可视化调试（DevUI Visual Debugging）：面向新手的 Agent Framework 图解教程，配真实源码对应与设计亮点。">
+<meta name="theme-color" content="#0078d4">
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml;base64,PHN2ZyB4bWxucz0naHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmcnIHZpZXdCb3g9JzAgMCAzMiAzMic+PHJlY3Qgd2lkdGg9JzMyJyBoZWlnaHQ9JzMyJyByeD0nNycgZmlsbD0nIzAwNzhkNCcvPjx0ZXh0IHg9JzE2JyB5PScyMicgZm9udC1mYW1pbHk9J3N5c3RlbS11aSxzYW5zLXNlcmlmJyBmb250LXNpemU9JzEzJyBmb250LXdlaWdodD0nNzAwJyBmaWxsPScjZmZmJyB0ZXh0LWFuY2hvcj0nbWlkZGxlJz5BRjwvdGV4dD48L3N2Zz4=">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="Agent Framework 图解教程 · Visual Guide">
+<meta property="og:title" content="16 · DevUI 可视化调试 — DevUI Visual Debugging · Agent Framework 图解教程 · Visual Guide">
+<meta property="og:description" content="第四部分 · 进阶实战｜DevUI 可视化调试（DevUI Visual Debugging）：面向新手的 Agent Framework 图解教程，配真实源码对应与设计亮点。">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="16 · DevUI 可视化调试 — DevUI Visual Debugging · Agent Framework 图解教程 · Visual Guide">
+<meta name="twitter:description" content="第四部分 · 进阶实战｜DevUI 可视化调试（DevUI Visual Debugging）：面向新手的 Agent Framework 图解教程，配真实源码对应与设计亮点。">
+<script>try{var l=localStorage.getItem('af-guide-lang')||'zh';document.documentElement.setAttribute('data-lang',l);}catch(e){}</script>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+:root {
+  --bg: #f6f7f9; --panel: #ffffff; --panel-2: #f0f2f5; --ink: #1d2129;
+  --muted: #5b6470; --faint: #8a939f; --line: #e1e5ea;
+  --accent: #0078d4; --accent-soft: #e1effb; --accent-ink: #0a4a86;
+  --blue: #2563eb; --blue-soft: #e7efff; --amber: #b4690e; --amber-soft: #fdf1dd;
+  --purple: #7c3aed; --purple-soft: #f0e9ff; --red: #d23f3f; --red-soft: #fbe6e6;
+  --code-bg: #0f172a; --code-ink: #e2e8f0; --code-line: #1e293b;
+  --shadow: 0 1px 2px rgba(16,24,40,.06), 0 8px 24px rgba(16,24,40,.06);
+  --radius: 14px;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #0e1116; --panel: #161b22; --panel-2: #1c232c; --ink: #e6edf3;
+    --muted: #9aa6b2; --faint: #6e7a86; --line: #2a323c;
+    --accent: #4aa3e8; --accent-soft: #102a40; --accent-ink: #9fcdf2;
+    --blue: #6ea8fe; --blue-soft: #16243f; --amber: #e0a44a; --amber-soft: #33270f;
+    --purple: #b794f6; --purple-soft: #271a40; --red: #f08080; --red-soft: #3a1a1a;
+    --code-bg: #0a0f1a; --code-ink: #d8e2f0; --code-line: #14202f;
+    --shadow: 0 1px 2px rgba(0,0,0,.4), 0 10px 30px rgba(0,0,0,.35);
+  }
+}
+html { scroll-behavior: smooth; }
+body {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans SC",
+    "PingFang SC", "Microsoft YaHei", system-ui, sans-serif;
+  background: var(--bg); color: var(--ink); line-height: 1.7;
+  -webkit-font-smoothing: antialiased;
+}
+a { color: var(--accent); text-decoration: none; }
+code, .mono { font-family: "SF Mono", "JetBrains Mono", "Fira Code", ui-monospace, Menlo, Consolas, monospace; }
+
+/* ---- bilingual visibility ---- */
+html[data-lang="zh"] .i18n[data-lang="en"],
+html[data-lang="en"] .i18n[data-lang="zh"] { display: none !important; }
+.langtoggle { cursor: pointer; font-size: .72rem; font-weight: 700; color: var(--accent);
+  background: var(--accent-soft); border: 1px solid var(--accent); border-radius: 999px;
+  padding: .2rem .7rem; white-space: nowrap; }
+.langtoggle:hover { background: var(--accent); color: #fff; }
+
+/* ---- top progress bar ---- */
+.topbar {
+  position: sticky; top: 0; z-index: 50; background: var(--panel);
+  border-bottom: 1px solid var(--line); backdrop-filter: blur(8px);
+}
+.topbar-inner {
+  max-width: 960px; margin: 0 auto; padding: .7rem 1.25rem;
+  display: flex; align-items: center; justify-content: space-between; gap: 1rem;
+}
+.topbar .home { font-size: .82rem; color: var(--muted); font-weight: 600; display:flex; gap:.5rem; align-items:center; }
+.topbar .home b { color: var(--accent); }
+.topbar .pills { display: flex; align-items: center; gap: .5rem; }
+.topbar .pill { font-size: .72rem; color: var(--muted); background: var(--panel-2);
+  padding: .2rem .6rem; border-radius: 999px; border: 1px solid var(--line); white-space: nowrap; }
+.progress { height: 3px; background: var(--panel-2); }
+.progress > span { display: block; height: 100%; background: linear-gradient(90deg, var(--accent), var(--purple)); }
+
+.wrap { max-width: 820px; margin: 0 auto; padding: 2.4rem 1.25rem 5rem; }
+
+/* ---- hero ---- */
+.hero { margin-bottom: 2rem; }
+.hero .part { font-size: .76rem; letter-spacing: .08em; text-transform: uppercase;
+  color: var(--accent); font-weight: 700; margin-bottom: .55rem; }
+.hero h1 { font-size: 2.05rem; line-height: 1.2; letter-spacing: -.01em; font-weight: 750; }
+.hero .lead { margin-top: .9rem; font-size: 1.06rem; color: var(--muted); }
+
+h2 { font-size: 1.32rem; margin: 2.4rem 0 .9rem; letter-spacing: -.01em;
+  display: flex; align-items: center; gap: .55rem; }
+h2::before { content: ""; width: 4px; height: 1.05em; background: var(--accent); border-radius: 3px; display: inline-block; }
+h3 { font-size: 1.05rem; margin: 1.4rem 0 .5rem; }
+p { margin: .7rem 0; }
+ul, ol { margin: .6rem 0 .6rem 1.3rem; }
+li { margin: .3rem 0; }
+strong { color: var(--ink); font-weight: 680; }
+.inline { background: var(--panel-2); border: 1px solid var(--line); border-radius: 6px;
+  padding: .08em .4em; font-size: .9em; color: var(--accent-ink); }
+
+/* ---- callout cards ---- */
+.card { border-radius: var(--radius); padding: 1.05rem 1.2rem; margin: 1.2rem 0;
+  border: 1px solid var(--line); background: var(--panel); box-shadow: var(--shadow); }
+.card .tag { font-size: .72rem; font-weight: 700; letter-spacing: .04em; text-transform: uppercase;
+  display: inline-flex; align-items: center; gap: .4rem; margin-bottom: .5rem; }
+.card.macro { border-left: 4px solid var(--blue); }
+.card.macro .tag { color: var(--blue); }
+.card.detail { border-left: 4px solid var(--purple); }
+.card.detail .tag { color: var(--purple); }
+.card.analogy { border-left: 4px solid var(--amber); background: var(--amber-soft); }
+.card.analogy .tag { color: var(--amber); }
+.card.key { border-left: 4px solid var(--accent); background: var(--accent-soft); }
+.card.key .tag { color: var(--accent-ink); }
+.card.warn { border-left: 4px solid var(--red); background: var(--red-soft); }
+.card.warn .tag { color: var(--red); }
+.card.spark { border-left: 4px solid #e0a000;
+  background: linear-gradient(100deg, rgba(224,160,0,.12), transparent 70%); }
+.card.spark .tag { color: #c98a00; }
+@media (prefers-color-scheme: dark) { .card.spark .tag { color: #f0c050; } }
+
+/* ---- code file callout ---- */
+.codefile { margin: 1.2rem 0; border-radius: 12px; overflow: hidden; border: 1px solid var(--line);
+  box-shadow: var(--shadow); }
+.codefile .cf-head { display: flex; align-items: center; gap: .55rem; padding: .5rem .85rem;
+  background: var(--panel-2); border-bottom: 1px solid var(--line); font-size: .8rem; }
+.codefile .cf-head .dot { width: 9px; height: 9px; border-radius: 50%; background: var(--accent); flex-shrink:0; }
+.codefile .cf-head .path { font-family: ui-monospace, monospace; color: var(--ink); font-weight: 600; }
+.codefile .cf-head .ln { margin-left: auto; color: var(--faint); font-size: .72rem; }
+.codefile pre { background: var(--code-bg); color: var(--code-ink); padding: .9rem 1rem;
+  overflow-x: auto; font-size: .82rem; line-height: 1.6; }
+.codefile pre .cm { color: #7d8aa3; }
+.codefile pre .kw { color: #c792ea; }
+.codefile pre .fn { color: #82aaff; }
+.codefile pre .st { color: #c3e88d; }
+.codefile pre .nb { color: #f78c6c; }
+
+pre.code { background: var(--code-bg); color: var(--code-ink); padding: .9rem 1rem; border-radius: 12px;
+  overflow-x: auto; font-size: .83rem; line-height: 1.6; margin: 1.1rem 0; box-shadow: var(--shadow); }
+pre.code .cm { color: #7d8aa3; } pre.code .kw { color: #c792ea; }
+pre.code .fn { color: #82aaff; } pre.code .st { color: #c3e88d; } pre.code .nb { color: #f78c6c; }
+
+/* ---- collapsible accordion (details/summary) ---- */
+.accordion { border: 1px solid var(--line); border-radius: 12px; background: var(--panel);
+  margin: .7rem 0; box-shadow: var(--shadow); overflow: hidden; }
+.accordion > summary { cursor: pointer; padding: .85rem 1.1rem; font-weight: 650; font-size: .96rem;
+  list-style: none; display: flex; align-items: center; gap: .6rem; user-select: none; }
+.accordion > summary::-webkit-details-marker { display: none; }
+.accordion > summary::after { content: "\25B6"; font-size: .68rem; color: var(--accent);
+  margin-left: auto; transition: transform .15s ease; }
+.accordion[open] > summary::after { transform: rotate(90deg); }
+.accordion > summary:hover { background: var(--panel-2); }
+.accordion[open] > summary { border-bottom: 1px solid var(--line); }
+.accordion .badge-num { background: var(--accent-soft); color: var(--accent-ink);
+  width: 1.6rem; height: 1.6rem; border-radius: 7px; display: inline-flex; align-items: center;
+  justify-content: center; font-size: .82rem; font-weight: 700; flex-shrink: 0; }
+.accordion .hint { font-size: .72rem; color: var(--faint); font-weight: 400; }
+.acc-body { padding: .9rem 1.1rem 1.1rem; }
+.acc-intro { color: var(--muted); font-size: .9rem; margin: .2rem 0 .4rem; }
+.qa { margin: 1rem 0; }
+.qa:first-child { margin-top: .3rem; }
+.qa .q { font-weight: 680; font-size: .9rem; display: flex; gap: .45rem; align-items: center; margin-bottom: .3rem; }
+.qa .a { color: var(--muted); font-size: .9rem; }
+.qa .a strong { color: var(--ink); }
+.qa pre.code { margin: .5rem 0 0; font-size: .78rem; }
+
+/* ---- flow diagram ---- */
+.flow { display: flex; align-items: stretch; gap: 0; flex-wrap: wrap; margin: 1.3rem 0;
+  background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius);
+  padding: 1.2rem 1rem; box-shadow: var(--shadow); }
+.flow .node { flex: 1 1 0; min-width: 110px; text-align: center; padding: .7rem .5rem;
+  border-radius: 10px; background: var(--panel-2); border: 1px solid var(--line); }
+.flow .node .nt { font-weight: 700; font-size: .92rem; }
+.flow .node .nd { font-size: .76rem; color: var(--muted); margin-top: .2rem; }
+.flow .node.hl { background: var(--accent-soft); border-color: var(--accent); }
+.flow .arrow { align-self: center; color: var(--faint); font-size: 1.3rem; padding: 0 .35rem; }
+
+/* vertical flow */
+.vflow { margin: 1.3rem 0; }
+.vflow .step { display: flex; gap: .9rem; position: relative; padding-bottom: 1.1rem; }
+.vflow .step:not(:last-child)::before { content:""; position:absolute; left: 15px; top: 34px; bottom: -2px;
+  width: 2px; background: var(--line); }
+.vflow .num { width: 32px; height: 32px; border-radius: 50%; background: var(--accent); color: #fff;
+  display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: .85rem; flex-shrink: 0; z-index:1; }
+.vflow .sc h4 { margin: .25rem 0 .2rem; font-size: 1rem; }
+.vflow .sc p { margin: .15rem 0; font-size: .92rem; color: var(--muted); }
+.vflow .sc .mono { font-size: .8rem; color: var(--accent-ink); }
+
+/* layered architecture */
+.layers { margin: 1.3rem 0; display: flex; flex-direction: column; gap: .55rem; }
+.layer { border-radius: 12px; padding: .85rem 1.1rem; border: 1px solid var(--line); background: var(--panel);
+  box-shadow: var(--shadow); }
+.layer .lh { display: flex; align-items: center; gap: .6rem; }
+.layer .lh .badge { font-size: .7rem; font-weight: 700; padding: .12rem .5rem; border-radius: 999px; }
+.layer .lh .name { font-weight: 700; font-family: ui-monospace, monospace; }
+.layer .ld { font-size: .85rem; color: var(--muted); margin-top: .35rem; }
+.layer.l-core { border-left: 4px solid var(--accent); } .layer.l-core .badge { background: var(--accent-soft); color: var(--accent-ink); }
+.layer.l-main { border-left: 4px solid var(--blue); } .layer.l-main .badge { background: var(--blue-soft); color: var(--blue); }
+.layer.l-part { border-left: 4px solid var(--purple); } .layer.l-part .badge { background: var(--purple-soft); color: var(--purple); }
+.layer.l-app { border-left: 4px solid var(--amber); } .layer.l-app .badge { background: var(--amber-soft); color: var(--amber); }
+
+/* two-column compare */
+.cols { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin: 1.2rem 0; }
+@media (max-width: 640px) { .cols { grid-template-columns: 1fr; } }
+.col { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 1rem 1.1rem; box-shadow: var(--shadow); }
+.col h4 { margin: 0 0 .4rem; font-size: .95rem; }
+
+table.t { width: 100%; border-collapse: collapse; margin: 1.1rem 0; font-size: .9rem;
+  background: var(--panel); border-radius: 12px; overflow: hidden; box-shadow: var(--shadow); }
+table.t th, table.t td { padding: .6rem .8rem; text-align: left; border-bottom: 1px solid var(--line); }
+table.t th { background: var(--panel-2); font-size: .8rem; letter-spacing: .02em; }
+table.t tr:last-child td { border-bottom: none; }
+table.t td.mono, table.t td .mono { font-family: ui-monospace, monospace; font-size: .82rem; color: var(--accent-ink); }
+
+/* footer nav */
+.footnav { display: flex; justify-content: space-between; gap: 1rem; margin-top: 3rem;
+  padding-top: 1.4rem; border-top: 1px solid var(--line); }
+.footnav a { flex: 1; padding: .85rem 1.1rem; border-radius: 12px; border: 1px solid var(--line);
+  background: var(--panel); box-shadow: var(--shadow); transition: .15s; }
+.footnav a:hover { border-color: var(--accent); transform: translateY(-1px); }
+.footnav a.next { text-align: right; }
+.footnav .dir { font-size: .72rem; color: var(--faint); text-transform: uppercase; letter-spacing: .05em; }
+.footnav .ttl { font-weight: 700; color: var(--ink); margin-top: .15rem; }
+.footnav a.disabled { opacity: .35; pointer-events: none; }
+
+/* index page */
+.toc { display: grid; gap: .7rem; margin-top: 1.6rem; }
+.toc-part { font-size: .78rem; font-weight: 700; letter-spacing: .05em; text-transform: uppercase;
+  color: var(--accent); margin: 1.4rem 0 .2rem; }
+.toc a { display: flex; align-items: center; gap: .9rem; padding: .85rem 1.05rem; border-radius: 12px;
+  background: var(--panel); border: 1px solid var(--line); box-shadow: var(--shadow); transition: .15s; }
+.toc a:hover { border-color: var(--accent); transform: translateX(3px); }
+.toc .n { width: 30px; height: 30px; border-radius: 8px; background: var(--accent-soft); color: var(--accent-ink);
+  display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: .85rem; flex-shrink: 0; }
+.toc .tt { font-weight: 650; color: var(--ink); }
+.toc .ts { font-size: .8rem; color: var(--muted); margin-left: auto; text-align: right; }
+.hero.index h1 { font-size: 2.3rem; }
+.legend { display:flex; gap:1.2rem; flex-wrap:wrap; margin-top:1rem; font-size:.8rem; color:var(--muted); }
+.legend span { display:flex; align-items:center; gap:.4rem; }
+.legend i { width:12px; height:12px; border-radius:3px; display:inline-block; }
+.pdf-btn { display:inline-flex; align-items:center; gap:.4rem; padding:.55rem 1.1rem;
+  background:var(--accent); color:#fff; border-radius:10px; font-size:.9rem; font-weight:650;
+  box-shadow:var(--shadow); transition:.15s; }
+.pdf-btn:hover { background:var(--accent-ink); transform:translateY(-1px); }
+/* self-test quizzes (appended to each lesson by quizzes.render) */
+.selftest { margin: 2.2rem 0 0; border-top: 2px dashed var(--line); padding-top: 1.2rem; }
+.selftest > h2 { margin-top: .2rem; }
+.quiz { background: var(--panel); border: 1px solid var(--line); border-left: 4px solid var(--blue);
+  border-radius: 12px; padding: .9rem 1.1rem; margin: 1rem 0; box-shadow: var(--shadow); }
+.quiz .qn { font-weight: 650; }
+.quiz ol.opts { list-style: upper-alpha; margin: .55rem 0 .6rem 1.5rem; padding: 0; }
+.quiz ol.opts li { margin: .3rem 0; padding-left: .15rem; }
+.quiz details.accordion { margin: .5rem 0 0; }
+.selftest code { font-family: ui-monospace, monospace; font-size: .9em; color: var(--accent-ink);
+  background: var(--accent-soft); padding: 0 .28em; border-radius: 4px; }
+</style>
+</head><body>
+<div class="topbar">
+  <div class="topbar-inner">
+    <a class="home" href="../index.html">📘 <span class="i18n" data-lang="zh">Agent Framework 图解教程 · </span><span class="i18n" data-lang="en">Agent Framework Visual Guide · </span><b><span class="i18n" data-lang="zh">目录</span><span class="i18n" data-lang="en">Contents</span></b></a>
+    <div class="pills">
+      <span class="pill"><span class="i18n" data-lang="zh">第四部分 · 进阶实战</span><span class="i18n" data-lang="en">Part 4 · Advanced</span></span>
+      <span class="pill">16 / 31</span>
+      <span class="langtoggle">EN</span>
+    </div>
+  </div>
+  <div class="progress"><span style="width:51%"></span></div>
+</div>
+<div class="wrap">
+  <div class="hero">
+    <div class="part"><span class="i18n" data-lang="zh">第四部分 · 进阶实战</span><span class="i18n" data-lang="en">Part 4 · Advanced</span></div>
+    <h1><span class="i18n" data-lang="zh">DevUI 可视化调试</span><span class="i18n" data-lang="en">DevUI Visual Debugging</span></h1>
+  </div>
+  <div class="i18n" data-lang="zh">
+<p class="lead">用 <span class="mono">print()</span> 调 Agent 就像蒙着眼开车——你只看到终点的一句话，看不到中间它<strong>调了哪个工具、流式吐了什么、每步多久</strong>。
+<strong>DevUI</strong> 给你一块仪表盘：一行 <span class="mono">serve(entities=[agent])</span> 启动本地服务，浏览器里实时看 Agent 跑的每一步。</p>
+
+<div class="card analogy">
+  <div class="tag">🛩️ 生活类比</div>
+  DevUI 像飞机的<strong>驾驶舱</strong>：引擎（Agent）照常工作，但你面前多了一排仪表——高度、油量、航向（消息、工具调用、token 流）。
+  没有它，你只能听引擎声音猜（看 <span class="mono">print</span> 日志）；有了它，每个读数都<strong>看得见</strong>。
+</div>
+
+<h2>一行启动，浏览器即仪表盘</h2>
+<div class="flow">
+  <div class="node"><div class="nt">你的 Agent</div><div class="nd">Agent(name, client, tools)</div></div>
+  <div class="arrow">→</div>
+  <div class="node hl"><div class="nt">serve(entities=[agent])</div><div class="nd">起本地 server</div></div>
+  <div class="arrow">→</div>
+  <div class="node"><div class="nt">浏览器 UI</div><div class="nd">localhost:8080</div></div>
+  <div class="arrow">→</div>
+  <div class="node"><div class="nt">看得见</div><div class="nd">消息 / 工具 / 流 / trace</div></div>
+</div>
+<p><span class="mono">serve()</span> 在底层用 <span class="mono">uvicorn</span> 起一个带 Web 界面 + <strong>OpenAI 兼容 API</strong>（<span class="mono">/v1/*</span>）的本地服务，把你传进去的 <strong>entities（Agent 或 Workflow）</strong>注册进去。
+浏览器打开后，左边是发现到的实体列表，右边是聊天面板——你发一句话，它把<strong>每一步</strong>画出来。</p>
+
+<h2>走一遍：在 DevUI 里调一个带工具的 Agent</h2>
+<p>场景：一个会查天气的 Agent。你想看清"用户问天气 → 模型决定调工具 → 工具返回 → 模型组织答复"这条链，而不是只看到最后一句话。</p>
+<div class="vflow">
+  <div class="step"><div class="num">1</div><div class="sc">
+    <h4>写好 Agent，一行 serve</h4>
+    <p>不改 Agent 任何代码，只在脚本末尾加一行：</p>
+<pre class="code"><span class="kw">from</span> agent_framework.devui <span class="kw">import</span> serve
+serve(entities=[agent], auto_open=<span class="kw">True</span>)   <span class="cm"># 自动开浏览器到 localhost:8080</span></pre>
+  </div></div>
+  <div class="step"><div class="num">2</div><div class="sc">
+    <h4>浏览器里选中实体、发一句话</h4>
+    <p>左侧列表出现你的 <span class="mono">WeatherAgent</span>（DevUI 自动为内存实体生成 ID）。在右侧聊天框输入"巴黎天气如何？"并发送。</p>
+  </div></div>
+  <div class="step"><div class="num">3</div><div class="sc">
+    <h4>看到模型「先决定调工具」</h4>
+    <p>消息时间线上不是立刻出现文本，而是先冒出一个<strong>工具调用卡片</strong>：<span class="mono">get_weather(city="Paris")</span>。
+      这正是第 14 课讲的"首批 chunk 是 tool_calls 而非文本"——以前只能脑补，现在直接看见。</p>
+  </div></div>
+  <div class="step"><div class="num">4</div><div class="sc">
+    <h4>看到工具结果回填、token 逐个流出</h4>
+    <p>工具卡片展开显示返回值 <span class="mono">"15°C, 晴"</span>；紧接着答复区开始<strong>一个字一个字地流</strong>出来——你能直观感到"先静默、再爆发"的流式节奏。</p>
+  </div></div>
+  <div class="step"><div class="num">5</div><div class="sc">
+    <h4>（可选）打开 trace，看 span 树</h4>
+    <p>若启动时传 <span class="mono">instrumentation_enabled=True</span>，DevUI 会调用框架的 <span class="mono">enable_instrumentation()</span>（即第 30 课的可观测开关），
+      于是同一次运行的 <span class="mono">invoke_agent → chat → execute_tool → chat</span> span 树也能在界面里看到耗时与属性。</p>
+  </div></div>
+</div>
+
+<h2>界面能看到什么</h2>
+<table class="t">
+  <tr><th>面板</th><th>看到的内容</th><th>对应概念（课）</th></tr>
+  <tr><td>实体发现</td><td>注册进来的 Agent / Workflow 列表</td><td class="mono">entities 参数</td></tr>
+  <tr><td>聊天 / 请求面板</td><td>你发的输入、Agent 的回复</td><td>消息 Message（4 课）</td></tr>
+  <tr><td>消息时间线</td><td>system / user / assistant 消息按序展开</td><td>run 循环（3 课）</td></tr>
+  <tr><td>工具调用</td><td>FunctionCall 名称 / 参数 / 返回值</td><td>工具调用内部（10 课）</td></tr>
+  <tr><td>事件 / 流</td><td>逐个 token、流式更新事件</td><td>流式（14 课）</td></tr>
+  <tr><td>Trace（可选）</td><td>span 树、耗时、属性</td><td>可观测性（30 课）</td></tr>
+</table>
+
+<h2>真实源码：serve() 的签名</h2>
+<div class="codefile">
+  <div class="cf-head"><span class="dot"></span><span class="path">agent_framework_devui/__init__.py</span><span class="ln">serve（简化自 :89）</span></div>
+<pre><span class="kw">def</span> <span class="fn">serve</span>(
+    entities=<span class="kw">None</span>,             <span class="cm"># 内存里要调试的 Agent / Workflow 列表</span>
+    entities_dir=<span class="kw">None</span>,         <span class="cm"># 或：扫描一个目录做「发现」</span>
+    port=<span class="nb">8080</span>,
+    host=<span class="st">"127.0.0.1"</span>,        <span class="cm"># 默认只绑本机</span>
+    auto_open=<span class="kw">False</span>,          <span class="cm"># 是否自动开浏览器</span>
+    cors_origins=<span class="kw">None</span>,
+    ui_enabled=<span class="kw">True</span>,           <span class="cm"># 关掉就只剩 API，不出 Web 界面</span>
+    instrumentation_enabled=<span class="kw">False</span>,  <span class="cm"># 打开 OpenTelemetry（见第 30 课）</span>
+    mode=<span class="st">"developer"</span>,        <span class="cm"># developer=详细报错 / user=受限+通用报错</span>
+    auth_enabled=<span class="kw">True</span>,         <span class="cm"># 默认开 Bearer token 鉴权</span>
+    auth_token=<span class="kw">None</span>,
+) -&gt; <span class="kw">None</span>:
+    <span class="cm"># 起 uvicorn server，注册 entities，挂上 Web UI + /v1/* 兼容 API</span>
+    ...</pre>
+</div>
+<p>注意几个有信息量的默认值：<span class="mono">host="127.0.0.1"</span>（只绑本机，安全）、<span class="mono">auth_enabled=True</span>（默认带鉴权，启动时日志里打印开发 token）、
+<span class="mono">mode="developer"</span>（开发期给你详细报错）。命令行入口 <span class="mono">main()</span>（<span class="mono">:202</span>）对应 <span class="mono">devui ./agents</span>，走的是 <span class="mono">entities_dir</span> 目录发现那条路。</p>
+
+<details class="accordion">
+  <summary><span class="badge-num">1</span> serve() 到底做了什么 <span class="hint">点击展开详解</span></summary>
+  <div class="acc-body">
+    <div class="qa">
+      <div class="q">🧪 示例</div>
+      <div class="a"><span class="mono">serve(entities=[agent])</span> 内部：创建一个 <span class="mono">DevServer</span>，把 entities 暂存为待注册，取出它的 FastAPI <span class="mono">app</span>，最后 <span class="mono">uvicorn.run(app, host, port)</span>。<span class="mono">auto_open=True</span> 时还会起一个线程，等 <span class="mono">/health</span> 就绪后开浏览器。</div>
+    </div>
+    <div class="qa">
+      <div class="q">❓ 为什么这件事必要</div>
+      <div class="a">不想为了"看一眼 Agent 怎么跑的"就去手写一个前端 + 一套 API。把这套样板收进一个 <span class="mono">serve()</span>，调试成本从"搭个项目"降到"加一行"。</div>
+    </div>
+    <div class="qa">
+      <div class="q">✅ MAF 的做法与优点</div>
+      <div class="a">DevUI 暴露的是 <strong>OpenAI 兼容</strong>的 <span class="mono">/v1/*</span> 接口，所以任何 OpenAI 客户端都能直连调试；Web UI 只是这套 API 的一个可视化壳。<span class="mono">instrumentation_enabled</span> 一开，trace 也并进同一界面。</div>
+    </div>
+    <div class="qa">
+      <div class="q">🔀 还有什么其他方案</div>
+      <div class="a">纯 CLI / <span class="mono">print</span>（看不到结构）、自己接 LangSmith 之类外部平台（要配置、可能收费）、或自己写前端（重）。DevUI 的取舍是"<strong>零配置、本地、开箱即用</strong>"。</div>
+    </div>
+  </div>
+</details>
+
+<details class="accordion">
+  <summary><span class="badge-num">2</span> 它是「样例 App」，不是生产服务器 <span class="hint">点击展开详解</span></summary>
+  <div class="acc-body">
+    <div class="qa">
+      <div class="q">🧪 示例</div>
+      <div class="a">官方明确说 DevUI 是 <strong>sample app</strong>，用来快速上手与本地调试。生产环境应当用 Agent Framework SDK<strong>自建</strong> API server 和界面。</div>
+    </div>
+    <div class="qa">
+      <div class="q">❓ 为什么这件事必要</div>
+      <div class="a">生产对鉴权、限流、可用性、定制 UI 的要求远超一个调试工具。把 DevUI 当生产网关，迟早在安全和可扩展性上栽跟头。</div>
+    </div>
+    <div class="qa">
+      <div class="q">✅ MAF 的做法与优点</div>
+      <div class="a">DevUI 默认 <span class="mono">host=127.0.0.1</span> + <span class="mono">auth_enabled=True</span>，本就为"本机开发"定位；它和真正的部署路径（如 25 课的 Foundry 托管）是<strong>两条线</strong>，各司其职。</div>
+    </div>
+    <div class="qa">
+      <div class="q">🔀 还有什么其他方案</div>
+      <div class="a">无实体启动时，DevUI 会显示<strong>样例画廊</strong>，可下载官方示例本地跑——这让它也是个"学习/演示"工具，而不只是调试器。</div>
+    </div>
+  </div>
+</details>
+
+<div class="card key">
+  <div class="tag">✅ 关键要点</div>
+  <ul>
+    <li>一行 <span class="mono">serve(entities=[agent])</span> 起本地服务 + 浏览器仪表盘，<strong>不改 Agent 代码</strong>。</li>
+    <li>能看到：消息时间线、工具调用、流式 token，开 <span class="mono">instrumentation_enabled</span> 还能看 trace。</li>
+    <li>底层是 <span class="mono">uvicorn</span> + <strong>OpenAI 兼容 API</strong>（<span class="mono">/v1/*</span>）；Web UI 只是它的壳。</li>
+    <li>它是<strong>样例调试 App</strong>，默认绑本机 + 带鉴权；生产请自建 server。</li>
+  </ul>
+</div>
+
+<div class="card spark">
+  <div class="tag">💡 设计亮点</div>
+  <strong>调试不该需要改代码。</strong>DevUI 不要求你给 Agent 加任何"调试钩子"——同一个 <span class="mono">agent</span> 对象，平时 <span class="mono">run()</span>，想看就 <span class="mono">serve()</span>。
+  可观测能力（trace）也只是一个开关 <span class="mono">instrumentation_enabled</span>，复用框架既有的 OpenTelemetry，而不是另起一套。
+</div>
+<div class="selftest">
+<h2>🧪 自测 · 想一想为什么这么设计</h2>
+<div class="quiz">
+  <div class="qn">1. <code>serve(entities=[agent])</code> 启动 DevUI。下面哪条最准确地描述它做的事？</div>
+  <ol class="opts">
+    <li>删除 Agent 的所有记忆</li>
+    <li>用 uvicorn 起一个本地服务，挂上 Web UI + OpenAI 兼容 API（<code>/v1/*</code>），把你传入的 Agent/Workflow 注册进去供可视化调试</li>
+    <li>把 Agent 训练成一个新模型</li>
+    <li>把 Agent 永久部署到云端生产环境</li>
+  </ol>
+  <details class="accordion">
+    <summary>看答案与解析 <span class="hint">点击展开</span></summary>
+    <div class="acc-body"><div class="qa"><div class="a"><strong>答案：B</strong>。<code>serve()</code> 底层创建 <code>DevServer</code>、取出 FastAPI app、<code>uvicorn.run(app, host, port)</code>，并注册传入的 entities。它暴露 <code>/v1/*</code> 的 OpenAI 兼容 API，Web UI 只是这套 API 的可视化壳——纯调试用途，不训练也不部署。</div></div></div>
+  </details>
+</div>
+<div class="quiz">
+  <div class="qn">2. 在 DevUI 里调一个带工具的 Agent，下面哪样是你<strong>看不到</strong>的？</div>
+  <ol class="opts">
+    <li>工具调用卡片（名称 / 参数 / 返回值）</li>
+    <li>system/user/assistant 消息时间线</li>
+    <li>逐个流出的 token</li>
+    <li>模型内部的神经网络权重数值</li>
+  </ol>
+  <details class="accordion">
+    <summary>看答案与解析 <span class="hint">点击展开</span></summary>
+    <div class="acc-body"><div class="qa"><div class="a"><strong>答案：D</strong>。DevUI 让运行过程「看得见」：消息时间线、工具调用、流式 token，开 <code>instrumentation_enabled</code> 还能看 span 树。但它观测的是<strong>框架层</strong>的行为，模型内部权重既看不到也无需看。</div></div></div>
+  </details>
+</div>
+<div class="quiz">
+  <div class="qn">3. DevUI 默认 <code>host="127.0.0.1"</code> 且 <code>auth_enabled=True</code>，官方也强调它是「样例 App」。这组默认值最能说明什么？</div>
+  <ol class="opts">
+    <li>它不支持任何鉴权</li>
+    <li>它已经是经过加固的生产级网关</li>
+    <li>它必须暴露到公网才能工作</li>
+    <li>它定位是<strong>本地开发 / 调试</strong>工具；生产应当用 SDK 自建 server，而不是直接拿 DevUI 当生产网关</li>
+  </ol>
+  <details class="accordion">
+    <summary>看答案与解析 <span class="hint">点击展开</span></summary>
+    <div class="acc-body"><div class="qa"><div class="a"><strong>答案：D</strong>。只绑本机 + 默认带鉴权，正是「本机开发」的安全姿态；官方明确 DevUI 是 sample app，生产请用 Agent Framework SDK 自建 API server 与界面。调试与部署是两条线（部署见第 25 课 Foundry 托管）。</div></div></div>
+  </details>
+</div>
+<div class="card spark">
+  <div class="tag">💭 发散思考（没有标准答案，动手或动脑想想）</div>
+  <ul>
+    <li>回想你上次用 <code>print</code> 调 Agent 时最想知道却看不到的一件事（比如「它到底调没调工具」「为什么半天不出字」）。说说在 DevUI 的哪个面板能直接看到它，以及这如何改变你的调试节奏。再想想：为什么「不改 Agent 代码就能调试」是个重要约束？</li>
+  </ul>
+</div>
+</div></div>
+<div class="i18n" data-lang="en">
+<p class="lead">Debugging an agent with <span class="mono">print()</span> is like driving blindfolded&mdash;you see the final sentence but not <strong>which tool it called, what it streamed, or how long each step took</strong>.
+<strong>DevUI</strong> gives you a dashboard: one line, <span class="mono">serve(entities=[agent])</span>, launches a local server and you watch every step in the browser, live.</p>
+
+<div class="card analogy">
+  <div class="tag">🛩️ Analogy</div>
+  DevUI is like an aircraft <strong>cockpit</strong>: the engine (the Agent) works as usual, but now you have a row of gauges&mdash;altitude, fuel, heading (messages, tool calls, token stream).
+  Without it you guess from the engine noise (reading <span class="mono">print</span> logs); with it, every reading is <strong>visible</strong>.
+</div>
+
+<h2>One line to launch; the browser is your dashboard</h2>
+<div class="flow">
+  <div class="node"><div class="nt">your Agent</div><div class="nd">Agent(name, client, tools)</div></div>
+  <div class="arrow">→</div>
+  <div class="node hl"><div class="nt">serve(entities=[agent])</div><div class="nd">start local server</div></div>
+  <div class="arrow">→</div>
+  <div class="node"><div class="nt">browser UI</div><div class="nd">localhost:8080</div></div>
+  <div class="arrow">→</div>
+  <div class="node"><div class="nt">visible</div><div class="nd">messages / tools / stream / trace</div></div>
+</div>
+<p>Under the hood <span class="mono">serve()</span> uses <span class="mono">uvicorn</span> to start a local server with a web UI plus an <strong>OpenAI-compatible API</strong> (<span class="mono">/v1/*</span>), registering the <strong>entities (Agents or Workflows)</strong> you pass in.
+Open the browser: on the left is the list of discovered entities, on the right a chat panel&mdash;you send a line, and it draws <strong>every step</strong>.</p>
+
+<h2>Worked example: debugging a tool-using Agent in DevUI</h2>
+<p>Scenario: an agent that looks up weather. You want to see the chain "user asks → model decides to call a tool → tool returns → model composes the reply", not just the final sentence.</p>
+<div class="vflow">
+  <div class="step"><div class="num">1</div><div class="sc">
+    <h4>Write the Agent, add one serve line</h4>
+    <p>Change nothing in the Agent; just append one line to your script:</p>
+<pre class="code"><span class="kw">from</span> agent_framework.devui <span class="kw">import</span> serve
+serve(entities=[agent], auto_open=<span class="kw">True</span>)   <span class="cm"># auto-opens browser to localhost:8080</span></pre>
+  </div></div>
+  <div class="step"><div class="num">2</div><div class="sc">
+    <h4>Pick the entity in the browser, send a line</h4>
+    <p>Your <span class="mono">WeatherAgent</span> appears in the left list (DevUI auto-generates an ID for in-memory entities). Type "What's the weather in Paris?" in the chat box and send.</p>
+  </div></div>
+  <div class="step"><div class="num">3</div><div class="sc">
+    <h4>See the model "decide to call a tool" first</h4>
+    <p>The message timeline doesn't show text immediately&mdash;first a <strong>tool-call card</strong> pops up: <span class="mono">get_weather(city="Paris")</span>.
+      This is exactly Lesson 14's "the first chunks are tool_calls, not text"&mdash;previously imagined, now seen.</p>
+  </div></div>
+  <div class="step"><div class="num">4</div><div class="sc">
+    <h4>See the tool result fill in, tokens stream out</h4>
+    <p>The tool card expands to show the return value <span class="mono">"15°C, sunny"</span>; then the reply area starts streaming <strong>character by character</strong>&mdash;you feel the "quiet first, then burst" streaming rhythm directly.</p>
+  </div></div>
+  <div class="step"><div class="num">5</div><div class="sc">
+    <h4>(Optional) Open the trace, see the span tree</h4>
+    <p>If you pass <span class="mono">instrumentation_enabled=True</span> at launch, DevUI calls the framework's <span class="mono">enable_instrumentation()</span> (the observability switch from Lesson 30),
+      so the same run's <span class="mono">invoke_agent → chat → execute_tool → chat</span> span tree, with durations and attributes, is visible in the UI too.</p>
+  </div></div>
+</div>
+
+<h2>What the UI shows</h2>
+<table class="t">
+  <tr><th>Panel</th><th>What you see</th><th>Concept (lesson)</th></tr>
+  <tr><td>Entity discovery</td><td>list of registered Agents / Workflows</td><td class="mono">entities arg</td></tr>
+  <tr><td>Chat / request panel</td><td>your input, the Agent's reply</td><td>Message (L4)</td></tr>
+  <tr><td>Message timeline</td><td>system / user / assistant messages in order</td><td>run loop (L3)</td></tr>
+  <tr><td>Tool calls</td><td>FunctionCall name / args / return value</td><td>tool internals (L10)</td></tr>
+  <tr><td>Events / stream</td><td>per-token, streaming update events</td><td>streaming (L14)</td></tr>
+  <tr><td>Trace (optional)</td><td>span tree, durations, attributes</td><td>observability (L30)</td></tr>
+</table>
+
+<h2>Real source: the serve() signature</h2>
+<div class="codefile">
+  <div class="cf-head"><span class="dot"></span><span class="path">agent_framework_devui/__init__.py</span><span class="ln">serve (simplified from :89)</span></div>
+<pre><span class="kw">def</span> <span class="fn">serve</span>(
+    entities=<span class="kw">None</span>,             <span class="cm"># in-memory Agents / Workflows to debug</span>
+    entities_dir=<span class="kw">None</span>,         <span class="cm"># or: scan a directory for "discovery"</span>
+    port=<span class="nb">8080</span>,
+    host=<span class="st">"127.0.0.1"</span>,        <span class="cm"># binds to localhost by default</span>
+    auto_open=<span class="kw">False</span>,          <span class="cm"># auto-open the browser?</span>
+    cors_origins=<span class="kw">None</span>,
+    ui_enabled=<span class="kw">True</span>,           <span class="cm"># turn off to keep only the API, no web UI</span>
+    instrumentation_enabled=<span class="kw">False</span>,  <span class="cm"># turn on OpenTelemetry (see Lesson 30)</span>
+    mode=<span class="st">"developer"</span>,        <span class="cm"># developer=verbose errors / user=restricted+generic</span>
+    auth_enabled=<span class="kw">True</span>,         <span class="cm"># Bearer-token auth on by default</span>
+    auth_token=<span class="kw">None</span>,
+) -&gt; <span class="kw">None</span>:
+    <span class="cm"># start a uvicorn server, register entities, mount web UI + /v1/* compatible API</span>
+    ...</pre>
+</div>
+<p>Note a few informative defaults: <span class="mono">host="127.0.0.1"</span> (localhost only, safe), <span class="mono">auth_enabled=True</span> (auth on by default, dev token printed in startup logs),
+<span class="mono">mode="developer"</span> (verbose errors during development). The CLI entry point <span class="mono">main()</span> (<span class="mono">:202</span>) backs <span class="mono">devui ./agents</span>, which takes the <span class="mono">entities_dir</span> discovery path.</p>
+
+<details class="accordion">
+  <summary><span class="badge-num">1</span> What serve() actually does <span class="hint">click to expand</span></summary>
+  <div class="acc-body">
+    <div class="qa">
+      <div class="q">🧪 Example</div>
+      <div class="a">Inside <span class="mono">serve(entities=[agent])</span>: create a <span class="mono">DevServer</span>, stash entities as pending, grab its FastAPI <span class="mono">app</span>, then <span class="mono">uvicorn.run(app, host, port)</span>. With <span class="mono">auto_open=True</span> it also spawns a thread that opens the browser once <span class="mono">/health</span> is ready.</div>
+    </div>
+    <div class="qa">
+      <div class="q">❓ Why it's necessary</div>
+      <div class="a">You don't want to hand-build a frontend + an API just to "see how the agent runs". Folding that boilerplate into one <span class="mono">serve()</span> drops the debugging cost from "scaffold a project" to "add one line".</div>
+    </div>
+    <div class="qa">
+      <div class="q">✅ MAF's approach &amp; benefits</div>
+      <div class="a">DevUI exposes an <strong>OpenAI-compatible</strong> <span class="mono">/v1/*</span> API, so any OpenAI client can connect directly; the web UI is just a visual shell over that API. Flip <span class="mono">instrumentation_enabled</span> on and traces fold into the same view.</div>
+    </div>
+    <div class="qa">
+      <div class="q">🔀 Alternatives</div>
+      <div class="a">Pure CLI / <span class="mono">print</span> (no structure), wiring up an external platform like LangSmith (config, possibly paid), or building your own frontend (heavy). DevUI's tradeoff is "<strong>zero-config, local, batteries-included</strong>".</div>
+    </div>
+  </div>
+</details>
+
+<details class="accordion">
+  <summary><span class="badge-num">2</span> It's a "sample app", not a production server <span class="hint">click to expand</span></summary>
+  <div class="acc-body">
+    <div class="qa">
+      <div class="q">🧪 Example</div>
+      <div class="a">The docs state plainly that DevUI is a <strong>sample app</strong> for getting started and local debugging. For production you should <strong>build your own</strong> API server and UI with the Agent Framework SDK.</div>
+    </div>
+    <div class="qa">
+      <div class="q">❓ Why it's necessary</div>
+      <div class="a">Production needs around auth, rate-limiting, availability and custom UI far exceed a debugging tool. Treating DevUI as a production gateway will eventually bite you on security and scalability.</div>
+    </div>
+    <div class="qa">
+      <div class="q">✅ MAF's approach &amp; benefits</div>
+      <div class="a">DevUI defaults to <span class="mono">host=127.0.0.1</span> + <span class="mono">auth_enabled=True</span>&mdash;positioned for "local development". It and the real deployment path (e.g. Foundry hosting in Lesson 25) are <strong>two separate tracks</strong>, each doing its job.</div>
+    </div>
+    <div class="qa">
+      <div class="q">🔀 Alternatives</div>
+      <div class="a">When launched with no entities, DevUI shows a <strong>sample gallery</strong> you can download and run locally&mdash;making it a "learn/demo" tool too, not just a debugger.</div>
+    </div>
+  </div>
+</details>
+
+<div class="card key">
+  <div class="tag">✅ Key points</div>
+  <ul>
+    <li>One line, <span class="mono">serve(entities=[agent])</span>, gives a local server + browser dashboard, with <strong>no changes to Agent code</strong>.</li>
+    <li>You see: the message timeline, tool calls, streaming tokens; with <span class="mono">instrumentation_enabled</span> you also see the trace.</li>
+    <li>Under the hood it's <span class="mono">uvicorn</span> + an <strong>OpenAI-compatible API</strong> (<span class="mono">/v1/*</span>); the web UI is just its shell.</li>
+    <li>It's a <strong>sample debugging app</strong>, localhost-bound with auth by default; build your own server for production.</li>
+  </ul>
+</div>
+
+<div class="card spark">
+  <div class="tag">💡 Design highlight</div>
+  <strong>Debugging shouldn't require code changes.</strong> DevUI asks for no "debug hooks" on your Agent&mdash;the same <span class="mono">agent</span> object you normally <span class="mono">run()</span>, you can <span class="mono">serve()</span> to inspect.
+  Even observability (trace) is just one switch, <span class="mono">instrumentation_enabled</span>, reusing the framework's existing OpenTelemetry rather than a parallel system.
+</div>
+<div class="selftest">
+<h2>🧪 Self-test - think about the design</h2>
+<div class="quiz">
+  <div class="qn">1. <code>serve(entities=[agent])</code> launches DevUI. Which best describes what it does?</div>
+  <ol class="opts">
+    <li>Wipes all of the Agent's memory</li>
+    <li>Starts a local uvicorn server with a web UI + OpenAI-compatible API (<code>/v1/*</code>), registering your Agents/Workflows for visual debugging</li>
+    <li>Trains the Agent into a new model</li>
+    <li>Permanently deploys the Agent to cloud production</li>
+  </ol>
+  <details class="accordion">
+    <summary>Show answer &amp; explanation <span class="hint">click to expand</span></summary>
+    <div class="acc-body"><div class="qa"><div class="a"><strong>Answer: B</strong>. <code>serve()</code> creates a <code>DevServer</code>, grabs its FastAPI app, runs <code>uvicorn.run(app, host, port)</code>, and registers the passed entities. It exposes an OpenAI-compatible <code>/v1/*</code> API; the web UI is just a visual shell over it&mdash;purely for debugging, not training or deploying.</div></div></div>
+  </details>
+</div>
+<div class="quiz">
+  <div class="qn">2. Debugging a tool-using Agent in DevUI, which would you <strong>not</strong> see?</div>
+  <ol class="opts">
+    <li>Tool-call cards (name / args / return value)</li>
+    <li>The system/user/assistant message timeline</li>
+    <li>Tokens streaming out one by one</li>
+    <li>The model's internal neural-network weight values</li>
+  </ol>
+  <details class="accordion">
+    <summary>Show answer &amp; explanation <span class="hint">click to expand</span></summary>
+    <div class="acc-body"><div class="qa"><div class="a"><strong>Answer: D</strong>. DevUI makes the run visible: message timeline, tool calls, streaming tokens, and (with <code>instrumentation_enabled</code>) the span tree. But it observes <strong>framework-level</strong> behavior&mdash;the model's internal weights are neither visible nor relevant.</div></div></div>
+  </details>
+</div>
+<div class="quiz">
+  <div class="qn">3. DevUI defaults to <code>host="127.0.0.1"</code> with <code>auth_enabled=True</code>, and the docs call it a &quot;sample app&quot;. What do these defaults most clearly signal?</div>
+  <ol class="opts">
+    <li>It supports no authentication at all</li>
+    <li>It is already a hardened, production-grade gateway</li>
+    <li>It must be exposed to the public internet to work</li>
+    <li>It's positioned as a <strong>local dev / debugging</strong> tool; production should build a server with the SDK, not use DevUI as a production gateway</li>
+  </ol>
+  <details class="accordion">
+    <summary>Show answer &amp; explanation <span class="hint">click to expand</span></summary>
+    <div class="acc-body"><div class="qa"><div class="a"><strong>Answer: D</strong>. Localhost-only + auth-by-default is the safe posture for local development; the docs state DevUI is a sample app, and production should build its own API server and UI with the SDK. Debugging and deployment are separate tracks (deployment: Lesson 25, Foundry hosting).</div></div></div>
+  </details>
+</div>
+<div class="card spark">
+  <div class="tag">💭 Open questions (no single right answer - just think or try)</div>
+  <ul>
+    <li>Recall the one thing you most wanted to see but couldn't last time you debugged an agent with <code>print</code> (e.g. &quot;did it actually call a tool&quot;, &quot;why the long silence before text&quot;). Say which DevUI panel shows it directly, and how that changes your debugging loop. Then: why is &quot;debug without changing Agent code&quot; an important constraint?</li>
+  </ul>
+</div>
+</div></div>
+  <div class="footnav"><a class="prev" href="15-contributing.html"><div class="dir"><span class="i18n" data-lang="zh">← 上一课</span><span class="i18n" data-lang="en">← Prev</span></div><div class="ttl"><span class="i18n" data-lang="zh">读源码 / 调试 / 测试 / 贡献</span><span class="i18n" data-lang="en">Read, Debug, Test, Contribute</span></div></a><a class="next" href="30-observability.html"><div class="dir"><span class="i18n" data-lang="zh">下一课 →</span><span class="i18n" data-lang="en">Next →</span></div><div class="ttl"><span class="i18n" data-lang="zh">可观测性深入</span><span class="i18n" data-lang="en">Observability Deep-Dive</span></div></a></div>
+</div>
+
+<script>
+(function(){
+  function cur(){return document.documentElement.getAttribute('data-lang')||'zh';}
+  function set(l){
+    document.documentElement.setAttribute('data-lang',l);
+    try{localStorage.setItem('af-guide-lang',l);}catch(e){}
+    document.querySelectorAll('.langtoggle').forEach(function(b){
+      b.textContent=(l==='zh'?'EN':'中');
+      b.setAttribute('aria-label', l==='zh'?'Switch to English':'切换到中文');
+    });
+  }
+  document.querySelectorAll('.langtoggle').forEach(function(b){
+    b.addEventListener('click',function(){set(cur()==='zh'?'en':'zh');});
+  });
+  set(cur());
+})();
+</script>
+</body></html>

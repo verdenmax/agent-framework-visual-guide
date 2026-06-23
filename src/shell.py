@@ -61,7 +61,9 @@ P2 = {"zh": "第二部分 · 用户视角", "en": "Part 2 · User's View"}
 P3 = {"zh": "第三部分 · 内部源码", "en": "Part 3 · Internals"}
 P4 = {"zh": "第四部分 · 进阶实战", "en": "Part 4 · Advanced"}
 P5 = {"zh": "第五部分 · 自己动手做 Agent", "en": "Part 5 · Build Your Own"}
-P6 = {"zh": "第六部分 · 番外篇", "en": "Part 6 · Bonus"}
+P6 = {"zh": "第六部分 · 协议与生态", "en": "Part 6 · Protocols & Ecosystem"}
+P7 = {"zh": "第七部分 · 番外篇", "en": "Part 7 · Bonus"}
+P8 = {"zh": "第八部分 · 速查", "en": "Part 8 · Quick Reference"}
 
 PAGES = [
     ("01-what-is-agent-framework.html", {"zh": "Agent Framework 是什么", "en": "What is Agent Framework"}, P1),
@@ -79,18 +81,22 @@ PAGES = [
     ("13-orchestration.html", {"zh": "编排模式", "en": "Orchestration Patterns"}, P3),
     ("14-streaming-observability.html", {"zh": "流式与可观测性", "en": "Streaming & Observability"}, P3),
     ("15-contributing.html", {"zh": "读源码 / 调试 / 测试 / 贡献", "en": "Read, Debug, Test, Contribute"}, P4),
+    ("29-devui.html", {"zh": "DevUI 可视化调试", "en": "DevUI Visual Debugging"}, P4),
+    ("30-observability.html", {"zh": "可观测性深入", "en": "Observability Deep-Dive"}, P4),
     ("16-providers.html", {"zh": "接入各家模型", "en": "Model Providers"}, P5),
     ("17-declarative.html", {"zh": "声明式 Agent（YAML）", "en": "Declarative Agents (YAML)"}, P5),
     ("18-custom-middleware.html", {"zh": "写自己的中间件", "en": "Writing Your Own Middleware"}, P5),
     ("19-durability-hitl.html", {"zh": "检查点 · 人在环 · 持久化", "en": "Checkpointing, HITL & Durability"}, P5),
     ("20-capstone.html", {"zh": "端到端实战：多 Agent 工作流", "en": "Capstone: A Multi-Agent Workflow"}, P5),
-    ("23-skills.html", {"zh": "Agent Skills 技能系统", "en": "Agent Skills"}, P5),
-    ("24-mcp.html", {"zh": "MCP 工具协议", "en": "MCP Tool Protocol"}, P5),
-    ("25-hosted-agents.html", {"zh": "Foundry 托管 Agent", "en": "Foundry Hosted Agents"}, P5),
-    ("26-a2a-agui.html", {"zh": "A2A + AG-UI 协议", "en": "A2A & AG-UI Protocols"}, P5),
-    ("27-eval-timetravel.html", {"zh": "评估与时间旅行", "en": "Evaluation & Time-Travel"}, P5),
-    ("21-vs-others.html", {"zh": "横向对比：AF vs 其他框架", "en": "AF vs Other Frameworks"}, P6),
-    ("22-stack-map.html", {"zh": "全栈坐标系 & 学习地图", "en": "Full-Stack Map & Learning Path"}, P6),
+    ("28-memory-backends.html", {"zh": "记忆后端", "en": "Memory Backends"}, P5),
+    ("23-skills.html", {"zh": "Agent Skills 技能系统", "en": "Agent Skills"}, P6),
+    ("24-mcp.html", {"zh": "MCP 工具协议", "en": "MCP Tool Protocol"}, P6),
+    ("25-hosted-agents.html", {"zh": "Foundry 托管 Agent", "en": "Foundry Hosted Agents"}, P6),
+    ("26-a2a-agui.html", {"zh": "A2A + AG-UI 协议", "en": "A2A & AG-UI Protocols"}, P6),
+    ("27-eval-timetravel.html", {"zh": "评估与时间旅行", "en": "Evaluation & Time-Travel"}, P6),
+    ("21-vs-others.html", {"zh": "横向对比：AF vs 其他框架", "en": "AF vs Other Frameworks"}, P7),
+    ("22-stack-map.html", {"zh": "全栈坐标系 & 学习地图", "en": "Full-Stack Map & Learning Path"}, P7),
+    ("31-glossary.html", {"zh": "术语表 · 速查", "en": "Glossary & Quick Reference"}, P8),
 ]
 
 INDEX_FILE = "index.html"
@@ -316,6 +322,17 @@ table.t td.mono, table.t td .mono { font-family: ui-monospace, monospace; font-s
   background:var(--accent); color:#fff; border-radius:10px; font-size:.9rem; font-weight:650;
   box-shadow:var(--shadow); transition:.15s; }
 .pdf-btn:hover { background:var(--accent-ink); transform:translateY(-1px); }
+/* self-test quizzes (appended to each lesson by quizzes.render) */
+.selftest { margin: 2.2rem 0 0; border-top: 2px dashed var(--line); padding-top: 1.2rem; }
+.selftest > h2 { margin-top: .2rem; }
+.quiz { background: var(--panel); border: 1px solid var(--line); border-left: 4px solid var(--blue);
+  border-radius: 12px; padding: .9rem 1.1rem; margin: 1rem 0; box-shadow: var(--shadow); }
+.quiz .qn { font-weight: 650; }
+.quiz ol.opts { list-style: upper-alpha; margin: .55rem 0 .6rem 1.5rem; padding: 0; }
+.quiz ol.opts li { margin: .3rem 0; padding-left: .15rem; }
+.quiz details.accordion { margin: .5rem 0 0; }
+.selftest code { font-family: ui-monospace, monospace; font-size: .9em; color: var(--accent-ink);
+  background: var(--accent-soft); padding: 0 .28em; border-radius: 4px; }
 """
 
 # Early language init (in <head>, before render, to avoid a flash of both languages).
@@ -435,11 +452,14 @@ SUBTITLES = {
     "13-orchestration.html": {"zh": "Sequential/Concurrent/Handoff/Group/Magentic", "en": "Sequential/Concurrent/Handoff/Group/Magentic"},
     "14-streaming-observability.html": {"zh": "流式输出 · OpenTelemetry", "en": "streaming · OpenTelemetry"},
     "15-contributing.html": {"zh": "uv · poe · 测试 · DevUI", "en": "uv · poe · tests · DevUI"},
+    "29-devui.html": {"zh": "serve() · 请求/消息/trace 可视化", "en": "serve() · visualize requests/messages/traces"},
+    "30-observability.html": {"zh": "OpenTelemetry · span 树 · trace/metric", "en": "OpenTelemetry · span tree · trace/metric"},
     "16-providers.html": {"zh": "Foundry/AzureOpenAI/OpenAI/Anthropic/Ollama", "en": "Foundry/AzureOpenAI/OpenAI/Anthropic/Ollama"},
     "17-declarative.html": {"zh": "YAML 定义 Agent", "en": "define agents in YAML"},
     "18-custom-middleware.html": {"zh": "自定义 AgentMiddleware / FunctionMiddleware", "en": "custom Agent/Function middleware"},
     "19-durability-hitl.html": {"zh": "checkpoint · 人在环 · DurableTask", "en": "checkpoint · HITL · DurableTask"},
     "20-capstone.html": {"zh": "把所有零件拼成一个工作流", "en": "assemble everything into one workflow"},
+    "28-memory-backends.html": {"zh": "Redis / Mem0 / Cosmos · ContextProvider", "en": "Redis / Mem0 / Cosmos · ContextProvider"},
     "23-skills.html": {"zh": "Skill / SkillResource / SkillScript", "en": "Skill / SkillResource / SkillScript"},
     "24-mcp.html": {"zh": "MCPStdioTool · MCPStreamableHTTPTool", "en": "MCPStdioTool · MCPStreamableHTTPTool"},
     "25-hosted-agents.html": {"zh": "2 行代码部署到 Foundry", "en": "deploy to Foundry in 2 lines"},
@@ -447,6 +467,7 @@ SUBTITLES = {
     "27-eval-timetravel.html": {"zh": "Evaluator · Workflow replay", "en": "Evaluator · Workflow replay"},
     "21-vs-others.html": {"zh": "AF vs LangGraph / AutoGen / SK", "en": "AF vs LangGraph / AutoGen / SK"},
     "22-stack-map.html": {"zh": "编排流派 · 全栈分层 · 你在哪", "en": "orchestration schools · stack layers · you are here"},
+    "31-glossary.html": {"zh": "核心术语 · 源码位置 · 概念索引", "en": "core terms · source locations · concept index"},
 }
 
 
@@ -477,7 +498,7 @@ def index_page(standalone=False, lesson_prefix=""):
     nav_tag = "" if standalone else f"<script>{NAV_SCRIPT}</script>"
     page_title = f"{SITE_NAME} · 从零理解整个项目"
     desc = ("从零理解整个 Microsoft Agent Framework 项目的中英双语图解教程：宏观结构、"
-            "用户用法、内部源码、自己动手做 Agent。6 部分 27 课，每课配真实代码对应与设计亮点。")
+            "用户用法、内部源码、自己动手做 Agent。8 部分 31 课，每课配真实代码对应与设计亮点。")
     html = f"""<!DOCTYPE html>
 <html lang="zh-CN" data-lang="zh"><head>
 <meta charset="utf-8">

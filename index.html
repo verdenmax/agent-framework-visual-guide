@@ -3,16 +3,16 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Agent Framework 图解教程 · Visual Guide · 从零理解整个项目</title>
-<meta name="description" content="从零理解整个 Microsoft Agent Framework 项目的中英双语图解教程：宏观结构、用户用法、内部源码、自己动手做 Agent。6 部分 27 课，每课配真实代码对应与设计亮点。">
+<meta name="description" content="从零理解整个 Microsoft Agent Framework 项目的中英双语图解教程：宏观结构、用户用法、内部源码、自己动手做 Agent。8 部分 31 课，每课配真实代码对应与设计亮点。">
 <meta name="theme-color" content="#0078d4">
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml;base64,PHN2ZyB4bWxucz0naHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmcnIHZpZXdCb3g9JzAgMCAzMiAzMic+PHJlY3Qgd2lkdGg9JzMyJyBoZWlnaHQ9JzMyJyByeD0nNycgZmlsbD0nIzAwNzhkNCcvPjx0ZXh0IHg9JzE2JyB5PScyMicgZm9udC1mYW1pbHk9J3N5c3RlbS11aSxzYW5zLXNlcmlmJyBmb250LXNpemU9JzEzJyBmb250LXdlaWdodD0nNzAwJyBmaWxsPScjZmZmJyB0ZXh0LWFuY2hvcj0nbWlkZGxlJz5BRjwvdGV4dD48L3N2Zz4=">
 <meta property="og:type" content="article">
 <meta property="og:site_name" content="Agent Framework 图解教程 · Visual Guide">
 <meta property="og:title" content="Agent Framework 图解教程 · Visual Guide · 从零理解整个项目">
-<meta property="og:description" content="从零理解整个 Microsoft Agent Framework 项目的中英双语图解教程：宏观结构、用户用法、内部源码、自己动手做 Agent。6 部分 27 课，每课配真实代码对应与设计亮点。">
+<meta property="og:description" content="从零理解整个 Microsoft Agent Framework 项目的中英双语图解教程：宏观结构、用户用法、内部源码、自己动手做 Agent。8 部分 31 课，每课配真实代码对应与设计亮点。">
 <meta name="twitter:card" content="summary">
 <meta name="twitter:title" content="Agent Framework 图解教程 · Visual Guide · 从零理解整个项目">
-<meta name="twitter:description" content="从零理解整个 Microsoft Agent Framework 项目的中英双语图解教程：宏观结构、用户用法、内部源码、自己动手做 Agent。6 部分 27 课，每课配真实代码对应与设计亮点。">
+<meta name="twitter:description" content="从零理解整个 Microsoft Agent Framework 项目的中英双语图解教程：宏观结构、用户用法、内部源码、自己动手做 Agent。8 部分 31 课，每课配真实代码对应与设计亮点。">
 <script>try{var l=localStorage.getItem('af-guide-lang')||'zh';document.documentElement.setAttribute('data-lang',l);}catch(e){}</script>
 <style>
 * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -235,13 +235,24 @@ table.t td.mono, table.t td .mono { font-family: ui-monospace, monospace; font-s
   background:var(--accent); color:#fff; border-radius:10px; font-size:.9rem; font-weight:650;
   box-shadow:var(--shadow); transition:.15s; }
 .pdf-btn:hover { background:var(--accent-ink); transform:translateY(-1px); }
+/* self-test quizzes (appended to each lesson by quizzes.render) */
+.selftest { margin: 2.2rem 0 0; border-top: 2px dashed var(--line); padding-top: 1.2rem; }
+.selftest > h2 { margin-top: .2rem; }
+.quiz { background: var(--panel); border: 1px solid var(--line); border-left: 4px solid var(--blue);
+  border-radius: 12px; padding: .9rem 1.1rem; margin: 1rem 0; box-shadow: var(--shadow); }
+.quiz .qn { font-weight: 650; }
+.quiz ol.opts { list-style: upper-alpha; margin: .55rem 0 .6rem 1.5rem; padding: 0; }
+.quiz ol.opts li { margin: .3rem 0; padding-left: .15rem; }
+.quiz details.accordion { margin: .5rem 0 0; }
+.selftest code { font-family: ui-monospace, monospace; font-size: .9em; color: var(--accent-ink);
+  background: var(--accent-soft); padding: 0 .28em; border-radius: 4px; }
 </style>
 </head><body>
 <div class="topbar">
   <div class="topbar-inner">
     <span class="home">📘 <span class="i18n" data-lang="zh">Agent Framework 图解教程</span><span class="i18n" data-lang="en">Agent Framework Visual Guide</span></span>
     <div class="pills">
-      <span class="pill"><span class="i18n" data-lang="zh">共 27 课 · 6 个部分</span><span class="i18n" data-lang="en">27 lessons · 6 parts</span></span>
+      <span class="pill"><span class="i18n" data-lang="zh">共 31 课 · 8 个部分</span><span class="i18n" data-lang="en">31 lessons · 8 parts</span></span>
       <span class="langtoggle">EN</span>
     </div>
   </div>
@@ -283,20 +294,26 @@ table.t td.mono, table.t td .mono { font-family: ui-monospace, monospace; font-s
 <a href="lessons/14-streaming-observability.html"><span class="n">14</span><span class="tt"><span class="i18n" data-lang="zh">流式与可观测性</span><span class="i18n" data-lang="en">Streaming & Observability</span></span><span class="ts"><span class="i18n" data-lang="zh">流式输出 · OpenTelemetry</span><span class="i18n" data-lang="en">streaming · OpenTelemetry</span></span></a>
 <div class="toc-part"><span class="i18n" data-lang="zh">第四部分 · 进阶实战</span><span class="i18n" data-lang="en">Part 4 · Advanced</span></div>
 <a href="lessons/15-contributing.html"><span class="n">15</span><span class="tt"><span class="i18n" data-lang="zh">读源码 / 调试 / 测试 / 贡献</span><span class="i18n" data-lang="en">Read, Debug, Test, Contribute</span></span><span class="ts"><span class="i18n" data-lang="zh">uv · poe · 测试 · DevUI</span><span class="i18n" data-lang="en">uv · poe · tests · DevUI</span></span></a>
+<a href="lessons/29-devui.html"><span class="n">16</span><span class="tt"><span class="i18n" data-lang="zh">DevUI 可视化调试</span><span class="i18n" data-lang="en">DevUI Visual Debugging</span></span><span class="ts"><span class="i18n" data-lang="zh">serve() · 请求/消息/trace 可视化</span><span class="i18n" data-lang="en">serve() · visualize requests/messages/traces</span></span></a>
+<a href="lessons/30-observability.html"><span class="n">17</span><span class="tt"><span class="i18n" data-lang="zh">可观测性深入</span><span class="i18n" data-lang="en">Observability Deep-Dive</span></span><span class="ts"><span class="i18n" data-lang="zh">OpenTelemetry · span 树 · trace/metric</span><span class="i18n" data-lang="en">OpenTelemetry · span tree · trace/metric</span></span></a>
 <div class="toc-part"><span class="i18n" data-lang="zh">第五部分 · 自己动手做 Agent</span><span class="i18n" data-lang="en">Part 5 · Build Your Own</span></div>
-<a href="lessons/16-providers.html"><span class="n">16</span><span class="tt"><span class="i18n" data-lang="zh">接入各家模型</span><span class="i18n" data-lang="en">Model Providers</span></span><span class="ts"><span class="i18n" data-lang="zh">Foundry/AzureOpenAI/OpenAI/Anthropic/Ollama</span><span class="i18n" data-lang="en">Foundry/AzureOpenAI/OpenAI/Anthropic/Ollama</span></span></a>
-<a href="lessons/17-declarative.html"><span class="n">17</span><span class="tt"><span class="i18n" data-lang="zh">声明式 Agent（YAML）</span><span class="i18n" data-lang="en">Declarative Agents (YAML)</span></span><span class="ts"><span class="i18n" data-lang="zh">YAML 定义 Agent</span><span class="i18n" data-lang="en">define agents in YAML</span></span></a>
-<a href="lessons/18-custom-middleware.html"><span class="n">18</span><span class="tt"><span class="i18n" data-lang="zh">写自己的中间件</span><span class="i18n" data-lang="en">Writing Your Own Middleware</span></span><span class="ts"><span class="i18n" data-lang="zh">自定义 AgentMiddleware / FunctionMiddleware</span><span class="i18n" data-lang="en">custom Agent/Function middleware</span></span></a>
-<a href="lessons/19-durability-hitl.html"><span class="n">19</span><span class="tt"><span class="i18n" data-lang="zh">检查点 · 人在环 · 持久化</span><span class="i18n" data-lang="en">Checkpointing, HITL & Durability</span></span><span class="ts"><span class="i18n" data-lang="zh">checkpoint · 人在环 · DurableTask</span><span class="i18n" data-lang="en">checkpoint · HITL · DurableTask</span></span></a>
-<a href="lessons/20-capstone.html"><span class="n">20</span><span class="tt"><span class="i18n" data-lang="zh">端到端实战：多 Agent 工作流</span><span class="i18n" data-lang="en">Capstone: A Multi-Agent Workflow</span></span><span class="ts"><span class="i18n" data-lang="zh">把所有零件拼成一个工作流</span><span class="i18n" data-lang="en">assemble everything into one workflow</span></span></a>
-<a href="lessons/23-skills.html"><span class="n">21</span><span class="tt"><span class="i18n" data-lang="zh">Agent Skills 技能系统</span><span class="i18n" data-lang="en">Agent Skills</span></span><span class="ts"><span class="i18n" data-lang="zh">Skill / SkillResource / SkillScript</span><span class="i18n" data-lang="en">Skill / SkillResource / SkillScript</span></span></a>
-<a href="lessons/24-mcp.html"><span class="n">22</span><span class="tt"><span class="i18n" data-lang="zh">MCP 工具协议</span><span class="i18n" data-lang="en">MCP Tool Protocol</span></span><span class="ts"><span class="i18n" data-lang="zh">MCPStdioTool · MCPStreamableHTTPTool</span><span class="i18n" data-lang="en">MCPStdioTool · MCPStreamableHTTPTool</span></span></a>
-<a href="lessons/25-hosted-agents.html"><span class="n">23</span><span class="tt"><span class="i18n" data-lang="zh">Foundry 托管 Agent</span><span class="i18n" data-lang="en">Foundry Hosted Agents</span></span><span class="ts"><span class="i18n" data-lang="zh">2 行代码部署到 Foundry</span><span class="i18n" data-lang="en">deploy to Foundry in 2 lines</span></span></a>
-<a href="lessons/26-a2a-agui.html"><span class="n">24</span><span class="tt"><span class="i18n" data-lang="zh">A2A + AG-UI 协议</span><span class="i18n" data-lang="en">A2A & AG-UI Protocols</span></span><span class="ts"><span class="i18n" data-lang="zh">Agent 互调 · Agent-UI 交互</span><span class="i18n" data-lang="en">agent-to-agent · agent-to-UI</span></span></a>
-<a href="lessons/27-eval-timetravel.html"><span class="n">25</span><span class="tt"><span class="i18n" data-lang="zh">评估与时间旅行</span><span class="i18n" data-lang="en">Evaluation & Time-Travel</span></span><span class="ts"><span class="i18n" data-lang="zh">Evaluator · Workflow replay</span><span class="i18n" data-lang="en">Evaluator · Workflow replay</span></span></a>
-<div class="toc-part"><span class="i18n" data-lang="zh">第六部分 · 番外篇</span><span class="i18n" data-lang="en">Part 6 · Bonus</span></div>
-<a href="lessons/21-vs-others.html"><span class="n">26</span><span class="tt"><span class="i18n" data-lang="zh">横向对比：AF vs 其他框架</span><span class="i18n" data-lang="en">AF vs Other Frameworks</span></span><span class="ts"><span class="i18n" data-lang="zh">AF vs LangGraph / AutoGen / SK</span><span class="i18n" data-lang="en">AF vs LangGraph / AutoGen / SK</span></span></a>
-<a href="lessons/22-stack-map.html"><span class="n">27</span><span class="tt"><span class="i18n" data-lang="zh">全栈坐标系 & 学习地图</span><span class="i18n" data-lang="en">Full-Stack Map & Learning Path</span></span><span class="ts"><span class="i18n" data-lang="zh">编排流派 · 全栈分层 · 你在哪</span><span class="i18n" data-lang="en">orchestration schools · stack layers · you are here</span></span></a></div>
+<a href="lessons/16-providers.html"><span class="n">18</span><span class="tt"><span class="i18n" data-lang="zh">接入各家模型</span><span class="i18n" data-lang="en">Model Providers</span></span><span class="ts"><span class="i18n" data-lang="zh">Foundry/AzureOpenAI/OpenAI/Anthropic/Ollama</span><span class="i18n" data-lang="en">Foundry/AzureOpenAI/OpenAI/Anthropic/Ollama</span></span></a>
+<a href="lessons/17-declarative.html"><span class="n">19</span><span class="tt"><span class="i18n" data-lang="zh">声明式 Agent（YAML）</span><span class="i18n" data-lang="en">Declarative Agents (YAML)</span></span><span class="ts"><span class="i18n" data-lang="zh">YAML 定义 Agent</span><span class="i18n" data-lang="en">define agents in YAML</span></span></a>
+<a href="lessons/18-custom-middleware.html"><span class="n">20</span><span class="tt"><span class="i18n" data-lang="zh">写自己的中间件</span><span class="i18n" data-lang="en">Writing Your Own Middleware</span></span><span class="ts"><span class="i18n" data-lang="zh">自定义 AgentMiddleware / FunctionMiddleware</span><span class="i18n" data-lang="en">custom Agent/Function middleware</span></span></a>
+<a href="lessons/19-durability-hitl.html"><span class="n">21</span><span class="tt"><span class="i18n" data-lang="zh">检查点 · 人在环 · 持久化</span><span class="i18n" data-lang="en">Checkpointing, HITL & Durability</span></span><span class="ts"><span class="i18n" data-lang="zh">checkpoint · 人在环 · DurableTask</span><span class="i18n" data-lang="en">checkpoint · HITL · DurableTask</span></span></a>
+<a href="lessons/20-capstone.html"><span class="n">22</span><span class="tt"><span class="i18n" data-lang="zh">端到端实战：多 Agent 工作流</span><span class="i18n" data-lang="en">Capstone: A Multi-Agent Workflow</span></span><span class="ts"><span class="i18n" data-lang="zh">把所有零件拼成一个工作流</span><span class="i18n" data-lang="en">assemble everything into one workflow</span></span></a>
+<a href="lessons/28-memory-backends.html"><span class="n">23</span><span class="tt"><span class="i18n" data-lang="zh">记忆后端</span><span class="i18n" data-lang="en">Memory Backends</span></span><span class="ts"><span class="i18n" data-lang="zh">Redis / Mem0 / Cosmos · ContextProvider</span><span class="i18n" data-lang="en">Redis / Mem0 / Cosmos · ContextProvider</span></span></a>
+<div class="toc-part"><span class="i18n" data-lang="zh">第六部分 · 协议与生态</span><span class="i18n" data-lang="en">Part 6 · Protocols & Ecosystem</span></div>
+<a href="lessons/23-skills.html"><span class="n">24</span><span class="tt"><span class="i18n" data-lang="zh">Agent Skills 技能系统</span><span class="i18n" data-lang="en">Agent Skills</span></span><span class="ts"><span class="i18n" data-lang="zh">Skill / SkillResource / SkillScript</span><span class="i18n" data-lang="en">Skill / SkillResource / SkillScript</span></span></a>
+<a href="lessons/24-mcp.html"><span class="n">25</span><span class="tt"><span class="i18n" data-lang="zh">MCP 工具协议</span><span class="i18n" data-lang="en">MCP Tool Protocol</span></span><span class="ts"><span class="i18n" data-lang="zh">MCPStdioTool · MCPStreamableHTTPTool</span><span class="i18n" data-lang="en">MCPStdioTool · MCPStreamableHTTPTool</span></span></a>
+<a href="lessons/25-hosted-agents.html"><span class="n">26</span><span class="tt"><span class="i18n" data-lang="zh">Foundry 托管 Agent</span><span class="i18n" data-lang="en">Foundry Hosted Agents</span></span><span class="ts"><span class="i18n" data-lang="zh">2 行代码部署到 Foundry</span><span class="i18n" data-lang="en">deploy to Foundry in 2 lines</span></span></a>
+<a href="lessons/26-a2a-agui.html"><span class="n">27</span><span class="tt"><span class="i18n" data-lang="zh">A2A + AG-UI 协议</span><span class="i18n" data-lang="en">A2A & AG-UI Protocols</span></span><span class="ts"><span class="i18n" data-lang="zh">Agent 互调 · Agent-UI 交互</span><span class="i18n" data-lang="en">agent-to-agent · agent-to-UI</span></span></a>
+<a href="lessons/27-eval-timetravel.html"><span class="n">28</span><span class="tt"><span class="i18n" data-lang="zh">评估与时间旅行</span><span class="i18n" data-lang="en">Evaluation & Time-Travel</span></span><span class="ts"><span class="i18n" data-lang="zh">Evaluator · Workflow replay</span><span class="i18n" data-lang="en">Evaluator · Workflow replay</span></span></a>
+<div class="toc-part"><span class="i18n" data-lang="zh">第七部分 · 番外篇</span><span class="i18n" data-lang="en">Part 7 · Bonus</span></div>
+<a href="lessons/21-vs-others.html"><span class="n">29</span><span class="tt"><span class="i18n" data-lang="zh">横向对比：AF vs 其他框架</span><span class="i18n" data-lang="en">AF vs Other Frameworks</span></span><span class="ts"><span class="i18n" data-lang="zh">AF vs LangGraph / AutoGen / SK</span><span class="i18n" data-lang="en">AF vs LangGraph / AutoGen / SK</span></span></a>
+<a href="lessons/22-stack-map.html"><span class="n">30</span><span class="tt"><span class="i18n" data-lang="zh">全栈坐标系 & 学习地图</span><span class="i18n" data-lang="en">Full-Stack Map & Learning Path</span></span><span class="ts"><span class="i18n" data-lang="zh">编排流派 · 全栈分层 · 你在哪</span><span class="i18n" data-lang="en">orchestration schools · stack layers · you are here</span></span></a>
+<div class="toc-part"><span class="i18n" data-lang="zh">第八部分 · 速查</span><span class="i18n" data-lang="en">Part 8 · Quick Reference</span></div>
+<a href="lessons/31-glossary.html"><span class="n">31</span><span class="tt"><span class="i18n" data-lang="zh">术语表 · 速查</span><span class="i18n" data-lang="en">Glossary & Quick Reference</span></span><span class="ts"><span class="i18n" data-lang="zh">核心术语 · 源码位置 · 概念索引</span><span class="i18n" data-lang="en">core terms · source locations · concept index</span></span></a></div>
 </div>
 
 <script>

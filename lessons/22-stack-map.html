@@ -2,17 +2,17 @@
 <html lang="zh-CN" data-lang="zh"><head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>27 · 全栈坐标系 & 学习地图 — Full-Stack Map & Learning Path · Agent Framework 图解教程 · Visual Guide</title>
-<meta name="description" content="第六部分 · 番外篇｜全栈坐标系 & 学习地图（Full-Stack Map & Learning Path）：面向新手的 Agent Framework 图解教程，配真实源码对应与设计亮点。">
+<title>30 · 全栈坐标系 & 学习地图 — Full-Stack Map & Learning Path · Agent Framework 图解教程 · Visual Guide</title>
+<meta name="description" content="第七部分 · 番外篇｜全栈坐标系 & 学习地图（Full-Stack Map & Learning Path）：面向新手的 Agent Framework 图解教程，配真实源码对应与设计亮点。">
 <meta name="theme-color" content="#0078d4">
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml;base64,PHN2ZyB4bWxucz0naHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmcnIHZpZXdCb3g9JzAgMCAzMiAzMic+PHJlY3Qgd2lkdGg9JzMyJyBoZWlnaHQ9JzMyJyByeD0nNycgZmlsbD0nIzAwNzhkNCcvPjx0ZXh0IHg9JzE2JyB5PScyMicgZm9udC1mYW1pbHk9J3N5c3RlbS11aSxzYW5zLXNlcmlmJyBmb250LXNpemU9JzEzJyBmb250LXdlaWdodD0nNzAwJyBmaWxsPScjZmZmJyB0ZXh0LWFuY2hvcj0nbWlkZGxlJz5BRjwvdGV4dD48L3N2Zz4=">
 <meta property="og:type" content="article">
 <meta property="og:site_name" content="Agent Framework 图解教程 · Visual Guide">
-<meta property="og:title" content="27 · 全栈坐标系 & 学习地图 — Full-Stack Map & Learning Path · Agent Framework 图解教程 · Visual Guide">
-<meta property="og:description" content="第六部分 · 番外篇｜全栈坐标系 & 学习地图（Full-Stack Map & Learning Path）：面向新手的 Agent Framework 图解教程，配真实源码对应与设计亮点。">
+<meta property="og:title" content="30 · 全栈坐标系 & 学习地图 — Full-Stack Map & Learning Path · Agent Framework 图解教程 · Visual Guide">
+<meta property="og:description" content="第七部分 · 番外篇｜全栈坐标系 & 学习地图（Full-Stack Map & Learning Path）：面向新手的 Agent Framework 图解教程，配真实源码对应与设计亮点。">
 <meta name="twitter:card" content="summary">
-<meta name="twitter:title" content="27 · 全栈坐标系 & 学习地图 — Full-Stack Map & Learning Path · Agent Framework 图解教程 · Visual Guide">
-<meta name="twitter:description" content="第六部分 · 番外篇｜全栈坐标系 & 学习地图（Full-Stack Map & Learning Path）：面向新手的 Agent Framework 图解教程，配真实源码对应与设计亮点。">
+<meta name="twitter:title" content="30 · 全栈坐标系 & 学习地图 — Full-Stack Map & Learning Path · Agent Framework 图解教程 · Visual Guide">
+<meta name="twitter:description" content="第七部分 · 番外篇｜全栈坐标系 & 学习地图（Full-Stack Map & Learning Path）：面向新手的 Agent Framework 图解教程，配真实源码对应与设计亮点。">
 <script>try{var l=localStorage.getItem('af-guide-lang')||'zh';document.documentElement.setAttribute('data-lang',l);}catch(e){}</script>
 <style>
 * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -235,22 +235,33 @@ table.t td.mono, table.t td .mono { font-family: ui-monospace, monospace; font-s
   background:var(--accent); color:#fff; border-radius:10px; font-size:.9rem; font-weight:650;
   box-shadow:var(--shadow); transition:.15s; }
 .pdf-btn:hover { background:var(--accent-ink); transform:translateY(-1px); }
+/* self-test quizzes (appended to each lesson by quizzes.render) */
+.selftest { margin: 2.2rem 0 0; border-top: 2px dashed var(--line); padding-top: 1.2rem; }
+.selftest > h2 { margin-top: .2rem; }
+.quiz { background: var(--panel); border: 1px solid var(--line); border-left: 4px solid var(--blue);
+  border-radius: 12px; padding: .9rem 1.1rem; margin: 1rem 0; box-shadow: var(--shadow); }
+.quiz .qn { font-weight: 650; }
+.quiz ol.opts { list-style: upper-alpha; margin: .55rem 0 .6rem 1.5rem; padding: 0; }
+.quiz ol.opts li { margin: .3rem 0; padding-left: .15rem; }
+.quiz details.accordion { margin: .5rem 0 0; }
+.selftest code { font-family: ui-monospace, monospace; font-size: .9em; color: var(--accent-ink);
+  background: var(--accent-soft); padding: 0 .28em; border-radius: 4px; }
 </style>
 </head><body>
 <div class="topbar">
   <div class="topbar-inner">
     <a class="home" href="../index.html">📘 <span class="i18n" data-lang="zh">Agent Framework 图解教程 · </span><span class="i18n" data-lang="en">Agent Framework Visual Guide · </span><b><span class="i18n" data-lang="zh">目录</span><span class="i18n" data-lang="en">Contents</span></b></a>
     <div class="pills">
-      <span class="pill"><span class="i18n" data-lang="zh">第六部分 · 番外篇</span><span class="i18n" data-lang="en">Part 6 · Bonus</span></span>
-      <span class="pill">27 / 27</span>
+      <span class="pill"><span class="i18n" data-lang="zh">第七部分 · 番外篇</span><span class="i18n" data-lang="en">Part 7 · Bonus</span></span>
+      <span class="pill">30 / 31</span>
       <span class="langtoggle">EN</span>
     </div>
   </div>
-  <div class="progress"><span style="width:100%"></span></div>
+  <div class="progress"><span style="width:96%"></span></div>
 </div>
 <div class="wrap">
   <div class="hero">
-    <div class="part"><span class="i18n" data-lang="zh">第六部分 · 番外篇</span><span class="i18n" data-lang="en">Part 6 · Bonus</span></div>
+    <div class="part"><span class="i18n" data-lang="zh">第七部分 · 番外篇</span><span class="i18n" data-lang="en">Part 7 · Bonus</span></div>
     <h1><span class="i18n" data-lang="zh">全栈坐标系 & 学习地图</span><span class="i18n" data-lang="en">Full-Stack Map & Learning Path</span></h1>
   </div>
   <div class="i18n" data-lang="zh">
@@ -274,6 +285,22 @@ table.t td.mono, table.t td .mono { font-family: ui-monospace, monospace; font-s
   <div class="layer l-core"><div class="lh"><span class="badge">L4</span><span class="name">向量检索 / RAG</span></div>
     <div class="ld">Embeddings · pgvector · Qdrant · Azure AI Search。</div></div>
 </div>
+
+<h2>一个请求怎么穿过这几层</h2>
+<div class="flow">
+  <div class="node"><div class="nt">用户提问</div><div class="nd">L7 应用层</div></div>
+  <div class="arrow">→</div>
+  <div class="node hl"><div class="nt">MAF 编排</div><div class="nd">L6 ← 你在这</div></div>
+  <div class="arrow">→</div>
+  <div class="node"><div class="nt">RAG 取上下文</div><div class="nd">L4 向量检索</div></div>
+  <div class="arrow">→</div>
+  <div class="node"><div class="nt">模型推理</div><div class="nd">L5 OpenAI / vLLM</div></div>
+  <div class="arrow">→</div>
+  <div class="node"><div class="nt">编排组装回复</div><div class="nd">L6</div></div>
+  <div class="arrow">→</div>
+  <div class="node"><div class="nt">渲染返回</div><div class="nd">L7 → 用户</div></div>
+</div>
+<p>一次问答会<strong>上下穿过好几层</strong>：你写的 MAF 编排（L6）夹在中间——向上接应用，向下调推理、必要时先到 L4 取知识。看懂这条数据流，就知道“接水管接电线”该去哪一层：要私有模型改 L5，要知识库改 L4，要换前端改 L7，<strong>而 Agent 逻辑（L6）基本不动</strong>。</p>
 
 <h2>编排流派一览</h2>
 <table class="t">
@@ -456,7 +483,54 @@ app = FastAPI()
   因此<strong>对上下层都有基本了解</strong>是成为 Agent 高手的关键。
   你不需要精通每一层，但需要知道它在做什么、怎么和你的层对接。
 </div>
+<div class="selftest">
+<h2>🧪 自测 · 想一想为什么这么设计</h2>
+<div class="quiz">
+  <div class="qn">1. MAF 的 <code>OpenAIChatClient</code> 能指向 vLLM / llama.cpp server / Ollama。这给你带来的最大好处是？</div>
+  <ol class="opts">
+    <li>因为它们其实是同一个模型</li>
+    <li>这些后端会自动让模型变得更聪明</li>
+    <li>开发时用云端 OpenAI API，上线切私有 vLLM，Agent 代码一行不改——推理层与编排层解耦</li>
+    <li>只有这样才能使用工具调用</li>
+  </ol>
+  <details class="accordion">
+    <summary>看答案与解析 <span class="hint">点击展开</span></summary>
+    <div class="acc-body"><div class="qa"><div class="a"><strong>答案：C</strong>。只要端点兼容 OpenAI API，<code>ChatClient</code> 就能接。L5（推理）与 L6（编排）解耦，意味着私有化部署、成本 / 延迟优化只是“换 L5”，不波及你写的 Agent 逻辑。</div></div></div>
+  </details>
 </div>
+<div class="quiz">
+  <div class="qn">2. 本课把编排分成链 / 图 / 多 Agent 对话 / Planner / 声明式几大流派。MAF 的特别之处在于？</div>
+  <ol class="opts">
+    <li>它把“图”和“多 Agent 对话”统一进同一个框架，预置编排是糖、底层 Workflow 是引擎，可混用</li>
+    <li>它只支持声明式一种流派</li>
+    <li>它发明了链式管道</li>
+    <li>它要求每个项目只能选一种流派</li>
+  </ol>
+  <details class="accordion">
+    <summary>看答案与解析 <span class="hint">点击展开</span></summary>
+    <div class="acc-body"><div class="qa"><div class="a"><strong>答案：A</strong>。多数框架押注单一流派（LangChain=链、LangGraph=图、AutoGen=对话、SK=Planner）。MAF 把图编排和多 Agent 对话收进<strong>一个引擎</strong>，让你在同一项目里按场景混搭，而不必跨框架拼装。</div></div></div>
+  </details>
+</div>
+<div class="quiz">
+  <div class="qn">3. 你想给现有 MAF Agent 加“基于公司知识库回答”。按全栈分层，这主要是在改哪一层、为什么 Agent 逻辑基本不用动？</div>
+  <ol class="opts">
+    <li>必须把 Agent 拆成多个才能加知识</li>
+    <li>改 L7 应用层的 CSS</li>
+    <li>改 L5 推理层的 GPU 驱动</li>
+    <li>主要改 L4（向量检索 / RAG），把检索到的上下文喂给 L6 的 Agent；分层让“加知识”变成接入新层，而不是重构</li>
+  </ol>
+  <details class="accordion">
+    <summary>看答案与解析 <span class="hint">点击展开</span></summary>
+    <div class="acc-body"><div class="qa"><div class="a"><strong>答案：D</strong>。全栈分层让每种需求对应一层：私有模型→L5，知识库→L4，换前端→L7。RAG 是在 L4 取上下文再注入 L6 的 Agent，所以 Agent 编排逻辑稳定——这正是“看懂楼层布局才知道去哪接管线”。</div></div></div>
+  </details>
+</div>
+<div class="card spark">
+  <div class="tag">💭 发散思考（没有标准答案，动手或动脑想想）</div>
+  <ul>
+    <li>把你这门课学到的 MAF 能力放进本课的全栈坐标系：你主要在哪一层工作？如果要做一个“私有部署 + 带公司知识库 + 网页聊天界面”的产品，请分别说出你会在 L7 / L6 / L5 / L4 各做什么，以及为什么这种分层能让团队<strong>并行开发</strong>。</li>
+  </ul>
+</div>
+</div></div>
 <div class="i18n" data-lang="en">
 <p class="lead">Final lesson — zoom out: place MAF in the <strong>AI full-stack</strong> coordinate system and see
 what's worth learning next door.</p>
@@ -479,6 +553,22 @@ what's worth learning next door.</p>
   <div class="layer l-core"><div class="lh"><span class="badge">L4</span><span class="name">Vector Search / RAG</span></div>
     <div class="ld">Embeddings · pgvector · Qdrant · Azure AI Search.</div></div>
 </div>
+
+<h2>How one request travels through the layers</h2>
+<div class="flow">
+  <div class="node"><div class="nt">user asks</div><div class="nd">L7 application</div></div>
+  <div class="arrow">→</div>
+  <div class="node hl"><div class="nt">MAF orchestration</div><div class="nd">L6 ← you are here</div></div>
+  <div class="arrow">→</div>
+  <div class="node"><div class="nt">RAG fetch context</div><div class="nd">L4 vector search</div></div>
+  <div class="arrow">→</div>
+  <div class="node"><div class="nt">model inference</div><div class="nd">L5 OpenAI / vLLM</div></div>
+  <div class="arrow">→</div>
+  <div class="node"><div class="nt">assemble reply</div><div class="nd">L6</div></div>
+  <div class="arrow">→</div>
+  <div class="node"><div class="nt">render back</div><div class="nd">L7 → user</div></div>
+</div>
+<p>A single Q&amp;A <strong>travels up and down several layers</strong>: your MAF orchestration (L6) sits in the middle - reaching up to the app, down to inference, and over to L4 for knowledge when needed. Reading this dataflow tells you which layer to &quot;connect the plumbing&quot; in: private models change L5, a knowledge base changes L4, a new front end changes L7 - while the <strong>Agent logic (L6) stays basically untouched</strong>.</p>
 
 <h2>Orchestration schools</h2>
 <table class="t">
@@ -665,8 +755,55 @@ app = FastAPI()
   Knowing the layers above and below is key to becoming an Agent expert.
   You don't need to master every layer — just know what it does and how it interfaces with yours.
 </div>
+<div class="selftest">
+<h2>🧪 Self-test - think about the design</h2>
+<div class="quiz">
+  <div class="qn">1. MAF's <code>OpenAIChatClient</code> can point at vLLM / a llama.cpp server / Ollama. What's the biggest benefit?</div>
+  <ol class="opts">
+    <li>Because they're actually the same model</li>
+    <li>These backends automatically make the model smarter</li>
+    <li>Develop against the cloud OpenAI API, switch to private vLLM in production, and the Agent code doesn't change a line - inference and orchestration are decoupled</li>
+    <li>Because tool calling only works this way</li>
+  </ol>
+  <details class="accordion">
+    <summary>Show answer &amp; explanation <span class="hint">click to expand</span></summary>
+    <div class="acc-body"><div class="qa"><div class="a"><strong>Answer: C</strong>. As long as the endpoint speaks the OpenAI API, the <code>ChatClient</code> can connect. Decoupling L5 (inference) from L6 (orchestration) means private deployment and cost / latency tuning are just &quot;swap L5&quot;, leaving your Agent logic untouched.</div></div></div>
+  </details>
 </div>
-  <div class="footnav"><a class="prev" href="21-vs-others.html"><div class="dir"><span class="i18n" data-lang="zh">← 上一课</span><span class="i18n" data-lang="en">← Prev</span></div><div class="ttl"><span class="i18n" data-lang="zh">横向对比：AF vs 其他框架</span><span class="i18n" data-lang="en">AF vs Other Frameworks</span></div></a><a class="next" href="../index.html"><div class="dir"><span class="i18n" data-lang="zh">完成 →</span><span class="i18n" data-lang="en">Done →</span></div><div class="ttl"><span class="i18n" data-lang="zh">返回目录</span><span class="i18n" data-lang="en">Back to Contents</span></div></a></div>
+<div class="quiz">
+  <div class="qn">2. This lesson groups orchestration into schools: chain / graph / multi-agent chat / Planner / declarative. What makes MAF special?</div>
+  <ol class="opts">
+    <li>It unifies &quot;graph&quot; and &quot;multi-agent chat&quot; in one framework - prebuilt orchestrations are sugar, the underlying Workflow is the engine, and you can mix them</li>
+    <li>It supports only the declarative school</li>
+    <li>It invented the chain pipeline</li>
+    <li>It requires each project to pick exactly one school</li>
+  </ol>
+  <details class="accordion">
+    <summary>Show answer &amp; explanation <span class="hint">click to expand</span></summary>
+    <div class="acc-body"><div class="qa"><div class="a"><strong>Answer: A</strong>. Most frameworks bet on one school (LangChain=chain, LangGraph=graph, AutoGen=chat, SK=Planner). MAF folds graph orchestration and multi-agent chat into <strong>one engine</strong>, letting you mix per scenario within a single project instead of stitching frameworks together.</div></div></div>
+  </details>
+</div>
+<div class="quiz">
+  <div class="qn">3. You want an existing MAF Agent to &quot;answer from the company knowledge base&quot;. By the full-stack layering, which layer mainly changes, and why does Agent logic stay largely untouched?</div>
+  <ol class="opts">
+    <li>You must split the Agent into several to add knowledge</li>
+    <li>Change the CSS in the L7 application layer</li>
+    <li>Change the GPU driver in the L5 inference layer</li>
+    <li>Mainly L4 (vector search / RAG), feeding retrieved context into the L6 Agent; layering makes &quot;adding knowledge&quot; a matter of plugging in a layer, not refactoring</li>
+  </ol>
+  <details class="accordion">
+    <summary>Show answer &amp; explanation <span class="hint">click to expand</span></summary>
+    <div class="acc-body"><div class="qa"><div class="a"><strong>Answer: D</strong>. The full-stack layering maps each need to a layer: private model→L5, knowledge base→L4, new front end→L7. RAG fetches context at L4 and injects it into the L6 Agent, so the orchestration logic stays stable - exactly &quot;know the floor plan to know where to connect the pipes&quot;.</div></div></div>
+  </details>
+</div>
+<div class="card spark">
+  <div class="tag">💭 Open questions (no single right answer - just think or try)</div>
+  <ul>
+    <li>Place the MAF skills from this course into the full-stack map: which layer do you mainly work in? For a product that is &quot;privately deployed + backed by a company knowledge base + with a web chat UI&quot;, say what you'd do at each of L7 / L6 / L5 / L4, and why this layering lets a team <strong>work in parallel</strong>.</li>
+  </ul>
+</div>
+</div></div>
+  <div class="footnav"><a class="prev" href="21-vs-others.html"><div class="dir"><span class="i18n" data-lang="zh">← 上一课</span><span class="i18n" data-lang="en">← Prev</span></div><div class="ttl"><span class="i18n" data-lang="zh">横向对比：AF vs 其他框架</span><span class="i18n" data-lang="en">AF vs Other Frameworks</span></div></a><a class="next" href="31-glossary.html"><div class="dir"><span class="i18n" data-lang="zh">下一课 →</span><span class="i18n" data-lang="en">Next →</span></div><div class="ttl"><span class="i18n" data-lang="zh">术语表 · 速查</span><span class="i18n" data-lang="en">Glossary & Quick Reference</span></div></a></div>
 </div>
 
 <script>

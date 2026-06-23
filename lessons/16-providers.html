@@ -2,16 +2,16 @@
 <html lang="zh-CN" data-lang="zh"><head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>16 · 接入各家模型 — Model Providers · Agent Framework 图解教程 · Visual Guide</title>
+<title>18 · 接入各家模型 — Model Providers · Agent Framework 图解教程 · Visual Guide</title>
 <meta name="description" content="第五部分 · 自己动手做 Agent｜接入各家模型（Model Providers）：面向新手的 Agent Framework 图解教程，配真实源码对应与设计亮点。">
 <meta name="theme-color" content="#0078d4">
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml;base64,PHN2ZyB4bWxucz0naHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmcnIHZpZXdCb3g9JzAgMCAzMiAzMic+PHJlY3Qgd2lkdGg9JzMyJyBoZWlnaHQ9JzMyJyByeD0nNycgZmlsbD0nIzAwNzhkNCcvPjx0ZXh0IHg9JzE2JyB5PScyMicgZm9udC1mYW1pbHk9J3N5c3RlbS11aSxzYW5zLXNlcmlmJyBmb250LXNpemU9JzEzJyBmb250LXdlaWdodD0nNzAwJyBmaWxsPScjZmZmJyB0ZXh0LWFuY2hvcj0nbWlkZGxlJz5BRjwvdGV4dD48L3N2Zz4=">
 <meta property="og:type" content="article">
 <meta property="og:site_name" content="Agent Framework 图解教程 · Visual Guide">
-<meta property="og:title" content="16 · 接入各家模型 — Model Providers · Agent Framework 图解教程 · Visual Guide">
+<meta property="og:title" content="18 · 接入各家模型 — Model Providers · Agent Framework 图解教程 · Visual Guide">
 <meta property="og:description" content="第五部分 · 自己动手做 Agent｜接入各家模型（Model Providers）：面向新手的 Agent Framework 图解教程，配真实源码对应与设计亮点。">
 <meta name="twitter:card" content="summary">
-<meta name="twitter:title" content="16 · 接入各家模型 — Model Providers · Agent Framework 图解教程 · Visual Guide">
+<meta name="twitter:title" content="18 · 接入各家模型 — Model Providers · Agent Framework 图解教程 · Visual Guide">
 <meta name="twitter:description" content="第五部分 · 自己动手做 Agent｜接入各家模型（Model Providers）：面向新手的 Agent Framework 图解教程，配真实源码对应与设计亮点。">
 <script>try{var l=localStorage.getItem('af-guide-lang')||'zh';document.documentElement.setAttribute('data-lang',l);}catch(e){}</script>
 <style>
@@ -235,6 +235,17 @@ table.t td.mono, table.t td .mono { font-family: ui-monospace, monospace; font-s
   background:var(--accent); color:#fff; border-radius:10px; font-size:.9rem; font-weight:650;
   box-shadow:var(--shadow); transition:.15s; }
 .pdf-btn:hover { background:var(--accent-ink); transform:translateY(-1px); }
+/* self-test quizzes (appended to each lesson by quizzes.render) */
+.selftest { margin: 2.2rem 0 0; border-top: 2px dashed var(--line); padding-top: 1.2rem; }
+.selftest > h2 { margin-top: .2rem; }
+.quiz { background: var(--panel); border: 1px solid var(--line); border-left: 4px solid var(--blue);
+  border-radius: 12px; padding: .9rem 1.1rem; margin: 1rem 0; box-shadow: var(--shadow); }
+.quiz .qn { font-weight: 650; }
+.quiz ol.opts { list-style: upper-alpha; margin: .55rem 0 .6rem 1.5rem; padding: 0; }
+.quiz ol.opts li { margin: .3rem 0; padding-left: .15rem; }
+.quiz details.accordion { margin: .5rem 0 0; }
+.selftest code { font-family: ui-monospace, monospace; font-size: .9em; color: var(--accent-ink);
+  background: var(--accent-soft); padding: 0 .28em; border-radius: 4px; }
 </style>
 </head><body>
 <div class="topbar">
@@ -242,11 +253,11 @@ table.t td.mono, table.t td .mono { font-family: ui-monospace, monospace; font-s
     <a class="home" href="../index.html">📘 <span class="i18n" data-lang="zh">Agent Framework 图解教程 · </span><span class="i18n" data-lang="en">Agent Framework Visual Guide · </span><b><span class="i18n" data-lang="zh">目录</span><span class="i18n" data-lang="en">Contents</span></b></a>
     <div class="pills">
       <span class="pill"><span class="i18n" data-lang="zh">第五部分 · 自己动手做 Agent</span><span class="i18n" data-lang="en">Part 5 · Build Your Own</span></span>
-      <span class="pill">16 / 27</span>
+      <span class="pill">18 / 31</span>
       <span class="langtoggle">EN</span>
     </div>
   </div>
-  <div class="progress"><span style="width:59%"></span></div>
+  <div class="progress"><span style="width:58%"></span></div>
 </div>
 <div class="wrap">
   <div class="hero">
@@ -268,11 +279,23 @@ table.t td.mono, table.t td .mono { font-family: ui-monospace, monospace; font-s
   <tr><th>Provider</th><th>包名</th><th>ChatClient 类</th></tr>
   <tr><td>Azure AI Foundry</td><td class="mono">agent-framework-foundry</td><td class="mono">FoundryChatClient</td></tr>
   <tr><td>OpenAI / Azure OpenAI</td><td class="mono">agent-framework（内置）</td><td class="mono">OpenAIChatClient</td></tr>
-  <tr><td>Anthropic Claude</td><td class="mono">agent-framework-anthropic</td><td class="mono">AnthropicChatClient</td></tr>
+  <tr><td>Anthropic Claude</td><td class="mono">agent-framework-anthropic</td><td class="mono">AnthropicClient</td></tr>
   <tr><td>Ollama（本地）</td><td class="mono">agent-framework-ollama</td><td class="mono">OllamaChatClient</td></tr>
   <tr><td>AWS Bedrock</td><td class="mono">agent-framework-bedrock</td><td class="mono">BedrockChatClient</td></tr>
 </table>
 <p>全部用法一样：实例化 ChatClient → <span class="mono">client.as_agent(…)</span> → <span class="mono">agent.run(…)</span>。</p>
+
+<h2>从 import 到 run：所有 provider 同一条路</h2>
+<div class="flow">
+  <div class="node"><div class="nt">import</div><div class="nd">选一个 provider 包</div></div>
+  <div class="arrow">→</div>
+  <div class="node"><div class="nt">实例化</div><div class="nd">XxxChatClient(model=…)</div></div>
+  <div class="arrow">→</div>
+  <div class="node hl"><div class="nt">.as_agent(…)</div><div class="nd">厂商无关</div></div>
+  <div class="arrow">→</div>
+  <div class="node"><div class="nt">agent.run(…)</div><div class="nd">厂商无关</div></div>
+</div>
+<p>只有前两个框会随厂商变（包名 + ChatClient 类）；后两个框<strong>对所有 provider 完全一样</strong>。这就是“万能插座”：换插头不用换电器——把 OpenAI 换成 Anthropic，下游 Agent 代码一行不改。</p>
 
 <details class="accordion">
   <summary><span class="badge-num">1</span> FoundryChatClient 配置 <span class="hint">点击展开详解</span></summary>
@@ -312,7 +335,7 @@ client = FoundryChatClient(
     <div class="qa">
       <div class="q">🧪 示例</div>
       <div class="a">OpenAI 或 Azure OpenAI 均可：
-<pre class="code"><span class="kw">from</span> agent_framework <span class="kw">import</span> OpenAIChatClient
+<pre class="code"><span class="kw">from</span> agent_framework.openai <span class="kw">import</span> OpenAIChatClient
 
 <span class="cm"># OpenAI</span>
 client = OpenAIChatClient(
@@ -344,7 +367,7 @@ client = OpenAIChatClient(
 </details>
 
 <details class="accordion">
-  <summary><span class="badge-num">3</span> AnthropicChatClient 配置 <span class="hint">点击展开详解</span></summary>
+  <summary><span class="badge-num">3</span> AnthropicClient 配置 <span class="hint">点击展开详解</span></summary>
   <div class="acc-body">
     <div class="qa">
       <div class="q">🧪 示例</div>
@@ -353,9 +376,9 @@ client = OpenAIChatClient(
 pip install agent-framework-anthropic
 
 <span class="cm"># 使用</span>
-<span class="kw">from</span> agent_framework_anthropic <span class="kw">import</span> AnthropicChatClient
+<span class="kw">from</span> agent_framework_anthropic <span class="kw">import</span> AnthropicClient
 
-client = AnthropicChatClient(
+client = AnthropicClient(
     model=<span class="st">"claude-sonnet-4-5"</span>,
     api_key=os.environ[<span class="st">"ANTHROPIC_API_KEY"</span>]
 )
@@ -425,7 +448,7 @@ agent = client.as_agent(
 )
 
 <span class="cm"># 变体 2：Anthropic</span>
-client = AnthropicChatClient(model=<span class="st">"claude-sonnet-4-5"</span>, api_key=...)
+client = AnthropicClient(model=<span class="st">"claude-sonnet-4-5"</span>, api_key=...)
 agent = client.as_agent(
     name=<span class="st">"Assistant"</span>,
     instructions=<span class="st">"You are helpful."</span>,
@@ -471,7 +494,54 @@ agent = client.as_agent(
   <strong>新增厂商不碰核心</strong>：provider 是独立包，通过懒加载接入。
   社区可以自己做新 provider 而不需要 fork 仓库。
 </div>
+<div class="selftest">
+<h2>🧪 自测 · 想一想为什么这么设计</h2>
+<div class="quiz">
+  <div class="qn">1. 为什么把模型厂商从 OpenAI 换成 Anthropic，通常只改“实例化 ChatClient”那一两行，下游 Agent 代码却不用动？</div>
+  <ol class="opts">
+    <li>因为 Agent 代码里其实写死了 OpenAI</li>
+    <li><code>as_agent()</code> / <code>run()</code> 这层接口是厂商无关的，provider 包只负责把自家 API 适配成同一套 ChatClient 抽象</li>
+    <li>因为所有厂商的 HTTP API 格式本来就完全一样</li>
+    <li>因为 MAF 会在运行时自动翻译你的 prompt</li>
+  </ol>
+  <details class="accordion">
+    <summary>看答案与解析 <span class="hint">点击展开</span></summary>
+    <div class="acc-body"><div class="qa"><div class="a"><strong>答案：B</strong>。ChatClient 是一道<strong>抽象边界</strong>：每个 provider 包实现同一套接口，Agent 只依赖抽象。所以“构造 ChatClient”以上随厂商变，以下全部复用——换厂商是局部改动。</div></div></div>
+  </details>
 </div>
+<div class="quiz">
+  <div class="qn">2. MAF 用<strong>同一个</strong> <code>OpenAIChatClient</code> 同时接 OpenAI 和 Azure OpenAI（靠 <code>base_url</code> / 认证区分），而不是做两个类。为什么？</div>
+  <ol class="opts">
+    <li>两者底层 wire protocol 相同，只是 endpoint / 认证不同——一个类加参数比两个近乎重复的类更好维护</li>
+    <li>因为 Azure OpenAI 没有自己的 SDK</li>
+    <li>因为 OpenAI 和 Azure 是同一家公司</li>
+    <li>因为 MAF 其实不支持 Azure OpenAI</li>
+  </ol>
+  <details class="accordion">
+    <summary>看答案与解析 <span class="hint">点击展开</span></summary>
+    <div class="acc-body"><div class="qa"><div class="a"><strong>答案：A</strong>。两种部署协议一致，差别只在 endpoint 和 credential。用一个类 + 参数化，比维护两个几乎重复的类更省心——这也呼应“厂商无关”：连同一厂商的两种部署都收敛到同一接口。</div></div></div>
+  </details>
+</div>
+<div class="quiz">
+  <div class="qn">3. 接入 Anthropic Claude 时，MAF 里<strong>真实</strong>的 ChatClient 类名是哪个？</div>
+  <ol class="opts">
+    <li><code>ClaudeChatClient</code></li>
+    <li><code>AnthropicAgent</code></li>
+    <li><code>AnthropicClient</code></li>
+    <li><code>AnthropicChatClient</code></li>
+  </ol>
+  <details class="accordion">
+    <summary>看答案与解析 <span class="hint">点击展开</span></summary>
+    <div class="acc-body"><div class="qa"><div class="a"><strong>答案：C</strong>。真实类名是 <code>AnthropicClient</code>（不是 <code>AnthropicChatClient</code>），从 <code>agent_framework.anthropic</code> 导入；而 OpenAI 那个才叫 <code>OpenAIChatClient</code>。命名不完全统一是真实情况——按包里的真名来，别想当然套 <code>*ChatClient</code>。</div></div></div>
+  </details>
+</div>
+<div class="card spark">
+  <div class="tag">💭 发散思考（没有标准答案，动手或动脑想想）</div>
+  <ul>
+    <li>请用真实类名分别写出“接入 OpenAI”和“接入 Anthropic”的 import + 实例化两行代码，然后指出：如果一个已经写好的 <code>agent.run(...)</code> 业务函数要在两家之间切换，哪些行会变、哪些行完全不变，并解释这背后是哪条设计原则。</li>
+  </ul>
+</div>
+</div></div>
 <div class="i18n" data-lang="en">
 <p class="lead">MAF's ChatClient is vendor-agnostic — but you pick a concrete vendor to <strong>connect a model</strong>.
 This lesson surveys the main provider packages and shows the <strong>import-to-run path</strong>.</p>
@@ -487,11 +557,23 @@ This lesson surveys the main provider packages and shows the <strong>import-to-r
   <tr><th>Provider</th><th>Package</th><th>ChatClient class</th></tr>
   <tr><td>Azure AI Foundry</td><td class="mono">agent-framework-foundry</td><td class="mono">FoundryChatClient</td></tr>
   <tr><td>OpenAI / Azure OpenAI</td><td class="mono">agent-framework (built-in)</td><td class="mono">OpenAIChatClient</td></tr>
-  <tr><td>Anthropic Claude</td><td class="mono">agent-framework-anthropic</td><td class="mono">AnthropicChatClient</td></tr>
+  <tr><td>Anthropic Claude</td><td class="mono">agent-framework-anthropic</td><td class="mono">AnthropicClient</td></tr>
   <tr><td>Ollama (local)</td><td class="mono">agent-framework-ollama</td><td class="mono">OllamaChatClient</td></tr>
   <tr><td>AWS Bedrock</td><td class="mono">agent-framework-bedrock</td><td class="mono">BedrockChatClient</td></tr>
 </table>
 <p>Same pattern for all: instantiate ChatClient → <span class="mono">client.as_agent(…)</span> → <span class="mono">agent.run(…)</span>.</p>
+
+<h2>From import to run: one path for every provider</h2>
+<div class="flow">
+  <div class="node"><div class="nt">import</div><div class="nd">pick a provider package</div></div>
+  <div class="arrow">→</div>
+  <div class="node"><div class="nt">instantiate</div><div class="nd">XxxChatClient(model=…)</div></div>
+  <div class="arrow">→</div>
+  <div class="node hl"><div class="nt">.as_agent(…)</div><div class="nd">vendor-agnostic</div></div>
+  <div class="arrow">→</div>
+  <div class="node"><div class="nt">agent.run(…)</div><div class="nd">vendor-agnostic</div></div>
+</div>
+<p>Only the first two boxes change per vendor (package name + ChatClient class); the last two are <strong>identical for every provider</strong>. That's the &quot;universal socket&quot;: swap the plug, keep the appliance - switch OpenAI for Anthropic and the downstream Agent code doesn't change a line.</p>
 
 <details class="accordion">
   <summary><span class="badge-num">1</span> FoundryChatClient configuration <span class="hint">expand</span></summary>
@@ -531,7 +613,7 @@ client = FoundryChatClient(
     <div class="qa">
       <div class="q">🧪 Example</div>
       <div class="a">Works with both OpenAI and Azure OpenAI:
-<pre class="code"><span class="kw">from</span> agent_framework <span class="kw">import</span> OpenAIChatClient
+<pre class="code"><span class="kw">from</span> agent_framework.openai <span class="kw">import</span> OpenAIChatClient
 
 <span class="cm"># OpenAI</span>
 client = OpenAIChatClient(
@@ -563,7 +645,7 @@ client = OpenAIChatClient(
 </details>
 
 <details class="accordion">
-  <summary><span class="badge-num">3</span> AnthropicChatClient configuration <span class="hint">expand</span></summary>
+  <summary><span class="badge-num">3</span> AnthropicClient configuration <span class="hint">expand</span></summary>
   <div class="acc-body">
     <div class="qa">
       <div class="q">🧪 Example</div>
@@ -572,9 +654,9 @@ client = OpenAIChatClient(
 pip install agent-framework-anthropic
 
 <span class="cm"># Use</span>
-<span class="kw">from</span> agent_framework_anthropic <span class="kw">import</span> AnthropicChatClient
+<span class="kw">from</span> agent_framework_anthropic <span class="kw">import</span> AnthropicClient
 
-client = AnthropicChatClient(
+client = AnthropicClient(
     model=<span class="st">&quot;claude-sonnet-4-5&quot;</span>,
     api_key=os.environ[<span class="st">&quot;ANTHROPIC_API_KEY&quot;</span>]
 )
@@ -644,7 +726,7 @@ agent = client.as_agent(
 )
 
 <span class="cm"># Variant 2: Anthropic</span>
-client = AnthropicChatClient(model=<span class="st">&quot;claude-sonnet-4-5&quot;</span>, api_key=...)
+client = AnthropicClient(model=<span class="st">&quot;claude-sonnet-4-5&quot;</span>, api_key=...)
 agent = client.as_agent(
     name=<span class="st">&quot;Assistant&quot;</span>,
     instructions=<span class="st">&quot;You are helpful.&quot;</span>,
@@ -690,8 +772,55 @@ agent = client.as_agent(
   <strong>Adding a vendor never touches core</strong>: providers are separate packages, wired in via lazy loading.
   The community can build new providers without forking the repo.
 </div>
+<div class="selftest">
+<h2>🧪 Self-test - think about the design</h2>
+<div class="quiz">
+  <div class="qn">1. Why does switching the model vendor from OpenAI to Anthropic usually touch only the one or two &quot;instantiate the ChatClient&quot; lines, leaving downstream Agent code unchanged?</div>
+  <ol class="opts">
+    <li>Because the Agent code is actually hard-wired to OpenAI</li>
+    <li>The <code>as_agent()</code> / <code>run()</code> layer is vendor-agnostic; each provider package only adapts its own API to the same ChatClient abstraction</li>
+    <li>Because every vendor's HTTP API format is already identical</li>
+    <li>Because MAF auto-translates your prompt at runtime</li>
+  </ol>
+  <details class="accordion">
+    <summary>Show answer &amp; explanation <span class="hint">click to expand</span></summary>
+    <div class="acc-body"><div class="qa"><div class="a"><strong>Answer: B</strong>. ChatClient is an <strong>abstraction boundary</strong>: each provider package implements the same interface and the Agent depends only on the abstraction. So everything above &quot;construct the ChatClient&quot; varies by vendor and everything below is reused - switching vendors is a local change.</div></div></div>
+  </details>
 </div>
-  <div class="footnav"><a class="prev" href="15-contributing.html"><div class="dir"><span class="i18n" data-lang="zh">← 上一课</span><span class="i18n" data-lang="en">← Prev</span></div><div class="ttl"><span class="i18n" data-lang="zh">读源码 / 调试 / 测试 / 贡献</span><span class="i18n" data-lang="en">Read, Debug, Test, Contribute</span></div></a><a class="next" href="17-declarative.html"><div class="dir"><span class="i18n" data-lang="zh">下一课 →</span><span class="i18n" data-lang="en">Next →</span></div><div class="ttl"><span class="i18n" data-lang="zh">声明式 Agent（YAML）</span><span class="i18n" data-lang="en">Declarative Agents (YAML)</span></div></a></div>
+<div class="quiz">
+  <div class="qn">2. MAF uses <strong>one</strong> <code>OpenAIChatClient</code> for both OpenAI and Azure OpenAI (distinguished by <code>base_url</code> / credentials) instead of two classes. Why?</div>
+  <ol class="opts">
+    <li>They share the same underlying wire protocol and differ only in endpoint / auth - one parameterized class is easier to maintain than two near-duplicate classes</li>
+    <li>Because Azure OpenAI has no SDK of its own</li>
+    <li>Because OpenAI and Azure are the same company</li>
+    <li>Because MAF doesn't actually support Azure OpenAI</li>
+  </ol>
+  <details class="accordion">
+    <summary>Show answer &amp; explanation <span class="hint">click to expand</span></summary>
+    <div class="acc-body"><div class="qa"><div class="a"><strong>Answer: A</strong>. The two deployments speak the same protocol and differ only in endpoint and credential. One parameterized class beats maintaining two near-identical ones - and it echoes &quot;vendor-agnostic&quot;: even one vendor's two deployments converge on the same interface.</div></div></div>
+  </details>
+</div>
+<div class="quiz">
+  <div class="qn">3. When connecting Anthropic Claude, what is the <strong>real</strong> ChatClient class name in MAF?</div>
+  <ol class="opts">
+    <li><code>ClaudeChatClient</code></li>
+    <li><code>AnthropicAgent</code></li>
+    <li><code>AnthropicClient</code></li>
+    <li><code>AnthropicChatClient</code></li>
+  </ol>
+  <details class="accordion">
+    <summary>Show answer &amp; explanation <span class="hint">click to expand</span></summary>
+    <div class="acc-body"><div class="qa"><div class="a"><strong>Answer: C</strong>. The real class is <code>AnthropicClient</code> (not <code>AnthropicChatClient</code>), imported from <code>agent_framework.anthropic</code>; OpenAI's is the one called <code>OpenAIChatClient</code>. Naming isn't perfectly uniform - use the real name from the package rather than assuming a <code>*ChatClient</code> suffix.</div></div></div>
+  </details>
+</div>
+<div class="card spark">
+  <div class="tag">💭 Open questions (no single right answer - just think or try)</div>
+  <ul>
+    <li>Using the real class names, write the import + instantiation lines for &quot;connect OpenAI&quot; and &quot;connect Anthropic&quot;. Then say, for an already-written <code>agent.run(...)</code> business function that must switch between the two, which lines change and which stay identical - and which design principle explains that.</li>
+  </ul>
+</div>
+</div></div>
+  <div class="footnav"><a class="prev" href="30-observability.html"><div class="dir"><span class="i18n" data-lang="zh">← 上一课</span><span class="i18n" data-lang="en">← Prev</span></div><div class="ttl"><span class="i18n" data-lang="zh">可观测性深入</span><span class="i18n" data-lang="en">Observability Deep-Dive</span></div></a><a class="next" href="17-declarative.html"><div class="dir"><span class="i18n" data-lang="zh">下一课 →</span><span class="i18n" data-lang="en">Next →</span></div><div class="ttl"><span class="i18n" data-lang="zh">声明式 Agent（YAML）</span><span class="i18n" data-lang="en">Declarative Agents (YAML)</span></div></a></div>
 </div>
 
 <script>

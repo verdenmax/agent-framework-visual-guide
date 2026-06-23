@@ -2,16 +2,16 @@
 <html lang="zh-CN" data-lang="zh"><head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>18 · 写自己的中间件 — Writing Your Own Middleware · Agent Framework 图解教程 · Visual Guide</title>
+<title>20 · 写自己的中间件 — Writing Your Own Middleware · Agent Framework 图解教程 · Visual Guide</title>
 <meta name="description" content="第五部分 · 自己动手做 Agent｜写自己的中间件（Writing Your Own Middleware）：面向新手的 Agent Framework 图解教程，配真实源码对应与设计亮点。">
 <meta name="theme-color" content="#0078d4">
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml;base64,PHN2ZyB4bWxucz0naHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmcnIHZpZXdCb3g9JzAgMCAzMiAzMic+PHJlY3Qgd2lkdGg9JzMyJyBoZWlnaHQ9JzMyJyByeD0nNycgZmlsbD0nIzAwNzhkNCcvPjx0ZXh0IHg9JzE2JyB5PScyMicgZm9udC1mYW1pbHk9J3N5c3RlbS11aSxzYW5zLXNlcmlmJyBmb250LXNpemU9JzEzJyBmb250LXdlaWdodD0nNzAwJyBmaWxsPScjZmZmJyB0ZXh0LWFuY2hvcj0nbWlkZGxlJz5BRjwvdGV4dD48L3N2Zz4=">
 <meta property="og:type" content="article">
 <meta property="og:site_name" content="Agent Framework 图解教程 · Visual Guide">
-<meta property="og:title" content="18 · 写自己的中间件 — Writing Your Own Middleware · Agent Framework 图解教程 · Visual Guide">
+<meta property="og:title" content="20 · 写自己的中间件 — Writing Your Own Middleware · Agent Framework 图解教程 · Visual Guide">
 <meta property="og:description" content="第五部分 · 自己动手做 Agent｜写自己的中间件（Writing Your Own Middleware）：面向新手的 Agent Framework 图解教程，配真实源码对应与设计亮点。">
 <meta name="twitter:card" content="summary">
-<meta name="twitter:title" content="18 · 写自己的中间件 — Writing Your Own Middleware · Agent Framework 图解教程 · Visual Guide">
+<meta name="twitter:title" content="20 · 写自己的中间件 — Writing Your Own Middleware · Agent Framework 图解教程 · Visual Guide">
 <meta name="twitter:description" content="第五部分 · 自己动手做 Agent｜写自己的中间件（Writing Your Own Middleware）：面向新手的 Agent Framework 图解教程，配真实源码对应与设计亮点。">
 <script>try{var l=localStorage.getItem('af-guide-lang')||'zh';document.documentElement.setAttribute('data-lang',l);}catch(e){}</script>
 <style>
@@ -235,6 +235,17 @@ table.t td.mono, table.t td .mono { font-family: ui-monospace, monospace; font-s
   background:var(--accent); color:#fff; border-radius:10px; font-size:.9rem; font-weight:650;
   box-shadow:var(--shadow); transition:.15s; }
 .pdf-btn:hover { background:var(--accent-ink); transform:translateY(-1px); }
+/* self-test quizzes (appended to each lesson by quizzes.render) */
+.selftest { margin: 2.2rem 0 0; border-top: 2px dashed var(--line); padding-top: 1.2rem; }
+.selftest > h2 { margin-top: .2rem; }
+.quiz { background: var(--panel); border: 1px solid var(--line); border-left: 4px solid var(--blue);
+  border-radius: 12px; padding: .9rem 1.1rem; margin: 1rem 0; box-shadow: var(--shadow); }
+.quiz .qn { font-weight: 650; }
+.quiz ol.opts { list-style: upper-alpha; margin: .55rem 0 .6rem 1.5rem; padding: 0; }
+.quiz ol.opts li { margin: .3rem 0; padding-left: .15rem; }
+.quiz details.accordion { margin: .5rem 0 0; }
+.selftest code { font-family: ui-monospace, monospace; font-size: .9em; color: var(--accent-ink);
+  background: var(--accent-soft); padding: 0 .28em; border-radius: 4px; }
 </style>
 </head><body>
 <div class="topbar">
@@ -242,11 +253,11 @@ table.t td.mono, table.t td .mono { font-family: ui-monospace, monospace; font-s
     <a class="home" href="../index.html">📘 <span class="i18n" data-lang="zh">Agent Framework 图解教程 · </span><span class="i18n" data-lang="en">Agent Framework Visual Guide · </span><b><span class="i18n" data-lang="zh">目录</span><span class="i18n" data-lang="en">Contents</span></b></a>
     <div class="pills">
       <span class="pill"><span class="i18n" data-lang="zh">第五部分 · 自己动手做 Agent</span><span class="i18n" data-lang="en">Part 5 · Build Your Own</span></span>
-      <span class="pill">18 / 27</span>
+      <span class="pill">20 / 31</span>
       <span class="langtoggle">EN</span>
     </div>
   </div>
-  <div class="progress"><span style="width:66%"></span></div>
+  <div class="progress"><span style="width:64%"></span></div>
 </div>
 <div class="wrap">
   <div class="hero">
@@ -254,7 +265,7 @@ table.t td.mono, table.t td .mono { font-family: ui-monospace, monospace; font-s
     <h1><span class="i18n" data-lang="zh">写自己的中间件</span><span class="i18n" data-lang="en">Writing Your Own Middleware</span></h1>
   </div>
   <div class="i18n" data-lang="zh">
-<p class="lead">第 11 课讲了中间件<em>是什么</em>；本课教你<strong>写一个自己的</strong>——从零到能用。</p>
+<p class="lead"><a href="11-middleware.html">第 11 课</a>讲了中间件<em>是什么</em>；本课教你<strong>写一个自己的</strong>——从零到能用。</p>
 
 <div class="card analogy">
   <div class="tag">🧱 生活类比</div>
@@ -280,7 +291,25 @@ table.t td.mono, table.t td .mono { font-family: ui-monospace, monospace; font-s
                 <span class="kw">if</span> attempt == self.max_retries - <span class="nb">1</span>:
                     <span class="kw">raise</span></pre>
 </div>
-<p>挂到 Agent 上：<span class="inline">Agent(client=client, chat_middleware=[RetryChatMiddleware(3)])</span>。</p>
+<p>挂到 Agent 上：<span class="inline">Agent(client=client, middleware=[RetryChatMiddleware(3)])</span>。</p>
+
+<h2>请求在中间件里穿行（洋葱模型）</h2>
+<div class="flow">
+  <div class="node"><div class="nt">run()</div><div class="nd">发起请求</div></div>
+  <div class="arrow">→</div>
+  <div class="node"><div class="nt">Retry.before</div><div class="nd">call_next() 之前</div></div>
+  <div class="arrow">→</div>
+  <div class="node"><div class="nt">Logging.before</div><div class="nd">记录输入</div></div>
+  <div class="arrow">→</div>
+  <div class="node hl"><div class="nt">真正的调用</div><div class="nd">LLM / 工具</div></div>
+  <div class="arrow">→</div>
+  <div class="node"><div class="nt">Logging.after</div><div class="nd">记录输出 / 耗时</div></div>
+  <div class="arrow">→</div>
+  <div class="node"><div class="nt">Retry.after</div><div class="nd">失败则重试</div></div>
+  <div class="arrow">→</div>
+  <div class="node"><div class="nt">result</div><div class="nd">context.result</div></div>
+</div>
+<p><span class="mono">await call_next()</span> 是分界线：它<strong>之前</strong>的代码在请求“进站”时跑，<strong>之后</strong>的代码在响应“出站”时跑——所以同一个中间件能同时包住前后两端（洋葱皮）。列表里<strong>越靠前的中间件越在外层</strong>：最先进、最后出。</p>
 
 <details class="accordion">
   <summary><span class="badge-num">1</span> 完整的日志中间件 <span class="hint">点击展开详解</span></summary>
@@ -433,7 +462,7 @@ logger = logging.getLogger(__name__)
   <ul>
     <li>继承 <span class="mono">*Middleware</span>，实现 <span class="mono">process(self, context, call_next)</span>。</li>
     <li><span class="mono">await call_next()</span> 无参；结果在 <span class="mono">context.result</span>。</li>
-    <li>用 <span class="mono">Agent(middleware=…, chat_middleware=…, function_middleware=…)</span> 挂载。</li>
+    <li>用 <span class="mono">Agent(client=client, middleware=[…])</span> 挂载——同一个列表里可混放 Chat / Function / Agent 三类，框架按基类自动分流。</li>
   </ul>
 </div>
 
@@ -441,9 +470,56 @@ logger = logging.getLogger(__name__)
   <div class="tag">💡 设计亮点</div>
   中间件是<strong>组合式的</strong>：重试、日志、审批各自独立实现，按需拼装，互不干扰。
 </div>
+<div class="selftest">
+<h2>🧪 自测 · 想一想为什么这么设计</h2>
+<div class="quiz">
+  <div class="qn">1. 要把 Chat、Function、Agent 三种中间件挂到一个 Agent 上，正确方式是？</div>
+  <ol class="opts">
+    <li>每种中间件各建一个 Agent</li>
+    <li>一个 Agent 只能挂一个中间件</li>
+    <li>分别用 <code>chat_middleware=</code> / <code>function_middleware=</code> / <code>agent_middleware=</code> 三个参数</li>
+    <li>全部放进同一个 <code>middleware=[...]</code> 列表，框架按基类自动分流到对应层</li>
+  </ol>
+  <details class="accordion">
+    <summary>看答案与解析 <span class="hint">点击展开</span></summary>
+    <div class="acc-body"><div class="qa"><div class="a"><strong>答案：D</strong>。<code>Agent(...)</code> / <code>as_agent(...)</code> 只有<strong>一个</strong> <code>middleware=</code> 参数，框架按基类（<code>ChatMiddleware</code> / <code>FunctionMiddleware</code> / <code>AgentMiddleware</code>）分类路由。一个口子、可混放，组合更自由。（<code>chat_middleware</code> / <code>function_middleware</code> 其实是给普通函数<em>打标记</em>的装饰器，不是构造参数。）</div></div></div>
+  </details>
 </div>
+<div class="quiz">
+  <div class="qn">2. 中间件里 <code>await call_next()</code> <strong>之后</strong>的代码什么时候跑？为什么结果要从 <code>context.result</code> 取，而不是 <code>call_next()</code> 的返回值？</div>
+  <ol class="opts">
+    <li>永远不跑，<code>call_next()</code> 之后是死代码</li>
+    <li>在请求“进站”之前跑</li>
+    <li>在内层执行完、响应“出站”时跑；结果挂在共享 <code>context</code> 上，方便前后两端和多个中间件读写同一份状态</li>
+    <li><code>call_next()</code> 会直接 <code>return</code> 最终字符串</li>
+  </ol>
+  <details class="accordion">
+    <summary>看答案与解析 <span class="hint">点击展开</span></summary>
+    <div class="acc-body"><div class="qa"><div class="a"><strong>答案：C</strong>。<code>call_next()</code> 是分界线：之前=进站，之后=出站（洋葱模型）。结果放 <code>context</code> 而非返回值，让任意层都能读改同一份上下文（改写输出、记录耗时…），也让<strong>无参</strong>的 <code>call_next()</code> 把整条链串起来。</div></div></div>
+  </details>
+</div>
+<div class="quiz">
+  <div class="qn">3. 用 <code>middleware=[A, B]</code> 挂两个中间件，执行顺序是？</div>
+  <ol class="opts">
+    <li>A 整个跑完，再从头跑 B</li>
+    <li>顺序是随机的</li>
+    <li><code>A.before → B.before → 真正调用 → B.after → A.after</code>（先进后出，A 在最外层）</li>
+    <li><code>B.before → A.before → 调用 → A.after → B.after</code></li>
+  </ol>
+  <details class="accordion">
+    <summary>看答案与解析 <span class="hint">点击展开</span></summary>
+    <div class="acc-body"><div class="qa"><div class="a"><strong>答案：C</strong>。列表里<strong>越靠前越在外层</strong>（洋葱皮）：最先进、最后出。顺序会改变语义——比如“重试”包在“日志”外面还是里面，决定了失败重试会不会被重复记日志，所以顺序是显式可控的。</div></div></div>
+  </details>
+</div>
+<div class="card spark">
+  <div class="tag">💭 发散思考（没有标准答案，动手或动脑想想）</div>
+  <ul>
+    <li>你要加一个“计费”中间件：统计每次调用的 token 用量并上报。请说说你会继承哪个基类、在 <code>call_next()</code> 前后分别做什么，以及把它放在 <code>middleware=</code> 列表的<strong>靠前还是靠后</strong>会怎样影响它统计到的范围（比如会不会把重试产生的额外调用也算进去）。</li>
+  </ul>
+</div>
+</div></div>
 <div class="i18n" data-lang="en">
-<p class="lead">Lesson 11 explained what middleware <em>is</em>; this lesson teaches you to
+<p class="lead"><a href="11-middleware.html">Lesson 11</a> explained what middleware <em>is</em>; this lesson teaches you to
 <strong>write your own</strong> — from scratch to working.</p>
 
 <div class="card analogy">
@@ -471,7 +547,25 @@ logger = logging.getLogger(__name__)
                 <span class="kw">if</span> attempt == self.max_retries - <span class="nb">1</span>:
                     <span class="kw">raise</span></pre>
 </div>
-<p>Attach to an Agent: <span class="inline">Agent(client=client, chat_middleware=[RetryChatMiddleware(3)])</span>.</p>
+<p>Attach to an Agent: <span class="inline">Agent(client=client, middleware=[RetryChatMiddleware(3)])</span>.</p>
+
+<h2>A request travels through the middleware (onion model)</h2>
+<div class="flow">
+  <div class="node"><div class="nt">run()</div><div class="nd">request starts</div></div>
+  <div class="arrow">→</div>
+  <div class="node"><div class="nt">Retry.before</div><div class="nd">before call_next()</div></div>
+  <div class="arrow">→</div>
+  <div class="node"><div class="nt">Logging.before</div><div class="nd">log input</div></div>
+  <div class="arrow">→</div>
+  <div class="node hl"><div class="nt">the real call</div><div class="nd">LLM / tool</div></div>
+  <div class="arrow">→</div>
+  <div class="node"><div class="nt">Logging.after</div><div class="nd">log output / timing</div></div>
+  <div class="arrow">→</div>
+  <div class="node"><div class="nt">Retry.after</div><div class="nd">retry on failure</div></div>
+  <div class="arrow">→</div>
+  <div class="node"><div class="nt">result</div><div class="nd">context.result</div></div>
+</div>
+<p><span class="mono">await call_next()</span> is the dividing line: code <strong>before</strong> it runs as the request goes &quot;in&quot;, code <strong>after</strong> it runs as the response comes &quot;out&quot; - so one middleware wraps both ends (the onion skin). <strong>Earlier middleware in the list sits further outside</strong>: first in, last out.</p>
 
 <details class="accordion">
   <summary><span class="badge-num">1</span> Complete logging middleware <span class="hint">expand</span></summary>
@@ -624,7 +718,7 @@ On failure: log error, optionally retry, optionally return fallback. Pattern: ca
   <ul>
     <li>Subclass <span class="mono">*Middleware</span>; implement <span class="mono">process(self, context, call_next)</span>.</li>
     <li><span class="mono">await call_next()</span> takes no args; result is on <span class="mono">context.result</span>.</li>
-    <li>Attach via <span class="mono">Agent(middleware=…, chat_middleware=…, function_middleware=…)</span>.</li>
+    <li>Attach via <span class="mono">Agent(client=client, middleware=[…])</span> - one list can mix Chat / Function / Agent middleware; the framework routes each by its base class.</li>
   </ul>
 </div>
 
@@ -633,7 +727,54 @@ On failure: log error, optionally retry, optionally return fallback. Pattern: ca
   Middleware is <strong>compositional</strong>: retries, logging, approvals — each implemented independently,
   assembled as needed, no interference.
 </div>
+<div class="selftest">
+<h2>🧪 Self-test - think about the design</h2>
+<div class="quiz">
+  <div class="qn">1. To attach Chat, Function and Agent middleware to one Agent, the correct way is?</div>
+  <ol class="opts">
+    <li>Build a separate Agent for each middleware kind</li>
+    <li>An Agent can hold only one middleware</li>
+    <li>Use three separate params: <code>chat_middleware=</code> / <code>function_middleware=</code> / <code>agent_middleware=</code></li>
+    <li>Put them all in one <code>middleware=[...]</code> list; the framework routes each to the right layer by its base class</li>
+  </ol>
+  <details class="accordion">
+    <summary>Show answer &amp; explanation <span class="hint">click to expand</span></summary>
+    <div class="acc-body"><div class="qa"><div class="a"><strong>Answer: D</strong>. <code>Agent(...)</code> / <code>as_agent(...)</code> takes a <strong>single</strong> <code>middleware=</code> param and routes by base class (<code>ChatMiddleware</code> / <code>FunctionMiddleware</code> / <code>AgentMiddleware</code>). One slot, mixable, more composable. (<code>chat_middleware</code> / <code>function_middleware</code> are actually <em>decorators</em> that mark plain functions, not constructor params.)</div></div></div>
+  </details>
 </div>
+<div class="quiz">
+  <div class="qn">2. When does code <strong>after</strong> <code>await call_next()</code> run, and why is the result read from <code>context.result</code> instead of <code>call_next()</code>'s return value?</div>
+  <ol class="opts">
+    <li>It never runs; code after <code>call_next()</code> is dead code</li>
+    <li>It runs before the request goes &quot;in&quot;</li>
+    <li>It runs as the response travels &quot;out&quot;, after the inner layers finish; the result lives on the shared <code>context</code> so both ends and multiple middleware read/write one state</li>
+    <li><code>call_next()</code> directly returns the final string</li>
+  </ol>
+  <details class="accordion">
+    <summary>Show answer &amp; explanation <span class="hint">click to expand</span></summary>
+    <div class="acc-body"><div class="qa"><div class="a"><strong>Answer: C</strong>. <code>call_next()</code> is the dividing line: before = inbound, after = outbound (the onion). Putting the result on <code>context</code> rather than a return value lets any layer read/modify one shared context (rewrite output, record timing…) and lets the <strong>argument-free</strong> <code>call_next()</code> chain the whole pipeline.</div></div></div>
+  </details>
+</div>
+<div class="quiz">
+  <div class="qn">3. With <code>middleware=[A, B]</code>, what is the execution order?</div>
+  <ol class="opts">
+    <li>A runs fully, then B runs from scratch</li>
+    <li>The order is random</li>
+    <li><code>A.before → B.before → real call → B.after → A.after</code> (first-in, last-out; A is outermost)</li>
+    <li><code>B.before → A.before → call → A.after → B.after</code></li>
+  </ol>
+  <details class="accordion">
+    <summary>Show answer &amp; explanation <span class="hint">click to expand</span></summary>
+    <div class="acc-body"><div class="qa"><div class="a"><strong>Answer: C</strong>. Earlier in the list = further outside (onion skin): first in, last out. Order changes semantics - e.g. whether &quot;retry&quot; wraps &quot;logging&quot; or vice versa decides if retried failures get logged twice - so order is explicit and controllable.</div></div></div>
+  </details>
+</div>
+<div class="card spark">
+  <div class="tag">💭 Open questions (no single right answer - just think or try)</div>
+  <ul>
+    <li>You're adding a &quot;billing&quot; middleware that records each call's token usage and reports it. Say which base class you'd subclass, what you'd do before vs after <code>call_next()</code>, and how placing it <strong>earlier vs later</strong> in the <code>middleware=</code> list changes what it measures (e.g. whether extra calls from retries get counted).</li>
+  </ul>
+</div>
+</div></div>
   <div class="footnav"><a class="prev" href="17-declarative.html"><div class="dir"><span class="i18n" data-lang="zh">← 上一课</span><span class="i18n" data-lang="en">← Prev</span></div><div class="ttl"><span class="i18n" data-lang="zh">声明式 Agent（YAML）</span><span class="i18n" data-lang="en">Declarative Agents (YAML)</span></div></a><a class="next" href="19-durability-hitl.html"><div class="dir"><span class="i18n" data-lang="zh">下一课 →</span><span class="i18n" data-lang="en">Next →</span></div><div class="ttl"><span class="i18n" data-lang="zh">检查点 · 人在环 · 持久化</span><span class="i18n" data-lang="en">Checkpointing, HITL & Durability</span></div></a></div>
 </div>
 

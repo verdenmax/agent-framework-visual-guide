@@ -95,7 +95,7 @@ r = client.messages.create(model=<span class="st">"claude-3-7-sonnet"</span>, ma
 换成 MAF 之后，只换一个 client，其余代码不动：
 <pre class="code"><span class="kw">from</span> agent_framework <span class="kw">import</span> Agent
 <span class="kw">from</span> agent_framework.openai <span class="kw">import</span> OpenAIChatClient
-<span class="cm"># from agent_framework.anthropic import AnthropicChatClient  # 改这一行就够了</span>
+<span class="cm"># from agent_framework.anthropic import AnthropicClient  # 改这一行就够了</span>
 agent = Agent(client=OpenAIChatClient(model=<span class="st">"gpt-4o"</span>), instructions=<span class="st">"…"</span>)
 <span class="kw">await</span> agent.run(<span class="st">"你好"</span>)</pre></div>
     </div>
@@ -110,7 +110,7 @@ agent = Agent(client=OpenAIChatClient(model=<span class="st">"gpt-4o"</span>), i
       <div class="q">✅ MAF 的做法与优点</div>
       <div class="a">MAF 把所有厂商抽象成统一的 <span class="mono">ChatClient</span> 接口，
         <span class="mono">FoundryChatClient</span> / <span class="mono">OpenAIChatClient</span> /
-        <span class="mono">AnthropicChatClient</span> / <span class="mono">OllamaChatClient</span> 全部实现同一组方法
+        <span class="mono">AnthropicClient</span> / <span class="mono">OllamaChatClient</span> 全部实现同一组方法
         （<span class="mono">get_response()</span> / <span class="mono">get_streaming_response()</span>）。
         Agent、工具、工作流只依赖接口，"换一行 import"即可切换厂商。</div>
     </div>
@@ -145,15 +145,15 @@ messages = [
     <div class="qa">
       <div class="q">❓ 为什么这件事必要</div>
       <div class="a">真实业务里消息绝不只是字符串：还有图像、工具调用、工具结果、思维链、引用等"内容块"。
-        裸字典每加一种就要全工程改 if/else；用类型化的 <span class="mono">Contents</span>，
+        裸字典每加一种就要全工程改 if/else；用类型化的 <span class="mono">Content</span>，
         新内容只是<strong>多一个 Content 类型</strong>，老代码完全不动。</div>
     </div>
     <div class="qa">
       <div class="q">✅ MAF 的做法与优点</div>
       <div class="a">见 <span class="mono">agent_framework/_types.py</span>：<span class="mono">Role</span> 是枚举
         （<span class="mono">system / user / assistant / tool</span>），<span class="mono">Message</span>
-        持有 <span class="mono">contents: list[Contents]</span>，<span class="mono">Contents</span> 是
-        <span class="mono">Content</span> 统一类型，用 <span class="mono">Content.from_text()</span> 等工厂方法构造。
+        持有 <span class="mono">contents: list[Content]</span>，<span class="mono">Content</span> 是
+        统一内容类型，用 <span class="mono">Content.from_text()</span> 等工厂方法构造。
         好处：① 静态检查 + 补全；② 多模态 / 工具结果自然容纳；③ Workflow 跨进程序列化零成本。</div>
     </div>
     <div class="qa">
@@ -170,7 +170,7 @@ messages = [
   <div class="acc-body">
     <div class="qa">
       <div class="q">🧪 示例</div>
-      <div class="a">裸 function calling vs MAF 的 <span class="mono">@ai_function</span>：
+      <div class="a">裸 function calling vs MAF 的 <span class="mono">@tool</span>：
 <pre class="code"><span class="cm"># 裸 SDK：自己写 schema、自己 dispatch、自己回灌</span>
 tools = [{
   <span class="st">"type"</span>: <span class="st">"function"</span>,
@@ -182,9 +182,9 @@ tools = [{
 <span class="cm"># 后续：解析 tool_calls → 找函数 → 调用 → 把结果塞回 messages → 再发一次……</span>
 
 <span class="cm"># MAF：装饰器自动生成 schema，自动跑循环</span>
-<span class="kw">from</span> agent_framework <span class="kw">import</span> ai_function
+<span class="kw">from</span> agent_framework <span class="kw">import</span> tool
 
-<span class="kw">@ai_function</span>
+<span class="kw">@tool</span>
 <span class="kw">def</span> get_weather(city: str) -&gt; str:
     <span class="st">"返回城市天气。"</span>
     <span class="kw">return</span> f<span class="st">"{city} 今天 23°C"</span>
@@ -199,7 +199,7 @@ agent = Agent(client=client, tools=[get_weather])</pre></div>
     </div>
     <div class="qa">
       <div class="q">✅ MAF 的做法与优点</div>
-      <div class="a"><span class="mono">@ai_function</span>（见 <span class="mono">_tools.py</span>）借助
+      <div class="a"><span class="mono">@tool</span>（见 <span class="mono">_tools.py</span>）借助
         <span class="mono">inspect</span> + 类型注解生成 JSON Schema，自动注入到 ChatClient 请求；
         模型返回 <span class="mono">FunctionCallContent</span> 时，Agent 在<strong>同一个循环</strong>里
         执行函数、把 <span class="mono">FunctionResultContent</span> 追加回消息，再次请求模型——你不用写一行胶水。</div>
@@ -372,7 +372,7 @@ r = client.messages.create(model=<span class="st">"claude-3-7-sonnet"</span>, ma
 With MAF only the client swaps; the rest stays:
 <pre class="code"><span class="kw">from</span> agent_framework <span class="kw">import</span> Agent
 <span class="kw">from</span> agent_framework.openai <span class="kw">import</span> OpenAIChatClient
-<span class="cm"># from agent_framework.anthropic import AnthropicChatClient  # only this line changes</span>
+<span class="cm"># from agent_framework.anthropic import AnthropicClient  # only this line changes</span>
 agent = Agent(client=OpenAIChatClient(model=<span class="st">"gpt-4o"</span>), instructions=<span class="st">"…"</span>)
 <span class="kw">await</span> agent.run(<span class="st">"hi"</span>)</pre></div>
     </div>
@@ -387,7 +387,7 @@ agent = Agent(client=OpenAIChatClient(model=<span class="st">"gpt-4o"</span>), i
       <div class="q">✅ How MAF does it</div>
       <div class="a">MAF abstracts every vendor into a uniform <span class="mono">ChatClient</span> interface.
         <span class="mono">FoundryChatClient</span>, <span class="mono">OpenAIChatClient</span>,
-        <span class="mono">AnthropicChatClient</span> and <span class="mono">OllamaChatClient</span> all implement
+        <span class="mono">AnthropicClient</span> and <span class="mono">OllamaChatClient</span> all implement
         the same surface (<span class="mono">get_response()</span>, <span class="mono">get_streaming_response()</span>).
         Agents, tools and workflows depend on the interface only.</div>
     </div>
@@ -422,15 +422,15 @@ messages = [
     <div class="qa">
       <div class="q">❓ Why this matters</div>
       <div class="a">Real workloads carry more than strings: images, tool calls, tool results, thinking blocks, citations.
-        Raw dicts force a project-wide if/else rewrite for each new kind; typed <span class="mono">Contents</span>
+        Raw dicts force a project-wide if/else rewrite for each new kind; typed <span class="mono">Content</span>
         means adding a new content type leaves old code untouched.</div>
     </div>
     <div class="qa">
       <div class="q">✅ How MAF does it</div>
       <div class="a">See <span class="mono">agent_framework/_types.py</span>: <span class="mono">Role</span> is an enum
         (<span class="mono">system / user / assistant / tool</span>), <span class="mono">Message</span> holds
-        <span class="mono">contents: list[Contents]</span>, and <span class="mono">Contents</span> is the union of
-        <span class="mono">Content</span> — a unified type built via factory methods like <span class="mono">Content.from_text()</span>.
+        <span class="mono">contents: list[Content]</span>, where <span class="mono">Content</span> is
+        a unified type built via factory methods like <span class="mono">Content.from_text()</span>.
         Wins: ① static checking + completion; ② multimodal &amp; tool results fit naturally;
         ③ free serialization for Workflow cross-process transport.</div>
     </div>
@@ -448,7 +448,7 @@ messages = [
   <div class="acc-body">
     <div class="qa">
       <div class="q">🧪 Example</div>
-      <div class="a">Raw function-calling vs MAF's <span class="mono">@ai_function</span>:
+      <div class="a">Raw function-calling vs MAF's <span class="mono">@tool</span>:
 <pre class="code"><span class="cm"># Raw SDK: write schema, dispatch, feed result back yourself</span>
 tools = [{
   <span class="st">"type"</span>: <span class="st">"function"</span>,
@@ -460,9 +460,9 @@ tools = [{
 <span class="cm"># Then: parse tool_calls → find function → invoke → append result → call again…</span>
 
 <span class="cm"># MAF: decorator generates schema, agent runs the loop</span>
-<span class="kw">from</span> agent_framework <span class="kw">import</span> ai_function
+<span class="kw">from</span> agent_framework <span class="kw">import</span> tool
 
-<span class="kw">@ai_function</span>
+<span class="kw">@tool</span>
 <span class="kw">def</span> get_weather(city: str) -&gt; str:
     <span class="st">"Return the weather for a city."</span>
     <span class="kw">return</span> f<span class="st">"{city} is 23°C"</span>
@@ -477,7 +477,7 @@ agent = Agent(client=client, tools=[get_weather])</pre></div>
     </div>
     <div class="qa">
       <div class="q">✅ How MAF does it</div>
-      <div class="a"><span class="mono">@ai_function</span> (see <span class="mono">_tools.py</span>) uses
+      <div class="a"><span class="mono">@tool</span> (see <span class="mono">_tools.py</span>) uses
         <span class="mono">inspect</span> + type hints to produce a JSON Schema, auto-injects it into ChatClient requests;
         when the model returns <span class="mono">FunctionCallContent</span>, the Agent — in the
         <strong>same loop</strong> — executes the function, appends <span class="mono">FunctionResultContent</span>
@@ -605,10 +605,10 @@ L02_ZH = r"""
       <div class="a">core 一个文件一个职责，地图大致如下：
 <pre class="code">python/packages/core/agent_framework/
 ├── _agents.py        <span class="cm"># Agent 类、run() 循环、DEFAULT_MAX_ITERATIONS</span>
-├── _clients.py       <span class="cm"># ChatClient 抽象基类 + 内置 OpenAI 实现</span>
-├── _tools.py         <span class="cm"># @ai_function 装饰器、AIFunction、ToolProtocol</span>
+├── _clients.py       <span class="cm"># BaseChatClient 抽象基类 + Supports* 协议族</span>
+├── _tools.py         <span class="cm"># @tool 装饰器、FunctionTool 类</span>
 ├── _middleware.py    <span class="cm"># 中间件管道：trace / retry / 自定义</span>
-├── _types.py         <span class="cm"># Message / Role / Contents 联合类型</span>
+├── _types.py         <span class="cm"># Message / Role / Content 联合类型</span>
 ├── _workflows/       <span class="cm"># 图式编排：节点、边、共享状态、检查点</span>
 ├── observability/    <span class="cm"># OpenTelemetry trace / cost / token 指标</span>
 └── __init__.py       <span class="cm"># 公共 API，决定 from agent_framework import 什么</span></pre></div>
@@ -622,7 +622,7 @@ L02_ZH = r"""
     <div class="qa">
       <div class="q">✅ MAF 的做法与优点</div>
       <div class="a">所有抽象统一从 <span class="mono">agent_framework</span> 导出（<span class="mono">Agent</span>、
-        <span class="mono">Message</span>、<span class="mono">ai_function</span>、
+        <span class="mono">Message</span>、<span class="mono">tool</span>、
         <span class="mono">WorkflowBuilder</span>……）；文件命名以 <span class="mono">_</span> 前缀表示"内部"，
         通过 <span class="mono">__init__.py</span> 的 <span class="mono">__all__</span> 再暴露——
         重构内部不影响用户代码。</div>
@@ -642,14 +642,14 @@ L02_ZH = r"""
     <div class="qa">
       <div class="q">🧪 示例</div>
       <div class="a">子模块 <span class="mono">__init__.py</span> 用 <span class="mono">__getattr__</span> 延迟拉依赖：
-<pre class="code"><span class="cm"># agent_framework/azure/__init__.py（示意）</span>
+<pre class="code"><span class="cm"># agent_framework/openai/__init__.py（示意）</span>
 <span class="kw">import</span> importlib
 <span class="kw">from</span> typing <span class="kw">import</span> TYPE_CHECKING
 
 <span class="kw">if</span> TYPE_CHECKING:
-    <span class="kw">from</span> ._chat_client <span class="kw">import</span> AzureOpenAIChatClient
+    <span class="kw">from</span> ._chat_client <span class="kw">import</span> OpenAIChatClient
 
-_LAZY = {<span class="st">"AzureOpenAIChatClient"</span>: <span class="st">"._chat_client"</span>}
+_LAZY = {<span class="st">"OpenAIChatClient"</span>: <span class="st">"._chat_client"</span>}
 
 <span class="kw">def</span> __getattr__(name: str):
     <span class="kw">if</span> name <span class="kw">in</span> _LAZY:
@@ -658,8 +658,8 @@ _LAZY = {<span class="st">"AzureOpenAIChatClient"</span>: <span class="st">"._ch
     <span class="kw">raise</span> AttributeError(name)
 
 __all__ = list(_LAZY)</pre>
-所以 <span class="mono">import agent_framework</span> 不会拉起 <span class="mono">azure-identity</span>；
-只有真的访问 <span class="mono">AzureOpenAIChatClient</span> 时才装载。</div>
+所以 <span class="mono">import agent_framework</span> 不会拉起 <span class="mono">openai</span> 的 SDK；
+只有真的访问 <span class="mono">OpenAIChatClient</span> 时才装载。</div>
     </div>
     <div class="qa">
       <div class="q">❓ 为什么这件事必要</div>
@@ -740,7 +740,7 @@ agent = Agent(
   <tr><td class="mono">Agent</td><td class="mono">ChatClientAgent</td><td>Agent 实体（带循环）</td></tr>
   <tr><td class="mono">ChatClient</td><td class="mono">IChatClient</td><td>厂商无关客户端</td></tr>
   <tr><td class="mono">Message / Role</td><td class="mono">Message / ChatRole</td><td>类型化消息</td></tr>
-  <tr><td class="mono">@ai_function</td><td class="mono">[Description] + AIFunctionFactory</td><td>把函数转成工具</td></tr>
+  <tr><td class="mono">@tool</td><td class="mono">[Description] + AIFunctionFactory</td><td>把函数转成工具</td></tr>
   <tr><td class="mono">_workflows/</td><td class="mono">Microsoft.Agents.AI.Workflows</td><td>图式编排</td></tr>
   <tr><td class="mono">observability/</td><td class="mono">Microsoft.Extensions.AI.Telemetry</td><td>OTel 集成</td></tr>
   <tr><td class="mono">agent.run() / .run_stream()</td><td class="mono">RunAsync() / RunStreamingAsync()</td><td>同步与流式入口</td></tr>
@@ -835,10 +835,10 @@ have a <strong>source-navigation map</strong>.</p>
       <div class="a">core is "one file, one job":
 <pre class="code">python/packages/core/agent_framework/
 ├── _agents.py        <span class="cm"># Agent class, run() loop, DEFAULT_MAX_ITERATIONS</span>
-├── _clients.py       <span class="cm"># ChatClient ABC + built-in OpenAI impl</span>
-├── _tools.py         <span class="cm"># @ai_function, AIFunction, ToolProtocol</span>
+├── _clients.py       <span class="cm"># BaseChatClient ABC + Supports* protocols</span>
+├── _tools.py         <span class="cm"># @tool decorator, FunctionTool class</span>
 ├── _middleware.py    <span class="cm"># middleware pipeline: trace / retry / custom</span>
-├── _types.py         <span class="cm"># Message / Role / Contents union</span>
+├── _types.py         <span class="cm"># Message / Role / Content union</span>
 ├── _workflows/       <span class="cm"># graph orchestration: nodes, edges, state, checkpoints</span>
 ├── observability/    <span class="cm"># OpenTelemetry traces / cost / token metrics</span>
 └── __init__.py       <span class="cm"># public API — what `from agent_framework import` exposes</span></pre></div>
@@ -853,7 +853,7 @@ have a <strong>source-navigation map</strong>.</p>
     <div class="qa">
       <div class="q">✅ How MAF does it</div>
       <div class="a">All abstractions are re-exported from <span class="mono">agent_framework</span>
-        (<span class="mono">Agent</span>, <span class="mono">Message</span>, <span class="mono">ai_function</span>,
+        (<span class="mono">Agent</span>, <span class="mono">Message</span>, <span class="mono">tool</span>,
         <span class="mono">WorkflowBuilder</span>…); files prefixed with <span class="mono">_</span> are internal and
         surfaced via <span class="mono">__all__</span> in <span class="mono">__init__.py</span> — internal refactors
         never break user code.</div>
@@ -873,14 +873,14 @@ have a <strong>source-navigation map</strong>.</p>
     <div class="qa">
       <div class="q">🧪 Example</div>
       <div class="a">Submodule <span class="mono">__init__.py</span> defers imports with <span class="mono">__getattr__</span>:
-<pre class="code"><span class="cm"># agent_framework/azure/__init__.py (sketch)</span>
+<pre class="code"><span class="cm"># agent_framework/openai/__init__.py (sketch)</span>
 <span class="kw">import</span> importlib
 <span class="kw">from</span> typing <span class="kw">import</span> TYPE_CHECKING
 
 <span class="kw">if</span> TYPE_CHECKING:
-    <span class="kw">from</span> ._chat_client <span class="kw">import</span> AzureOpenAIChatClient
+    <span class="kw">from</span> ._chat_client <span class="kw">import</span> OpenAIChatClient
 
-_LAZY = {<span class="st">"AzureOpenAIChatClient"</span>: <span class="st">"._chat_client"</span>}
+_LAZY = {<span class="st">"OpenAIChatClient"</span>: <span class="st">"._chat_client"</span>}
 
 <span class="kw">def</span> __getattr__(name: str):
     <span class="kw">if</span> name <span class="kw">in</span> _LAZY:
@@ -889,8 +889,8 @@ _LAZY = {<span class="st">"AzureOpenAIChatClient"</span>: <span class="st">"._ch
     <span class="kw">raise</span> AttributeError(name)
 
 __all__ = list(_LAZY)</pre>
-So <span class="mono">import agent_framework</span> doesn't drag in <span class="mono">azure-identity</span>;
-it loads only when you actually touch <span class="mono">AzureOpenAIChatClient</span>.</div>
+So <span class="mono">import agent_framework</span> doesn't drag in the <span class="mono">openai</span> SDK;
+it loads only when you actually touch <span class="mono">OpenAIChatClient</span>.</div>
     </div>
     <div class="qa">
       <div class="q">❓ Why this matters</div>
@@ -971,7 +971,7 @@ agent = Agent(
   <tr><td class="mono">Agent</td><td class="mono">ChatClientAgent</td><td>agent entity (with loop)</td></tr>
   <tr><td class="mono">ChatClient</td><td class="mono">IChatClient</td><td>vendor-agnostic client</td></tr>
   <tr><td class="mono">Message / Role</td><td class="mono">Message / ChatRole</td><td>typed messages</td></tr>
-  <tr><td class="mono">@ai_function</td><td class="mono">[Description] + AIFunctionFactory</td><td>turn function into tool</td></tr>
+  <tr><td class="mono">@tool</td><td class="mono">[Description] + AIFunctionFactory</td><td>turn function into tool</td></tr>
   <tr><td class="mono">_workflows/</td><td class="mono">Microsoft.Agents.AI.Workflows</td><td>graph orchestration</td></tr>
   <tr><td class="mono">observability/</td><td class="mono">Microsoft.Extensions.AI.Telemetry</td><td>OTel integration</td></tr>
   <tr><td class="mono">agent.run() / .run_stream()</td><td class="mono">RunAsync() / RunStreamingAsync()</td><td>sync &amp; streaming entry</td></tr>
@@ -1194,7 +1194,7 @@ print(result.text)
 <span class="cm">   → ChatClient 抛出 ChatClientError</span>
 
 <span class="cm"># 2) 工具函数抛异常</span>
-<span class="kw">@ai_function</span>
+<span class="kw">@tool</span>
 <span class="kw">def</span> get_weather(city: str) -&gt; str:
     <span class="kw">raise</span> RuntimeError(<span class="st">"weather API down"</span>)
 <span class="cm">   → Agent 捕获后包成 FunctionResultContent(error=...)</span>
@@ -1422,7 +1422,7 @@ print(result.text)
 <span class="cm">   → ChatClient raises ChatClientError</span>
 
 <span class="cm"># 2) Tool function raises</span>
-<span class="kw">@ai_function</span>
+<span class="kw">@tool</span>
 <span class="kw">def</span> get_weather(city: str) -&gt; str:
     <span class="kw">raise</span> RuntimeError(<span class="st">"weather API down"</span>)
 <span class="cm">   → Agent wraps it as FunctionResultContent(error=...),</span>

@@ -235,6 +235,17 @@ table.t td.mono, table.t td .mono { font-family: ui-monospace, monospace; font-s
   background:var(--accent); color:#fff; border-radius:10px; font-size:.9rem; font-weight:650;
   box-shadow:var(--shadow); transition:.15s; }
 .pdf-btn:hover { background:var(--accent-ink); transform:translateY(-1px); }
+/* self-test quizzes (appended to each lesson by quizzes.render) */
+.selftest { margin: 2.2rem 0 0; border-top: 2px dashed var(--line); padding-top: 1.2rem; }
+.selftest > h2 { margin-top: .2rem; }
+.quiz { background: var(--panel); border: 1px solid var(--line); border-left: 4px solid var(--blue);
+  border-radius: 12px; padding: .9rem 1.1rem; margin: 1rem 0; box-shadow: var(--shadow); }
+.quiz .qn { font-weight: 650; }
+.quiz ol.opts { list-style: upper-alpha; margin: .55rem 0 .6rem 1.5rem; padding: 0; }
+.quiz ol.opts li { margin: .3rem 0; padding-left: .15rem; }
+.quiz details.accordion { margin: .5rem 0 0; }
+.selftest code { font-family: ui-monospace, monospace; font-size: .9em; color: var(--accent-ink);
+  background: var(--accent-soft); padding: 0 .28em; border-radius: 4px; }
 </style>
 </head><body>
 <div class="topbar">
@@ -242,11 +253,11 @@ table.t td.mono, table.t td .mono { font-family: ui-monospace, monospace; font-s
     <a class="home" href="../index.html">📘 <span class="i18n" data-lang="zh">Agent Framework 图解教程 · </span><span class="i18n" data-lang="en">Agent Framework Visual Guide · </span><b><span class="i18n" data-lang="zh">目录</span><span class="i18n" data-lang="en">Contents</span></b></a>
     <div class="pills">
       <span class="pill"><span class="i18n" data-lang="zh">第三部分 · 内部源码</span><span class="i18n" data-lang="en">Part 3 · Internals</span></span>
-      <span class="pill">12 / 27</span>
+      <span class="pill">12 / 31</span>
       <span class="langtoggle">EN</span>
     </div>
   </div>
-  <div class="progress"><span style="width:44%"></span></div>
+  <div class="progress"><span style="width:38%"></span></div>
 </div>
 <div class="wrap">
   <div class="hero">
@@ -291,6 +302,130 @@ wf = WorkflowBuilder(start_executor=upper) \
     .add_edge(upper, reverse).build()
 events = <span class="kw">await</span> wf.run(<span class="st">"hello"</span>)  <span class="cm"># → "OLLEH"</span></pre>
 </div>
+
+<h2>追踪一次工作流执行：writer → reviewer</h2>
+<p>抽象讲完，我们用一张<strong>两节点图</strong>端到端走一遍。两个 Executor——<span class="mono">writer</span>（写草稿）和
+<span class="mono">reviewer</span>（评审并产出）——连成一条边 <span class="mono">writer → reviewer</span>，再投递一条初始消息。
+关键在于：Workflow 不是"依次调用两个函数"，而是按 <strong>超步（superstep）</strong>推进的——
+这正是它能<strong>断点续跑、并发、可观测</strong>的根因（<span class="mono">_workflow.py:211</span> 称之为 Pregel 式执行）。</p>
+
+<div class="codefile">
+  <div class="cf-head"><span class="dot"></span><span class="path">建图</span></div>
+<pre><span class="nb">@executor</span>(id=<span class="st">"writer"</span>)
+<span class="kw">async def</span> <span class="fn">writer</span>(topic: str, ctx: WorkflowContext[str]):
+    <span class="kw">await</span> ctx.send_message(<span class="st">f"草稿：一首关于{topic}的俳句"</span>)   <span class="cm"># 发给下游</span>
+
+<span class="nb">@executor</span>(id=<span class="st">"reviewer"</span>)
+<span class="kw">async def</span> <span class="fn">reviewer</span>(draft: str, ctx: WorkflowContext[Never, str]):
+    <span class="kw">await</span> ctx.yield_output(draft + <span class="st">" ✓ 已评审"</span>)        <span class="cm"># 产出最终结果</span>
+
+wf = WorkflowBuilder(start_executor=writer).add_edge(writer, reviewer).build()
+result = <span class="kw">await</span> wf.run(<span class="st">"大海"</span>)</pre>
+</div>
+
+<div class="vflow">
+  <div class="step"><div class="num">0</div><div class="sc"><h4>投递初始消息（超步 0）</h4>
+    <p>引擎把 <span class="mono">"大海"</span> 当作消息投给<strong>起始节点</strong> <span class="mono">writer</span>，并发出 <span class="mono">started</span> 事件。
+    此刻<strong>活跃节点：无</strong>；<strong>在途消息</strong>：<span class="mono">"大海" → writer</span>。</p></div></div>
+  <div class="step"><div class="num">1</div><div class="sc"><h4>超步 1：writer 被唤起</h4>
+    <p>本超步里，所有"收到消息"的节点被<strong>并行</strong>唤起。<span class="mono">writer</span> 的 handler 跑完，
+    调 <span class="mono">ctx.send_message(draft)</span> 把草稿写到边上——但<strong>不立即送达</strong>，而是缓冲到超步末尾。</p>
+<pre class="code"><span class="cm"># 本超步可观测到的事件</span>
+WorkflowEvent(<span class="st">"executor_invoked"</span>,  executor_id=<span class="st">"writer"</span>)
+WorkflowEvent(<span class="st">"executor_completed"</span>, executor_id=<span class="st">"writer"</span>)
+<span class="cm"># 边 writer→reviewer 上此刻缓冲着一条消息（事件流里看不到）</span></pre></div></div>
+  <div class="step"><div class="num">2</div><div class="sc"><h4>超步边界：统一投递 + 存检查点</h4>
+    <p>超步 1 结束时，引擎一次性<strong>投递</strong>所有在途消息（草稿送达 <span class="mono">reviewer</span>），
+    并把当前状态<strong>存一个检查点</strong>（<span class="mono">_runner.py:143</span>）。下一超步的活跃集合 = <span class="mono">&#123;reviewer&#125;</span>。</p></div></div>
+  <div class="step"><div class="num">3</div><div class="sc"><h4>超步 2：reviewer 被唤起并产出</h4>
+    <p><span class="mono">reviewer</span> 收到草稿，调 <span class="mono">yield_output()</span> 产出终值——这会发一个 <span class="mono">output</span> 事件：</p>
+<pre class="code">WorkflowEvent(<span class="st">"executor_invoked"</span>, executor_id=<span class="st">"reviewer"</span>)
+WorkflowEvent(<span class="st">"output"</span>, executor_id=<span class="st">"reviewer"</span>,
+             data=<span class="st">"草稿：一首关于大海的俳句 ✓ 已评审"</span>)
+WorkflowEvent(<span class="st">"executor_completed"</span>, executor_id=<span class="st">"reviewer"</span>)</pre></div></div>
+  <div class="step"><div class="num">4</div><div class="sc"><h4>无消息在途 → 图空闲，终止</h4>
+    <p>超步 2 末尾没有任何新消息在途，图进入 <span class="mono">IDLE</span>，<span class="mono">run()</span> 返回。
+    <span class="mono">result.get_outputs()</span> → <span class="mono">["…✓ 已评审"]</span>，
+    <span class="mono">result.get_final_state()</span> → <span class="mono">WorkflowRunState.IDLE</span>。</p></div></div>
+</div>
+
+<div class="card detail">
+  <div class="tag">🔬 读懂这条轨迹</div>
+  三个常被忽略的关键点：①<strong>节点之间传的是消息，不是返回值</strong>——<span class="mono">send_message</span> 把数据放到边上，
+  接收方要到<em>下一个</em>超步才被唤起；②<strong>消息在超步边界统一投递</strong>，所以同一超步里被唤起的多个节点彼此<strong>看不到对方本步的输出</strong>（这正是 fan-out 能安全并行的前提）；
+  ③<strong>每个超步末尾都会存检查点</strong>——进程崩了也能从最近一个超步恢复，这是"单 Agent 工具循环"给不了的。
+  还有一个易错点：<span class="mono">send_message</span> 产生的<strong>边上消息在事件流里看不到</strong>（<span class="mono">_workflow.py:221</span>），
+  你能观测到的只有 <span class="mono">output</span> / 自定义事件 / 状态事件——想看节点间数据流，得用 OTel 的 <span class="mono">message.send</span> span（见第 14 课）。
+</div>
+
+<h2>图执行模型：超步驱动</h2>
+<p>把上面的轨迹抽象出来，就是 Workflow 的执行心智模型：一轮一轮的<strong>超步</strong>，每轮"唤起活跃节点 → 缓冲消息 → 边界投递+存档"，直到没有消息可投递。</p>
+<div class="flow">
+  <div class="node"><div class="nt">超步 0</div><div class="nd">投递初始消息</div></div>
+  <div class="arrow">→</div>
+  <div class="node hl"><div class="nt">超步 1</div><div class="nd">writer 唤起 · send</div></div>
+  <div class="arrow">→</div>
+  <div class="node"><div class="nt">边界</div><div class="nd">投递 + 检查点</div></div>
+  <div class="arrow">→</div>
+  <div class="node hl"><div class="nt">超步 2</div><div class="nd">reviewer 唤起 · yield</div></div>
+  <div class="arrow">→</div>
+  <div class="node"><div class="nt">IDLE</div><div class="nd">无消息 → 终止</div></div>
+</div>
+<p>这与你在第 8 课见过的<strong>单 Agent 工具循环</strong>是两种不同的控制结构。下面并排对比，帮你判断"什么时候该上 Workflow"：</p>
+<div class="cols">
+  <div class="col"><h4>单 Agent 工具循环</h4>
+    <p>一个 <span class="mono">while</span> 循环：调模型 → 执行工具 → 再调模型……状态<strong>全在内存里的那一个消息列表</strong>。
+    简单、低延迟，适合"一个智能体 + 几个工具"的对话式任务。但它<strong>崩溃即丢失</strong>、天然串行、
+    也难以在中途插入人工审核或并发分支。</p></div>
+  <div class="col"><h4>Workflow 图</h4>
+    <p>显式的<strong>节点 + 边 + 超步</strong>调度：可在边界<strong>存档/恢复</strong>、可 fan-out 并发、
+    可在边上挂条件与开关、可暂停等待人工输入（<span class="mono">ctx.request_info()</span>）。
+    代价是你得先<strong>把流程画成图</strong>——换来的是可控、可观测、可恢复。</p></div>
+</div>
+
+<h2>🔍 真实源码：建图与执行钩子</h2>
+<div class="codefile">
+  <div class="cf-head"><span class="dot"></span><span class="path">_workflows/_workflow_builder.py</span><span class="ln">add_edge / build（简化自 :228 / :725）</span></div>
+<pre class="code"><span class="kw">def</span> <span class="fn">add_edge</span>(self, source: Executor | SupportsAgentRun,
+             target: Executor | SupportsAgentRun,
+             condition: EdgeCondition | None = <span class="kw">None</span>) -> Self:
+    <span class="cm"># 登记一条有向边；source 的输出类型须与 target 的输入类型兼容</span>
+    ...
+    <span class="kw">return</span> self                        <span class="cm"># 返回自身 → 支持链式</span>
+
+<span class="kw">def</span> <span class="fn">build</span>(self) -> Workflow:
+    <span class="cm"># 校验：起始节点已设、边都合法、图连通、相邻类型兼容</span>
+    <span class="cm"># 任一不满足即抛 WorkflowValidationError（构建期就报错，而非运行时）</span>
+    <span class="kw">return</span> Workflow(...)               <span class="cm"># 返回不可变的 Workflow</span></pre>
+</div>
+<p>注意：<strong>起始节点是构造器参数</strong>（<span class="mono">WorkflowBuilder(start_executor=writer)</span>，<span class="mono">_workflow_builder.py:89</span>），
+并没有 <span class="mono">set_start_executor()</span> 方法。<span class="mono">build()</span> 把校验放在<strong>构建期</strong>——
+类型不兼容、图不连通这类错误在你 <span class="mono">run()</span> 之前就被拦下。</p>
+<div class="codefile">
+  <div class="cf-head"><span class="dot"></span><span class="path">_workflows/_executor.py</span><span class="ln">Executor.execute（简化自 :219）</span></div>
+<pre class="code"><span class="kw">async def</span> <span class="fn">execute</span>(self, message, source_executor_ids, state, runner_context, ...):
+    <span class="cm"># 由引擎调用——别自己调、也别覆写；要定制行为请写 @handler</span>
+    <span class="kw">with</span> create_processing_span(self.id, ...):      <span class="cm"># 自动开一个 OTel span（见第 14 课）</span>
+        handler = self._find_handler(message)        <span class="cm"># 按消息类型挑选 @handler</span>
+        context = self._create_context_for_handler(...)  <span class="cm"># 造 WorkflowContext</span>
+        <span class="kw">await</span> handler(message, context)              <span class="cm"># 真正干活的一行</span></pre>
+</div>
+<p>这解释了"两种写法为何等价"：无论你写 Executor 子类还是用 <span class="mono">@executor</span> 装函数，
+引擎统一通过 <span class="mono">execute()</span> → <span class="mono">_find_handler()</span> 找到对应 handler 再调用。
+<span class="mono">@handler</span>（<span class="mono">_executor.py:530</span>）只是把方法的输入类型登记进 <span class="mono">self._handlers</span>，供这里按类型分发。</p>
+
+<h2>为什么要图式编排</h2>
+<p>把流程显式画成图，并非"为复杂而复杂"，而是用一点前期成本换来三类生产级能力：</p>
+<table class="t">
+  <tr><th>能力</th><th>图带来了什么</th><th>底层机制</th></tr>
+  <tr><td><strong>可恢复</strong></td><td>长流程跑到一半崩溃，可从最近超步续跑，不必从头再来</td><td class="mono">超步边界检查点</td></tr>
+  <tr><td><strong>可并发</strong></td><td>无依赖的节点在同一超步并行跑，延迟从"求和"降到"取最大"</td><td class="mono">add_fan_out_edges</td></tr>
+  <tr><td><strong>可控</strong></td><td>条件边/开关让路由显式可见，而非藏在某个 if 里</td><td class="mono">add_switch_case_edge_group</td></tr>
+  <tr><td><strong>可干预</strong></td><td>节点可暂停、向外请求人工输入，拿到答复再继续</td><td class="mono">ctx.request_info()</td></tr>
+</table>
+<p>反过来说，如果你的任务就是"一个 Agent 带几个工具、一次对话搞定"，那么<strong>单 Agent 循环更省事</strong>——
+别为它套一张只有一个节点的图。Workflow 的价值在<strong>多节点协作 + 长流程 + 需要可靠性</strong>的场景才真正兑现。
+下一课的五种<strong>编排模式</strong>，本质上就是"把常见多 Agent 拓扑预先画好的 Workflow"。</p>
 
 <details class="accordion">
   <summary><span class="badge-num">1</span> Executor 两种写法 <span class="hint">点击展开详解</span></summary>
@@ -401,8 +536,56 @@ state = result.get_final_state()        <span class="cm"># WorkflowRunState.IDLE
   <div class="tag">💡 设计亮点</div>
   <strong>消息驱动</strong>：节点之间传递的是"消息"而非函数调用返回值——
   这意味着节点天然支持异步、fan-out/fan-in，且可在边上加条件/开关。
+  <br>把工作流真正端到端用起来，见<a href="20-capstone.html">第 20 课 · 端到端实战</a>。
 </div>
+<div class="selftest">
+<h2>🧪 自测 · 想一想为什么这么设计</h2>
+<div class="quiz">
+  <div class="qn">1. 在 <code>writer → reviewer</code> 图里，<code>writer</code> 调了 <code>ctx.send_message(draft)</code> 之后，<code>reviewer</code> 什么时候才第一次被唤起？</div>
+  <ol class="opts">
+    <li>永远不会——<code>send_message</code> 只是写日志</li>
+    <li>只有当你显式调用 <code>reviewer.run()</code> 时</li>
+    <li>在 <code>send_message</code> 那一行<strong>同步</strong>立即调用</li>
+    <li>在<strong>下一个超步</strong>——消息要等本超步结束、在边界统一投递后才送达</li>
+  </ol>
+  <details class="accordion">
+    <summary>看答案与解析 <span class="hint">点击展开</span></summary>
+    <div class="acc-body"><div class="qa"><div class="a"><strong>答案：D</strong>。Workflow 是 Pregel 式<strong>超步</strong>引擎：<code>send_message</code> 把消息缓冲到边上，引擎在<strong>超步边界</strong>统一投递并存检查点，下游节点要到下一超步才被唤起。这正是同一超步里多个节点能安全并行的前提（它们看不到彼此本步的输出）。</div></div></div>
+  </details>
 </div>
+<div class="quiz">
+  <div class="qn">2. 与第 8 课的<strong>单 Agent 工具循环</strong>相比，Workflow 图最核心的额外能力来自哪里？</div>
+  <ol class="opts">
+    <li>它去掉了对 ChatClient 的依赖</li>
+    <li>每个超步边界都<strong>存检查点</strong>，于是可恢复、可并发、可暂停等人工输入</li>
+    <li>它换用了更快的模型</li>
+    <li>它把消息列表压缩得更小</li>
+  </ol>
+  <details class="accordion">
+    <summary>看答案与解析 <span class="hint">点击展开</span></summary>
+    <div class="acc-body"><div class="qa"><div class="a"><strong>答案：B</strong>。单 Agent 循环把状态全放在一个内存消息列表里：简单、低延迟，但<strong>崩溃即丢失</strong>、天然串行。图把状态显式化为节点+边+超步，在边界存档——这才解锁了断点续跑、fan-out 并发、以及 <code>ctx.request_info()</code> 这类人在环暂停。代价是你得先把流程画成图。</div></div></div>
+  </details>
+</div>
+<div class="quiz">
+  <div class="qn">3. <code>WorkflowBuilder(...).add_edge(a, b).build()</code> 里，<code>build()</code> 主要负责什么？</div>
+  <ol class="opts">
+    <li>训练一个新模型</li>
+    <li>把所有节点合并成一个大函数</li>
+    <li>真正运行图、把结果打印出来</li>
+    <li><strong>构建期校验</strong>（起始节点已设、图连通、相邻类型兼容）并返回<strong>不可变</strong>的 <code>Workflow</code></li>
+  </ol>
+  <details class="accordion">
+    <summary>看答案与解析 <span class="hint">点击展开</span></summary>
+    <div class="acc-body"><div class="qa"><div class="a"><strong>答案：D</strong>。<code>build()</code>（<code>_workflow_builder.py:725</code>）把校验放在<strong>构建期</strong>：类型不兼容、图不连通会立刻抛 <code>WorkflowValidationError</code>，而不是等你 <code>run()</code> 到一半才炸。它返回一个不可变 <code>Workflow</code>，可被重复 <code>run()</code>。注意起始节点是构造器参数 <code>start_executor=</code>，并没有 <code>set_start_executor()</code> 方法。</div></div></div>
+  </details>
+</div>
+<div class="card spark">
+  <div class="tag">💭 发散思考（没有标准答案，动手或动脑想想）</div>
+  <ul>
+    <li>设计一张<strong>三节点</strong> fan-out/fan-in 图：<code>splitter</code> 把任务分给 <code>worker_a</code> 和 <code>worker_b</code> 并行处理，再由 <code>merger</code> 汇总。请数一数这张图至少需要几个超步、<code>worker_a/worker_b</code> 会在<strong>同一个超步</strong>被唤起吗，以及如果 <code>worker_b</code> 中途崩溃，引擎能从哪个超步恢复？</li>
+  </ul>
+</div>
+</div></div>
 <div class="i18n" data-lang="en">
 <p class="lead"><strong>Workflows</strong> are MAF's graph execution engine: wire multiple steps (<span class="mono">Executor</span>)
 into a directed graph with <strong>Edges</strong>, built by <span class="mono">WorkflowBuilder</span>, driven by
@@ -442,6 +625,130 @@ wf = WorkflowBuilder(start_executor=upper) \
     .add_edge(upper, reverse).build()
 events = <span class="kw">await</span> wf.run(<span class="st">"hello"</span>)  <span class="cm"># → "OLLEH"</span></pre>
 </div>
+
+<h2>Tracing one workflow run: writer → reviewer</h2>
+<p>Enough abstraction — let's walk a <strong>two-node graph</strong> end to end. Two Executors — <span class="mono">writer</span> (drafts) and
+<span class="mono">reviewer</span> (reviews and yields output) — wired by one edge <span class="mono">writer → reviewer</span>, then we deliver an initial message.
+The key insight: a Workflow does <strong>not</strong> "call two functions in sequence" — it advances in <strong>supersteps</strong>,
+which is exactly what makes it <strong>resumable, concurrent, and observable</strong> (<span class="mono">_workflow.py:211</span> calls this a Pregel-style engine).</p>
+
+<div class="codefile">
+  <div class="cf-head"><span class="dot"></span><span class="path">build the graph</span></div>
+<pre><span class="nb">@executor</span>(id=<span class="st">"writer"</span>)
+<span class="kw">async def</span> <span class="fn">writer</span>(topic: str, ctx: WorkflowContext[str]):
+    <span class="kw">await</span> ctx.send_message(<span class="st">f"draft: a haiku about {topic}"</span>)   <span class="cm"># forward downstream</span>
+
+<span class="nb">@executor</span>(id=<span class="st">"reviewer"</span>)
+<span class="kw">async def</span> <span class="fn">reviewer</span>(draft: str, ctx: WorkflowContext[Never, str]):
+    <span class="kw">await</span> ctx.yield_output(draft + <span class="st">" ✓ reviewed"</span>)        <span class="cm"># emit final result</span>
+
+wf = WorkflowBuilder(start_executor=writer).add_edge(writer, reviewer).build()
+result = <span class="kw">await</span> wf.run(<span class="st">"the sea"</span>)</pre>
+</div>
+
+<div class="vflow">
+  <div class="step"><div class="num">0</div><div class="sc"><h4>Deliver the initial message (superstep 0)</h4>
+    <p>The engine delivers <span class="mono">"the sea"</span> as a message to the <strong>start executor</strong> <span class="mono">writer</span> and emits a <span class="mono">started</span> event.
+    Right now <strong>active nodes: none</strong>; <strong>in-flight message</strong>: <span class="mono">"the sea" → writer</span>.</p></div></div>
+  <div class="step"><div class="num">1</div><div class="sc"><h4>Superstep 1: writer is invoked</h4>
+    <p>Every node that "received a message" is invoked <strong>in parallel</strong> this superstep. <span class="mono">writer</span>'s handler runs,
+    calls <span class="mono">ctx.send_message(draft)</span> to write the draft onto the edge — but it is <strong>not delivered immediately</strong>; it's buffered until the superstep boundary.</p>
+<pre class="code"><span class="cm"># events observable this superstep</span>
+WorkflowEvent(<span class="st">"executor_invoked"</span>,  executor_id=<span class="st">"writer"</span>)
+WorkflowEvent(<span class="st">"executor_completed"</span>, executor_id=<span class="st">"writer"</span>)
+<span class="cm"># edge writer→reviewer now buffers one message (not visible in the event stream)</span></pre></div></div>
+  <div class="step"><div class="num">2</div><div class="sc"><h4>Superstep boundary: deliver + checkpoint</h4>
+    <p>When superstep 1 ends, the engine <strong>delivers</strong> all in-flight messages at once (the draft reaches <span class="mono">reviewer</span>)
+    and <strong>writes a checkpoint</strong> (<span class="mono">_runner.py:143</span>). The next superstep's active set = <span class="mono">&#123;reviewer&#125;</span>.</p></div></div>
+  <div class="step"><div class="num">3</div><div class="sc"><h4>Superstep 2: reviewer is invoked and yields</h4>
+    <p><span class="mono">reviewer</span> receives the draft and calls <span class="mono">yield_output()</span> to emit the terminal value — which fires an <span class="mono">output</span> event:</p>
+<pre class="code">WorkflowEvent(<span class="st">"executor_invoked"</span>, executor_id=<span class="st">"reviewer"</span>)
+WorkflowEvent(<span class="st">"output"</span>, executor_id=<span class="st">"reviewer"</span>,
+             data=<span class="st">"draft: a haiku about the sea ✓ reviewed"</span>)
+WorkflowEvent(<span class="st">"executor_completed"</span>, executor_id=<span class="st">"reviewer"</span>)</pre></div></div>
+  <div class="step"><div class="num">4</div><div class="sc"><h4>No messages in flight → graph idle, terminate</h4>
+    <p>At the end of superstep 2 nothing new is in flight, the graph goes <span class="mono">IDLE</span>, and <span class="mono">run()</span> returns.
+    <span class="mono">result.get_outputs()</span> → <span class="mono">["…✓ reviewed"]</span>,
+    <span class="mono">result.get_final_state()</span> → <span class="mono">WorkflowRunState.IDLE</span>.</p></div></div>
+</div>
+
+<div class="card detail">
+  <div class="tag">🔬 Reading this trace</div>
+  Three things people often miss: ① <strong>nodes pass messages, not return values</strong> — <span class="mono">send_message</span> drops data onto the edge,
+  and the receiver isn't invoked until the <em>next</em> superstep; ② <strong>messages are delivered together at the superstep boundary</strong>, so multiple nodes invoked in the same superstep <strong>can't see each other's output</strong> from that step (precisely what makes fan-out safe to parallelize);
+  ③ <strong>a checkpoint is written at the end of every superstep</strong> — crash and you resume from the most recent one, something a "single-agent tool loop" cannot offer.
+  One more gotcha: messages produced by <span class="mono">send_message</span> are <strong>invisible in the event stream</strong> (<span class="mono">_workflow.py:221</span>);
+  all you observe are <span class="mono">output</span> / custom / status events — to watch inter-node data flow you need the OTel <span class="mono">message.send</span> span (see Lesson 14).
+</div>
+
+<h2>The graph execution model: superstep-driven</h2>
+<p>Abstracting the trace above gives the Workflow mental model: round after round of <strong>supersteps</strong>, each "invoke active nodes → buffer messages → deliver + checkpoint at the boundary," until no message is left to deliver.</p>
+<div class="flow">
+  <div class="node"><div class="nt">Superstep 0</div><div class="nd">deliver initial msg</div></div>
+  <div class="arrow">→</div>
+  <div class="node hl"><div class="nt">Superstep 1</div><div class="nd">writer · send</div></div>
+  <div class="arrow">→</div>
+  <div class="node"><div class="nt">Boundary</div><div class="nd">deliver + checkpoint</div></div>
+  <div class="arrow">→</div>
+  <div class="node hl"><div class="nt">Superstep 2</div><div class="nd">reviewer · yield</div></div>
+  <div class="arrow">→</div>
+  <div class="node"><div class="nt">IDLE</div><div class="nd">no msg → stop</div></div>
+</div>
+<p>This is a different control structure from the <strong>single-agent tool loop</strong> you saw in Lesson 8. A side-by-side comparison helps you decide "when to reach for a Workflow":</p>
+<div class="cols">
+  <div class="col"><h4>Single-agent tool loop</h4>
+    <p>One <span class="mono">while</span> loop: call the model → run a tool → call the model again… with state living <strong>entirely in one in-memory message list</strong>.
+    Simple and low-latency — ideal for "one agent + a few tools" conversational tasks. But it is <strong>lost on crash</strong>, inherently serial,
+    and awkward to pause for human review or branch concurrently.</p></div>
+  <div class="col"><h4>Workflow graph</h4>
+    <p>Explicit <strong>nodes + edges + supersteps</strong>: checkpoint and <strong>resume</strong> at boundaries, fan-out for concurrency,
+    hang conditions and switches on edges, and pause to request human input (<span class="mono">ctx.request_info()</span>).
+    The cost is you must <strong>draw the flow as a graph</strong> first — in return you get control, observability, and recoverability.</p></div>
+</div>
+
+<h2>🔍 Real source: building the graph and the execution hook</h2>
+<div class="codefile">
+  <div class="cf-head"><span class="dot"></span><span class="path">_workflows/_workflow_builder.py</span><span class="ln">add_edge / build (simplified from :228 / :725)</span></div>
+<pre class="code"><span class="kw">def</span> <span class="fn">add_edge</span>(self, source: Executor | SupportsAgentRun,
+             target: Executor | SupportsAgentRun,
+             condition: EdgeCondition | None = <span class="kw">None</span>) -> Self:
+    <span class="cm"># register a directed edge; source output type must match target input type</span>
+    ...
+    <span class="kw">return</span> self                        <span class="cm"># return self → enables chaining</span>
+
+<span class="kw">def</span> <span class="fn">build</span>(self) -> Workflow:
+    <span class="cm"># validate: start executor set, edges valid, graph connected, types compatible</span>
+    <span class="cm"># any failure raises WorkflowValidationError (at build time, not run time)</span>
+    <span class="kw">return</span> Workflow(...)               <span class="cm"># return an immutable Workflow</span></pre>
+</div>
+<p>Note: the <strong>start executor is a constructor argument</strong> (<span class="mono">WorkflowBuilder(start_executor=writer)</span>, <span class="mono">_workflow_builder.py:89</span>) —
+there is no <span class="mono">set_start_executor()</span> method. <span class="mono">build()</span> runs validation at <strong>build time</strong>, so
+type mismatches and disconnected graphs are caught before you ever call <span class="mono">run()</span>.</p>
+<div class="codefile">
+  <div class="cf-head"><span class="dot"></span><span class="path">_workflows/_executor.py</span><span class="ln">Executor.execute (simplified from :219)</span></div>
+<pre class="code"><span class="kw">async def</span> <span class="fn">execute</span>(self, message, source_executor_ids, state, runner_context, ...):
+    <span class="cm"># invoked by the engine — don't call or override it; customize via @handler</span>
+    <span class="kw">with</span> create_processing_span(self.id, ...):      <span class="cm"># auto-opens an OTel span (see Lesson 14)</span>
+        handler = self._find_handler(message)        <span class="cm"># pick the @handler by message type</span>
+        context = self._create_context_for_handler(...)  <span class="cm"># build a WorkflowContext</span>
+        <span class="kw">await</span> handler(message, context)              <span class="cm"># the line that does the real work</span></pre>
+</div>
+<p>This explains "why the two styles are equivalent": whether you write an Executor subclass or use <span class="mono">@executor</span> on a function,
+the engine uniformly routes through <span class="mono">execute()</span> → <span class="mono">_find_handler()</span> to find and invoke the matching handler.
+<span class="mono">@handler</span> (<span class="mono">_executor.py:530</span>) merely registers a method's input type into <span class="mono">self._handlers</span> for type-based dispatch here.</p>
+
+<h2>Why graph orchestration</h2>
+<p>Drawing the flow explicitly as a graph isn't complexity for its own sake — it trades a little upfront cost for three production-grade capabilities:</p>
+<table class="t">
+  <tr><th>Capability</th><th>What the graph buys you</th><th>Underlying mechanism</th></tr>
+  <tr><td><strong>Resumable</strong></td><td>A long flow that crashes midway resumes from the latest superstep — no rerun from scratch</td><td class="mono">superstep checkpoints</td></tr>
+  <tr><td><strong>Concurrent</strong></td><td>Independent nodes run in the same superstep; latency drops from sum to max</td><td class="mono">add_fan_out_edges</td></tr>
+  <tr><td><strong>Controllable</strong></td><td>Conditional edges/switches make routing explicit instead of buried in some if</td><td class="mono">add_switch_case_edge_group</td></tr>
+  <tr><td><strong>Interruptible</strong></td><td>A node can pause and request human input, then continue once answered</td><td class="mono">ctx.request_info()</td></tr>
+</table>
+<p>Conversely, if your task is just "one agent with a few tools, done in one conversation," the <strong>single-agent loop is simpler</strong> —
+don't wrap it in a one-node graph. A Workflow earns its keep in <strong>multi-node collaboration + long flows + reliability requirements</strong>.
+The five <strong>orchestration patterns</strong> in the next lesson are, at heart, "Workflows whose common multi-agent topologies are pre-drawn for you."</p>
 
 <details class="accordion">
   <summary><span class="badge-num">1</span> Two Executor styles <span class="hint">click to expand</span></summary>
@@ -555,8 +862,56 @@ state = result.get_final_state()        <span class="cm"># WorkflowRunState.IDLE
   <div class="tag">💡 Design highlight</div>
   <strong>Message-driven</strong>: nodes pass "messages", not function return values — so they naturally support
   async, fan-out/fan-in, and you can add conditions or switches on the edges.
+  <br>To put workflows to work end-to-end, see <a href="20-capstone.html">Lesson 20 · Capstone</a>.
 </div>
+<div class="selftest">
+<h2>🧪 Self-test - think about the design</h2>
+<div class="quiz">
+  <div class="qn">1. In the <code>writer → reviewer</code> graph, after <code>writer</code> calls <code>ctx.send_message(draft)</code>, when is <code>reviewer</code> first invoked?</div>
+  <ol class="opts">
+    <li>Never — <code>send_message</code> only writes a log</li>
+    <li>Only when you explicitly call <code>reviewer.run()</code></li>
+    <li><strong>Synchronously</strong>, right on the <code>send_message</code> line</li>
+    <li>On the <strong>next superstep</strong> — the message is delivered only at the boundary after this superstep ends</li>
+  </ol>
+  <details class="accordion">
+    <summary>Show answer &amp; explanation <span class="hint">click to expand</span></summary>
+    <div class="acc-body"><div class="qa"><div class="a"><strong>Answer: D</strong>. A Workflow is a Pregel-style <strong>superstep</strong> engine: <code>send_message</code> buffers the message on the edge, the engine delivers everything at the <strong>superstep boundary</strong> (and checkpoints), and the downstream node is invoked only on the next superstep. That's exactly why nodes in one superstep can parallelize safely — they can't see each other's output from that step.</div></div></div>
+  </details>
 </div>
+<div class="quiz">
+  <div class="qn">2. Compared with the <strong>single-agent tool loop</strong> from Lesson 8, where does a Workflow graph's most essential extra power come from?</div>
+  <ol class="opts">
+    <li>It removes the dependency on a ChatClient</li>
+    <li>It <strong>checkpoints</strong> at every superstep boundary — so it's resumable, concurrent, and can pause for human input</li>
+    <li>It swaps in a faster model</li>
+    <li>It compresses the message list smaller</li>
+  </ol>
+  <details class="accordion">
+    <summary>Show answer &amp; explanation <span class="hint">click to expand</span></summary>
+    <div class="acc-body"><div class="qa"><div class="a"><strong>Answer: B</strong>. The single-agent loop keeps all state in one in-memory message list: simple and low-latency, but <strong>lost on crash</strong> and inherently serial. The graph makes state explicit as nodes+edges+supersteps and checkpoints at boundaries — unlocking resume-after-crash, fan-out concurrency, and human-in-the-loop pauses via <code>ctx.request_info()</code>. The cost is having to draw the flow first.</div></div></div>
+  </details>
+</div>
+<div class="quiz">
+  <div class="qn">3. In <code>WorkflowBuilder(...).add_edge(a, b).build()</code>, what is <code>build()</code> mainly responsible for?</div>
+  <ol class="opts">
+    <li>Training a new model</li>
+    <li>Merging all nodes into one big function</li>
+    <li>Actually running the graph and printing the result</li>
+    <li><strong>Build-time validation</strong> (start set, graph connected, adjacent types compatible) and returning an <strong>immutable</strong> <code>Workflow</code></li>
+  </ol>
+  <details class="accordion">
+    <summary>Show answer &amp; explanation <span class="hint">click to expand</span></summary>
+    <div class="acc-body"><div class="qa"><div class="a"><strong>Answer: D</strong>. <code>build()</code> (<code>_workflow_builder.py:725</code>) puts validation at <strong>build time</strong>: incompatible types or a disconnected graph raise <code>WorkflowValidationError</code> immediately, instead of blowing up halfway through <code>run()</code>. It returns an immutable <code>Workflow</code> you can <code>run()</code> repeatedly. Note the start node is the constructor arg <code>start_executor=</code>; there is no <code>set_start_executor()</code> method.</div></div></div>
+  </details>
+</div>
+<div class="card spark">
+  <div class="tag">💭 Open questions (no single right answer - just think or try)</div>
+  <ul>
+    <li>Design a <strong>three-node</strong> fan-out/fan-in graph: <code>splitter</code> dispatches work to <code>worker_a</code> and <code>worker_b</code> in parallel, then <code>merger</code> aggregates. Count how many supersteps this needs at minimum, decide whether <code>worker_a/worker_b</code> are invoked in the <strong>same superstep</strong>, and reason about which superstep the engine could resume from if <code>worker_b</code> crashes midway.</li>
+  </ul>
+</div>
+</div></div>
   <div class="footnav"><a class="prev" href="11-middleware.html"><div class="dir"><span class="i18n" data-lang="zh">← 上一课</span><span class="i18n" data-lang="en">← Prev</span></div><div class="ttl"><span class="i18n" data-lang="zh">中间件 Middleware</span><span class="i18n" data-lang="en">Middleware</span></div></a><a class="next" href="13-orchestration.html"><div class="dir"><span class="i18n" data-lang="zh">下一课 →</span><span class="i18n" data-lang="en">Next →</span></div><div class="ttl"><span class="i18n" data-lang="zh">编排模式</span><span class="i18n" data-lang="en">Orchestration Patterns</span></div></a></div>
 </div>
 

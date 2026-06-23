@@ -36,6 +36,97 @@ L08_ZH = r"""
     <p>循环结束，包装成 <span class="mono">AgentResponse</span>（或逐块 <span class="mono">AgentResponseUpdate</span>）。</p></div></div>
 </div>
 
+<h2>追踪一次真实 run()：「巴黎今天天气如何？」</h2>
+<p>抽象讲完了，我们用一个<strong>具体输入</strong>端到端走一遍。假设这个 Agent 带一个工具
+<span class="mono">get_weather(city)</span>，你调用 <span class="mono">agent.run(&quot;巴黎今天天气如何？&quot;)</span>。
+下面每一步都给出当时<strong>消息列表的真实快照</strong>——看它如何从 2 条长到 4 条，再收敛成一个 <span class="mono">AgentResponse</span>。</p>
+
+<div class="vflow">
+  <div class="step"><div class="num">1</div><div class="sc"><h4>组装初始消息（2 条）</h4>
+    <p><span class="mono">_prepare_run_context()</span>（<span class="mono">_agents.py:1150</span>）把 system 指令 + 你的输入拼成消息列表，并带上工具：</p>
+<pre class="code">messages = [
+  Message(<span class="st">&quot;system&quot;</span>,    [<span class="st">&quot;你是天气助手…&quot;</span>]),
+  Message(<span class="st">&quot;user&quot;</span>,      [<span class="st">&quot;巴黎今天天气如何？&quot;</span>]),
+]
+tools = [get_weather]   <span class="cm"># 随请求一起发出的工具 schema</span></pre></div></div>
+  <div class="step"><div class="num">2</div><div class="sc"><h4>交给 ChatClient（循环在它内部）</h4>
+    <p><span class="mono">_call_chat_client()</span>（<span class="mono">_agents.py:985</span>）只做一件事：<span class="mono">client.get_response(messages, options)</span>。
+    <strong>工具循环并不在 Agent 里</strong>——它发生在 ChatClient 一侧的 <span class="mono">FunctionInvocationLayer</span>（<span class="mono">_tools.py:2249</span>，下一课展开）。Agent 只调用一次。</p></div></div>
+  <div class="step"><div class="num">3</div><div class="sc"><h4>模型决定先调用工具</h4>
+    <p>第一轮模型不直接作答，而是回一个 <span class="mono">function_call</span> 内容：</p>
+<pre class="code">assistant_msg = Message(<span class="st">&quot;assistant&quot;</span>, [
+  Content.from_function_call(
+    call_id=<span class="st">&quot;call_1&quot;</span>, name=<span class="st">&quot;get_weather&quot;</span>,
+    arguments=<span class="st">'{&quot;city&quot;: &quot;Paris&quot;}'</span>),  <span class="cm"># arguments 是 JSON 字符串</span>
+])</pre></div></div>
+  <div class="step"><div class="num">4</div><div class="sc"><h4>执行工具，工作消息长到 4 条</h4>
+    <p>框架解析参数、调用你的 Python 函数 <span class="mono">get_weather(&quot;Paris&quot;)</span> 得 <span class="mono">&quot;18°C 晴&quot;</span>，
+    打包成 <span class="mono">function_result</span> 追加进去：</p>
+<pre class="code">prepped_messages = [
+  Message(<span class="st">&quot;system&quot;</span>,    [...]),
+  Message(<span class="st">&quot;user&quot;</span>,      [...]),
+  Message(<span class="st">&quot;assistant&quot;</span>, [function_call get_weather]),    <span class="cm"># 第 3 条</span>
+  Message(<span class="st">&quot;tool&quot;</span>,      [function_result <span class="st">&quot;18°C 晴&quot;</span>]),  <span class="cm"># 第 4 条</span>
+]</pre></div></div>
+  <div class="step"><div class="num">5</div><div class="sc"><h4>带着结果再问一次模型</h4>
+    <p>循环回到顶部，把这 4 条消息整体再发给模型。这次模型手里已经有了天气数据，不必再调工具。</p></div></div>
+  <div class="step"><div class="num">6</div><div class="sc"><h4>拿到最终文本，循环终止</h4>
+    <p>模型回 <span class="mono">Message(&quot;assistant&quot;, [&quot;巴黎今天 18°C，晴。&quot;])</span>，
+    没有新的 <span class="mono">function_call</span>、<span class="mono">finish_reason=&quot;stop&quot;</span> → <span class="mono">FunctionInvocationLayer</span> 退出循环（上限 <span class="mono">DEFAULT_MAX_ITERATIONS=40</span> 轮）。</p></div></div>
+  <div class="step"><div class="num">7</div><div class="sc"><h4>包装成 AgentResponse</h4>
+    <p><span class="mono">_parse_non_streaming_response()</span>（<span class="mono">_agents.py:1013</span>）把这个 <span class="mono">ChatResponse</span> 收进 <span class="mono">AgentResponse</span>：</p>
+<pre class="code">resp = AgentResponse(messages=response.messages, …)
+resp.text            <span class="cm"># &quot;巴黎今天 18°C，晴。&quot;</span>
+resp.messages        <span class="cm"># 本轮新产生的消息：function_call → function_result → 最终回答</span>
+resp.usage_details   <span class="cm"># 两轮模型调用累加的 token</span></pre></div></div>
+</div>
+
+<div class="card detail">
+  <div class="tag">🔬 读懂这条轨迹</div>
+  关键不在"走了几步"，而在<strong>消息列表是唯一的状态载体</strong>：每一轮模型调用本身是<strong>无状态</strong>的，
+  框架靠"把上一轮的 function_call 与 function_result 追加进<em>同一个</em> list 再发回去"，制造出"模型记得自己刚查过天气"的连续感。
+  还有一个常被误解的细节：循环内不断变长的是<strong>工作消息</strong>（<span class="mono">prepped_messages</span>），
+  而 <span class="mono">AgentResponse.messages</span> 只装<strong>本轮新产生</strong>的消息（不含你传入的 system/user）——所以别指望从返回值里读回原始输入。
+</div>
+
+<h2>三层组合：一个 Agent 的真身</h2>
+<p>你 <span class="mono">new</span> 出来的 <span class="mono">Agent</span> 其实是三层用 <strong>Python 多继承</strong>叠出来的。
+调用 <span class="mono">run()</span> 时，请求<strong>从外到内</strong>依次穿过这三层，最后才落到真正干活的 <span class="mono">RawAgent</span>：</p>
+<div class="layers">
+  <div class="layer l-app"><div class="lh"><span class="badge">最外</span><span class="name">AgentMiddlewareLayer</span></div>
+    <div class="ld">中间件层（<span class="mono">_middleware.py:1258</span>）。先跑你注册的 <span class="mono">AgentMiddleware</span>，可改请求 / 改结果 / 短路。</div></div>
+  <div class="layer l-main"><div class="lh"><span class="badge">中间</span><span class="name">AgentTelemetryLayer</span></div>
+    <div class="ld">遥测层（来自 <span class="mono">observability</span>）。开一个 OpenTelemetry span，记录这次 run 的耗时 / token / 异常。</div></div>
+  <div class="layer l-core"><div class="lh"><span class="badge">核心</span><span class="name">RawAgent</span></div>
+    <div class="ld">真正的循环骨架（<span class="mono">_agents.py:578</span>）：上面追踪的 7 步就在这里。</div></div>
+</div>
+<p>对应真实定义 <span class="mono">class Agent(AgentMiddlewareLayer, AgentTelemetryLayer, RawAgent, Generic[…])</span>
+（<span class="mono">_agents.py:1584</span>）。<strong>方法解析顺序（MRO）天然形成了洋葱</strong>：先中间件、再遥测、最后核心——你不需要手写任何"包裹"代码。</p>
+
+<h2>🔍 真实源码：run() 的三步骨架</h2>
+<div class="codefile">
+  <div class="cf-head"><span class="dot"></span><span class="path">_agents.py</span><span class="ln">RawAgent.run（简化自 :889）</span></div>
+<pre class="code"><span class="kw">def</span> <span class="fn">run</span>(self, messages=<span class="kw">None</span>, *, stream=<span class="kw">False</span>, session=<span class="kw">None</span>,
+        tools=<span class="kw">None</span>, options=<span class="kw">None</span>, …):
+    <span class="kw">async def</span> <span class="fn">_prepare_run_context</span>():
+        <span class="kw">return await</span> self._prepare_run_context(messages=messages, …)
+
+    <span class="kw">if not</span> stream:                          <span class="cm"># ① 非流式 → 返回 AgentResponse</span>
+        <span class="kw">async def</span> <span class="fn">_run_non_streaming</span>():
+            ctx = <span class="kw">await</span> _prepare_run_context()    <span class="cm"># 1. 组装上下文</span>
+            response = <span class="kw">await</span> self._call_chat_client(ctx, stream=<span class="kw">False</span>)  <span class="cm"># 2. 调 ChatClient</span>
+            <span class="kw">return await</span> self._parse_non_streaming_response(ctx, response)  <span class="cm"># 3. 解析</span>
+        <span class="kw">return</span> _run_non_streaming()
+
+    <span class="kw">async def</span> <span class="fn">_run_streaming</span>():            <span class="cm"># ② stream=True → 返回更新流</span>
+        ctx = <span class="kw">await</span> _prepare_run_context()
+        stream_response = self._call_chat_client(ctx, stream=<span class="kw">True</span>)
+        <span class="kw">return</span> self._parse_streaming_response(ctx, stream_response)
+    <span class="kw">return</span> ResponseStream.from_awaitable(_run_streaming())</pre>
+</div>
+<p>三步骨架一眼可见：<strong>①准备上下文 → ②调 ChatClient → ③解析响应</strong>。流式与非流式<strong>共用第①步</strong>，
+只在第②③步分叉——这正是"用一个 <span class="mono">stream</span> 布尔切换两种返回类型"的实现处，避免了写两个几乎一样的方法。</p>
+
 <details class="accordion">
   <summary><span class="badge-num">1</span> BaseAgent 定义了哪些接口？ <span class="hint">点击展开详解</span></summary>
   <div class="acc-body">
@@ -158,7 +249,9 @@ raw = RawAgent(name=<span class="st">&quot;bare&quot;</span>, client=client)</pr
       <div class="q">❓ 为什么看这段代码有价值</div>
       <div class="a">三步清晰可见：<strong>①准备上下文 → ②调 ChatClient → ③解析响应</strong>。
         流式和非流式共用同一个 <span class="mono">_prepare_run_context</span>，区别只在第②③步。
-        工具循环藏在 <span class="mono">_parse_non_streaming_response</span> 里——它会检查 function_call，执行工具，再回调 <span class="mono">_call_chat_client</span>。</div>
+        注意：<strong>工具循环不在这三步里</strong>——<span class="mono">_call_chat_client</span> 只调一次 <span class="mono">client.get_response()</span>，
+        多轮 function_call ↔ function_result 的循环发生在 ChatClient 一侧的 <span class="mono">FunctionInvocationLayer</span>（<span class="mono">_tools.py:2249</span>），
+        所以 <span class="mono">_parse_non_streaming_response</span> 拿到的 <span class="mono">ChatResponse</span> 已经是"跑完工具后的最终结果"。</div>
     </div>
     <div class="qa">
       <div class="q">✅ _call_chat_client 做了什么</div>
@@ -176,10 +269,18 @@ raw = RawAgent(name=<span class="st">&quot;bare&quot;</span>, client=client)</pr
   </div>
 </details>
 
+<h2>为什么这样设计</h2>
+<p><strong>① 模板方法 + 分层 = 可测试性。</strong> 把"循环骨架"钉死在基类、只把"怎么调模型"留给 <span class="mono">_call_chat_client()</span>，
+意味着单元测试时你只需覆写这<strong>一个</strong>方法返回假的 <span class="mono">ChatResponse</span>，就能在不联网、不烧 token 的情况下验证整条 run 逻辑。
+如果循环和网络调用揉在一个大函数里，这种隔离测试几乎不可能。</p>
+<p><strong>② Mixin 多继承 = 零运行时开销的可组合性。</strong> 中间件层、遥测层、核心层是三个独立类，靠 MRO 串成洋葱，
+而不是用 <span class="mono">if self.enable_telemetry:</span> 之类的运行时开关。需要轻量版？直接用 <span class="mono">RawAgent</span>，那两层<strong>根本不存在</strong>于 MRO 里，
+没有任何"判断后跳过"的分支成本；需要全功能？用 <span class="mono">Agent</span>，三层自动到位。功能的"有/无"在<strong>类定义期</strong>就确定了。</p>
+<p><strong>③ 把工具循环下放到 ChatClient = 关注点分离。</strong> Agent 只负责"组装上下文 + 解析结果"，而"反复和模型来回、执行工具"这件复杂的事
+交给 <span class="mono">FunctionInvocationLayer</span>。于是<strong>同一套工具循环能被任何 ChatClient 复用</strong>，
+而 Agent 这层始终保持"瘦"——这也是为什么换厂商不影响 Agent 代码（详见下一课）。</p>
+
 <div class="card key">
-  <div class="tag">✅ 关键要点</div>
-  <ul>
-    <li><span class="mono">BaseAgent</span>（抽象）定义协议；<span class="mono">Agent</span>（具体）实现组装 + 循环。</li>
     <li><span class="mono">run()</span> = 构建消息 → 注入上下文 → 调 ChatClient → 工具循环 → 返回。</li>
     <li>返回类型：非流式 <span class="mono">AgentResponse</span>；流式 <span class="mono">AgentResponseUpdate</span>。</li>
     <li>真实代码三步：<span class="mono">_prepare_run_context → _call_chat_client → _parse_response</span>。</li>
@@ -228,6 +329,98 @@ Understand them and you'll see how the framework drives an agent through its ful
   <div class="step"><div class="num">5</div><div class="sc"><h4>Return</h4>
     <p>Loop ends; wrap into <span class="mono">AgentResponse</span> (or stream <span class="mono">AgentResponseUpdate</span> chunks).</p></div></div>
 </div>
+
+<h2>Tracing a real run(): "What's the weather in Paris today?"</h2>
+<p>Enough abstraction — let's walk one <strong>concrete input</strong> end to end. Assume this Agent carries a tool
+<span class="mono">get_weather(city)</span> and you call <span class="mono">agent.run(&quot;What's the weather in Paris today?&quot;)</span>.
+Each step below shows a <strong>real snapshot of the message list</strong> — watch it grow from 2 entries to 4, then collapse into a single <span class="mono">AgentResponse</span>.</p>
+
+<div class="vflow">
+  <div class="step"><div class="num">1</div><div class="sc"><h4>Assemble the initial messages (2)</h4>
+    <p><span class="mono">_prepare_run_context()</span> (<span class="mono">_agents.py:1150</span>) concatenates the system instructions + your input, and attaches the tools:</p>
+<pre class="code">messages = [
+  Message(<span class="st">&quot;system&quot;</span>, [<span class="st">&quot;You are a weather assistant…&quot;</span>]),
+  Message(<span class="st">&quot;user&quot;</span>,   [<span class="st">&quot;What's the weather in Paris today?&quot;</span>]),
+]
+tools = [get_weather]   <span class="cm"># tool schemas sent with the request</span></pre></div></div>
+  <div class="step"><div class="num">2</div><div class="sc"><h4>Hand off to the ChatClient (the loop lives there)</h4>
+    <p><span class="mono">_call_chat_client()</span> (<span class="mono">_agents.py:985</span>) does exactly one thing: <span class="mono">client.get_response(messages, options)</span>.
+    <strong>The tool loop is not in the Agent</strong> — it runs in the ChatClient's <span class="mono">FunctionInvocationLayer</span> (<span class="mono">_tools.py:2249</span>, next lesson). The Agent calls once.</p></div></div>
+  <div class="step"><div class="num">3</div><div class="sc"><h4>The model chooses to call a tool first</h4>
+    <p>On the first turn the model doesn't answer directly; it returns a <span class="mono">function_call</span> content:</p>
+<pre class="code">assistant_msg = Message(<span class="st">&quot;assistant&quot;</span>, [
+  Content.from_function_call(
+    call_id=<span class="st">&quot;call_1&quot;</span>, name=<span class="st">&quot;get_weather&quot;</span>,
+    arguments=<span class="st">'{&quot;city&quot;: &quot;Paris&quot;}'</span>),  <span class="cm"># arguments is a JSON string</span>
+])</pre></div></div>
+  <div class="step"><div class="num">4</div><div class="sc"><h4>Execute the tool; the working list grows to 4</h4>
+    <p>The framework parses the args, calls your Python function <span class="mono">get_weather(&quot;Paris&quot;)</span> → <span class="mono">&quot;18°C sunny&quot;</span>,
+    packs it as a <span class="mono">function_result</span> and appends it:</p>
+<pre class="code">prepped_messages = [
+  Message(<span class="st">&quot;system&quot;</span>,    [...]),
+  Message(<span class="st">&quot;user&quot;</span>,      [...]),
+  Message(<span class="st">&quot;assistant&quot;</span>, [function_call get_weather]),     <span class="cm"># 3rd</span>
+  Message(<span class="st">&quot;tool&quot;</span>,      [function_result <span class="st">&quot;18°C sunny&quot;</span>]),  <span class="cm"># 4th</span>
+]</pre></div></div>
+  <div class="step"><div class="num">5</div><div class="sc"><h4>Ask the model again, now with the result</h4>
+    <p>The loop returns to the top and re-sends all 4 messages. This time the model has the weather data and need not call a tool.</p></div></div>
+  <div class="step"><div class="num">6</div><div class="sc"><h4>Get the final text; the loop terminates</h4>
+    <p>The model returns <span class="mono">Message(&quot;assistant&quot;, [&quot;It's 18°C and sunny in Paris.&quot;])</span> with no new
+    <span class="mono">function_call</span> and <span class="mono">finish_reason=&quot;stop&quot;</span> → <span class="mono">FunctionInvocationLayer</span> exits the loop (capped at <span class="mono">DEFAULT_MAX_ITERATIONS=40</span>).</p></div></div>
+  <div class="step"><div class="num">7</div><div class="sc"><h4>Wrap into an AgentResponse</h4>
+    <p><span class="mono">_parse_non_streaming_response()</span> (<span class="mono">_agents.py:1013</span>) folds that <span class="mono">ChatResponse</span> into an <span class="mono">AgentResponse</span>:</p>
+<pre class="code">resp = AgentResponse(messages=response.messages, …)
+resp.text            <span class="cm"># &quot;It's 18°C and sunny in Paris.&quot;</span>
+resp.messages        <span class="cm"># messages produced this run: function_call → function_result → final answer</span>
+resp.usage_details   <span class="cm"># tokens summed across both model calls</span></pre></div></div>
+</div>
+
+<div class="card detail">
+  <div class="tag">🔬 Reading this trace</div>
+  The point isn't "how many steps" but that <strong>the message list is the only carrier of state</strong>: each model call is
+  <strong>stateless</strong>, and the framework fabricates the illusion that "the model remembers it just checked the weather" purely by appending
+  the previous turn's function_call and function_result into <em>the same</em> list and re-sending it.
+  One commonly misread detail: the list that keeps growing inside the loop is the <strong>working list</strong> (<span class="mono">prepped_messages</span>),
+  whereas <span class="mono">AgentResponse.messages</span> holds only the <strong>newly produced</strong> messages (not the system/user you passed in) — so don't expect to read your original input back out of the response.
+</div>
+
+<h2>Three layers in one: an Agent's true shape</h2>
+<p>The <span class="mono">Agent</span> you <span class="mono">new</span> up is actually three layers stacked via <strong>Python multiple inheritance</strong>.
+On <span class="mono">run()</span>, the request passes through them <strong>outside-in</strong> before reaching the <span class="mono">RawAgent</span> that does the real work:</p>
+<div class="layers">
+  <div class="layer l-app"><div class="lh"><span class="badge">Outer</span><span class="name">AgentMiddlewareLayer</span></div>
+    <div class="ld">Middleware layer (<span class="mono">_middleware.py:1258</span>). Runs your registered <span class="mono">AgentMiddleware</span> first; can edit the request / result, or short-circuit.</div></div>
+  <div class="layer l-main"><div class="lh"><span class="badge">Middle</span><span class="name">AgentTelemetryLayer</span></div>
+    <div class="ld">Telemetry layer (from <span class="mono">observability</span>). Opens an OpenTelemetry span recording this run's latency / tokens / exceptions.</div></div>
+  <div class="layer l-core"><div class="lh"><span class="badge">Core</span><span class="name">RawAgent</span></div>
+    <div class="ld">The real loop skeleton (<span class="mono">_agents.py:578</span>): the 7 steps traced above live here.</div></div>
+</div>
+<p>This maps to the real definition <span class="mono">class Agent(AgentMiddlewareLayer, AgentTelemetryLayer, RawAgent, Generic[…])</span>
+(<span class="mono">_agents.py:1584</span>). <strong>The method resolution order (MRO) forms the onion for free</strong>: middleware first, telemetry next, core last — you write no wrapping code at all.</p>
+
+<h2>🔍 Real source: the three-step skeleton of run()</h2>
+<div class="codefile">
+  <div class="cf-head"><span class="dot"></span><span class="path">_agents.py</span><span class="ln">RawAgent.run (simplified from :889)</span></div>
+<pre class="code"><span class="kw">def</span> <span class="fn">run</span>(self, messages=<span class="kw">None</span>, *, stream=<span class="kw">False</span>, session=<span class="kw">None</span>,
+        tools=<span class="kw">None</span>, options=<span class="kw">None</span>, …):
+    <span class="kw">async def</span> <span class="fn">_prepare_run_context</span>():
+        <span class="kw">return await</span> self._prepare_run_context(messages=messages, …)
+
+    <span class="kw">if not</span> stream:                          <span class="cm"># ① non-streaming → returns AgentResponse</span>
+        <span class="kw">async def</span> <span class="fn">_run_non_streaming</span>():
+            ctx = <span class="kw">await</span> _prepare_run_context()    <span class="cm"># 1. assemble context</span>
+            response = <span class="kw">await</span> self._call_chat_client(ctx, stream=<span class="kw">False</span>)  <span class="cm"># 2. call ChatClient</span>
+            <span class="kw">return await</span> self._parse_non_streaming_response(ctx, response)  <span class="cm"># 3. parse</span>
+        <span class="kw">return</span> _run_non_streaming()
+
+    <span class="kw">async def</span> <span class="fn">_run_streaming</span>():            <span class="cm"># ② stream=True → returns an update stream</span>
+        ctx = <span class="kw">await</span> _prepare_run_context()
+        stream_response = self._call_chat_client(ctx, stream=<span class="kw">True</span>)
+        <span class="kw">return</span> self._parse_streaming_response(ctx, stream_response)
+    <span class="kw">return</span> ResponseStream.from_awaitable(_run_streaming())</pre>
+</div>
+<p>The three-step skeleton is plain to see: <strong>① prepare context → ② call ChatClient → ③ parse response</strong>. Streaming and non-streaming
+<strong>share step ①</strong> and diverge only at ②③ — this is exactly where one <span class="mono">stream</span> bool toggles two return types, sparing you two near-identical methods.</p>
 
 <details class="accordion">
   <summary><span class="badge-num">1</span> What does BaseAgent define? <span class="hint">expand</span></summary>
@@ -352,7 +545,9 @@ raw = RawAgent(name=<span class="st">&quot;bare&quot;</span>, client=client)</pr
       <div class="q">❓ Why this code matters</div>
       <div class="a">Three steps are clearly visible: <strong>①prepare context → ②call ChatClient → ③parse response</strong>.
         Streaming and non-streaming share the same <span class="mono">_prepare_run_context</span>; they differ only in steps ②③.
-        The tool loop hides inside <span class="mono">_parse_non_streaming_response</span> — it checks for function_call, executes tools, and calls back into <span class="mono">_call_chat_client</span>.</div>
+        Note: <strong>the tool loop is not in these three steps</strong> — <span class="mono">_call_chat_client</span> calls <span class="mono">client.get_response()</span> just once;
+        the multi-turn function_call ↔ function_result loop runs in the ChatClient's <span class="mono">FunctionInvocationLayer</span> (<span class="mono">_tools.py:2249</span>),
+        so the <span class="mono">ChatResponse</span> that <span class="mono">_parse_non_streaming_response</span> receives is already the "after the tools ran" final result.</div>
     </div>
     <div class="qa">
       <div class="q">✅ What _call_chat_client does</div>
@@ -369,6 +564,17 @@ raw = RawAgent(name=<span class="st">&quot;bare&quot;</span>, client=client)</pr
     </div>
   </div>
 </details>
+
+<h2>Why it's designed this way</h2>
+<p><strong>① Template method + layering = testability.</strong> Nailing the "loop skeleton" into the base class and leaving only "how to call the model"
+to <span class="mono">_call_chat_client()</span> means a unit test only has to override that <strong>one</strong> method to return a fake <span class="mono">ChatResponse</span> —
+letting you verify the entire run logic offline, without burning tokens. If the loop and the network call were fused into one big function, that isolation would be nearly impossible.</p>
+<p><strong>② Mixin inheritance = composability at zero runtime cost.</strong> The middleware, telemetry and core layers are three independent classes threaded into an onion by the MRO,
+not toggled with runtime flags like <span class="mono">if self.enable_telemetry:</span>. Want a lightweight variant? Use <span class="mono">RawAgent</span> and those two layers <strong>simply aren't in</strong> the MRO —
+no "check-then-skip" branch cost; want everything? Use <span class="mono">Agent</span> and all three snap into place. The presence/absence of a feature is decided at <strong>class-definition time</strong>.</p>
+<p><strong>③ Pushing the tool loop down into the ChatClient = separation of concerns.</strong> The Agent only "assembles context + parses results", while the complex job of
+"shuttling back and forth with the model and executing tools" belongs to <span class="mono">FunctionInvocationLayer</span>. As a result <strong>the same tool loop is reused by any ChatClient</strong>,
+and the Agent layer stays "thin" — which is also why swapping vendors doesn't touch Agent code (see the next lesson).</p>
 
 <div class="card key">
   <div class="tag">✅ Key points</div>
@@ -415,6 +621,94 @@ L09_ZH = r"""
   <tr><td class="mono">get_response(messages, stream=False)</td><td>Agent / 你</td><td><span class="mono">ChatResponse</span> 或 <span class="mono">AsyncIterator[ChatResponseUpdate]</span></td></tr>
   <tr><td class="mono">_inner_get_response(messages, stream, options)</td><td>基类内部</td><td>同上（由 provider 实现）</td></tr>
 </table>
+
+<h2>追踪一次真实 get_response()：从消息到 ChatResponse</h2>
+<p>骨架讲完了，我们用一次<strong>真实调用</strong>端到端走一遍。假设上层（Agent 或工具循环层）执行
+<span class="mono">client.get_response(messages, options=ChatOptions(model=&quot;gpt-4o&quot;))</span>，
+看请求如何穿过基类、落到厂商实现，再把<strong>厂商专属 JSON</strong> 收敛成统一的 <span class="mono">ChatResponse</span>。</p>
+
+<div class="vflow">
+  <div class="step"><div class="num">1</div><div class="sc"><h4>公共入口：先决定要不要压缩</h4>
+    <p><span class="mono">get_response()</span>（<span class="mono">_clients.py:482</span>）做的第一件事是
+    <span class="mono">_resolve_compaction_overrides()</span>——把「本次调用传入的」与「client 上预设的」compaction 策略合并：</p>
+<pre class="code">overrides = self._resolve_compaction_overrides(
+    compaction_strategy=compaction_strategy, tokenizer=tokenizer)
+merged_client_kwargs = dict(client_kwargs <span class="kw">or</span> {})</pre></div></div>
+  <div class="step"><div class="num">2</div><div class="sc"><h4>无压缩 → 原样直接转发</h4>
+    <p>若 <span class="mono">overrides</span> 为空（最常见路径），基类<strong>什么都不加工</strong>，把消息原封不动转发给厂商实现：</p>
+<pre class="code"><span class="kw">if not</span> overrides:
+    <span class="kw">return</span> self._inner_get_response(
+        messages=messages, stream=stream,
+        options=options <span class="kw">or</span> {}, **merged_client_kwargs)</pre></div></div>
+  <div class="step"><div class="num">3</div><div class="sc"><h4>有压缩 → 先 _prepare 再调</h4>
+    <p>若设了 compaction，基类先 <span class="mono">await _prepare_messages_for_model_call()</span>（<span class="mono">_clients.py:366</span>）
+    在<strong>同一个 list</strong> 上原地压缩 / 标注，再调厂商实现。无论走哪条路，<span class="mono">_inner_get_response()</span> 在一次 <span class="mono">get_response</span> 里<strong>只被调用一次</strong>。</p></div></div>
+  <div class="step"><div class="num">4</div><div class="sc"><h4>厂商实现：MAF 消息 → 厂商请求</h4>
+    <p>进入子类的 <span class="mono">_inner_get_response()</span>（抽象声明在 <span class="mono">_clients.py:415</span>）。它先
+    <span class="mono">await self._validate_options(options)</span>（<span class="mono">_clients.py:329</span>），再把 MAF 的 <span class="mono">Message</span> 列表翻成那家 API 的字段：</p>
+<pre class="code"><span class="cm"># 以 OpenAI 兼容格式为例</span>
+payload = {<span class="st">&quot;model&quot;</span>: <span class="st">&quot;gpt-4o&quot;</span>, <span class="st">&quot;messages&quot;</span>: [
+  {<span class="st">&quot;role&quot;</span>: <span class="st">&quot;system&quot;</span>, <span class="st">&quot;content&quot;</span>: <span class="st">&quot;…&quot;</span>},
+  {<span class="st">&quot;role&quot;</span>: <span class="st">&quot;user&quot;</span>, <span class="st">&quot;content&quot;</span>: <span class="st">&quot;巴黎今天天气如何？&quot;</span>}]}</pre></div></div>
+  <div class="step"><div class="num">5</div><div class="sc"><h4>真实网络调用，拿回厂商 JSON</h4>
+    <p>发出 HTTP 请求，得到厂商<strong>专属结构</strong>的原始响应——每家字段名都不一样：</p>
+<pre class="code">{<span class="st">&quot;id&quot;</span>: <span class="st">&quot;chatcmpl-9x…&quot;</span>, <span class="st">&quot;model&quot;</span>: <span class="st">&quot;gpt-4o-2024…&quot;</span>,
+ <span class="st">&quot;choices&quot;</span>: [{<span class="st">&quot;message&quot;</span>: {<span class="st">&quot;content&quot;</span>: <span class="st">&quot;18°C，晴。&quot;</span>},
+              <span class="st">&quot;finish_reason&quot;</span>: <span class="st">&quot;stop&quot;</span>}],
+ <span class="st">&quot;usage&quot;</span>: {<span class="st">&quot;prompt_tokens&quot;</span>: 42, <span class="st">&quot;completion_tokens&quot;</span>: 9}}</pre></div></div>
+  <div class="step"><div class="num">6</div><div class="sc"><h4>归一化：厂商 JSON → 统一 ChatResponse</h4>
+    <p>子类把上面的 JSON 逐字段映射进框架统一的 <span class="mono">ChatResponse</span>（构造器见 <span class="mono">_types.py:2122</span>）：</p>
+<pre class="code"><span class="kw">return</span> ChatResponse(
+    messages=[Message(<span class="st">&quot;assistant&quot;</span>, [<span class="st">&quot;18°C，晴。&quot;</span>])],
+    response_id=<span class="st">&quot;chatcmpl-9x…&quot;</span>, model=<span class="st">&quot;gpt-4o-2024…&quot;</span>,
+    finish_reason=<span class="st">&quot;stop&quot;</span>,
+    usage_details=UsageDetails(
+        input_token_count=42, output_token_count=9))</pre></div></div>
+  <div class="step"><div class="num">7</div><div class="sc"><h4>上层只看见统一类型</h4>
+    <p>这个 <span class="mono">ChatResponse</span> 一路原样返回。上层（Agent、工具循环、你的代码）<strong>永远只看到统一类型</strong>，
+    完全不知道下面是 OpenAI 还是 Foundry——换厂商，上层零改动。</p></div></div>
+</div>
+
+<div class="card detail">
+  <div class="tag">🔬 读懂这条轨迹</div>
+  关键在第 ⑥ 步：<strong>归一化发生在子类内部</strong>，而不是基类。基类 <span class="mono">get_response()</span> 只管「压不压缩 + 转发」这件通用事，
+  「怎么把那家 JSON 翻成 <span class="mono">ChatResponse</span>」交给最懂那家 API 的子类。于是新增一个厂商，<strong>基类一行都不用改</strong>。
+</div>
+
+<h2>厂商原始 JSON → 统一 ChatResponse 字段</h2>
+<p>第 ⑥ 步那次「逐字段映射」到底映了什么？下表把 OpenAI 风格的原始 JSON 和框架统一的
+<span class="mono">ChatResponse</span> 字段一一对照——注意 token 计数的<strong>改名</strong>，这正是归一化最容易被忽略的细节：</p>
+<table class="t">
+  <tr><th>厂商原始 JSON（OpenAI 风格）</th><th>统一 ChatResponse 字段</th><th>类型 / 说明</th></tr>
+  <tr><td class="mono">id</td><td class="mono">response_id</td><td>本次响应的唯一 ID</td></tr>
+  <tr><td class="mono">model</td><td class="mono">model</td><td>实际使用的模型名</td></tr>
+  <tr><td class="mono">choices[0].message.content</td><td class="mono">messages[0]</td><td>装进一条 <span class="mono">Message(&quot;assistant&quot;, …)</span></td></tr>
+  <tr><td class="mono">choices[0].message.tool_calls</td><td class="mono">messages[0].contents</td><td>转成 <span class="mono">function_call</span> 类型的 <span class="mono">Content</span></td></tr>
+  <tr><td class="mono">choices[0].finish_reason</td><td class="mono">finish_reason</td><td><span class="mono">&quot;stop&quot;/&quot;tool_calls&quot;/&quot;length&quot;</span>（<span class="mono">_types.py:1642</span>）</td></tr>
+  <tr><td class="mono">usage.prompt_tokens</td><td class="mono">usage_details.input_token_count</td><td><strong>字段名变了</strong></td></tr>
+  <tr><td class="mono">usage.completion_tokens</td><td class="mono">usage_details.output_token_count</td><td><strong>字段名变了</strong></td></tr>
+  <tr><td class="mono">usage.total_tokens</td><td class="mono">usage_details.total_token_count</td><td><span class="mono">UsageDetails</span>（<span class="mono">_types.py:393</span>）</td></tr>
+</table>
+
+<h2>四层洋葱：一个 ChatClient 的真身</h2>
+<p>和上一课的 <span class="mono">Agent</span> 一样，你拿到的 ChatClient 也是用 <strong>Python 多继承</strong>把若干「层」叠在
+<span class="mono">BaseChatClient</span> 外面。一次 <span class="mono">get_response()</span> 请求<strong>从外到内</strong>穿过这些层，最后才落到厂商的 <span class="mono">_inner_get_response()</span>：</p>
+<div class="layers">
+  <div class="layer l-app"><div class="lh"><span class="badge">最外</span><span class="name">FunctionInvocationLayer</span></div>
+    <div class="ld">函数调用层（<span class="mono">_tools.py:2249</span>）。<strong>上一课那个工具循环就住在这里</strong>——它反复 <span class="mono">super().get_response()</span> 直到不再出现新的 function_call。</div></div>
+  <div class="layer l-app"><div class="lh"><span class="badge">中间件</span><span class="name">ChatMiddlewareLayer</span></div>
+    <div class="ld">聊天中间件层（<span class="mono">_middleware.py:1108</span>）。跑你注册的 <span class="mono">ChatMiddleware</span>，可在「真正调模型」前后改请求 / 改响应 / 短路。</div></div>
+  <div class="layer l-main"><div class="lh"><span class="badge">遥测</span><span class="name">ChatTelemetryLayer</span></div>
+    <div class="ld">遥测层（<span class="mono">observability.py:1354</span>）。为每次模型调用开一个 OpenTelemetry span，记录耗时 / token / 异常。</div></div>
+  <div class="layer l-core"><div class="lh"><span class="badge">核心</span><span class="name">BaseChatClient</span></div>
+    <div class="ld">抽象基类（<span class="mono">_clients.py:217</span>）。定义公共 <span class="mono">get_response()</span> + 抽象 <span class="mono">_inner_get_response()</span>——厂商唯一要填的洞。</div></div>
+</div>
+<p>真实代码里，一个 provider 大致是
+<span class="mono">class XxxChatClient(FunctionInvocationLayer, ChatTelemetryLayer, BaseChatClient)</span>
+这样多继承组合的（同款 MRO 见源码测试 <span class="mono">test_observability.py:4141</span>；四层完整顺序见 <span class="mono">:2939</span> 文档：
+<span class="mono">FunctionInvocationLayer → ChatMiddlewareLayer → ChatTelemetryLayer → BaseChatClient</span>）。
+和 Agent 的设计如出一辙：<strong>能力靠「叠层」而非「运行时开关」决定</strong>——要裸客户端就只继承
+<span class="mono">BaseChatClient</span>，要工具循环就把 <span class="mono">FunctionInvocationLayer</span> 叠上去。</p>
 
 <details class="accordion">
   <summary><span class="badge-num">1</span> 厂商怎么实现 _inner_get_response? <span class="hint">点击展开详解</span></summary>
@@ -463,7 +757,7 @@ L09_ZH = r"""
 <pre class="code">resp.messages       <span class="cm"># list[Message] — 模型回复的消息</span>
 resp.text           <span class="cm"># 所有消息文本拼合（只读属性）</span>
 resp.model          <span class="cm"># 实际使用的模型名</span>
-resp.usage_details  <span class="cm"># UsageDetails（prompt_tokens, completion_tokens）</span>
+resp.usage_details  <span class="cm"># UsageDetails（input_token_count, output_token_count, total_token_count）</span>
 resp.finish_reason  <span class="cm"># &quot;stop&quot; / &quot;tool_calls&quot; / &quot;length&quot;</span>
 resp.value          <span class="cm"># 泛型结构化输出</span>
 resp.conversation_id  <span class="cm"># 会话状态标识</span></pre></div></div>
@@ -524,6 +818,45 @@ resp.conversation_id  <span class="cm"># 会话状态标识</span></pre></div></
   </div>
 </details>
 
+<h2>🔍 真实源码：get_response 的骨架</h2>
+<div class="codefile">
+  <div class="cf-head"><span class="dot"></span><span class="path">_clients.py</span><span class="ln">BaseChatClient.get_response（简化自 :482）</span></div>
+<pre class="code"><span class="kw">def</span> <span class="fn">get_response</span>(self, messages, *, stream=<span class="kw">False</span>, options=<span class="kw">None</span>,
+        compaction_strategy=<span class="kw">None</span>, tokenizer=<span class="kw">None</span>,
+        function_invocation_kwargs=<span class="kw">None</span>, client_kwargs=<span class="kw">None</span>):
+    overrides = self._resolve_compaction_overrides(      <span class="cm"># 合并 compaction 设置</span>
+        compaction_strategy=compaction_strategy, tokenizer=tokenizer)
+    merged_client_kwargs = dict(client_kwargs <span class="kw">or</span> {})
+
+    <span class="kw">if not</span> overrides:                                   <span class="cm"># ① 无压缩：原样转发</span>
+        <span class="kw">return</span> self._inner_get_response(
+            messages=messages, stream=stream,
+            options=options <span class="kw">or</span> {}, **merged_client_kwargs)
+
+    <span class="kw">async def</span> <span class="fn">_get_response</span>():                        <span class="cm"># ② 有压缩：先 prepare 再调</span>
+        prepared = <span class="kw">await</span> self._prepare_messages_for_model_call(
+            messages, **overrides)
+        <span class="kw">return await</span> self._inner_get_response(
+            messages=prepared, stream=<span class="kw">False</span>,
+            options=options <span class="kw">or</span> {}, **merged_client_kwargs)
+    <span class="kw">return</span> _get_response()</pre>
+</div>
+<p>骨架就两条路：<strong>①无压缩直接转发、②有压缩先 <span class="mono">_prepare</span> 再转发</strong>，但两条路<strong>都只调一次</strong>
+<span class="mono">_inner_get_response()</span>。基类自己<strong>不碰任何厂商字段</strong>——它把「翻译 + 网络 + 归一化」整块交给子类。
+这就是「公共骨架」与「厂商扩展点」的分界线：上半截（这段代码）人人共用，下半截（<span class="mono">_inner_get_response</span>）各厂商各写。</p>
+
+<h2>为什么统一成一个 ChatResponse</h2>
+<p>你可能会问：既然每家 API 返回的 JSON 都不一样，为什么非要在子类里多写一道「翻译」、统一成
+<span class="mono">ChatResponse</span>？直接把厂商的 dict 透传上去不是更省事吗？答案是<strong>把「易变」挡在「稳定」外面</strong>。
+厂商的 JSON 字段名、嵌套结构随时可能变（OpenAI 把 token 叫 <span class="mono">prompt_tokens</span>，框架统一叫
+<span class="mono">input_token_count</span>）；如果上层直接读厂商字段，换一家或厂商一升级，<strong>整条调用链都要跟着改</strong>。</p>
+<p>归一化把这种「易变」锁死在<strong>子类的一个方法</strong>里：上层永远只认 <span class="mono">ChatResponse.text</span> /
+<span class="mono">.finish_reason</span> / <span class="mono">.usage_details</span> 这套稳定字段。于是 Agent 的工具循环靠
+<span class="mono">finish_reason==&quot;tool_calls&quot;</span> 判断要不要继续，<strong>根本不需要知道下面是哪家模型</strong>——这正是
+L08 那个「换模型零改动」承诺能成立的底层原因。</p>
+<p>更妙的是 <span class="mono">.raw_representation</span> 仍保留了厂商原始响应：<strong>统一字段满足 99% 需求，逃生舱口满足剩下 1%</strong>。
+你既享受到强类型的整洁，又不会在需要某个厂商专属字段时被框架挡死。这就是「窄接口 + 逃生舱」的经典权衡。</p>
+
 <div class="card key">
   <div class="tag">✅ 关键要点</div>
   <ul>
@@ -568,6 +901,98 @@ to any LLM. You only touch <span class="inline">get_response()</span>; vendor-sp
   <tr><td class="mono">get_response(messages, stream=False)</td><td>Agent / you</td><td><span class="mono">ChatResponse</span> or <span class="mono">AsyncIterator[ChatResponseUpdate]</span></td></tr>
   <tr><td class="mono">_inner_get_response(messages, stream, options)</td><td>base class</td><td>same (implemented by provider)</td></tr>
 </table>
+
+<h2>Tracing a real get_response(): from messages to ChatResponse</h2>
+<p>The skeleton is clear; let's walk one <strong>real call</strong> end to end. Say the upper layer (Agent or the tool loop)
+runs <span class="mono">client.get_response(messages, options=ChatOptions(model=&quot;gpt-4o&quot;))</span>.
+Watch how the request passes through the base class, lands in the vendor implementation, then collapses
+<strong>vendor-specific JSON</strong> into a unified <span class="mono">ChatResponse</span>.</p>
+
+<div class="vflow">
+  <div class="step"><div class="num">1</div><div class="sc"><h4>Public entry: decide whether to compact</h4>
+    <p>The first thing <span class="mono">get_response()</span> (<span class="mono">_clients.py:482</span>) does is
+    <span class="mono">_resolve_compaction_overrides()</span> — merging the per-call strategy with the client-level default:</p>
+<pre class="code">overrides = self._resolve_compaction_overrides(
+    compaction_strategy=compaction_strategy, tokenizer=tokenizer)
+merged_client_kwargs = dict(client_kwargs <span class="kw">or</span> {})</pre></div></div>
+  <div class="step"><div class="num">2</div><div class="sc"><h4>No compaction → forward as-is</h4>
+    <p>If <span class="mono">overrides</span> is empty (the common path), the base class <strong>touches nothing</strong> and forwards the messages straight to the vendor impl:</p>
+<pre class="code"><span class="kw">if not</span> overrides:
+    <span class="kw">return</span> self._inner_get_response(
+        messages=messages, stream=stream,
+        options=options <span class="kw">or</span> {}, **merged_client_kwargs)</pre></div></div>
+  <div class="step"><div class="num">3</div><div class="sc"><h4>Compaction set → _prepare, then call</h4>
+    <p>If compaction is configured, the base first <span class="mono">await _prepare_messages_for_model_call()</span>
+    (<span class="mono">_clients.py:366</span>) compacts/annotates <strong>in the same list</strong>, then calls the vendor impl.
+    Either way, <span class="mono">_inner_get_response()</span> is called <strong>exactly once</strong> per <span class="mono">get_response</span>.</p></div></div>
+  <div class="step"><div class="num">4</div><div class="sc"><h4>Vendor impl: MAF messages → vendor request</h4>
+    <p>Now inside the subclass's <span class="mono">_inner_get_response()</span> (abstract decl at <span class="mono">_clients.py:415</span>).
+    It first <span class="mono">await self._validate_options(options)</span> (<span class="mono">_clients.py:329</span>), then translates MAF <span class="mono">Message</span> objects into that API's fields:</p>
+<pre class="code"><span class="cm"># OpenAI-compatible shape</span>
+payload = {<span class="st">&quot;model&quot;</span>: <span class="st">&quot;gpt-4o&quot;</span>, <span class="st">&quot;messages&quot;</span>: [
+  {<span class="st">&quot;role&quot;</span>: <span class="st">&quot;system&quot;</span>, <span class="st">&quot;content&quot;</span>: <span class="st">&quot;…&quot;</span>},
+  {<span class="st">&quot;role&quot;</span>: <span class="st">&quot;user&quot;</span>, <span class="st">&quot;content&quot;</span>: <span class="st">&quot;What's the weather in Paris?&quot;</span>}]}</pre></div></div>
+  <div class="step"><div class="num">5</div><div class="sc"><h4>Real network call → vendor JSON</h4>
+    <p>The HTTP request goes out and returns the vendor's <strong>own structure</strong> — every provider names fields differently:</p>
+<pre class="code">{<span class="st">&quot;id&quot;</span>: <span class="st">&quot;chatcmpl-9x…&quot;</span>, <span class="st">&quot;model&quot;</span>: <span class="st">&quot;gpt-4o-2024…&quot;</span>,
+ <span class="st">&quot;choices&quot;</span>: [{<span class="st">&quot;message&quot;</span>: {<span class="st">&quot;content&quot;</span>: <span class="st">&quot;18°C, sunny.&quot;</span>},
+              <span class="st">&quot;finish_reason&quot;</span>: <span class="st">&quot;stop&quot;</span>}],
+ <span class="st">&quot;usage&quot;</span>: {<span class="st">&quot;prompt_tokens&quot;</span>: 42, <span class="st">&quot;completion_tokens&quot;</span>: 9}}</pre></div></div>
+  <div class="step"><div class="num">6</div><div class="sc"><h4>Normalize: vendor JSON → unified ChatResponse</h4>
+    <p>The subclass maps that JSON field-by-field into the framework's unified <span class="mono">ChatResponse</span> (constructor at <span class="mono">_types.py:2122</span>):</p>
+<pre class="code"><span class="kw">return</span> ChatResponse(
+    messages=[Message(<span class="st">&quot;assistant&quot;</span>, [<span class="st">&quot;18°C, sunny.&quot;</span>])],
+    response_id=<span class="st">&quot;chatcmpl-9x…&quot;</span>, model=<span class="st">&quot;gpt-4o-2024…&quot;</span>,
+    finish_reason=<span class="st">&quot;stop&quot;</span>,
+    usage_details=UsageDetails(
+        input_token_count=42, output_token_count=9))</pre></div></div>
+  <div class="step"><div class="num">7</div><div class="sc"><h4>Upper layers only ever see the unified type</h4>
+    <p>That <span class="mono">ChatResponse</span> bubbles straight back up. The upper layers (Agent, tool loop, your code)
+    <strong>only ever see the unified type</strong> — they have no idea whether OpenAI or Foundry is underneath. Swap vendors, change nothing upstream.</p></div></div>
+</div>
+
+<div class="card detail">
+  <div class="tag">🔬 Reading this trace</div>
+  The key is step ⑥: <strong>normalization happens inside the subclass</strong>, not the base. The base
+  <span class="mono">get_response()</span> only does the generic "compact-or-not + forward"; "how to translate that JSON into a
+  <span class="mono">ChatResponse</span>" is left to the subclass that knows the API best. So adding a vendor means <strong>not one line changes in the base</strong>.
+</div>
+
+<h2>Vendor raw JSON → unified ChatResponse fields</h2>
+<p>What exactly did that step-⑥ mapping map? The table below pairs OpenAI-style raw JSON with the framework's unified
+<span class="mono">ChatResponse</span> fields — note the token-count <strong>rename</strong>, the most easily overlooked part of normalization:</p>
+<table class="t">
+  <tr><th>Vendor raw JSON (OpenAI-style)</th><th>Unified ChatResponse field</th><th>Type / note</th></tr>
+  <tr><td class="mono">id</td><td class="mono">response_id</td><td>unique id of this response</td></tr>
+  <tr><td class="mono">model</td><td class="mono">model</td><td>actual model name used</td></tr>
+  <tr><td class="mono">choices[0].message.content</td><td class="mono">messages[0]</td><td>wrapped in a <span class="mono">Message(&quot;assistant&quot;, …)</span></td></tr>
+  <tr><td class="mono">choices[0].message.tool_calls</td><td class="mono">messages[0].contents</td><td>becomes a <span class="mono">function_call</span> <span class="mono">Content</span></td></tr>
+  <tr><td class="mono">choices[0].finish_reason</td><td class="mono">finish_reason</td><td><span class="mono">&quot;stop&quot;/&quot;tool_calls&quot;/&quot;length&quot;</span> (<span class="mono">_types.py:1642</span>)</td></tr>
+  <tr><td class="mono">usage.prompt_tokens</td><td class="mono">usage_details.input_token_count</td><td><strong>field renamed</strong></td></tr>
+  <tr><td class="mono">usage.completion_tokens</td><td class="mono">usage_details.output_token_count</td><td><strong>field renamed</strong></td></tr>
+  <tr><td class="mono">usage.total_tokens</td><td class="mono">usage_details.total_token_count</td><td><span class="mono">UsageDetails</span> (<span class="mono">_types.py:393</span>)</td></tr>
+</table>
+
+<h2>Four-layer onion: what a ChatClient really is</h2>
+<p>Just like the <span class="mono">Agent</span> last lesson, the ChatClient you hold is also several "layers" stacked on top of
+<span class="mono">BaseChatClient</span> via <strong>Python multiple inheritance</strong>. One <span class="mono">get_response()</span> request passes
+<strong>outside-in</strong> through these layers before landing in the vendor's <span class="mono">_inner_get_response()</span>:</p>
+<div class="layers">
+  <div class="layer l-app"><div class="lh"><span class="badge">Outer</span><span class="name">FunctionInvocationLayer</span></div>
+    <div class="ld">Function-calling layer (<span class="mono">_tools.py:2249</span>). <strong>Last lesson's tool loop lives here</strong> — it repeatedly calls <span class="mono">super().get_response()</span> until no new function_call appears.</div></div>
+  <div class="layer l-app"><div class="lh"><span class="badge">Middleware</span><span class="name">ChatMiddlewareLayer</span></div>
+    <div class="ld">Chat-middleware layer (<span class="mono">_middleware.py:1108</span>). Runs your <span class="mono">ChatMiddleware</span>, which can edit the request/response or short-circuit around the real model call.</div></div>
+  <div class="layer l-main"><div class="lh"><span class="badge">Telemetry</span><span class="name">ChatTelemetryLayer</span></div>
+    <div class="ld">Telemetry layer (<span class="mono">observability.py:1354</span>). Opens an OpenTelemetry span per model call, recording latency / tokens / errors.</div></div>
+  <div class="layer l-core"><div class="lh"><span class="badge">Core</span><span class="name">BaseChatClient</span></div>
+    <div class="ld">Abstract base (<span class="mono">_clients.py:217</span>). Defines the public <span class="mono">get_response()</span> + abstract <span class="mono">_inner_get_response()</span> — the one hole vendors must fill.</div></div>
+</div>
+<p>In real code a provider is roughly
+<span class="mono">class XxxChatClient(FunctionInvocationLayer, ChatTelemetryLayer, BaseChatClient)</span>
+(the same MRO appears in the source tests, <span class="mono">test_observability.py:4141</span>; the full four-layer order is documented at <span class="mono">:2939</span>:
+<span class="mono">FunctionInvocationLayer → ChatMiddlewareLayer → ChatTelemetryLayer → BaseChatClient</span>).
+Identical philosophy to the Agent: <strong>capability is decided by "stacked layers", not "runtime flags"</strong> — want a bare client?
+inherit only <span class="mono">BaseChatClient</span>; want the tool loop? stack <span class="mono">FunctionInvocationLayer</span> on top.</p>
 
 <details class="accordion">
   <summary><span class="badge-num">1</span> How do providers implement _inner_get_response? <span class="hint">expand</span></summary>
@@ -616,7 +1041,7 @@ to any LLM. You only touch <span class="inline">get_response()</span>; vendor-sp
 <pre class="code">resp.messages       <span class="cm"># list[Message] — model reply messages</span>
 resp.text           <span class="cm"># combined message text (read-only property)</span>
 resp.model          <span class="cm"># actual model name used</span>
-resp.usage_details  <span class="cm"># UsageDetails (prompt_tokens, completion_tokens)</span>
+resp.usage_details  <span class="cm"># UsageDetails (input_token_count, output_token_count, total_token_count)</span>
 resp.finish_reason  <span class="cm"># &quot;stop&quot; / &quot;tool_calls&quot; / &quot;length&quot;</span>
 resp.value          <span class="cm"># generic structured output</span>
 resp.conversation_id  <span class="cm"># conversation state identifier</span></pre></div></div>
@@ -677,6 +1102,46 @@ resp.conversation_id  <span class="cm"># conversation state identifier</span></p
   </div>
 </details>
 
+<h2>🔍 Real source: the skeleton of get_response</h2>
+<div class="codefile">
+  <div class="cf-head"><span class="dot"></span><span class="path">_clients.py</span><span class="ln">BaseChatClient.get_response (simplified from :482)</span></div>
+<pre class="code"><span class="kw">def</span> <span class="fn">get_response</span>(self, messages, *, stream=<span class="kw">False</span>, options=<span class="kw">None</span>,
+        compaction_strategy=<span class="kw">None</span>, tokenizer=<span class="kw">None</span>,
+        function_invocation_kwargs=<span class="kw">None</span>, client_kwargs=<span class="kw">None</span>):
+    overrides = self._resolve_compaction_overrides(      <span class="cm"># merge compaction settings</span>
+        compaction_strategy=compaction_strategy, tokenizer=tokenizer)
+    merged_client_kwargs = dict(client_kwargs <span class="kw">or</span> {})
+
+    <span class="kw">if not</span> overrides:                                   <span class="cm"># ① no compaction: forward as-is</span>
+        <span class="kw">return</span> self._inner_get_response(
+            messages=messages, stream=stream,
+            options=options <span class="kw">or</span> {}, **merged_client_kwargs)
+
+    <span class="kw">async def</span> <span class="fn">_get_response</span>():                        <span class="cm"># ② compaction: prepare then call</span>
+        prepared = <span class="kw">await</span> self._prepare_messages_for_model_call(
+            messages, **overrides)
+        <span class="kw">return await</span> self._inner_get_response(
+            messages=prepared, stream=<span class="kw">False</span>,
+            options=options <span class="kw">or</span> {}, **merged_client_kwargs)
+    <span class="kw">return</span> _get_response()</pre>
+</div>
+<p>Just two paths: <strong>① no compaction forwards as-is, ② compaction _prepares first, then forwards</strong> — but both call
+<span class="mono">_inner_get_response()</span> <strong>exactly once</strong>. The base <strong>never touches a vendor field</strong>; it hands the whole
+"translate + network + normalize" block to the subclass. That is the line between "shared skeleton" and "vendor extension point":
+the top half (this code) is shared by all; the bottom half (<span class="mono">_inner_get_response</span>) is written per vendor.</p>
+
+<h2>Why collapse everything into one ChatResponse</h2>
+<p>You might ask: since every API returns different JSON, why bother writing a "translation" in the subclass to unify into
+<span class="mono">ChatResponse</span>? Wouldn't passing the vendor dict straight through be simpler? The answer is <strong>keeping the volatile out of the stable</strong>.
+Vendor JSON field names and nesting can change anytime (OpenAI calls tokens <span class="mono">prompt_tokens</span>; the framework calls them
+<span class="mono">input_token_count</span>). If upper layers read vendor fields directly, switching providers — or a provider upgrade — would <strong>ripple through the entire call chain</strong>.</p>
+<p>Normalization locks that volatility into <strong>a single subclass method</strong>: upper layers only ever know the stable
+<span class="mono">ChatResponse.text</span> / <span class="mono">.finish_reason</span> / <span class="mono">.usage_details</span> set. So the Agent's tool loop decides whether to
+continue via <span class="mono">finish_reason==&quot;tool_calls&quot;</span> and <strong>never needs to know which model is underneath</strong> — exactly why L08's
+"swap models, change nothing" promise holds.</p>
+<p>Better still, <span class="mono">.raw_representation</span> keeps the vendor's original response: <strong>unified fields cover 99% of needs, the escape hatch covers the last 1%</strong>.
+You get the cleanliness of strong types without being locked out when you genuinely need a vendor-specific field. This is the classic "narrow interface + escape hatch" trade-off.</p>
+
 <div class="card key">
   <div class="tag">✅ Key points</div>
   <ul>
@@ -721,12 +1186,89 @@ L10_ZH = r"""
     <p>返回值打包成 <span class="mono">function_result</span> Content，追加进消息，回到第 3 步让模型继续。</p></div></div>
 </div>
 
+<h2>追踪一次真实工具调用：get_weather(&quot;北京&quot;)</h2>
+<p>上面是抽象闭环，我们用一个<strong>具体函数</strong>端到端走一遍，每步都给出当时的<strong>真实数据快照</strong>——
+看一个普通 Python 函数如何变成模型能读的 schema，又如何被模型&quot;点名&quot;并执行：</p>
+
+<div class="vflow">
+  <div class="step"><div class="num">1</div><div class="sc"><h4>你写的函数（带类型注解）</h4>
+    <p>注意：<span class="mono">city</span> 无默认值（必填），<span class="mono">unit</span> 有默认值（可选）：</p>
+<pre class="code"><span class="nb">@tool</span>
+<span class="kw">def</span> <span class="fn">get_weather</span>(
+    city: Annotated[str, Field(description=<span class="st">&quot;城市名&quot;</span>)],
+    unit: str = <span class="st">&quot;celsius&quot;</span>,
+) -&gt; str:
+    <span class="st">&quot;&quot;&quot;查询某城市的当前天气&quot;&quot;&quot;</span>
+    <span class="kw">return</span> f<span class="st">&quot;{city}: 18°C 晴&quot;</span></pre></div></div>
+  <div class="step"><div class="num">2</div><div class="sc"><h4>签名 → Pydantic 模型 → JSON Schema</h4>
+    <p><span class="mono">_resolve_input_model()</span>（<span class="mono">_tools.py:481</span>）用 <span class="mono">inspect.signature</span> 读出参数，
+    <span class="mono">create_model(&quot;get_weather_input&quot;, **fields)</span> 造出一个 Pydantic 模型，再 <span class="mono">.model_json_schema()</span> 生成：</p>
+<pre class="code">{
+  <span class="st">&quot;type&quot;</span>: <span class="st">&quot;object&quot;</span>,
+  <span class="st">&quot;properties&quot;</span>: {
+    <span class="st">&quot;city&quot;</span>: {<span class="st">&quot;type&quot;</span>: <span class="st">&quot;string&quot;</span>, <span class="st">&quot;description&quot;</span>: <span class="st">&quot;城市名&quot;</span>},
+    <span class="st">&quot;unit&quot;</span>: {<span class="st">&quot;type&quot;</span>: <span class="st">&quot;string&quot;</span>, <span class="st">&quot;default&quot;</span>: <span class="st">&quot;celsius&quot;</span>}},
+  <span class="st">&quot;required&quot;</span>: [<span class="st">&quot;city&quot;</span>]   <span class="cm"># 无默认值的参数自动进 required</span>
+}</pre></div></div>
+  <div class="step"><div class="num">3</div><div class="sc"><h4>包成 function spec，随请求发出</h4>
+    <p><span class="mono">to_json_schema_spec()</span>（<span class="mono">_tools.py:866</span>）把上面的 schema 套进 OpenAI 工具格式，ChatClient 在 <span class="mono">tools</span> 字段里带上它：</p>
+<pre class="code">{<span class="st">&quot;type&quot;</span>: <span class="st">&quot;function&quot;</span>,
+ <span class="st">&quot;function&quot;</span>: {<span class="st">&quot;name&quot;</span>: <span class="st">&quot;get_weather&quot;</span>,
+              <span class="st">&quot;description&quot;</span>: <span class="st">&quot;查询某城市的当前天气&quot;</span>,
+              <span class="st">&quot;parameters&quot;</span>: { … 第②步那份 … }}}</pre></div></div>
+  <div class="step"><div class="num">4</div><div class="sc"><h4>模型点名这个工具</h4>
+    <p>模型读 schema 后决定调用，回一个 <span class="mono">function_call</span> 内容（<span class="mono">arguments</span> 是 JSON <strong>字符串</strong>）：</p>
+<pre class="code">Content.from_function_call(       <span class="cm"># _types.py:788</span>
+  call_id=<span class="st">&quot;call_1&quot;</span>, name=<span class="st">&quot;get_weather&quot;</span>,
+  arguments=<span class="st">'{&quot;city&quot;: &quot;北京&quot;}'</span>)   <span class="cm"># 模型只填了必填项</span></pre></div></div>
+  <div class="step"><div class="num">5</div><div class="sc"><h4>校验参数 → 反序列化 → 执行</h4>
+    <p><span class="mono">FunctionTool.invoke()</span>（<span class="mono">_tools.py:574</span>）拿第②步那个 Pydantic 模型校验 <span class="mono">arguments</span>，
+    校验通过后 <span class="mono">unit</span> 自动补上默认值 <span class="mono">&quot;celsius&quot;</span>，再调用你的函数：</p>
+<pre class="code">get_weather(city=<span class="st">&quot;北京&quot;</span>, unit=<span class="st">&quot;celsius&quot;</span>)
+<span class="cm"># → &quot;北京: 18°C 晴&quot;</span></pre></div></div>
+  <div class="step"><div class="num">6</div><div class="sc"><h4>结果包成 function_result 回灌</h4>
+    <p><span class="mono">parse_result()</span>（<span class="mono">_tools.py:825</span>）把返回值规整成 <span class="mono">list[Content]</span>，再包成 function_result 追加进消息列表，回到第 3 步让模型续写：</p>
+<pre class="code">Content.from_function_result(     <span class="cm"># _types.py:812</span>
+  call_id=<span class="st">&quot;call_1&quot;</span>, result=<span class="st">&quot;北京: 18°C 晴&quot;</span>)</pre></div></div>
+</div>
+
+<div class="card detail">
+  <div class="tag">🔬 读懂这条轨迹</div>
+  注意第 ② 步和第 ⑤ 步用的是<strong>同一个 Pydantic 模型</strong>：一次 <span class="mono">create_model</span> 同时承担了
+  &quot;对模型描述参数&quot;（生成 schema）和&quot;对参数把关&quot;（执行前校验）两件事。这就是&quot;签名即契约&quot;——
+  你<strong>从未手写过一行 schema，也从未手写过一行校验</strong>，两者却永远一致，因为它们来自同一处签名。
+</div>
+
+<h2>签名即 Schema：一一对照</h2>
+<p>第②步那次&quot;签名 → schema&quot;到底怎么映射？下表逐项拆开，看 Python 的每个语法元素分别变成 JSON Schema 的哪个字段：</p>
+<table class="t">
+  <tr><th>Python 函数里的写法</th><th>JSON Schema 里的字段</th><th>谁负责</th></tr>
+  <tr><td class="mono">def get_weather(…)</td><td class="mono">function.name = &quot;get_weather&quot;</td><td><span class="mono">__name__</span>（可被 <span class="mono">@tool(name=…)</span> 覆盖）</td></tr>
+  <tr><td>函数 docstring</td><td class="mono">function.description</td><td><span class="mono">@tool</span> 取 docstring</td></tr>
+  <tr><td class="mono">city: str</td><td class="mono">properties.city.type = &quot;string&quot;</td><td>Pydantic 由类型注解推断</td></tr>
+  <tr><td class="mono">Field(description=&quot;城市名&quot;)</td><td class="mono">properties.city.description</td><td><span class="mono">Annotated</span> + <span class="mono">Field</span></td></tr>
+  <tr><td class="mono">unit: str = &quot;celsius&quot;</td><td class="mono">properties.unit.default</td><td>参数默认值</td></tr>
+  <tr><td>无默认值的参数</td><td class="mono">required: [&quot;city&quot;]</td><td><span class="mono">_resolve_input_model</span> 用 <span class="mono">...</span> 标记</td></tr>
+</table>
+
+<h2>Schema 生成流水线</h2>
+<p>把第②③步连起来看，从函数到&quot;模型能读的 function spec&quot;是一条四段流水线，全程<strong>无需人工</strong>：</p>
+<div class="flow">
+  <div class="node"><div class="nt">函数签名</div><div class="nd">inspect.signature</div></div>
+  <div class="arrow">→</div>
+  <div class="node"><div class="nt">create_model</div><div class="nd">造 Pydantic 模型</div></div>
+  <div class="arrow">→</div>
+  <div class="node hl"><div class="nt">model_json_schema()</div><div class="nd">Pydantic 生成 schema</div></div>
+  <div class="arrow">→</div>
+  <div class="node"><div class="nt">to_json_schema_spec()</div><div class="nd">套 function 外壳</div></div>
+</div>
+
 <details class="accordion">
   <summary><span class="badge-num">1</span> FunctionTool 里装了什么？ <span class="hint">点击展开详解</span></summary>
   <div class="acc-body">
     <div class="qa"><div class="q">🧪 示例</div><div class="a"><span class="mono">FunctionTool</span>（<span class="mono">_tools.py:240</span>）持有：原始函数引用、生成的 JSON Schema、
       <span class="mono">approval_mode</span>（调用前是否需要人工审批）、函数名、描述。
-      <span class="mono">@tool</span>（<span class="mono">_tools.py:1145</span>）是构造 <span class="mono">FunctionTool</span> 的语法糖。</div></div>
+      <span class="mono">@tool</span>（<span class="mono">_tools.py:1176</span>）是构造 <span class="mono">FunctionTool</span> 的语法糖。</div></div>
     <div class="qa"><div class="q">❓ 为什么这件事必要</div><div class="a">知道 <span class="mono">FunctionTool</span> 的结构，才能理解 schema 是怎么生成的、
       执行时参数怎么验证的、<span class="mono">approval_mode</span> 在哪里拦截。调试工具调用问题必须从这里入手。</div></div>
     <div class="qa"><div class="q">✅ MAF 的做法与优点</div><div class="a"><span class="mono">FunctionTool</span> 把函数元信息（名字、描述、schema）和运行时行为
@@ -828,12 +1370,49 @@ Content(
   </div>
 </details>
 
+<h2>🔍 真实源码：从签名到 function spec</h2>
+<div class="codefile">
+  <div class="cf-head"><span class="dot"></span><span class="path">_tools.py</span><span class="ln">签名 → schema（简化自 :481 / :780 / :866）</span></div>
+<pre class="code"><span class="cm"># ① 从函数签名造 Pydantic 模型（_resolve_input_model :481）</span>
+sig = inspect.signature(func)
+fields = {
+    pname: (annotation_of(param),
+            param.default <span class="kw">if</span> has_default(param) <span class="kw">else</span> ...)  <span class="cm"># ... = 必填</span>
+    <span class="kw">for</span> pname, param <span class="kw">in</span> sig.parameters.items()
+    <span class="kw">if</span> pname <span class="kw">not in</span> {<span class="st">&quot;self&quot;</span>, <span class="st">&quot;cls&quot;</span>}}
+input_model = create_model(f<span class="st">&quot;{name}_input&quot;</span>, **fields)
+
+<span class="cm"># ② Pydantic 直接吐 JSON Schema（_input_schema :780）</span>
+<span class="kw">def</span> <span class="fn">parameters</span>(self):
+    <span class="kw">return</span> self.input_model.model_json_schema()
+
+<span class="cm"># ③ 套上 function 外壳（to_json_schema_spec :866）</span>
+<span class="kw">def</span> <span class="fn">to_json_schema_spec</span>(self):
+    <span class="kw">return</span> {<span class="st">&quot;type&quot;</span>: <span class="st">&quot;function&quot;</span>, <span class="st">&quot;function&quot;</span>: {
+        <span class="st">&quot;name&quot;</span>: self.name,
+        <span class="st">&quot;description&quot;</span>: self.description,
+        <span class="st">&quot;parameters&quot;</span>: self.parameters()}}</pre>
+</div>
+<p>三段全是<strong>从源码直接简化</strong>而来：框架自己<strong>一行 schema 都没手写</strong>——它把活儿交给
+<span class="mono">inspect</span>（读签名）和 <span class="mono">Pydantic</span>（出 schema）。无默认值的参数被标成 <span class="mono">...</span>，于是 Pydantic 自动把它放进
+<span class="mono">required</span>。这正是上面&quot;签名即 Schema&quot;对照表能成立的代码出处。</p>
+
+<h2>为什么让类型注解自动生成 Schema</h2>
+<p>最朴素的做法是让你<strong>手写两份东西</strong>：一份 Python 函数、一份描述它的 JSON Schema。问题是这两份会
+<strong>各自漂移</strong>——你给函数加了个参数，却忘了改 schema；模型于是按旧 schema 生成参数，运行时直接炸。
+凡是&quot;同一个事实写两遍&quot;的设计，迟早会因为两遍不同步而出 bug。</p>
+<p>MAF 选择<strong>单一事实来源</strong>（single source of truth）：函数签名是<strong>唯一</strong>的真相，schema 由它<strong>派生</strong>。
+你改签名，schema 下次生成时自动跟着变，永不漂移——这就是 DRY（Don't Repeat Yourself）原则在工具系统里的体现。
+更妙的是同一个 Pydantic 模型<strong>身兼两职</strong>：对外当 schema 描述参数，对内当校验器把关入参，连&quot;校验逻辑&quot;都不必另写。</p>
+<p>代价是你得接受框架的&quot;约定&quot;：用 <span class="mono">Annotated[..., Field(description=…)]</span> 写参数说明、用类型注解表达类型。
+但这点约束换来的是<strong>代码即文档、文档永不过期</strong>。需要完全自定义时，<span class="mono">@tool(schema=…)</span> 仍允许你显式传入 schema——又是&quot;窄默认 + 逃生舱口&quot;的老套路。</p>
+
 <div class="card key">
   <div class="tag">✅ 关键要点</div>
   <ul>
     <li><span class="mono">@tool</span> → <span class="mono">FunctionTool</span> → JSON Schema → 随请求发给模型。</li>
     <li>模型回 <span class="mono">function_call</span> → 框架执行 → <span class="mono">function_result</span> 回灌 → 再让模型继续。</li>
-    <li>整个循环在 Agent 内部自动跑，调用方无感。</li>
+    <li>这个循环在 ChatClient 一侧的 <span class="mono">FunctionInvocationLayer</span> 里自动跑（不在 Agent 里），调用方无感。</li>
   </ul>
 </div>
 
@@ -871,13 +1450,90 @@ Python function to JSON Schema and back through the model's <strong>full round-t
     <p>The return value is packed as <span class="mono">function_result</span> Content, appended to messages, back to step 3.</p></div></div>
 </div>
 
+<h2>Tracing a real tool call: get_weather(&quot;Beijing&quot;)</h2>
+<p>That was the abstract loop; let's walk one <strong>concrete function</strong> end to end, with a <strong>real data snapshot</strong> at each step —
+watch how an ordinary Python function becomes a model-readable schema, then gets &quot;named&quot; by the model and executed:</p>
+
+<div class="vflow">
+  <div class="step"><div class="num">1</div><div class="sc"><h4>The function you write (with type hints)</h4>
+    <p>Note: <span class="mono">city</span> has no default (required); <span class="mono">unit</span> has a default (optional):</p>
+<pre class="code"><span class="nb">@tool</span>
+<span class="kw">def</span> <span class="fn">get_weather</span>(
+    city: Annotated[str, Field(description=<span class="st">&quot;city name&quot;</span>)],
+    unit: str = <span class="st">&quot;celsius&quot;</span>,
+) -&gt; str:
+    <span class="st">&quot;&quot;&quot;Get the current weather for a city&quot;&quot;&quot;</span>
+    <span class="kw">return</span> f<span class="st">&quot;{city}: 18°C sunny&quot;</span></pre></div></div>
+  <div class="step"><div class="num">2</div><div class="sc"><h4>Signature → Pydantic model → JSON Schema</h4>
+    <p><span class="mono">_resolve_input_model()</span> (<span class="mono">_tools.py:481</span>) reads params via <span class="mono">inspect.signature</span>,
+    <span class="mono">create_model(&quot;get_weather_input&quot;, **fields)</span> builds a Pydantic model, then <span class="mono">.model_json_schema()</span> emits:</p>
+<pre class="code">{
+  <span class="st">&quot;type&quot;</span>: <span class="st">&quot;object&quot;</span>,
+  <span class="st">&quot;properties&quot;</span>: {
+    <span class="st">&quot;city&quot;</span>: {<span class="st">&quot;type&quot;</span>: <span class="st">&quot;string&quot;</span>, <span class="st">&quot;description&quot;</span>: <span class="st">&quot;city name&quot;</span>},
+    <span class="st">&quot;unit&quot;</span>: {<span class="st">&quot;type&quot;</span>: <span class="st">&quot;string&quot;</span>, <span class="st">&quot;default&quot;</span>: <span class="st">&quot;celsius&quot;</span>}},
+  <span class="st">&quot;required&quot;</span>: [<span class="st">&quot;city&quot;</span>]   <span class="cm"># params without a default auto-go into required</span>
+}</pre></div></div>
+  <div class="step"><div class="num">3</div><div class="sc"><h4>Wrap as a function spec, send with the request</h4>
+    <p><span class="mono">to_json_schema_spec()</span> (<span class="mono">_tools.py:866</span>) nests that schema in the OpenAI tool shape; the ChatClient includes it in the <span class="mono">tools</span> field:</p>
+<pre class="code">{<span class="st">&quot;type&quot;</span>: <span class="st">&quot;function&quot;</span>,
+ <span class="st">&quot;function&quot;</span>: {<span class="st">&quot;name&quot;</span>: <span class="st">&quot;get_weather&quot;</span>,
+              <span class="st">&quot;description&quot;</span>: <span class="st">&quot;Get the current weather for a city&quot;</span>,
+              <span class="st">&quot;parameters&quot;</span>: { … the step ② schema … }}}</pre></div></div>
+  <div class="step"><div class="num">4</div><div class="sc"><h4>The model names this tool</h4>
+    <p>After reading the schema the model decides to call it, returning a <span class="mono">function_call</span> (its <span class="mono">arguments</span> is a JSON <strong>string</strong>):</p>
+<pre class="code">Content.from_function_call(       <span class="cm"># _types.py:788</span>
+  call_id=<span class="st">&quot;call_1&quot;</span>, name=<span class="st">&quot;get_weather&quot;</span>,
+  arguments=<span class="st">'{&quot;city&quot;: &quot;Beijing&quot;}'</span>)   <span class="cm"># model filled only the required field</span></pre></div></div>
+  <div class="step"><div class="num">5</div><div class="sc"><h4>Validate args → deserialize → execute</h4>
+    <p><span class="mono">FunctionTool.invoke()</span> (<span class="mono">_tools.py:574</span>) validates <span class="mono">arguments</span> with that step-② Pydantic model;
+    on success <span class="mono">unit</span> auto-fills its default <span class="mono">&quot;celsius&quot;</span>, then your function runs:</p>
+<pre class="code">get_weather(city=<span class="st">&quot;Beijing&quot;</span>, unit=<span class="st">&quot;celsius&quot;</span>)
+<span class="cm"># → &quot;Beijing: 18°C sunny&quot;</span></pre></div></div>
+  <div class="step"><div class="num">6</div><div class="sc"><h4>Result packed as function_result, fed back</h4>
+    <p><span class="mono">parse_result()</span> (<span class="mono">_tools.py:825</span>) normalizes the return into <span class="mono">list[Content]</span>, packed as function_result and appended; back to step 3 for the model to continue:</p>
+<pre class="code">Content.from_function_result(     <span class="cm"># _types.py:812</span>
+  call_id=<span class="st">&quot;call_1&quot;</span>, result=<span class="st">&quot;Beijing: 18°C sunny&quot;</span>)</pre></div></div>
+</div>
+
+<div class="card detail">
+  <div class="tag">🔬 Reading this trace</div>
+  Notice steps ② and ⑤ use the <strong>same Pydantic model</strong>: one <span class="mono">create_model</span> does double duty —
+  &quot;describe params to the model&quot; (emit schema) and &quot;guard the params&quot; (validate before execution). That is &quot;signature as contract&quot; —
+  you <strong>never hand-wrote a line of schema, nor a line of validation</strong>, yet the two always agree, because both come from the one signature.
+</div>
+
+<h2>Signature IS the schema: a field-by-field map</h2>
+<p>How exactly does that step-② &quot;signature → schema&quot; map? The table below breaks it down — which Python syntax element becomes which JSON Schema field:</p>
+<table class="t">
+  <tr><th>In the Python function</th><th>In the JSON Schema</th><th>Who does it</th></tr>
+  <tr><td class="mono">def get_weather(…)</td><td class="mono">function.name = &quot;get_weather&quot;</td><td><span class="mono">__name__</span> (override via <span class="mono">@tool(name=…)</span>)</td></tr>
+  <tr><td>function docstring</td><td class="mono">function.description</td><td><span class="mono">@tool</span> reads the docstring</td></tr>
+  <tr><td class="mono">city: str</td><td class="mono">properties.city.type = &quot;string&quot;</td><td>Pydantic infers from the annotation</td></tr>
+  <tr><td class="mono">Field(description=&quot;city name&quot;)</td><td class="mono">properties.city.description</td><td><span class="mono">Annotated</span> + <span class="mono">Field</span></td></tr>
+  <tr><td class="mono">unit: str = &quot;celsius&quot;</td><td class="mono">properties.unit.default</td><td>parameter default</td></tr>
+  <tr><td>params without a default</td><td class="mono">required: [&quot;city&quot;]</td><td><span class="mono">_resolve_input_model</span> marks with <span class="mono">...</span></td></tr>
+</table>
+
+<h2>The schema-generation pipeline</h2>
+<p>Chaining steps ②③, the path from function to &quot;model-readable function spec&quot; is a four-stage pipeline, <strong>fully hands-off</strong>:</p>
+<div class="flow">
+  <div class="node"><div class="nt">function signature</div><div class="nd">inspect.signature</div></div>
+  <div class="arrow">→</div>
+  <div class="node"><div class="nt">create_model</div><div class="nd">build Pydantic model</div></div>
+  <div class="arrow">→</div>
+  <div class="node hl"><div class="nt">model_json_schema()</div><div class="nd">Pydantic emits schema</div></div>
+  <div class="arrow">→</div>
+  <div class="node"><div class="nt">to_json_schema_spec()</div><div class="nd">wrap in function shell</div></div>
+</div>
+
 <details class="accordion">
   <summary><span class="badge-num">1</span> What's inside a FunctionTool? <span class="hint">expand</span></summary>
   <div class="acc-body">
     <div class="qa"><div class="q">🧪 Example</div><div class="a"><span class="mono">FunctionTool</span> (<span class="mono">_tools.py:240</span>) holds: the original function reference,
       the generated JSON Schema, <span class="mono">approval_mode</span> (whether human approval is needed before invocation),
       the function name and description.
-      <span class="mono">@tool</span> (<span class="mono">_tools.py:1145</span>) is syntactic sugar for constructing a <span class="mono">FunctionTool</span>.</div></div>
+      <span class="mono">@tool</span> (<span class="mono">_tools.py:1176</span>) is syntactic sugar for constructing a <span class="mono">FunctionTool</span>.</div></div>
     <div class="qa"><div class="q">❓ Why this matters</div><div class="a">Knowing <span class="mono">FunctionTool</span>'s structure helps you understand how schemas are generated,
       how arguments are validated at execution, and where <span class="mono">approval_mode</span> intercepts. Debugging tool calls starts here.</div></div>
     <div class="qa"><div class="q">✅ How MAF does it</div><div class="a"><span class="mono">FunctionTool</span> bundles function metadata (name, description, schema) and runtime behavior
@@ -979,12 +1635,50 @@ Content(
   </div>
 </details>
 
+<h2>🔍 Real source: from signature to function spec</h2>
+<div class="codefile">
+  <div class="cf-head"><span class="dot"></span><span class="path">_tools.py</span><span class="ln">signature → schema (simplified from :481 / :780 / :866)</span></div>
+<pre class="code"><span class="cm"># ① Build a Pydantic model from the signature (_resolve_input_model :481)</span>
+sig = inspect.signature(func)
+fields = {
+    pname: (annotation_of(param),
+            param.default <span class="kw">if</span> has_default(param) <span class="kw">else</span> ...)  <span class="cm"># ... = required</span>
+    <span class="kw">for</span> pname, param <span class="kw">in</span> sig.parameters.items()
+    <span class="kw">if</span> pname <span class="kw">not in</span> {<span class="st">&quot;self&quot;</span>, <span class="st">&quot;cls&quot;</span>}}
+input_model = create_model(f<span class="st">&quot;{name}_input&quot;</span>, **fields)
+
+<span class="cm"># ② Pydantic emits the JSON Schema directly (_input_schema :780)</span>
+<span class="kw">def</span> <span class="fn">parameters</span>(self):
+    <span class="kw">return</span> self.input_model.model_json_schema()
+
+<span class="cm"># ③ Wrap in the function shell (to_json_schema_spec :866)</span>
+<span class="kw">def</span> <span class="fn">to_json_schema_spec</span>(self):
+    <span class="kw">return</span> {<span class="st">&quot;type&quot;</span>: <span class="st">&quot;function&quot;</span>, <span class="st">&quot;function&quot;</span>: {
+        <span class="st">&quot;name&quot;</span>: self.name,
+        <span class="st">&quot;description&quot;</span>: self.description,
+        <span class="st">&quot;parameters&quot;</span>: self.parameters()}}</pre>
+</div>
+<p>All three are <strong>simplified straight from the source</strong>: the framework <strong>hand-writes zero schema</strong> — it delegates to
+<span class="mono">inspect</span> (read the signature) and <span class="mono">Pydantic</span> (emit the schema). Params without a default are marked <span class="mono">...</span>, so Pydantic
+auto-places them in <span class="mono">required</span>. This is exactly where the &quot;signature IS the schema&quot; table above comes from.</p>
+
+<h2>Why let type hints auto-generate the schema</h2>
+<p>The naive approach makes you <strong>write two things</strong>: a Python function, and a JSON Schema describing it. The trouble is they
+<strong>drift apart</strong> — you add a parameter to the function but forget to update the schema; the model then generates arguments per the
+old schema and blows up at runtime. Any design where &quot;the same fact is written twice&quot; eventually breaks when the two fall out of sync.</p>
+<p>MAF chooses a <strong>single source of truth</strong>: the signature is the <strong>only</strong> truth, and the schema is <strong>derived</strong> from it.
+Change the signature and the schema follows on next generation, never drifting — this is the DRY (Don't Repeat Yourself) principle applied to tools.
+Better still, the same Pydantic model <strong>does double duty</strong>: a schema to describe params outward, a validator to guard inputs inward — even the validation logic is free.</p>
+<p>The price is accepting the framework's &quot;convention&quot;: use <span class="mono">Annotated[..., Field(description=…)]</span> for param docs and type hints for types.
+What that small constraint buys is <strong>code as documentation, documentation that never goes stale</strong>. When you need full control, <span class="mono">@tool(schema=…)</span>
+still lets you pass an explicit schema — the same &quot;narrow default + escape hatch&quot; pattern again.</p>
+
 <div class="card key">
   <div class="tag">✅ Key points</div>
   <ul>
     <li><span class="mono">@tool</span> → <span class="mono">FunctionTool</span> → JSON Schema → sent with the request.</li>
     <li>Model replies <span class="mono">function_call</span> → framework executes → <span class="mono">function_result</span> fed back → model continues.</li>
-    <li>The whole loop runs automatically inside the Agent; callers are unaware.</li>
+    <li>This loop runs automatically inside the ChatClient's <span class="mono">FunctionInvocationLayer</span> (not the Agent); callers are unaware.</li>
   </ul>
 </div>
 
@@ -1029,6 +1723,40 @@ MAF 有<strong>三层</strong>中间件，每层包裹不同粒度的操作。</
 </div>
 <p><strong>重点</strong>：<span class="inline">await call_next()</span> <strong>不传任何参数</strong>——它调用下一层或最终执行。
 执行结果挂在 <span class="mono">context.result</span> 上。</p>
+
+<h2>追踪一次真实请求：三层中间件如何交错</h2>
+<p>三层是<strong>不同粒度</strong>，一次 <span class="mono">agent.run(&quot;北京天气?&quot;)</span>（带一个工具、需要一轮工具调用）里，它们会<strong>交错触发</strong>。
+假设你注册了：1 个 <span class="mono">AgentMiddleware</span>（日志）、1 个 <span class="mono">ChatMiddleware</span>（计 token）、1 个 <span class="mono">FunctionMiddleware</span>（工具审计）。看它们的 before/after 如何嵌套：</p>
+
+<div class="vflow">
+  <div class="step"><div class="num">1</div><div class="sc"><h4>Agent 层 before（最外，整轮一次）</h4>
+    <p><span class="mono">AgentMiddleware.process</span> 在 <span class="mono">call_next()</span> 前执行：<span class="mono">log(&quot;run 开始&quot;)</span>，然后 <span class="mono">await call_next()</span> 把控制权交给内层。</p></div></div>
+  <div class="step"><div class="num">2</div><div class="sc"><h4>Chat 层 before（第 1 次 LLM 调用）</h4>
+    <p>run 内部第一次调模型，<span class="mono">ChatMiddleware.process</span> 被触发；<span class="mono">await call_next()</span> 真正发出请求。</p></div></div>
+  <div class="step"><div class="num">3</div><div class="sc"><h4>Chat 层 after（第 1 次）</h4>
+    <p>模型回 <span class="mono">function_call</span>。<span class="mono">ctx.result</span> 此刻是这次 <span class="mono">ChatResponse</span>，计 token 中间件累加它的 <span class="mono">usage_details</span>。Chat 层这次结束。</p></div></div>
+  <div class="step"><div class="num">4</div><div class="sc"><h4>Function 层 before/after（执行工具）</h4>
+    <p>框架要执行 <span class="mono">get_weather</span>，<span class="mono">FunctionMiddleware.process</span> 被触发：before 记下&quot;即将调用 get_weather&quot;，<span class="mono">await call_next()</span> 跑真正的函数，after 记下返回值。</p></div></div>
+  <div class="step"><div class="num">5</div><div class="sc"><h4>Chat 层 before/after（第 2 次 LLM 调用）</h4>
+    <p>带着工具结果再问一次模型——<span class="mono">ChatMiddleware</span> <strong>第二次</strong>被触发（同一次 run 内！），这次拿到最终文本。</p></div></div>
+  <div class="step"><div class="num">6</div><div class="sc"><h4>Agent 层 after（最外，整轮一次）</h4>
+    <p>控制权一路退回最外层，<span class="mono">AgentMiddleware</span> 的 <span class="mono">call_next()</span> 之后继续执行：此刻 <span class="mono">ctx.result</span> 是<strong>整轮</strong>的 <span class="mono">AgentResponse</span>，日志记下&quot;run 结束&quot;。</p></div></div>
+</div>
+
+<div class="card detail">
+  <div class="tag">🔬 读懂这条轨迹</div>
+  关键洞察：<strong>越内层、触发越频繁</strong>。一次 <span class="mono">run()</span> 里 <span class="mono">AgentMiddleware</span> 只触发 <strong>1 次</strong>，
+  而 <span class="mono">ChatMiddleware</span> 触发了 <strong>2 次</strong>（两轮模型调用）、<span class="mono">FunctionMiddleware</span> 触发了 <strong>1 次</strong>（一个工具）。
+  所以&quot;统计整轮耗时&quot;要放 Agent 层，&quot;给每次模型调用限流&quot;要放 Chat 层，&quot;给每个工具加审批&quot;要放 Function 层——<strong>选错层，粒度就错了</strong>。
+</div>
+
+<h2>三层粒度对照</h2>
+<table class="t">
+  <tr><th>中间件</th><th>包裹什么</th><th>context 类型</th><th>一次 run 触发</th><th>典型用途</th></tr>
+  <tr><td class="mono">AgentMiddleware</td><td>整个 <span class="mono">agent.run()</span></td><td class="mono">AgentContext（:93）</td><td>1 次</td><td>全局日志、鉴权、整轮重试</td></tr>
+  <tr><td class="mono">ChatMiddleware</td><td>每次 LLM 调用</td><td class="mono">ChatContext（:377）</td><td>N 次（每轮模型调用）</td><td>token 计数、限流、响应缓存</td></tr>
+  <tr><td class="mono">FunctionMiddleware</td><td>每次工具执行</td><td class="mono">FunctionInvocationContext（:204）</td><td>M 次（每个工具调用）</td><td>工具审批、参数校验、沙箱</td></tr>
+</table>
 
 <details class="accordion">
   <summary><span class="badge-num">1</span> 也可以用装饰器写法 <span class="hint">点击展开详解</span></summary>
@@ -1150,7 +1878,7 @@ ctx.result      <span class="cm"># 函数执行结果</span></pre></div></div>
     <span class="kw">async def</span> <span class="fn">process</span>(self, ctx, call_next):
         <span class="kw">await</span> call_next()
         usage = ctx.result.usage_details
-        ctx.metadata[<span class="st">"total_tokens"</span>] = usage.prompt_tokens + usage.completion_tokens
+        ctx.metadata[<span class="st">"total_tokens"</span>] = usage[<span class="st">"input_token_count"</span>] + usage[<span class="st">"output_token_count"</span>]
 
 <span class="cm"># 3. 限流中间件（ChatMiddleware）</span>
 <span class="kw">class</span> <span class="fn">RateLimiter</span>(ChatMiddleware):
@@ -1170,6 +1898,52 @@ ctx.result      <span class="cm"># 函数执行结果</span></pre></div></div>
   </div>
 </details>
 
+<h2>🔍 真实源码：洋葱是怎么用闭包搭出来的</h2>
+<div class="codefile">
+  <div class="cf-head"><span class="dot"></span><span class="path">_middleware.py</span><span class="ln">AgentMiddlewarePipeline.execute（简化自 :880）</span></div>
+<pre class="code"><span class="kw">def</span> <span class="fn">create_next_handler</span>(index):
+    <span class="kw">if</span> index &gt;= len(self._middleware):       <span class="cm"># 到底了 → 跑真正的执行</span>
+        <span class="kw">async def</span> <span class="fn">final_wrapper</span>():
+            context.result = <span class="kw">await</span> final_handler(context)
+        <span class="kw">return</span> final_wrapper
+
+    <span class="kw">async def</span> <span class="fn">current_handler</span>():            <span class="cm"># 这一层：把「下一层」当 call_next 传进去</span>
+        <span class="kw">await</span> self._middleware[index].process(
+            context, create_next_handler(index + 1))
+    <span class="kw">return</span> current_handler
+
+first = create_next_handler(0)
+<span class="kw">with</span> contextlib.suppress(MiddlewareTermination):  <span class="cm"># 短路出口</span>
+    <span class="kw">await</span> first()
+<span class="kw">return</span> context.result</pre>
+</div>
+<p>洋葱不是某个魔法类，而是<strong>递归闭包</strong>搭出来的：<span class="mono">create_next_handler(index)</span> 为第 <span class="mono">index</span> 层
+生成一个 <span class="mono">call_next</span>，它内部又调用 <span class="mono">create_next_handler(index+1)</span>——一层套一层，直到 <span class="mono">index</span> 越界，
+返回 <span class="mono">final_wrapper</span>（真正干活、设 <span class="mono">context.result</span>）。每层的 <span class="mono">process</span> 收到的 <span class="mono">call_next</span> 就是&quot;剩下所有内层&quot;。</p>
+<p>两个设计后果直接可见：①<strong>结果走 <span class="mono">context.result</span></strong>，不靠返回值层层上传，所以三层签名能完全统一；
+②<strong>短路靠 <span class="mono">MiddlewareTermination</span></strong>（<span class="mono">_middleware.py:72</span>）：任何一层 <span class="mono">raise</span> 它，异常一路冒到 <span class="mono">execute()</span> 被
+<span class="mono">contextlib.suppress</span> 吞掉，剩余的 after 阶段全部跳过——干净地提前结束整条管线。</p>
+
+<h2>为什么用洋葱，而不是一个回调列表</h2>
+<p>最容易想到的横切方案是 Express.js 式的<strong>线性回调</strong>：每个中间件拿到 <span class="mono">next</span>，调一下就轮到下一个。
+它的问题是只有&quot;进去前&quot;那一刻好做事，&quot;出来后&quot;很别扭——你拿不到一个能 <span class="mono">await</span> 的「内层整体」，
+也就没法把它包进 <span class="mono">try/finally</span>、<span class="mono">try/except</span> 或一个循环里。</p>
+<p>MAF 的洋葱把&quot;剩下所有内层&quot;浓缩成<strong>一个无参的 <span class="mono">await call_next()</span></strong>。这一下子解锁了四种控制流，全写在<strong>同一个函数体</strong>里：</p>
+<table class="t">
+  <tr><th>你怎么写</th><th>效果</th><th>例子</th></tr>
+  <tr><td class="mono">await call_next()</td><td>正常穿透</td><td>记日志</td></tr>
+  <tr><td>不调 <span class="mono">call_next()</span>，直接设 <span class="mono">ctx.result</span></td><td><strong>短路</strong>：内层与真正执行都不跑</td><td>命中缓存直接返回</td></tr>
+  <tr><td class="mono">try: await call_next() finally: …</td><td>无论成败都收尾</td><td>释放信号量（限流）</td></tr>
+  <tr><td class="mono">for _ in range(n): await call_next()</td><td><strong>多次</strong>调用内层</td><td>重试（见 <span class="mono">_middleware.py:487</span> 的 RetryMiddleware 示例）</td></tr>
+</table>
+<p>把内层当成<strong>一等公民的可等待调用</strong>，正是洋葱比线性回调强的根本原因：调 0 次（短路）、1 次（正常）、N 次（重试）都行，
+而且 before 与 after 的逻辑挨在一起，<strong>代码局部性</strong>极好。三层中间件、类/装饰器两种写法，最终都被
+<span class="mono">create_next_handler</span> 这套闭包统一成同一种洋葱——这就是&quot;一个机制，处处复用&quot;。</p>
+<p>一个最实用的短路场景是<strong>护栏 / 审批</strong>：在 <span class="mono">call_next()</span> <em>之前</em>检查输入，不合规就直接
+<span class="mono">raise MiddlewareTermination(&quot;Validation failed&quot;)</span>（框架内部正是这么用的，见 <span class="mono">_middleware.py:238</span>）。
+因为异常在内层真正执行<strong>之前</strong>抛出，那次昂贵的模型调用 / 工具执行<strong>根本不会发生</strong>——你用十几行中间件就实现了&quot;先审后跑&quot;，
+且<strong>无需改动 Agent 或 ChatClient 一行源码</strong>。这正是本课开头那句承诺&quot;横切地加逻辑&quot;能落地的机制底座。</p>
+
 <div class="card key">
   <div class="tag">✅ 关键要点</div>
   <ul>
@@ -1183,6 +1957,7 @@ ctx.result      <span class="cm"># 函数执行结果</span></pre></div></div>
   <div class="tag">💡 设计亮点</div>
   <strong>三层粒度 × 洋葱模型</strong>：你可以只拦截"每次 LLM 调用"（ChatMiddleware）而不碰工具执行，
   或只拦截工具执行而不碰 LLM——关注点彻底分离。
+  <br>想从零写一个自己的中间件？见<a href="18-custom-middleware.html">第 18 课 · 写自己的中间件</a>。
 </div>
 """
 
@@ -1220,6 +1995,41 @@ ChatClient source</strong>. MAF has <strong>three layers</strong>, each wrapping
 </div>
 <p><strong>Key</strong>: <span class="inline">await call_next()</span> takes <strong>no arguments</strong> — it invokes the
 next layer or the final execution. The result lives on <span class="mono">context.result</span>.</p>
+
+<h2>Tracing a real request: how the three layers interleave</h2>
+<p>The three layers are <strong>different granularities</strong>, so within one <span class="mono">agent.run(&quot;weather in Beijing?&quot;)</span>
+(one tool, one tool-call round) they <strong>interleave</strong>. Say you registered: one <span class="mono">AgentMiddleware</span> (logging),
+one <span class="mono">ChatMiddleware</span> (token counting), one <span class="mono">FunctionMiddleware</span> (tool auditing). Watch how their before/after nest:</p>
+
+<div class="vflow">
+  <div class="step"><div class="num">1</div><div class="sc"><h4>Agent layer before (outermost, once per run)</h4>
+    <p><span class="mono">AgentMiddleware.process</span> runs before <span class="mono">call_next()</span>: <span class="mono">log(&quot;run start&quot;)</span>, then <span class="mono">await call_next()</span> hands control inward.</p></div></div>
+  <div class="step"><div class="num">2</div><div class="sc"><h4>Chat layer before (1st LLM call)</h4>
+    <p>The run makes its first model call; <span class="mono">ChatMiddleware.process</span> fires; <span class="mono">await call_next()</span> sends the actual request.</p></div></div>
+  <div class="step"><div class="num">3</div><div class="sc"><h4>Chat layer after (1st)</h4>
+    <p>The model returns a <span class="mono">function_call</span>. <span class="mono">ctx.result</span> is now this <span class="mono">ChatResponse</span>; the token middleware accumulates its <span class="mono">usage_details</span>. This Chat pass ends.</p></div></div>
+  <div class="step"><div class="num">4</div><div class="sc"><h4>Function layer before/after (run the tool)</h4>
+    <p>The framework executes <span class="mono">get_weather</span>; <span class="mono">FunctionMiddleware.process</span> fires: before notes &quot;about to call get_weather&quot;, <span class="mono">await call_next()</span> runs the real function, after notes the return value.</p></div></div>
+  <div class="step"><div class="num">5</div><div class="sc"><h4>Chat layer before/after (2nd LLM call)</h4>
+    <p>With the tool result, the model is asked again — <span class="mono">ChatMiddleware</span> fires a <strong>second</strong> time (within the same run!), now yielding the final text.</p></div></div>
+  <div class="step"><div class="num">6</div><div class="sc"><h4>Agent layer after (outermost, once per run)</h4>
+    <p>Control unwinds back out; <span class="mono">AgentMiddleware</span> resumes after its <span class="mono">call_next()</span>: now <span class="mono">ctx.result</span> is the <strong>whole-run</strong> <span class="mono">AgentResponse</span>, and the log notes &quot;run done&quot;.</p></div></div>
+</div>
+
+<div class="card detail">
+  <div class="tag">🔬 Reading this trace</div>
+  Key insight: <strong>the deeper the layer, the more often it fires</strong>. In one <span class="mono">run()</span>, <span class="mono">AgentMiddleware</span> fires <strong>once</strong>,
+  while <span class="mono">ChatMiddleware</span> fired <strong>twice</strong> (two model calls) and <span class="mono">FunctionMiddleware</span> fired <strong>once</strong> (one tool).
+  So &quot;measure whole-run latency&quot; belongs in the Agent layer, &quot;rate-limit each model call&quot; in the Chat layer, &quot;approve each tool&quot; in the Function layer — <strong>pick the wrong layer and your granularity is wrong</strong>.
+</div>
+
+<h2>Three granularities compared</h2>
+<table class="t">
+  <tr><th>Middleware</th><th>Wraps what</th><th>Context type</th><th>Fires per run</th><th>Typical use</th></tr>
+  <tr><td class="mono">AgentMiddleware</td><td>the whole <span class="mono">agent.run()</span></td><td class="mono">AgentContext (:93)</td><td>once</td><td>global logging, auth, whole-run retry</td></tr>
+  <tr><td class="mono">ChatMiddleware</td><td>each LLM call</td><td class="mono">ChatContext (:377)</td><td>N times (per model call)</td><td>token counting, rate-limit, response cache</td></tr>
+  <tr><td class="mono">FunctionMiddleware</td><td>each tool execution</td><td class="mono">FunctionInvocationContext (:204)</td><td>M times (per tool call)</td><td>tool approval, arg validation, sandbox</td></tr>
+</table>
 
 <details class="accordion">
   <summary><span class="badge-num">1</span> Decorator shortcut <span class="hint">expand</span></summary>
@@ -1342,7 +2152,7 @@ ctx.result      <span class="cm"># function execution result</span></pre></div><
     <span class="kw">async def</span> <span class="fn">process</span>(self, ctx, call_next):
         <span class="kw">await</span> call_next()
         usage = ctx.result.usage_details
-        ctx.metadata[<span class="st">"total_tokens"</span>] = usage.prompt_tokens + usage.completion_tokens
+        ctx.metadata[<span class="st">"total_tokens"</span>] = usage[<span class="st">"input_token_count"</span>] + usage[<span class="st">"output_token_count"</span>]
 
 <span class="cm"># 3. Rate-limit middleware (ChatMiddleware)</span>
 <span class="kw">class</span> <span class="fn">RateLimiter</span>(ChatMiddleware):
@@ -1362,6 +2172,50 @@ ctx.result      <span class="cm"># function execution result</span></pre></div><
   </div>
 </details>
 
+<h2>🔍 Real source: how the onion is built from closures</h2>
+<div class="codefile">
+  <div class="cf-head"><span class="dot"></span><span class="path">_middleware.py</span><span class="ln">AgentMiddlewarePipeline.execute (simplified from :880)</span></div>
+<pre class="code"><span class="kw">def</span> <span class="fn">create_next_handler</span>(index):
+    <span class="kw">if</span> index &gt;= len(self._middleware):       <span class="cm"># bottomed out → run the real execution</span>
+        <span class="kw">async def</span> <span class="fn">final_wrapper</span>():
+            context.result = <span class="kw">await</span> final_handler(context)
+        <span class="kw">return</span> final_wrapper
+
+    <span class="kw">async def</span> <span class="fn">current_handler</span>():            <span class="cm"># this layer: pass &quot;the next layer&quot; in as call_next</span>
+        <span class="kw">await</span> self._middleware[index].process(
+            context, create_next_handler(index + 1))
+    <span class="kw">return</span> current_handler
+
+first = create_next_handler(0)
+<span class="kw">with</span> contextlib.suppress(MiddlewareTermination):  <span class="cm"># short-circuit exit</span>
+    <span class="kw">await</span> first()
+<span class="kw">return</span> context.result</pre>
+</div>
+<p>The onion isn't a magic class — it's built from <strong>recursive closures</strong>: <span class="mono">create_next_handler(index)</span> produces a
+<span class="mono">call_next</span> for layer <span class="mono">index</span>, which itself calls <span class="mono">create_next_handler(index+1)</span> — nesting until <span class="mono">index</span> runs off the end,
+returning <span class="mono">final_wrapper</span> (the real work that sets <span class="mono">context.result</span>). Each layer's <span class="mono">process</span> receives a <span class="mono">call_next</span> that <em>is</em> &quot;all the inner layers&quot;.</p>
+<p>Two design consequences are immediately visible: ① <strong>the result travels on <span class="mono">context.result</span></strong>, not via return values bubbling up — which is why all three signatures can be identical;
+② <strong>short-circuit is via <span class="mono">MiddlewareTermination</span></strong> (<span class="mono">_middleware.py:72</span>): any layer can <span class="mono">raise</span> it, the exception bubbles up to <span class="mono">execute()</span> and is swallowed by
+<span class="mono">contextlib.suppress</span>, skipping all remaining after-stages — a clean early exit for the whole pipeline.</p>
+
+<h2>Why an onion, not a list of callbacks</h2>
+<p>The obvious cross-cutting design is an Express.js-style <strong>linear callback</strong>: each middleware gets <span class="mono">next</span>, calls it, and the next one runs.
+The problem is only the &quot;before&quot; moment is easy; the &quot;after&quot; is awkward — you have no single <span class="mono">await</span>-able &quot;inner whole&quot; to wrap in <span class="mono">try/finally</span>, <span class="mono">try/except</span>, or a loop.</p>
+<p>MAF's onion compresses &quot;all the inner layers&quot; into <strong>one no-arg <span class="mono">await call_next()</span></strong>. That unlocks four control flows, all in the <strong>same function body</strong>:</p>
+<table class="t">
+  <tr><th>How you write it</th><th>Effect</th><th>Example</th></tr>
+  <tr><td class="mono">await call_next()</td><td>normal pass-through</td><td>logging</td></tr>
+  <tr><td>skip <span class="mono">call_next()</span>, set <span class="mono">ctx.result</span></td><td><strong>short-circuit</strong>: inner layers and real execution never run</td><td>return a cache hit</td></tr>
+  <tr><td class="mono">try: await call_next() finally: …</td><td>clean up regardless of outcome</td><td>release a semaphore (rate-limit)</td></tr>
+  <tr><td class="mono">for _ in range(n): await call_next()</td><td>call the inner whole <strong>multiple</strong> times</td><td>retry (see the RetryMiddleware example, <span class="mono">_middleware.py:487</span>)</td></tr>
+</table>
+<p>Treating the inner whole as a <strong>first-class awaitable</strong> is exactly why the onion beats a linear callback list: call it 0 times (short-circuit), once (normal), or N times (retry) — and before/after logic sits together for great <strong>code locality</strong>.
+Three layers, class or decorator form — all are unified by the same <span class="mono">create_next_handler</span> closures into one onion: &quot;one mechanism, reused everywhere&quot;.</p>
+<p>The most practical short-circuit is a <strong>guardrail / approval</strong>: check the input <em>before</em> <span class="mono">call_next()</span> and, if non-compliant, just
+<span class="mono">raise MiddlewareTermination(&quot;Validation failed&quot;)</span> (exactly how the framework uses it internally — see <span class="mono">_middleware.py:238</span>).
+Because the exception is raised <strong>before</strong> the inner execution, that expensive model call / tool run <strong>never happens</strong> — a dozen lines of middleware gives you &quot;validate, then run&quot;,
+with <strong>zero changes to Agent or ChatClient source</strong>. That is the mechanism backing this lesson's opening promise of adding logic &quot;cross-cuttingly&quot;.</p>
+
 <div class="card key">
   <div class="tag">✅ Key points</div>
   <ul>
@@ -1375,6 +2229,7 @@ ctx.result      <span class="cm"># function execution result</span></pre></div><
   <div class="tag">💡 Design highlight</div>
   <strong>Three granularities × onion model</strong>: you can intercept "every LLM call" (ChatMiddleware) without
   touching tool execution, or intercept tool execution without touching LLM — concerns are fully separated.
+  <br>Want to write your own from scratch? See <a href="18-custom-middleware.html">Lesson 18 · Writing Your Own Middleware</a>.
 </div>
 """
 
@@ -1417,6 +2272,130 @@ wf = WorkflowBuilder(start_executor=upper) \
     .add_edge(upper, reverse).build()
 events = <span class="kw">await</span> wf.run(<span class="st">"hello"</span>)  <span class="cm"># → "OLLEH"</span></pre>
 </div>
+
+<h2>追踪一次工作流执行：writer → reviewer</h2>
+<p>抽象讲完，我们用一张<strong>两节点图</strong>端到端走一遍。两个 Executor——<span class="mono">writer</span>（写草稿）和
+<span class="mono">reviewer</span>（评审并产出）——连成一条边 <span class="mono">writer → reviewer</span>，再投递一条初始消息。
+关键在于：Workflow 不是"依次调用两个函数"，而是按 <strong>超步（superstep）</strong>推进的——
+这正是它能<strong>断点续跑、并发、可观测</strong>的根因（<span class="mono">_workflow.py:211</span> 称之为 Pregel 式执行）。</p>
+
+<div class="codefile">
+  <div class="cf-head"><span class="dot"></span><span class="path">建图</span></div>
+<pre><span class="nb">@executor</span>(id=<span class="st">"writer"</span>)
+<span class="kw">async def</span> <span class="fn">writer</span>(topic: str, ctx: WorkflowContext[str]):
+    <span class="kw">await</span> ctx.send_message(<span class="st">f"草稿：一首关于{topic}的俳句"</span>)   <span class="cm"># 发给下游</span>
+
+<span class="nb">@executor</span>(id=<span class="st">"reviewer"</span>)
+<span class="kw">async def</span> <span class="fn">reviewer</span>(draft: str, ctx: WorkflowContext[Never, str]):
+    <span class="kw">await</span> ctx.yield_output(draft + <span class="st">" ✓ 已评审"</span>)        <span class="cm"># 产出最终结果</span>
+
+wf = WorkflowBuilder(start_executor=writer).add_edge(writer, reviewer).build()
+result = <span class="kw">await</span> wf.run(<span class="st">"大海"</span>)</pre>
+</div>
+
+<div class="vflow">
+  <div class="step"><div class="num">0</div><div class="sc"><h4>投递初始消息（超步 0）</h4>
+    <p>引擎把 <span class="mono">"大海"</span> 当作消息投给<strong>起始节点</strong> <span class="mono">writer</span>，并发出 <span class="mono">started</span> 事件。
+    此刻<strong>活跃节点：无</strong>；<strong>在途消息</strong>：<span class="mono">"大海" → writer</span>。</p></div></div>
+  <div class="step"><div class="num">1</div><div class="sc"><h4>超步 1：writer 被唤起</h4>
+    <p>本超步里，所有"收到消息"的节点被<strong>并行</strong>唤起。<span class="mono">writer</span> 的 handler 跑完，
+    调 <span class="mono">ctx.send_message(draft)</span> 把草稿写到边上——但<strong>不立即送达</strong>，而是缓冲到超步末尾。</p>
+<pre class="code"><span class="cm"># 本超步可观测到的事件</span>
+WorkflowEvent(<span class="st">"executor_invoked"</span>,  executor_id=<span class="st">"writer"</span>)
+WorkflowEvent(<span class="st">"executor_completed"</span>, executor_id=<span class="st">"writer"</span>)
+<span class="cm"># 边 writer→reviewer 上此刻缓冲着一条消息（事件流里看不到）</span></pre></div></div>
+  <div class="step"><div class="num">2</div><div class="sc"><h4>超步边界：统一投递 + 存检查点</h4>
+    <p>超步 1 结束时，引擎一次性<strong>投递</strong>所有在途消息（草稿送达 <span class="mono">reviewer</span>），
+    并把当前状态<strong>存一个检查点</strong>（<span class="mono">_runner.py:143</span>）。下一超步的活跃集合 = <span class="mono">&#123;reviewer&#125;</span>。</p></div></div>
+  <div class="step"><div class="num">3</div><div class="sc"><h4>超步 2：reviewer 被唤起并产出</h4>
+    <p><span class="mono">reviewer</span> 收到草稿，调 <span class="mono">yield_output()</span> 产出终值——这会发一个 <span class="mono">output</span> 事件：</p>
+<pre class="code">WorkflowEvent(<span class="st">"executor_invoked"</span>, executor_id=<span class="st">"reviewer"</span>)
+WorkflowEvent(<span class="st">"output"</span>, executor_id=<span class="st">"reviewer"</span>,
+             data=<span class="st">"草稿：一首关于大海的俳句 ✓ 已评审"</span>)
+WorkflowEvent(<span class="st">"executor_completed"</span>, executor_id=<span class="st">"reviewer"</span>)</pre></div></div>
+  <div class="step"><div class="num">4</div><div class="sc"><h4>无消息在途 → 图空闲，终止</h4>
+    <p>超步 2 末尾没有任何新消息在途，图进入 <span class="mono">IDLE</span>，<span class="mono">run()</span> 返回。
+    <span class="mono">result.get_outputs()</span> → <span class="mono">["…✓ 已评审"]</span>，
+    <span class="mono">result.get_final_state()</span> → <span class="mono">WorkflowRunState.IDLE</span>。</p></div></div>
+</div>
+
+<div class="card detail">
+  <div class="tag">🔬 读懂这条轨迹</div>
+  三个常被忽略的关键点：①<strong>节点之间传的是消息，不是返回值</strong>——<span class="mono">send_message</span> 把数据放到边上，
+  接收方要到<em>下一个</em>超步才被唤起；②<strong>消息在超步边界统一投递</strong>，所以同一超步里被唤起的多个节点彼此<strong>看不到对方本步的输出</strong>（这正是 fan-out 能安全并行的前提）；
+  ③<strong>每个超步末尾都会存检查点</strong>——进程崩了也能从最近一个超步恢复，这是"单 Agent 工具循环"给不了的。
+  还有一个易错点：<span class="mono">send_message</span> 产生的<strong>边上消息在事件流里看不到</strong>（<span class="mono">_workflow.py:221</span>），
+  你能观测到的只有 <span class="mono">output</span> / 自定义事件 / 状态事件——想看节点间数据流，得用 OTel 的 <span class="mono">message.send</span> span（见第 14 课）。
+</div>
+
+<h2>图执行模型：超步驱动</h2>
+<p>把上面的轨迹抽象出来，就是 Workflow 的执行心智模型：一轮一轮的<strong>超步</strong>，每轮"唤起活跃节点 → 缓冲消息 → 边界投递+存档"，直到没有消息可投递。</p>
+<div class="flow">
+  <div class="node"><div class="nt">超步 0</div><div class="nd">投递初始消息</div></div>
+  <div class="arrow">→</div>
+  <div class="node hl"><div class="nt">超步 1</div><div class="nd">writer 唤起 · send</div></div>
+  <div class="arrow">→</div>
+  <div class="node"><div class="nt">边界</div><div class="nd">投递 + 检查点</div></div>
+  <div class="arrow">→</div>
+  <div class="node hl"><div class="nt">超步 2</div><div class="nd">reviewer 唤起 · yield</div></div>
+  <div class="arrow">→</div>
+  <div class="node"><div class="nt">IDLE</div><div class="nd">无消息 → 终止</div></div>
+</div>
+<p>这与你在第 8 课见过的<strong>单 Agent 工具循环</strong>是两种不同的控制结构。下面并排对比，帮你判断"什么时候该上 Workflow"：</p>
+<div class="cols">
+  <div class="col"><h4>单 Agent 工具循环</h4>
+    <p>一个 <span class="mono">while</span> 循环：调模型 → 执行工具 → 再调模型……状态<strong>全在内存里的那一个消息列表</strong>。
+    简单、低延迟，适合"一个智能体 + 几个工具"的对话式任务。但它<strong>崩溃即丢失</strong>、天然串行、
+    也难以在中途插入人工审核或并发分支。</p></div>
+  <div class="col"><h4>Workflow 图</h4>
+    <p>显式的<strong>节点 + 边 + 超步</strong>调度：可在边界<strong>存档/恢复</strong>、可 fan-out 并发、
+    可在边上挂条件与开关、可暂停等待人工输入（<span class="mono">ctx.request_info()</span>）。
+    代价是你得先<strong>把流程画成图</strong>——换来的是可控、可观测、可恢复。</p></div>
+</div>
+
+<h2>🔍 真实源码：建图与执行钩子</h2>
+<div class="codefile">
+  <div class="cf-head"><span class="dot"></span><span class="path">_workflows/_workflow_builder.py</span><span class="ln">add_edge / build（简化自 :228 / :725）</span></div>
+<pre class="code"><span class="kw">def</span> <span class="fn">add_edge</span>(self, source: Executor | SupportsAgentRun,
+             target: Executor | SupportsAgentRun,
+             condition: EdgeCondition | None = <span class="kw">None</span>) -> Self:
+    <span class="cm"># 登记一条有向边；source 的输出类型须与 target 的输入类型兼容</span>
+    ...
+    <span class="kw">return</span> self                        <span class="cm"># 返回自身 → 支持链式</span>
+
+<span class="kw">def</span> <span class="fn">build</span>(self) -> Workflow:
+    <span class="cm"># 校验：起始节点已设、边都合法、图连通、相邻类型兼容</span>
+    <span class="cm"># 任一不满足即抛 WorkflowValidationError（构建期就报错，而非运行时）</span>
+    <span class="kw">return</span> Workflow(...)               <span class="cm"># 返回不可变的 Workflow</span></pre>
+</div>
+<p>注意：<strong>起始节点是构造器参数</strong>（<span class="mono">WorkflowBuilder(start_executor=writer)</span>，<span class="mono">_workflow_builder.py:89</span>），
+并没有 <span class="mono">set_start_executor()</span> 方法。<span class="mono">build()</span> 把校验放在<strong>构建期</strong>——
+类型不兼容、图不连通这类错误在你 <span class="mono">run()</span> 之前就被拦下。</p>
+<div class="codefile">
+  <div class="cf-head"><span class="dot"></span><span class="path">_workflows/_executor.py</span><span class="ln">Executor.execute（简化自 :219）</span></div>
+<pre class="code"><span class="kw">async def</span> <span class="fn">execute</span>(self, message, source_executor_ids, state, runner_context, ...):
+    <span class="cm"># 由引擎调用——别自己调、也别覆写；要定制行为请写 @handler</span>
+    <span class="kw">with</span> create_processing_span(self.id, ...):      <span class="cm"># 自动开一个 OTel span（见第 14 课）</span>
+        handler = self._find_handler(message)        <span class="cm"># 按消息类型挑选 @handler</span>
+        context = self._create_context_for_handler(...)  <span class="cm"># 造 WorkflowContext</span>
+        <span class="kw">await</span> handler(message, context)              <span class="cm"># 真正干活的一行</span></pre>
+</div>
+<p>这解释了"两种写法为何等价"：无论你写 Executor 子类还是用 <span class="mono">@executor</span> 装函数，
+引擎统一通过 <span class="mono">execute()</span> → <span class="mono">_find_handler()</span> 找到对应 handler 再调用。
+<span class="mono">@handler</span>（<span class="mono">_executor.py:530</span>）只是把方法的输入类型登记进 <span class="mono">self._handlers</span>，供这里按类型分发。</p>
+
+<h2>为什么要图式编排</h2>
+<p>把流程显式画成图，并非"为复杂而复杂"，而是用一点前期成本换来三类生产级能力：</p>
+<table class="t">
+  <tr><th>能力</th><th>图带来了什么</th><th>底层机制</th></tr>
+  <tr><td><strong>可恢复</strong></td><td>长流程跑到一半崩溃，可从最近超步续跑，不必从头再来</td><td class="mono">超步边界检查点</td></tr>
+  <tr><td><strong>可并发</strong></td><td>无依赖的节点在同一超步并行跑，延迟从"求和"降到"取最大"</td><td class="mono">add_fan_out_edges</td></tr>
+  <tr><td><strong>可控</strong></td><td>条件边/开关让路由显式可见，而非藏在某个 if 里</td><td class="mono">add_switch_case_edge_group</td></tr>
+  <tr><td><strong>可干预</strong></td><td>节点可暂停、向外请求人工输入，拿到答复再继续</td><td class="mono">ctx.request_info()</td></tr>
+</table>
+<p>反过来说，如果你的任务就是"一个 Agent 带几个工具、一次对话搞定"，那么<strong>单 Agent 循环更省事</strong>——
+别为它套一张只有一个节点的图。Workflow 的价值在<strong>多节点协作 + 长流程 + 需要可靠性</strong>的场景才真正兑现。
+下一课的五种<strong>编排模式</strong>，本质上就是"把常见多 Agent 拓扑预先画好的 Workflow"。</p>
 
 <details class="accordion">
   <summary><span class="badge-num">1</span> Executor 两种写法 <span class="hint">点击展开详解</span></summary>
@@ -1527,6 +2506,7 @@ state = result.get_final_state()        <span class="cm"># WorkflowRunState.IDLE
   <div class="tag">💡 设计亮点</div>
   <strong>消息驱动</strong>：节点之间传递的是"消息"而非函数调用返回值——
   这意味着节点天然支持异步、fan-out/fan-in，且可在边上加条件/开关。
+  <br>把工作流真正端到端用起来，见<a href="20-capstone.html">第 20 课 · 端到端实战</a>。
 </div>
 """
 
@@ -1569,6 +2549,130 @@ wf = WorkflowBuilder(start_executor=upper) \
     .add_edge(upper, reverse).build()
 events = <span class="kw">await</span> wf.run(<span class="st">"hello"</span>)  <span class="cm"># → "OLLEH"</span></pre>
 </div>
+
+<h2>Tracing one workflow run: writer → reviewer</h2>
+<p>Enough abstraction — let's walk a <strong>two-node graph</strong> end to end. Two Executors — <span class="mono">writer</span> (drafts) and
+<span class="mono">reviewer</span> (reviews and yields output) — wired by one edge <span class="mono">writer → reviewer</span>, then we deliver an initial message.
+The key insight: a Workflow does <strong>not</strong> "call two functions in sequence" — it advances in <strong>supersteps</strong>,
+which is exactly what makes it <strong>resumable, concurrent, and observable</strong> (<span class="mono">_workflow.py:211</span> calls this a Pregel-style engine).</p>
+
+<div class="codefile">
+  <div class="cf-head"><span class="dot"></span><span class="path">build the graph</span></div>
+<pre><span class="nb">@executor</span>(id=<span class="st">"writer"</span>)
+<span class="kw">async def</span> <span class="fn">writer</span>(topic: str, ctx: WorkflowContext[str]):
+    <span class="kw">await</span> ctx.send_message(<span class="st">f"draft: a haiku about {topic}"</span>)   <span class="cm"># forward downstream</span>
+
+<span class="nb">@executor</span>(id=<span class="st">"reviewer"</span>)
+<span class="kw">async def</span> <span class="fn">reviewer</span>(draft: str, ctx: WorkflowContext[Never, str]):
+    <span class="kw">await</span> ctx.yield_output(draft + <span class="st">" ✓ reviewed"</span>)        <span class="cm"># emit final result</span>
+
+wf = WorkflowBuilder(start_executor=writer).add_edge(writer, reviewer).build()
+result = <span class="kw">await</span> wf.run(<span class="st">"the sea"</span>)</pre>
+</div>
+
+<div class="vflow">
+  <div class="step"><div class="num">0</div><div class="sc"><h4>Deliver the initial message (superstep 0)</h4>
+    <p>The engine delivers <span class="mono">"the sea"</span> as a message to the <strong>start executor</strong> <span class="mono">writer</span> and emits a <span class="mono">started</span> event.
+    Right now <strong>active nodes: none</strong>; <strong>in-flight message</strong>: <span class="mono">"the sea" → writer</span>.</p></div></div>
+  <div class="step"><div class="num">1</div><div class="sc"><h4>Superstep 1: writer is invoked</h4>
+    <p>Every node that "received a message" is invoked <strong>in parallel</strong> this superstep. <span class="mono">writer</span>'s handler runs,
+    calls <span class="mono">ctx.send_message(draft)</span> to write the draft onto the edge — but it is <strong>not delivered immediately</strong>; it's buffered until the superstep boundary.</p>
+<pre class="code"><span class="cm"># events observable this superstep</span>
+WorkflowEvent(<span class="st">"executor_invoked"</span>,  executor_id=<span class="st">"writer"</span>)
+WorkflowEvent(<span class="st">"executor_completed"</span>, executor_id=<span class="st">"writer"</span>)
+<span class="cm"># edge writer→reviewer now buffers one message (not visible in the event stream)</span></pre></div></div>
+  <div class="step"><div class="num">2</div><div class="sc"><h4>Superstep boundary: deliver + checkpoint</h4>
+    <p>When superstep 1 ends, the engine <strong>delivers</strong> all in-flight messages at once (the draft reaches <span class="mono">reviewer</span>)
+    and <strong>writes a checkpoint</strong> (<span class="mono">_runner.py:143</span>). The next superstep's active set = <span class="mono">&#123;reviewer&#125;</span>.</p></div></div>
+  <div class="step"><div class="num">3</div><div class="sc"><h4>Superstep 2: reviewer is invoked and yields</h4>
+    <p><span class="mono">reviewer</span> receives the draft and calls <span class="mono">yield_output()</span> to emit the terminal value — which fires an <span class="mono">output</span> event:</p>
+<pre class="code">WorkflowEvent(<span class="st">"executor_invoked"</span>, executor_id=<span class="st">"reviewer"</span>)
+WorkflowEvent(<span class="st">"output"</span>, executor_id=<span class="st">"reviewer"</span>,
+             data=<span class="st">"draft: a haiku about the sea ✓ reviewed"</span>)
+WorkflowEvent(<span class="st">"executor_completed"</span>, executor_id=<span class="st">"reviewer"</span>)</pre></div></div>
+  <div class="step"><div class="num">4</div><div class="sc"><h4>No messages in flight → graph idle, terminate</h4>
+    <p>At the end of superstep 2 nothing new is in flight, the graph goes <span class="mono">IDLE</span>, and <span class="mono">run()</span> returns.
+    <span class="mono">result.get_outputs()</span> → <span class="mono">["…✓ reviewed"]</span>,
+    <span class="mono">result.get_final_state()</span> → <span class="mono">WorkflowRunState.IDLE</span>.</p></div></div>
+</div>
+
+<div class="card detail">
+  <div class="tag">🔬 Reading this trace</div>
+  Three things people often miss: ① <strong>nodes pass messages, not return values</strong> — <span class="mono">send_message</span> drops data onto the edge,
+  and the receiver isn't invoked until the <em>next</em> superstep; ② <strong>messages are delivered together at the superstep boundary</strong>, so multiple nodes invoked in the same superstep <strong>can't see each other's output</strong> from that step (precisely what makes fan-out safe to parallelize);
+  ③ <strong>a checkpoint is written at the end of every superstep</strong> — crash and you resume from the most recent one, something a "single-agent tool loop" cannot offer.
+  One more gotcha: messages produced by <span class="mono">send_message</span> are <strong>invisible in the event stream</strong> (<span class="mono">_workflow.py:221</span>);
+  all you observe are <span class="mono">output</span> / custom / status events — to watch inter-node data flow you need the OTel <span class="mono">message.send</span> span (see Lesson 14).
+</div>
+
+<h2>The graph execution model: superstep-driven</h2>
+<p>Abstracting the trace above gives the Workflow mental model: round after round of <strong>supersteps</strong>, each "invoke active nodes → buffer messages → deliver + checkpoint at the boundary," until no message is left to deliver.</p>
+<div class="flow">
+  <div class="node"><div class="nt">Superstep 0</div><div class="nd">deliver initial msg</div></div>
+  <div class="arrow">→</div>
+  <div class="node hl"><div class="nt">Superstep 1</div><div class="nd">writer · send</div></div>
+  <div class="arrow">→</div>
+  <div class="node"><div class="nt">Boundary</div><div class="nd">deliver + checkpoint</div></div>
+  <div class="arrow">→</div>
+  <div class="node hl"><div class="nt">Superstep 2</div><div class="nd">reviewer · yield</div></div>
+  <div class="arrow">→</div>
+  <div class="node"><div class="nt">IDLE</div><div class="nd">no msg → stop</div></div>
+</div>
+<p>This is a different control structure from the <strong>single-agent tool loop</strong> you saw in Lesson 8. A side-by-side comparison helps you decide "when to reach for a Workflow":</p>
+<div class="cols">
+  <div class="col"><h4>Single-agent tool loop</h4>
+    <p>One <span class="mono">while</span> loop: call the model → run a tool → call the model again… with state living <strong>entirely in one in-memory message list</strong>.
+    Simple and low-latency — ideal for "one agent + a few tools" conversational tasks. But it is <strong>lost on crash</strong>, inherently serial,
+    and awkward to pause for human review or branch concurrently.</p></div>
+  <div class="col"><h4>Workflow graph</h4>
+    <p>Explicit <strong>nodes + edges + supersteps</strong>: checkpoint and <strong>resume</strong> at boundaries, fan-out for concurrency,
+    hang conditions and switches on edges, and pause to request human input (<span class="mono">ctx.request_info()</span>).
+    The cost is you must <strong>draw the flow as a graph</strong> first — in return you get control, observability, and recoverability.</p></div>
+</div>
+
+<h2>🔍 Real source: building the graph and the execution hook</h2>
+<div class="codefile">
+  <div class="cf-head"><span class="dot"></span><span class="path">_workflows/_workflow_builder.py</span><span class="ln">add_edge / build (simplified from :228 / :725)</span></div>
+<pre class="code"><span class="kw">def</span> <span class="fn">add_edge</span>(self, source: Executor | SupportsAgentRun,
+             target: Executor | SupportsAgentRun,
+             condition: EdgeCondition | None = <span class="kw">None</span>) -> Self:
+    <span class="cm"># register a directed edge; source output type must match target input type</span>
+    ...
+    <span class="kw">return</span> self                        <span class="cm"># return self → enables chaining</span>
+
+<span class="kw">def</span> <span class="fn">build</span>(self) -> Workflow:
+    <span class="cm"># validate: start executor set, edges valid, graph connected, types compatible</span>
+    <span class="cm"># any failure raises WorkflowValidationError (at build time, not run time)</span>
+    <span class="kw">return</span> Workflow(...)               <span class="cm"># return an immutable Workflow</span></pre>
+</div>
+<p>Note: the <strong>start executor is a constructor argument</strong> (<span class="mono">WorkflowBuilder(start_executor=writer)</span>, <span class="mono">_workflow_builder.py:89</span>) —
+there is no <span class="mono">set_start_executor()</span> method. <span class="mono">build()</span> runs validation at <strong>build time</strong>, so
+type mismatches and disconnected graphs are caught before you ever call <span class="mono">run()</span>.</p>
+<div class="codefile">
+  <div class="cf-head"><span class="dot"></span><span class="path">_workflows/_executor.py</span><span class="ln">Executor.execute (simplified from :219)</span></div>
+<pre class="code"><span class="kw">async def</span> <span class="fn">execute</span>(self, message, source_executor_ids, state, runner_context, ...):
+    <span class="cm"># invoked by the engine — don't call or override it; customize via @handler</span>
+    <span class="kw">with</span> create_processing_span(self.id, ...):      <span class="cm"># auto-opens an OTel span (see Lesson 14)</span>
+        handler = self._find_handler(message)        <span class="cm"># pick the @handler by message type</span>
+        context = self._create_context_for_handler(...)  <span class="cm"># build a WorkflowContext</span>
+        <span class="kw">await</span> handler(message, context)              <span class="cm"># the line that does the real work</span></pre>
+</div>
+<p>This explains "why the two styles are equivalent": whether you write an Executor subclass or use <span class="mono">@executor</span> on a function,
+the engine uniformly routes through <span class="mono">execute()</span> → <span class="mono">_find_handler()</span> to find and invoke the matching handler.
+<span class="mono">@handler</span> (<span class="mono">_executor.py:530</span>) merely registers a method's input type into <span class="mono">self._handlers</span> for type-based dispatch here.</p>
+
+<h2>Why graph orchestration</h2>
+<p>Drawing the flow explicitly as a graph isn't complexity for its own sake — it trades a little upfront cost for three production-grade capabilities:</p>
+<table class="t">
+  <tr><th>Capability</th><th>What the graph buys you</th><th>Underlying mechanism</th></tr>
+  <tr><td><strong>Resumable</strong></td><td>A long flow that crashes midway resumes from the latest superstep — no rerun from scratch</td><td class="mono">superstep checkpoints</td></tr>
+  <tr><td><strong>Concurrent</strong></td><td>Independent nodes run in the same superstep; latency drops from sum to max</td><td class="mono">add_fan_out_edges</td></tr>
+  <tr><td><strong>Controllable</strong></td><td>Conditional edges/switches make routing explicit instead of buried in some if</td><td class="mono">add_switch_case_edge_group</td></tr>
+  <tr><td><strong>Interruptible</strong></td><td>A node can pause and request human input, then continue once answered</td><td class="mono">ctx.request_info()</td></tr>
+</table>
+<p>Conversely, if your task is just "one agent with a few tools, done in one conversation," the <strong>single-agent loop is simpler</strong> —
+don't wrap it in a one-node graph. A Workflow earns its keep in <strong>multi-node collaboration + long flows + reliability requirements</strong>.
+The five <strong>orchestration patterns</strong> in the next lesson are, at heart, "Workflows whose common multi-agent topologies are pre-drawn for you."</p>
 
 <details class="accordion">
   <summary><span class="badge-num">1</span> Two Executor styles <span class="hint">click to expand</span></summary>
@@ -1682,6 +2786,7 @@ state = result.get_final_state()        <span class="cm"># WorkflowRunState.IDLE
   <div class="tag">💡 Design highlight</div>
   <strong>Message-driven</strong>: nodes pass "messages", not function return values — so they naturally support
   async, fan-out/fan-in, and you can add conditions or switches on the edges.
+  <br>To put workflows to work end-to-end, see <a href="20-capstone.html">Lesson 20 · Capstone</a>.
 </div>
 """
 
@@ -1714,6 +2819,137 @@ L13_ZH = r"""
 workflow = SequentialBuilder(participants=[writer, reviewer]).build()
 result = <span class="kw">await</span> workflow.run(<span class="st">"Write a poem about the sea"</span>)</pre>
 </div>
+
+<h2>追踪一次 Handoff 编排：客服分流</h2>
+<p>抽象的"五种模式"先放一放，我们挑最直观的 <strong>Handoff</strong> 端到端走一遍。场景：客服系统有三个 Agent——
+<span class="mono">triage</span>（分流）、<span class="mono">billing</span>（计费专家）、<span class="mono">tech</span>（技术专家）。
+用户进来先碰到 triage，由 triage 自己判断该转给谁。</p>
+
+<div class="codefile">
+  <div class="cf-head"><span class="dot"></span><span class="path">搭建 Handoff 图</span></div>
+<pre><span class="kw">from</span> agent_framework.orchestrations <span class="kw">import</span> HandoffBuilder
+
+workflow = (
+    HandoffBuilder(participants=[triage, billing, tech])
+    .with_start_agent(triage)
+    .add_handoff(triage, [billing], description=<span class="st">"账单/扣费问题"</span>)
+    .add_handoff(triage, [tech],    description=<span class="st">"技术故障"</span>)
+    .build()
+)
+result = <span class="kw">await</span> workflow.run(<span class="st">"我这个月被重复扣费了两次"</span>)</pre>
+</div>
+
+<div class="vflow">
+  <div class="step"><div class="num">1</div><div class="sc"><h4>triage 上场，手里多了两把"交接工具"</h4>
+    <p>每个 <span class="mono">add_handoff(triage, [X])</span> 都会让框架<strong>自动给 triage 注册一个工具</strong>
+    <span class="mono">handoff_to_&lt;X.id&gt;</span>（<span class="mono">_handoff.py:122</span>）。所以 triage 除了正常回答，还能调
+    <span class="mono">handoff_to_billing</span> / <span class="mono">handoff_to_tech</span>。</p></div></div>
+  <div class="step"><div class="num">2</div><div class="sc"><h4>triage 判定：这是计费问题</h4>
+    <p>模型读到"重复扣费"，决定不自己答，而是<strong>调用交接工具</strong>——形式上就是第 10 课的普通函数调用，只是这个工具的语义是"移交"：</p>
+<pre class="code">assistant_msg = Message(<span class="st">"assistant"</span>, [
+  Content.from_function_call(name=<span class="st">"handoff_to_billing"</span>, arguments=<span class="st">"{}"</span>)
+])</pre></div></div>
+  <div class="step"><div class="num">3</div><div class="sc"><h4>框架拦截，发出 handoff_sent 事件</h4>
+    <p>框架识别出这是交接工具调用，<strong>不</strong>把它当普通工具执行，而是切换活跃 Agent 并发出事件（<span class="mono">_handoff.py:413</span>）：</p>
+<pre class="code">WorkflowEvent(<span class="st">"handoff_sent"</span>,
+  data=HandoffSentEvent(source=<span class="st">"triage"</span>, target=<span class="st">"billing"</span>))</pre></div></div>
+  <div class="step"><div class="num">4</div><div class="sc"><h4>billing 接手，看到完整对话历史</h4>
+    <p>被交接的 <span class="mono">billing</span> 收到的<strong>不是一句转述</strong>，而是<strong>整段对话</strong>（含用户原话"重复扣费"）。
+    它据此核对账单、给出处理结果。若还需用户补充信息，可发 <span class="mono">HandoffAgentUserRequest</span>（<span class="mono">_handoff.py:436</span>）等用户回话。</p></div></div>
+  <div class="step"><div class="num">5</div><div class="sc"><h4>满足终止条件 → 返回</h4>
+    <p>billing 产出答复、且没有进一步交接，工作流终止。<span class="mono">result.get_outputs()</span> 拿到最终回复。
+    全程<strong>没有外部调度器</strong>在写 if-else——是 triage 自己"决定"交给谁。</p></div></div>
+</div>
+
+<div class="card detail">
+  <div class="tag">🔬 读懂这条轨迹</div>
+  Handoff 的精髓是<strong>把"路由决策"交给 Agent 自己</strong>，而实现手段是一次<strong>普通的工具调用</strong>：
+  框架把"可交接给谁"编译成若干 <span class="mono">handoff_to_*</span> 工具塞进当前 Agent，Agent 调哪个工具就交给谁。
+  这带来两个常被忽视的好处：① 路由理由<strong>写在工具描述里</strong>（"账单/扣费问题"），模型据此选择，决策可解释；
+  ② 因为底层是 Workflow 图，交接过程<strong>天然可检查点、可恢复</strong>——这是 OpenAI Swarm 那种"靠函数返回值交接"给不了的。
+  还要注意：控制权是<strong>单向</strong>移交的——billing 接手后 triage 即退场（除非你也给 billing 配了交回 triage 的 handoff）。
+</div>
+
+<h2>五种模式的拓扑与取舍</h2>
+<p>上面只是 Handoff 一种。把五种模式按<strong>拓扑结构</strong>和<strong>"谁决定下一步"</strong>排在一起，选型就清楚了：</p>
+<table class="t">
+  <tr><th>模式</th><th>拓扑</th><th>谁决定下一步</th><th>典型场景</th></tr>
+  <tr><td><strong>Sequential</strong></td><td>A → B → C 链</td><td>固定顺序（建图时定死）</td><td>写作→评审→润色流水线</td></tr>
+  <tr><td><strong>Concurrent</strong></td><td>fan-out → fan-in</td><td>全部并行，聚合器收尾</td><td>多视角同时分析、投票</td></tr>
+  <tr><td><strong>Handoff</strong></td><td>Agent 间有向交接</td><td><strong>当前 Agent</strong>（调交接工具）</td><td>客服分流、专家路由</td></tr>
+  <tr><td><strong>Group Chat</strong></td><td>共享群聊</td><td><strong>selector</strong>（函数/模型）每轮选</td><td>辩论、头脑风暴</td></tr>
+  <tr><td><strong>Magentic</strong></td><td>指挥官 + 工人</td><td><strong>manager</strong>（看进度账本）</td><td>调研+编码+测试等复杂任务</td></tr>
+</table>
+<p>读这张表的钥匙是<strong>第三列"谁决定下一步"</strong>——它决定了控制权落在哪儿。
+Sequential / Concurrent 把顺序<strong>写死在图里</strong>（最可预测，建图时就定了）；
+Handoff 把决策权交给<strong>当前 Agent</strong>（最灵活，但下一步取决于模型当下的判断，最难预测）；
+Group Chat 用一个集中的 <span class="mono">selection_func</span>（<span class="mono">_group_chat.py:615</span>）每轮挑发言人，把"谁说话"从各 Agent 手里收回到一个选择器；
+Magentic 则由 manager 看账本统一调度。一条规律：<strong>越往下，自治程度越高、可预测性越低</strong>——按你对"可控 vs 灵活"的偏好来选。
+另一条正交的轴是<strong>延迟</strong>：只有 Concurrent 是真并行，它把总耗时从"各 Agent 之和"压到"各 Agent 之最大"，其余四种本质上是串行推进的。</p>
+<div class="flow">
+  <div class="node hl"><div class="nt">triage</div><div class="nd">分流 Agent</div></div>
+  <div class="arrow">→</div>
+  <div class="node"><div class="nt">handoff_to_billing</div><div class="nd">调交接工具</div></div>
+  <div class="arrow">→</div>
+  <div class="node hl"><div class="nt">billing</div><div class="nd">接手 + 完整历史</div></div>
+  <div class="arrow">→</div>
+  <div class="node"><div class="nt">output</div><div class="nd">退款已处理</div></div>
+</div>
+
+<h2>🔍 真实源码：Handoff 的入口与交接</h2>
+<div class="codefile">
+  <div class="cf-head"><span class="dot"></span><span class="path">orchestrations/_handoff.py</span><span class="ln">链式构造 + 自动交接工具（简化自 :122 / :711 / :929）</span></div>
+<pre class="code"><span class="kw">def</span> <span class="fn">get_handoff_tool_name</span>(target_id: str) -> str:
+    <span class="kw">return</span> <span class="st">f"handoff_to_{target_id}"</span>           <span class="cm"># 交接工具的命名约定</span>
+
+<span class="kw">class</span> <span class="fn">HandoffBuilder</span>:
+    <span class="kw">def</span> <span class="fn">add_handoff</span>(self, source: Agent, targets: Sequence[Agent],
+                    *, description: str | None = <span class="kw">None</span>) -> <span class="st">"HandoffBuilder"</span>:
+        <span class="cm"># 登记一条交接路径；description 会变成交接工具的说明，供模型判断</span>
+        ...
+        <span class="kw">return</span> self                           <span class="cm"># 链式</span>
+
+    <span class="kw">def</span> <span class="fn">build</span>(self) -> Workflow:
+        <span class="cm"># 给每个 source 注册 handoff_to_* 工具，再连成一张 Workflow 图</span>
+        ...</pre>
+</div>
+<p>看清楚了：编排器并不是另起炉灶的新机制，而是<strong>把多 Agent 拓扑编译成上一课的 Workflow 图</strong>。
+正因如此，编排同样白拿 Workflow 的检查点、流式事件与 OTel 追踪。</p>
+
+<h2>进阶：Magentic 的"计划→复核→执行"循环</h2>
+<p>Handoff 是 Agent 之间的平级交接；当任务复杂到需要<strong>全局规划</strong>（如"调研 → 写代码 → 跑测试"），就轮到 Magentic。
+它有一个 <span class="mono">StandardMagenticManager</span> 当指挥官，每一轮用一张<strong>进度账本</strong>
+（<span class="mono">MagenticProgressLedger</span>，<span class="mono">_magentic.py:307</span>）评估五件事，再决定下一步：</p>
+<table class="t">
+  <tr><th>账本字段</th><th>指挥官在问</th><th>据此做什么</th></tr>
+  <tr><td class="mono">is_request_satisfied</td><td>任务完成了吗？</td><td>是 → 收尾输出</td></tr>
+  <tr><td class="mono">is_in_loop</td><td>是不是在原地打转？</td><td>是 → 重置计划</td></tr>
+  <tr><td class="mono">is_progress_being_made</td><td>这一轮有进展吗？</td><td>否 → stall 计数 +1</td></tr>
+  <tr><td class="mono">next_speaker</td><td>下一个该谁干？</td><td>选中对应工人 Agent</td></tr>
+  <tr><td class="mono">instruction_or_question</td><td>给他什么指令？</td><td>下发子任务</td></tr>
+</table>
+<p>这张账本正是 Magentic 不会沦为"放养式群聊"的原因：每轮都<strong>显式自检</strong>是否完成、是否打转、是否有进展。
+卡住次数超过 <span class="mono">max_stall_count</span>（<span class="mono">_magentic.py:540</span>，默认 3）就触发计划重置；
+轮数超过 <span class="mono">max_round_count</span> 则强制收尾，避免无限烧 token。
+你还能开 <span class="mono">enable_plan_review=True</span>（<span class="mono">_magentic.py:1418</span>），让人在<strong>计划阶段</strong>就介入审核——
+指挥官会发出 <span class="mono">MagenticPlanReviewRequest</span> 等你批准或改写，再开始执行。这就是"复核"这一环的落点。</p>
+
+<div class="card detail"><h4>🔬 账本从哪来</h4>
+<p>这张账本不是代码写死的规则，而是指挥官每轮让 LLM 以<strong>结构化输出</strong>填的一张表
+（提示模板见 <span class="mono">_magentic.py:220</span>）：模型读完当前对话与计划，回答"完成了吗 / 在打转吗 / 有进展吗 / 下一个谁 / 给什么指令"。
+所以 Magentic 的"自检"本质是<strong>用一次 LLM 调用做调度决策</strong>——这也是它比固定拓扑更贵、却更能应对开放式任务的原因。</p></div>
+
+<h2>为什么要把协作固化成模式</h2>
+<p>这些拓扑你都能用 <span class="mono">WorkflowBuilder</span> 手画。那为什么还要五个 Builder？因为<strong>常见多 Agent 协作就那么几种形状</strong>，
+每次手搭既啰嗦又容易接错边。Builder 把"意图"一句话说清，正确的图由框架生成：</p>
+<table class="t">
+  <tr><th>你想表达</th><th>手搭图的负担</th><th>Builder 一行</th></tr>
+  <tr><td>顺序流水线</td><td>逐条 add_edge + 终止判断</td><td class="mono">SequentialBuilder(participants=[...])</td></tr>
+  <tr><td>并行 + 聚合</td><td>fan-out/fan-in + 写聚合器</td><td class="mono">ConcurrentBuilder(...).with_aggregator(...)</td></tr>
+  <tr><td>Agent 自主路由</td><td>手动给每个 Agent 注册交接工具</td><td class="mono">HandoffBuilder(...).add_handoff(...)</td></tr>
+</table>
+<p>取舍很清晰：<strong>能用模式就用模式</strong>（少写、少错、可读）；当你的拓扑不在这五种里——比如带复杂条件分支的混合流程——
+再<strong>退回 <span class="mono">WorkflowBuilder</span> 手画</strong>。模式是糖，不是牢笼。</p>
 
 <details class="accordion">
   <summary><span class="badge-num">1</span> Handoff 和 Group Chat 有什么区别？ <span class="hint">点击展开</span></summary>
@@ -1778,22 +3014,22 @@ result = <span class="kw">await</span> workflow.run(<span class="st">&quot;Analy
   <summary><span class="badge-num">4</span> HandoffBuilder 深入 <span class="hint">点击展开详解</span></summary>
   <div class="acc-body">
     <div class="qa"><div class="q">🧪 示例</div><div class="a">
-<pre class="code"><span class="kw">from</span> agent_framework.orchestrations <span class="kw">import</span> HandoffBuilder, HandoffConfiguration
+<pre class="code"><span class="kw">from</span> agent_framework.orchestrations <span class="kw">import</span> HandoffBuilder
 
-workflow = HandoffBuilder(
-    participants=[
+workflow = (
+    HandoffBuilder(participants=[
         triage_agent,   <span class="cm"># 入口 Agent</span>
         billing_agent,  <span class="cm"># 计费专家</span>
         tech_agent,     <span class="cm"># 技术专家</span>
-    ],
-    handoff_configs=[
-        HandoffConfiguration(target=billing_agent, description=<span class="st">&quot;billing issues&quot;</span>),
-        HandoffConfiguration(target=tech_agent, description=<span class="st">&quot;technical problems&quot;</span>),
-    ],
-).build()</pre></div></div>
+    ])
+    .with_start_agent(triage_agent)
+    .add_handoff(triage_agent, [billing_agent], description=<span class="st">&quot;billing issues&quot;</span>)
+    .add_handoff(triage_agent, [tech_agent], description=<span class="st">&quot;technical problems&quot;</span>)
+    .build()
+)</pre></div></div>
     <div class="qa"><div class="q">❓ 为什么这件事必要</div><div class="a">在客服/专家路由场景中，当前 Agent 判断"这个问题我不擅长"后需要<strong>显式交接</strong>给另一个 Agent。
       Handoff 模式让 Agent 自己决定交接时机和目标，而不是由外部调度器硬编码路由规则。</div></div>
-    <div class="qa"><div class="q">✅ MAF 的做法与优点</div><div class="a"><span class="mono">HandoffConfiguration</span> 用 <span class="mono">target</span> + <span class="mono">description</span> 描述每条交接路径。
+    <div class="qa"><div class="q">✅ MAF 的做法与优点</div><div class="a">每个 <span class="mono">.add_handoff(source, [target], description=...)</span> 声明一条带描述的交接路径。
       框架会自动给当前 Agent 注入一个"交接工具"——Agent 调用该工具即触发切换。
       被交接的 Agent 会收到完整对话历史。如果 Agent 想让用户提供额外信息，可以发出 <span class="mono">HandoffAgentUserRequest</span>。</div></div>
     <div class="qa"><div class="q">🔀 还有什么其他方案</div><div class="a">OpenAI Swarm 也有 handoff 概念，但通过函数返回值实现，不支持异步和持久化。
@@ -1820,7 +3056,7 @@ workflow = MagenticBuilder(
     <div class="qa"><div class="q">❓ 为什么这件事必要</div><div class="a">复杂任务（如"调研+编码+测试"）需要一个<strong>全局规划者</strong>分解子任务并分配给最合适的 Agent。
       没有指挥官，Agent 之间会陷入无方向的对话循环。</div></div>
     <div class="qa"><div class="q">✅ MAF 的做法与优点</div><div class="a">MagenticBuilder 实现了 <strong>Plan → Review → Execute</strong> 循环：
-      ① <span class="mono">MagenticManager</span>（指挥官）用 TaskLedger 维护事实和计划；
+      ① <span class="mono">StandardMagenticManager</span>（指挥官）用 task ledger 维护事实和计划；
       ② 每轮通过 <span class="mono">MagenticProgressLedger</span> 评估进展，选出 <span class="mono">next_speaker</span>；
       ③ 检测到卡住（<span class="mono">is_in_loop</span>）会自动重置计划。
       支持 <span class="mono">enable_plan_review=True</span> 让人工在计划阶段介入审核。</div></div>
@@ -1842,6 +3078,7 @@ workflow = MagenticBuilder(
   <div class="tag">💡 设计亮点</div>
   <strong>编排模式 = 预置拓扑的 Workflow</strong>：你用 Builder 声明意图，框架帮你画出正确的图。
   需要更复杂的拓扑？直接用 <span class="mono">WorkflowBuilder</span> 手画。
+  <br>这些编排模式如何组成一个完整应用，见<a href="20-capstone.html">第 20 课 · 端到端实战</a>。
 </div>
 """
 
@@ -1874,6 +3111,137 @@ orchestration patterns — pick a Builder, pass participants, <span class="inlin
 workflow = SequentialBuilder(participants=[writer, reviewer]).build()
 result = <span class="kw">await</span> workflow.run(<span class="st">"Write a poem about the sea"</span>)</pre>
 </div>
+
+<h2>Tracing one Handoff orchestration: support triage</h2>
+<p>Let's set the abstract "five patterns" aside and walk the most intuitive one — <strong>Handoff</strong> — end to end. Scenario: a support system has three Agents:
+<span class="mono">triage</span> (routing), <span class="mono">billing</span> (billing expert), and <span class="mono">tech</span> (technical expert).
+A user always hits triage first, and triage itself decides who to hand off to.</p>
+
+<div class="codefile">
+  <div class="cf-head"><span class="dot"></span><span class="path">build the Handoff graph</span></div>
+<pre><span class="kw">from</span> agent_framework.orchestrations <span class="kw">import</span> HandoffBuilder
+
+workflow = (
+    HandoffBuilder(participants=[triage, billing, tech])
+    .with_start_agent(triage)
+    .add_handoff(triage, [billing], description=<span class="st">"billing / charge issues"</span>)
+    .add_handoff(triage, [tech],    description=<span class="st">"technical failures"</span>)
+    .build()
+)
+result = <span class="kw">await</span> workflow.run(<span class="st">"I was double-charged twice this month"</span>)</pre>
+</div>
+
+<div class="vflow">
+  <div class="step"><div class="num">1</div><div class="sc"><h4>triage enters with two new "handoff tools"</h4>
+    <p>Each <span class="mono">add_handoff(triage, [X])</span> makes the framework <strong>auto-register a tool</strong>
+    <span class="mono">handoff_to_&lt;X.id&gt;</span> on triage (<span class="mono">_handoff.py:122</span>). So besides answering normally, triage can call
+    <span class="mono">handoff_to_billing</span> / <span class="mono">handoff_to_tech</span>.</p></div></div>
+  <div class="step"><div class="num">2</div><div class="sc"><h4>triage decides: this is a billing issue</h4>
+    <p>Reading "double-charged," the model chooses not to answer itself but to <strong>call a handoff tool</strong> — mechanically the same ordinary function call from Lesson 10, except this tool's semantics are "hand off":</p>
+<pre class="code">assistant_msg = Message(<span class="st">"assistant"</span>, [
+  Content.from_function_call(name=<span class="st">"handoff_to_billing"</span>, arguments=<span class="st">"{}"</span>)
+])</pre></div></div>
+  <div class="step"><div class="num">3</div><div class="sc"><h4>The framework intercepts and emits handoff_sent</h4>
+    <p>Recognizing a handoff-tool call, the framework does <strong>not</strong> run it as a normal tool; it switches the active Agent and emits an event (<span class="mono">_handoff.py:413</span>):</p>
+<pre class="code">WorkflowEvent(<span class="st">"handoff_sent"</span>,
+  data=HandoffSentEvent(source=<span class="st">"triage"</span>, target=<span class="st">"billing"</span>))</pre></div></div>
+  <div class="step"><div class="num">4</div><div class="sc"><h4>billing takes over with the full conversation history</h4>
+    <p>The handed-to <span class="mono">billing</span> receives <strong>not a one-line summary</strong> but the <strong>entire conversation</strong> (including the user's own "double-charged").
+    It reconciles the bill and resolves it. If it needs more from the user, it can emit a <span class="mono">HandoffAgentUserRequest</span> (<span class="mono">_handoff.py:436</span>) and wait for a reply.</p></div></div>
+  <div class="step"><div class="num">5</div><div class="sc"><h4>Termination condition met → return</h4>
+    <p>billing produces a reply with no further handoff, so the workflow terminates. <span class="mono">result.get_outputs()</span> holds the final answer.
+    Throughout, <strong>no external dispatcher</strong> wrote any if/else — triage itself "decided" whom to hand off to.</p></div></div>
+</div>
+
+<div class="card detail">
+  <div class="tag">🔬 Reading this trace</div>
+  Handoff's essence is <strong>delegating the "routing decision" to the Agent itself</strong>, implemented as an <strong>ordinary tool call</strong>:
+  the framework compiles "who you may hand off to" into a set of <span class="mono">handoff_to_*</span> tools on the current Agent — whichever tool it calls is who gets the task.
+  Two often-missed benefits: ① the routing rationale <strong>lives in the tool description</strong> ("billing / charge issues"), the model selects accordingly, and the decision is explainable;
+  ② because the substrate is a Workflow graph, the handoff is <strong>naturally checkpointable and resumable</strong> — something OpenAI Swarm's "hand off via function return value" cannot offer.
+  Also note: control transfers <strong>one-way</strong> — once billing takes over, triage steps off the stage (unless you also gave billing a handoff back to triage).
+</div>
+
+<h2>The five patterns: topology and tradeoffs</h2>
+<p>That was just Handoff. Lining up all five by <strong>topology</strong> and <strong>"who decides the next step"</strong> makes selection obvious:</p>
+<table class="t">
+  <tr><th>Pattern</th><th>Topology</th><th>Who decides next</th><th>Typical scenario</th></tr>
+  <tr><td><strong>Sequential</strong></td><td>A → B → C chain</td><td>Fixed order (pinned at build time)</td><td>write→review→polish pipeline</td></tr>
+  <tr><td><strong>Concurrent</strong></td><td>fan-out → fan-in</td><td>All in parallel, aggregator finishes</td><td>multi-angle analysis, voting</td></tr>
+  <tr><td><strong>Handoff</strong></td><td>directed agent handoff</td><td><strong>current Agent</strong> (calls a handoff tool)</td><td>support triage, expert routing</td></tr>
+  <tr><td><strong>Group Chat</strong></td><td>shared chat</td><td><strong>selector</strong> (function/model) each turn</td><td>debate, brainstorming</td></tr>
+  <tr><td><strong>Magentic</strong></td><td>manager + workers</td><td><strong>manager</strong> (reads a progress ledger)</td><td>research+code+test complex tasks</td></tr>
+</table>
+<p>The key to reading this table is the <strong>third column, "who decides next"</strong> — it determines where control sits.
+Sequential / Concurrent <strong>pin the order into the graph</strong> (most predictable, fixed at build time);
+Handoff hands the decision to the <strong>current Agent</strong> (most flexible, but the next step depends on the model's in-the-moment judgment — least predictable);
+Group Chat uses a centralized <span class="mono">selection_func</span> (<span class="mono">_group_chat.py:615</span>) to pick a speaker each turn, pulling "who talks" out of the Agents' hands and into one selector;
+Magentic lets a manager schedule via its ledger. One rule of thumb: <strong>the further down, the more autonomy and the less predictability</strong> — choose by your preference for "control vs flexibility."
+An orthogonal axis is <strong>latency</strong>: only Concurrent is truly parallel, collapsing total time from "sum of agents" to "max of agents"; the other four advance serially at heart.</p>
+<div class="flow">
+  <div class="node hl"><div class="nt">triage</div><div class="nd">routing agent</div></div>
+  <div class="arrow">→</div>
+  <div class="node"><div class="nt">handoff_to_billing</div><div class="nd">calls handoff tool</div></div>
+  <div class="arrow">→</div>
+  <div class="node hl"><div class="nt">billing</div><div class="nd">takes over + full history</div></div>
+  <div class="arrow">→</div>
+  <div class="node"><div class="nt">output</div><div class="nd">refund handled</div></div>
+</div>
+
+<h2>🔍 Real source: Handoff's entry and the handoff itself</h2>
+<div class="codefile">
+  <div class="cf-head"><span class="dot"></span><span class="path">orchestrations/_handoff.py</span><span class="ln">chained build + auto handoff tools (simplified from :122 / :711 / :929)</span></div>
+<pre class="code"><span class="kw">def</span> <span class="fn">get_handoff_tool_name</span>(target_id: str) -> str:
+    <span class="kw">return</span> <span class="st">f"handoff_to_{target_id}"</span>           <span class="cm"># handoff-tool naming convention</span>
+
+<span class="kw">class</span> <span class="fn">HandoffBuilder</span>:
+    <span class="kw">def</span> <span class="fn">add_handoff</span>(self, source: Agent, targets: Sequence[Agent],
+                    *, description: str | None = <span class="kw">None</span>) -> <span class="st">"HandoffBuilder"</span>:
+        <span class="cm"># register one handoff path; description becomes the tool's doc for the model</span>
+        ...
+        <span class="kw">return</span> self                           <span class="cm"># chainable</span>
+
+    <span class="kw">def</span> <span class="fn">build</span>(self) -> Workflow:
+        <span class="cm"># register a handoff_to_* tool per source, then wire a Workflow graph</span>
+        ...</pre>
+</div>
+<p>The takeaway: orchestrators aren't a brand-new mechanism — they <strong>compile a multi-agent topology into the Workflow graph from the previous lesson</strong>.
+That's exactly why orchestration inherits Workflow's checkpoints, streaming events, and OTel tracing for free.</p>
+
+<h2>Going deeper: Magentic's "plan → review → execute" loop</h2>
+<p>Handoff is a peer-to-peer transfer between Agents; when a task is complex enough to need <strong>global planning</strong> (e.g. "research → write code → run tests"), Magentic takes over.
+It uses a <span class="mono">StandardMagenticManager</span> as conductor, and each round evaluates five things via a <strong>progress ledger</strong>
+(<span class="mono">MagenticProgressLedger</span>, <span class="mono">_magentic.py:307</span>) before deciding the next step:</p>
+<table class="t">
+  <tr><th>Ledger field</th><th>What the conductor asks</th><th>What it does next</th></tr>
+  <tr><td class="mono">is_request_satisfied</td><td>Is the task done?</td><td>Yes → finalize output</td></tr>
+  <tr><td class="mono">is_in_loop</td><td>Are we spinning in place?</td><td>Yes → reset the plan</td></tr>
+  <tr><td class="mono">is_progress_being_made</td><td>Did this round make progress?</td><td>No → stall count +1</td></tr>
+  <tr><td class="mono">next_speaker</td><td>Who should act next?</td><td>pick the right worker Agent</td></tr>
+  <tr><td class="mono">instruction_or_question</td><td>What instruction to give?</td><td>dispatch the sub-task</td></tr>
+</table>
+<p>This ledger is exactly why Magentic doesn't degrade into a "free-for-all group chat": every round it <strong>explicitly self-checks</strong> whether it's done, looping, or making progress.
+When stalls exceed <span class="mono">max_stall_count</span> (<span class="mono">_magentic.py:540</span>, default 3) it triggers a plan reset;
+when rounds exceed <span class="mono">max_round_count</span> it force-finalizes to avoid burning tokens forever.
+You can also set <span class="mono">enable_plan_review=True</span> (<span class="mono">_magentic.py:1418</span>) to insert a human at the <strong>planning stage</strong> —
+the conductor emits a <span class="mono">MagenticPlanReviewRequest</span> and waits for you to approve or revise before executing. That's where the "review" step lands.</p>
+
+<div class="card detail"><h4>🔬 Where the ledger comes from</h4>
+<p>This ledger isn't a hard-coded rule set — it's a table the conductor asks the LLM to fill in as <strong>structured output</strong> every round
+(prompt template at <span class="mono">_magentic.py:220</span>): the model reads the current conversation and plan, then answers "done? / looping? / progressing? / who's next? / what instruction?".
+So Magentic's "self-check" is fundamentally <strong>one LLM call making a scheduling decision</strong> — which is why it costs more than a fixed topology but copes far better with open-ended tasks.</p></div>
+
+<h2>Why crystallize collaboration into patterns</h2>
+<p>You could hand-draw all these topologies with <span class="mono">WorkflowBuilder</span>. So why five Builders? Because <strong>common multi-agent collaboration comes in only a handful of shapes</strong>,
+and hand-wiring each time is verbose and easy to mis-connect. A Builder states the <strong>intent</strong> in one line, and the framework generates the correct graph:</p>
+<table class="t">
+  <tr><th>What you mean</th><th>Hand-built graph burden</th><th>One-line Builder</th></tr>
+  <tr><td>Sequential pipeline</td><td>add_edge one by one + termination logic</td><td class="mono">SequentialBuilder(participants=[...])</td></tr>
+  <tr><td>Parallel + aggregate</td><td>fan-out/fan-in + write an aggregator</td><td class="mono">ConcurrentBuilder(...).with_aggregator(...)</td></tr>
+  <tr><td>Agent self-routing</td><td>manually register handoff tools per Agent</td><td class="mono">HandoffBuilder(...).add_handoff(...)</td></tr>
+</table>
+<p>The tradeoff is clear: <strong>use a pattern when one fits</strong> (less code, fewer mistakes, more readable); when your topology isn't among the five — say a hybrid flow with complex conditional branching —
+<strong>drop back to hand-drawing with <span class="mono">WorkflowBuilder</span></strong>. Patterns are sugar, not a cage.</p>
 
 <details class="accordion">
   <summary><span class="badge-num">1</span> Handoff vs Group Chat? <span class="hint">expand</span></summary>
@@ -1940,22 +3308,22 @@ result = <span class="kw">await</span> workflow.run(<span class="st">&quot;Analy
   <summary><span class="badge-num">4</span> HandoffBuilder deep dive <span class="hint">click to expand</span></summary>
   <div class="acc-body">
     <div class="qa"><div class="q">🧪 Example</div><div class="a">
-<pre class="code"><span class="kw">from</span> agent_framework.orchestrations <span class="kw">import</span> HandoffBuilder, HandoffConfiguration
+<pre class="code"><span class="kw">from</span> agent_framework.orchestrations <span class="kw">import</span> HandoffBuilder
 
-workflow = HandoffBuilder(
-    participants=[
+workflow = (
+    HandoffBuilder(participants=[
         triage_agent,   <span class="cm"># entry Agent</span>
         billing_agent,  <span class="cm"># billing expert</span>
         tech_agent,     <span class="cm"># tech expert</span>
-    ],
-    handoff_configs=[
-        HandoffConfiguration(target=billing_agent, description=<span class="st">&quot;billing issues&quot;</span>),
-        HandoffConfiguration(target=tech_agent, description=<span class="st">&quot;technical problems&quot;</span>),
-    ],
-).build()</pre></div></div>
+    ])
+    .with_start_agent(triage_agent)
+    .add_handoff(triage_agent, [billing_agent], description=<span class="st">&quot;billing issues&quot;</span>)
+    .add_handoff(triage_agent, [tech_agent], description=<span class="st">&quot;technical problems&quot;</span>)
+    .build()
+)</pre></div></div>
     <div class="qa"><div class="q">❓ Why this matters</div><div class="a">In customer-service / expert-routing scenarios, the current Agent judges "this isn't my expertise" and needs
       to <strong>explicitly hand off</strong> to another Agent. Handoff mode lets the Agent itself decide when and to whom — rather than an external scheduler hard-coding routing rules.</div></div>
-    <div class="qa"><div class="q">✅ How MAF does it</div><div class="a"><span class="mono">HandoffConfiguration</span> pairs a <span class="mono">target</span> with a <span class="mono">description</span> for each handoff path.
+    <div class="qa"><div class="q">✅ How MAF does it</div><div class="a">Each <span class="mono">.add_handoff(source, [target], description=...)</span> declares a handoff path with its own description.
       The framework auto-injects a "handoff tool" into the current Agent — calling that tool triggers the switch.
       The receiving Agent gets the full conversation history. If an Agent needs additional user info, it can emit a <span class="mono">HandoffAgentUserRequest</span>.</div></div>
     <div class="qa"><div class="q">🔀 Alternatives</div><div class="a">OpenAI Swarm has a handoff concept too, but via function return values without async or persistence support.
@@ -1982,7 +3350,7 @@ The conductor generates a <span class="mono">MagenticProgressLedger</span> track
     <div class="qa"><div class="q">❓ Why this matters</div><div class="a">Complex tasks (e.g., "research + code + test") need a <strong>global planner</strong> to decompose sub-tasks and assign
       them to the best Agent. Without a conductor, agents fall into directionless conversation loops.</div></div>
     <div class="qa"><div class="q">✅ How MAF does it</div><div class="a">MagenticBuilder implements a <strong>Plan → Review → Execute</strong> cycle:
-      ① <span class="mono">MagenticManager</span> (conductor) maintains facts and plans via a TaskLedger;
+      ① <span class="mono">StandardMagenticManager</span> (conductor) maintains facts and plans via a task ledger;
       ② Each round, a <span class="mono">MagenticProgressLedger</span> evaluates progress and picks <span class="mono">next_speaker</span>;
       ③ If a stall is detected (<span class="mono">is_in_loop</span>), the plan auto-resets.
       Supports <span class="mono">enable_plan_review=True</span> for human review at the planning stage.</div></div>
@@ -2004,6 +3372,7 @@ The conductor generates a <span class="mono">MagenticProgressLedger</span> track
   <div class="tag">💡 Design highlight</div>
   <strong>Orchestration = pre-wired Workflow topology</strong>: you declare intent with a Builder, the framework
   draws the right graph. Need a more complex topology? Use <span class="mono">WorkflowBuilder</span> directly.
+  <br>See how these patterns compose into a full app in <a href="20-capstone.html">Lesson 20 · Capstone</a>.
 </div>
 """
 
@@ -2017,6 +3386,58 @@ L14_ZH = r"""
   流式像<strong>直播</strong>：观众实时看到画面（token）。
   可观测性像<strong>监控大屏</strong>：运维看延迟、吞吐、异常告警。两者互补。
 </div>
+
+<h2>追踪一次流式输出 + 它背后的 span 树</h2>
+<p>把"流式"和"可观测"放进同一次真实调用看：用户问"巴黎天气如何？"，Agent 需要调一个 <span class="mono">get_weather</span> 工具。
+下面同时跟两条线——<strong>左脑记你 <code>async for</code> 收到的 chunk</strong>，<strong>右脑记 OTel 在后台挂的 span</strong>。</p>
+<div class="vflow">
+  <div class="step"><div class="num">1</div><div class="sc">
+    <h4>开 invoke_agent 根 span，进入流式</h4>
+    <p>调用 <span class="mono">agent.run("巴黎天气如何？", stream=True)</span>。框架立刻开一个名为
+      <span class="mono">invoke_agent {agent}</span> 的根 span（<span class="mono">AGENT_INVOKE_OPERATION="invoke_agent"</span>，<span class="mono">observability.py:294</span>），并返回一个异步迭代器。此刻还没有任何 token。</p>
+  </div></div>
+  <div class="step"><div class="num">2</div><div class="sc">
+    <h4>模型先决定调工具——首批 chunk 是 tool_calls，不是文本</h4>
+    <p>子 span <span class="mono">chat {model}</span> 开启。第一批 chunk 的 <span class="mono">.text</span> 为空，
+      <span class="mono">.contents</span> 里是一个 <span class="mono">FunctionCallContent</span>，<span class="mono">.finish_reason</span> 最终为 <span class="mono">&quot;tool_calls&quot;</span>：</p>
+<pre class="code">AgentResponseUpdate(contents=[FunctionCallContent(
+    name=&quot;get_weather&quot;, arguments={&quot;city&quot;: &quot;Paris&quot;})],
+    text=&quot;&quot;, finish_reason=&quot;tool_calls&quot;)</pre>
+  </div></div>
+  <div class="step"><div class="num">3</div><div class="sc">
+    <h4>执行工具——再开一个子 span</h4>
+    <p>框架开 <span class="mono">execute_tool {name}</span> span（<span class="mono">TOOL_EXECUTION_OPERATION="execute_tool"</span>，<span class="mono">observability.py:291</span>），
+      属性带 <span class="mono">gen_ai.tool.name=get_weather</span> 和 <span class="mono">gen_ai.tool.call.id</span>。工具返回 "15°C，晴"。这一步<strong>不产生面向用户的 text chunk</strong>。</p>
+  </div></div>
+  <div class="step"><div class="num">4</div><div class="sc">
+    <h4>带工具结果再问模型——这次是真正的文本增量</h4>
+    <p>第二个 <span class="mono">chat {model}</span> span 开启。现在 chunk 真的带文本了，一个一个往外吐：</p>
+<pre class="code">&quot;巴&quot; → &quot;黎&quot; → &quot;现在&quot; → &quot;15&quot; → &quot;°C&quot; → &quot;，晴&quot; ...
+# 每个 chunk：text=增量片段，finish_reason=None</pre>
+  </div></div>
+  <div class="step"><div class="num">5</div><div class="sc">
+    <h4>收尾：finish_reason 翻成 "stop"，span 依次关闭</h4>
+    <p>最后一个 chunk 的 <span class="mono">.finish_reason</span> 从 <span class="mono">None</span> 变成 <span class="mono">&quot;stop&quot;</span>。
+      把每个 chunk 的 <span class="mono">.text</span> 拼起来即得完整答复；与此同时
+      <span class="mono">invoke_agent → chat → execute_tool → chat</span> 这串 span 依次关闭，每个都记下了耗时与 token 数。</p>
+  </div></div>
+</div>
+
+<p>所以一次流式回答的 chunk 节奏常常是"先静默、再爆发"：</p>
+<div class="flow">
+  <div class="node"><div class="nt">chunk #1</div><div class="nd">text=&quot;&quot; · tool_calls</div></div>
+  <div class="arrow">→</div>
+  <div class="node"><div class="nt">[执行工具]</div><div class="nd">无 text chunk</div></div>
+  <div class="arrow">→</div>
+  <div class="node"><div class="nt">chunk #2..n</div><div class="nd">text 增量 · None</div></div>
+  <div class="arrow">→</div>
+  <div class="node hl"><div class="nt">chunk #末</div><div class="nd">finish=&quot;stop&quot;</div></div>
+</div>
+<p>这解释了一个常见困惑：开了流式却<strong>前几秒没字</strong>——那不是卡住，而是模型正在走"决定调工具 → 等工具返回"这段，期间的 chunk 不带可显示文本。理解这一点，你的 UI 才能在工具阶段显示"思考中…"而不是干等。</p>
+
+<div class="card detail"><h4>🔬 两条线为什么能对齐</h4>
+<p>流式给的是<strong>面向用户的时间维度</strong>（什么时候有字可以显示），OTel 给的是<strong>面向运维的因果维度</strong>（这次 run 里发生了哪些操作、各花多久）。
+同一次 <span class="mono">run()</span> 同时产出二者：chunk 让 UI 即时刷新，span 让你事后回看"那次为啥慢——是慢在第二次 <span class="mono">chat</span> 还是 <span class="mono">execute_tool</span>"。两者读的是同一过程的不同投影。</p></div>
 
 <h2>流式输出</h2>
 <div class="codefile">
@@ -2155,6 +3576,64 @@ workflow.run (parent span)
   </div>
 </details>
 
+<h2>真实的 span 树（用框架里的真名字）</h2>
+<p>前面手绘的层次是示意；MAF 里 span 的<strong>真实命名规则</strong>是 <span class="mono">f"{operation} {target}"</span>
+（<span class="mono">observability.py:2112</span>）。Agent 侧和 Workflow 侧各长一棵树：</p>
+<div class="layers">
+  <div class="layer l-core"><div class="lh"><span class="badge">agent</span><span class="name">invoke_agent {agent}</span></div>
+    <div class="ld">根 span，operation = <span class="mono">AGENT_INVOKE_OPERATION</span></div></div>
+  <div class="layer l-main"><div class="lh"><span class="badge">child</span><span class="name">chat {model}</span></div>
+    <div class="ld">每次 LLM 调用一个，attrs：<span class="mono">gen_ai.usage.input_tokens / output_tokens</span></div></div>
+  <div class="layer l-part"><div class="lh"><span class="badge">child</span><span class="name">execute_tool {name}</span></div>
+    <div class="ld">每次工具执行一个，attrs：<span class="mono">gen_ai.tool.name / gen_ai.tool.call.id</span></div></div>
+</div>
+<div class="layers">
+  <div class="layer l-core"><div class="lh"><span class="badge">workflow</span><span class="name">workflow.run</span></div>
+    <div class="ld">根 span，attrs：<span class="mono">workflow.id</span></div></div>
+  <div class="layer l-main"><div class="lh"><span class="badge">child</span><span class="name">executor.process {id}</span></div>
+    <div class="ld">每个节点处理一条消息一个，attrs：<span class="mono">executor.id / executor.type</span></div></div>
+  <div class="layer l-part"><div class="lh"><span class="badge">link</span><span class="name">message.send</span></div>
+    <div class="ld">节点间消息传递，attrs：<span class="mono">message.source_id / message.target_id</span></div></div>
+</div>
+<p>一个容易忽视却关键的设计：<span class="mono">executor.process</span> span <strong>不是</strong>嵌套在上游节点之下，而是<strong>用 link 关联</strong>到发布消息的源 span
+（<span class="mono">observability.py:2454</span> 注释明确写 "linked (not nested) ... supporting fan-in"）。
+为什么？因为 Workflow 是超步并行的：一个节点可能<strong>同时</strong>收到多个上游的消息（fan-in）。
+若强行嵌套，它只能挂在某一个父亲下；用 link 则能同时指向多个源，<strong>完整保留扇入的因果关系</strong>。</p>
+
+<h2>🔍 真实源码：手动开一个 span</h2>
+<div class="codefile">
+  <div class="cf-head"><span class="dot"></span><span class="dot"></span><span class="dot"></span><span class="path">core/agent_framework/observability.py</span></div>
+<pre><span class="cm"># observability.py:2445 — 通用 workflow span</span>
+<span class="kw">def</span> <span class="fn">create_workflow_span</span>(
+    name: str,
+    attributes: Mapping[str, str | int] | <span class="kw">None</span> = <span class="kw">None</span>,
+    kind: trace.SpanKind = trace.SpanKind.INTERNAL,
+) -> _AgnosticContextManager[trace.Span]:
+    <span class="kw">return</span> workflow_tracer().start_as_current_span(name, kind=kind, attributes=attributes)
+
+<span class="cm"># observability.py:2454 — 执行器处理 span，对扇入用 link 而非嵌套</span>
+<span class="kw">def</span> <span class="fn">create_processing_span</span>(executor_id, executor_type, message_type, payload_type,
+                          source_trace_contexts=<span class="kw">None</span>, source_span_ids=<span class="kw">None</span>):
+    links = [trace.Link(...) <span class="kw">for</span> ... <span class="kw">in</span> sources]  <span class="cm"># 多个源 → 多条 link（fan-in）</span>
+    <span class="kw">return</span> workflow_tracer().start_as_current_span(
+        f<span class="st">&quot;{OtelAttr.EXECUTOR_PROCESS_SPAN} {executor_id}&quot;</span>,  <span class="cm"># &quot;executor.process &lt;id&gt;&quot;</span>
+        attributes={OtelAttr.EXECUTOR_ID: executor_id, ...}, links=links)</pre>
+</div>
+<p>注意 <span class="mono">create_workflow_span</span> 用的是 <span class="mono">start_as_current_span</span>——它把新 span 设为<strong>当前上下文</strong>，
+于是你在 <span class="mono">with</span> 块里再开的任何 span（包括框架内置的 <span class="mono">chat</span> / <span class="mono">execute_tool</span>）都会自动成为它的孩子。这就是"零额外代码自动挂树"的底层机制。</p>
+
+<h2>为什么把流式与可观测做成一等公民</h2>
+<p>很多框架把这两件事当"事后补"：流式靠你自己拼 SSE，追踪靠你自己埋点。MAF 反过来——
+<strong>同一个 <code>run()</code> 调用里，stream 和 span 是同时落地的副产物</strong>。这带来三个实际后果：</p>
+<table class="t">
+  <tr><th>能力</th><th>没有它会怎样</th><th>MAF 内置之后</th></tr>
+  <tr><td>流式</td><td>用户盯着空白等十几秒，以为卡死</td><td>首字延迟即可见，长回答边生成边显示</td></tr>
+  <tr><td>分层 span</td><td>"这次 run 为什么要 8 秒？"无从查起</td><td>一眼看出是第二次 <span class="mono">chat</span> 慢，还是某个 tool 慢</td></tr>
+  <tr><td>token 归因</td><td>月底账单超支，不知道是哪个 Agent 烧的</td><td>每个 <span class="mono">chat</span> span 都带 input/output_tokens，可按 Agent 聚合</td></tr>
+</table>
+<p>底层用的是<strong>标准 OpenTelemetry + GenAI 语义约定</strong>（属性名形如 <span class="mono">gen_ai.usage.input_tokens</span>），
+所以这些 span 能直接喂给 Jaeger、Grafana Tempo 或任何 OTLP 后端，没有厂商锁定——这正是把可观测做成一等公民、而非专有插件的回报。</p>
+
 <div class="card key">
   <div class="tag">✅ 关键要点</div>
   <ul>
@@ -2168,6 +3647,7 @@ workflow.run (parent span)
   <div class="tag">💡 设计亮点</div>
   <strong>可观测性是内置的</strong>，不是你自己加的——框架自动在关键操作上挂 span，
   零额外代码就能看到"这次 run 调了几次模型、每次多少 token、工具花了多久"。
+  <br>想深入到生产级的 trace / metric / log 排查，见<a href="30-observability.html">第 30 课 · 可观测性深入</a>。
 </div>
 """
 
@@ -2180,6 +3660,58 @@ L14_EN = r"""
   Streaming is <strong>live TV</strong>: the audience sees frames (tokens) in real time.
   Observability is the <strong>ops dashboard</strong>: SREs watch latency, throughput and alerts. Complementary.
 </div>
+
+<h2>Tracing one streaming run + the span tree behind it</h2>
+<p>Put "streaming" and "observability" inside one real call: a user asks "What's the weather in Paris?" and the Agent must call a <span class="mono">get_weather</span> tool.
+We follow two tracks at once — <strong>your left brain logs the chunks from <code>async for</code></strong>, <strong>your right brain logs the spans OTel attaches in the background</strong>.</p>
+<div class="vflow">
+  <div class="step"><div class="num">1</div><div class="sc">
+    <h4>Open the invoke_agent root span, enter streaming</h4>
+    <p>Call <span class="mono">agent.run("What's the weather in Paris?", stream=True)</span>. The framework immediately opens a root span named
+      <span class="mono">invoke_agent {agent}</span> (<span class="mono">AGENT_INVOKE_OPERATION="invoke_agent"</span>, <span class="mono">observability.py:294</span>) and returns an async iterator. No tokens yet.</p>
+  </div></div>
+  <div class="step"><div class="num">2</div><div class="sc">
+    <h4>The model decides to call a tool first — early chunks are tool_calls, not text</h4>
+    <p>A child span <span class="mono">chat {model}</span> opens. The first chunks have empty <span class="mono">.text</span>;
+      <span class="mono">.contents</span> holds a <span class="mono">FunctionCallContent</span>, and <span class="mono">.finish_reason</span> ends as <span class="mono">&quot;tool_calls&quot;</span>:</p>
+<pre class="code">AgentResponseUpdate(contents=[FunctionCallContent(
+    name=&quot;get_weather&quot;, arguments={&quot;city&quot;: &quot;Paris&quot;})],
+    text=&quot;&quot;, finish_reason=&quot;tool_calls&quot;)</pre>
+  </div></div>
+  <div class="step"><div class="num">3</div><div class="sc">
+    <h4>Execute the tool — another child span</h4>
+    <p>The framework opens an <span class="mono">execute_tool {name}</span> span (<span class="mono">TOOL_EXECUTION_OPERATION="execute_tool"</span>, <span class="mono">observability.py:291</span>),
+      with attrs <span class="mono">gen_ai.tool.name=get_weather</span> and <span class="mono">gen_ai.tool.call.id</span>. The tool returns "15°C, sunny". This step <strong>emits no user-facing text chunk</strong>.</p>
+  </div></div>
+  <div class="step"><div class="num">4</div><div class="sc">
+    <h4>Ask the model again with the tool result — now real text deltas</h4>
+    <p>A second <span class="mono">chat {model}</span> span opens. Now chunks really carry text, token by token:</p>
+<pre class="code">&quot;It&quot; → &quot;'s&quot; → &quot; 15&quot; → &quot;°C&quot; → &quot; and&quot; → &quot; sunny&quot; ...
+# each chunk: text=delta fragment, finish_reason=None</pre>
+  </div></div>
+  <div class="step"><div class="num">5</div><div class="sc">
+    <h4>Finish: finish_reason flips to "stop", spans close in order</h4>
+    <p>The last chunk's <span class="mono">.finish_reason</span> goes from <span class="mono">None</span> to <span class="mono">&quot;stop&quot;</span>.
+      Concatenate every chunk's <span class="mono">.text</span> for the full reply; meanwhile the
+      <span class="mono">invoke_agent → chat → execute_tool → chat</span> spans close in order, each recording its latency and token counts.</p>
+  </div></div>
+</div>
+
+<p>So the chunk rhythm of one streaming answer is often "silence first, then a burst":</p>
+<div class="flow">
+  <div class="node"><div class="nt">chunk #1</div><div class="nd">text=&quot;&quot; · tool_calls</div></div>
+  <div class="arrow">→</div>
+  <div class="node"><div class="nt">[run tool]</div><div class="nd">no text chunk</div></div>
+  <div class="arrow">→</div>
+  <div class="node"><div class="nt">chunk #2..n</div><div class="nd">text delta · None</div></div>
+  <div class="arrow">→</div>
+  <div class="node hl"><div class="nt">chunk #last</div><div class="nd">finish=&quot;stop&quot;</div></div>
+</div>
+<p>This explains a common confusion: you enabled streaming yet <strong>see no text for the first few seconds</strong> — that's not a hang, it's the model going through "decide to call a tool → wait for the tool to return", during which chunks carry no displayable text. Knowing this, your UI can show "thinking…" during the tool phase instead of just waiting.</p>
+
+<div class="card detail"><h4>🔬 Why the two tracks line up</h4>
+<p>Streaming gives the <strong>user-facing time dimension</strong> (when there's text to display); OTel gives the <strong>ops-facing causal dimension</strong> (which operations happened in this run, and how long each took).
+The same <span class="mono">run()</span> produces both: chunks refresh the UI instantly, spans let you look back later and ask "why was that slow — the second <span class="mono">chat</span> or the <span class="mono">execute_tool</span>?". They're two projections of the same process.</p></div>
 
 <h2>Streaming output</h2>
 <div class="codefile">
@@ -2319,6 +3851,64 @@ workflow.run (parent span)
   </div>
 </details>
 
+<h2>The real span tree (with the framework's real names)</h2>
+<p>The hand-drawn hierarchy above is illustrative; in MAF the <strong>actual naming rule</strong> is <span class="mono">f"{operation} {target}"</span>
+(<span class="mono">observability.py:2112</span>). The Agent side and the Workflow side each grow a tree:</p>
+<div class="layers">
+  <div class="layer l-core"><div class="lh"><span class="badge">agent</span><span class="name">invoke_agent {agent}</span></div>
+    <div class="ld">root span, operation = <span class="mono">AGENT_INVOKE_OPERATION</span></div></div>
+  <div class="layer l-main"><div class="lh"><span class="badge">child</span><span class="name">chat {model}</span></div>
+    <div class="ld">one per LLM call, attrs: <span class="mono">gen_ai.usage.input_tokens / output_tokens</span></div></div>
+  <div class="layer l-part"><div class="lh"><span class="badge">child</span><span class="name">execute_tool {name}</span></div>
+    <div class="ld">one per tool execution, attrs: <span class="mono">gen_ai.tool.name / gen_ai.tool.call.id</span></div></div>
+</div>
+<div class="layers">
+  <div class="layer l-core"><div class="lh"><span class="badge">workflow</span><span class="name">workflow.run</span></div>
+    <div class="ld">root span, attrs: <span class="mono">workflow.id</span></div></div>
+  <div class="layer l-main"><div class="lh"><span class="badge">child</span><span class="name">executor.process {id}</span></div>
+    <div class="ld">one per node processing a message, attrs: <span class="mono">executor.id / executor.type</span></div></div>
+  <div class="layer l-part"><div class="lh"><span class="badge">link</span><span class="name">message.send</span></div>
+    <div class="ld">inter-node message passing, attrs: <span class="mono">message.source_id / message.target_id</span></div></div>
+</div>
+<p>An easily-missed but crucial design: the <span class="mono">executor.process</span> span is <strong>not</strong> nested under the upstream node — it is <strong>linked</strong> to the publishing source span
+(<span class="mono">observability.py:2454</span>'s comment says verbatim "linked (not nested) ... supporting fan-in").
+Why? Because a Workflow runs in parallel supersteps: a node may receive messages from <strong>several</strong> upstream nodes at once (fan-in).
+Forced nesting could only attach it under one parent; a link can point at multiple sources at once, <strong>preserving the full fan-in causality</strong>.</p>
+
+<h2>🔍 Real source: opening a span by hand</h2>
+<div class="codefile">
+  <div class="cf-head"><span class="dot"></span><span class="dot"></span><span class="dot"></span><span class="path">core/agent_framework/observability.py</span></div>
+<pre><span class="cm"># observability.py:2445 — generic workflow span</span>
+<span class="kw">def</span> <span class="fn">create_workflow_span</span>(
+    name: str,
+    attributes: Mapping[str, str | int] | <span class="kw">None</span> = <span class="kw">None</span>,
+    kind: trace.SpanKind = trace.SpanKind.INTERNAL,
+) -> _AgnosticContextManager[trace.Span]:
+    <span class="kw">return</span> workflow_tracer().start_as_current_span(name, kind=kind, attributes=attributes)
+
+<span class="cm"># observability.py:2454 — executor processing span: link (not nest) for fan-in</span>
+<span class="kw">def</span> <span class="fn">create_processing_span</span>(executor_id, executor_type, message_type, payload_type,
+                          source_trace_contexts=<span class="kw">None</span>, source_span_ids=<span class="kw">None</span>):
+    links = [trace.Link(...) <span class="kw">for</span> ... <span class="kw">in</span> sources]  <span class="cm"># many sources → many links (fan-in)</span>
+    <span class="kw">return</span> workflow_tracer().start_as_current_span(
+        f<span class="st">&quot;{OtelAttr.EXECUTOR_PROCESS_SPAN} {executor_id}&quot;</span>,  <span class="cm"># &quot;executor.process &lt;id&gt;&quot;</span>
+        attributes={OtelAttr.EXECUTOR_ID: executor_id, ...}, links=links)</pre>
+</div>
+<p>Note <span class="mono">create_workflow_span</span> uses <span class="mono">start_as_current_span</span> — it sets the new span as the <strong>current context</strong>,
+so any span you open inside the <span class="mono">with</span> block (including the framework's built-in <span class="mono">chat</span> / <span class="mono">execute_tool</span>) automatically becomes its child. That's the mechanism behind "auto-attached trees with zero extra code".</p>
+
+<h2>Why streaming and observability are first-class</h2>
+<p>Many frameworks treat these as afterthoughts: you stitch your own SSE for streaming, you instrument your own tracing. MAF flips it —
+<strong>within a single <code>run()</code> call, stream and span are simultaneous byproducts</strong>. Three practical consequences:</p>
+<table class="t">
+  <tr><th>Capability</th><th>Without it</th><th>With MAF built in</th></tr>
+  <tr><td>Streaming</td><td>users stare at a blank screen for 10+ seconds, assuming it hung</td><td>first-token latency is visible; long answers render as they generate</td></tr>
+  <tr><td>Layered spans</td><td>"why did this run take 8s?" — nowhere to start</td><td>see at a glance whether the second <span class="mono">chat</span> was slow, or some tool</td></tr>
+  <tr><td>Token attribution</td><td>the monthly bill overruns and you can't tell which Agent burned it</td><td>every <span class="mono">chat</span> span carries input/output_tokens, aggregable per Agent</td></tr>
+</table>
+<p>Underneath it's <strong>standard OpenTelemetry + GenAI semantic conventions</strong> (attribute names like <span class="mono">gen_ai.usage.input_tokens</span>),
+so these spans feed straight into Jaeger, Grafana Tempo, or any OTLP backend with no vendor lock-in — the payoff of making observability first-class rather than a proprietary plugin.</p>
+
 <div class="card key">
   <div class="tag">✅ Key points</div>
   <ul>
@@ -2332,5 +3922,6 @@ workflow.run (parent span)
   <div class="tag">💡 Design highlight</div>
   <strong>Observability is built in</strong>, not bolted on — the framework auto-attaches spans to key operations.
   Zero extra code to see "how many model calls this run made, tokens per call, tool latency".
+  <br>For the production deep-dive into trace / metric / log, see <a href="30-observability.html">Lesson 30 · Observability Deep-Dive</a>.
 </div>
 """

@@ -18,6 +18,7 @@ ROOT = os.path.abspath(os.path.join(HERE, ".."))
 sys.path.insert(0, HERE)
 
 import shell  # noqa: E402
+import quizzes  # noqa: E402
 from registry import CONTENT  # noqa: E402
 
 PRINT_CSS = r"""
@@ -104,7 +105,7 @@ def build_print(lang):
 
     lessons = []
     for idx, (fname, title, part) in enumerate(shell.PAGES):
-        content_html = CONTENT[fname][lang]
+        content_html = CONTENT[fname][lang] + quizzes.render(fname, lang)
         content_html = content_html.replace(
             '<details class="accordion">', '<details class="accordion" open>'
         )
@@ -128,7 +129,7 @@ def build_print(lang):
   <h1>{labels["title"]}</h1>
   <div class="sub">{labels["subtitle"]}</div>
   <div class="meta">{labels["lesson_count"].format(n=len(shell.PAGES), p=n_parts)}<br>
-    {labels["gen_prefix"]} {today} · {labels["author"]} · MIT License</div>
+    {labels["gen_prefix"]} {today} · {labels["author"]} · Code MIT · Content CC BY 4.0</div>
 </section>
 <section class="print-toc"><div class="wrap">{_toc_html(lang)}</div></section>
 {body}

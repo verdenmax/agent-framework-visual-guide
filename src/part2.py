@@ -269,7 +269,7 @@ msg_back = Message.from_dict(d2)  <span class="cm"># 完全恢复</span></pre>
       <div class="q">✅ MAF 的做法与优点</div>
       <div class="a">MAF 提供<strong>统一抽象</strong>，但<strong>双向转换</strong>能力齐全：<ul>
         <li><span class="mono">BaseChatClient</span> 子类（如 <span class="mono">OpenAIChatClient</span>）内部自动把 <span class="mono">Message</span> 转成厂商格式，调完API再转回来。</li>
-        <li>如需直接转换：<span class="mono">from agent_framework.ai.openai import to_openai_messages, from_openai_messages</span>（见 <span class="mono">python/packages/core/agent_framework/openai/</span>）。</li>
+        <li>转换逻辑封装在客户端内部（私有方法 <span class="mono">_prepare_messages_for_openai</span>，见 <span class="mono">python/packages/openai/agent_framework_openai/_chat_client.py</span>），一般无需手动调用。</li>
         <li><strong>类型安全</strong>：IDE 自动补全 <span class="mono">Message(...)</span> / <span class="mono">Content.from_...</span>，编译期发现错误。</li>
         <li><strong>可测试</strong>：单元测试不依赖真实 LLM，mock <span class="mono">Message</span> 即可。</li>
       </ul></div>
@@ -571,7 +571,7 @@ msg_back = Message.from_dict(d2)  <span class="cm"># fully restored</span></pre>
       <div class="q">✅ How MAF does it</div>
       <div class="a">MAF provides <strong>unified abstraction</strong> with <strong>bidirectional conversion</strong>:<ul>
         <li><span class="mono">BaseChatClient</span> subclasses (like <span class="mono">OpenAIChatClient</span>) auto-convert <span class="mono">Message</span> to vendor format, call API, convert back.</li>
-        <li>For direct conversion: <span class="mono">from agent_framework.ai.openai import to_openai_messages, from_openai_messages</span> (see <span class="mono">python/packages/core/agent_framework/openai/</span>).</li>
+        <li>Conversion is encapsulated inside the client (private <span class="mono">_prepare_messages_for_openai</span>, see <span class="mono">python/packages/openai/agent_framework_openai/_chat_client.py</span>); you rarely call it directly.</li>
         <li><strong>Type safety</strong>: IDE auto-completes <span class="mono">Message(...)</span> / <span class="mono">Content.from_...</span>, catches errors at edit time.</li>
         <li><strong>Testable</strong>: unit tests don't depend on real LLMs, just mock <span class="mono">Message</span>.</li>
       </ul></div>
@@ -651,7 +651,7 @@ result = <span class="kw">await</span> agent.run(<span class="st">"What is the c
 <div class="card detail">
   <div class="tag">🔬 换厂商</div>
   把 <span class="inline">FoundryChatClient</span> 换成 <span class="inline">OpenAIChatClient</span>、
-  <span class="inline">AnthropicChatClient</span>、<span class="inline">OllamaChatClient</span>……Agent 那层<strong>一行都不用改</strong>。
+  <span class="inline">AnthropicClient</span>、<span class="inline">OllamaChatClient</span>……Agent 那层<strong>一行都不用改</strong>。
   各 client 来自对应 provider 包（见第 16 课）。
 </div>
 
@@ -939,7 +939,7 @@ with <span class="mono">stream=True</span> it returns an async iterator yielding
 <div class="card detail">
   <div class="tag">🔬 Switching vendors</div>
   Replace <span class="inline">FoundryChatClient</span> with <span class="inline">OpenAIChatClient</span>,
-  <span class="inline">AnthropicChatClient</span>, <span class="inline">OllamaChatClient</span>… and the Agent layer
+  <span class="inline">AnthropicClient</span>, <span class="inline">OllamaChatClient</span>… and the Agent layer
   <strong>doesn't change at all</strong>. Each client comes from its provider package (Lesson 16).
 </div>
 
@@ -1271,7 +1271,7 @@ result = <span class="kw">await</span> agent.run(<span class="st">"What's the we
     </div>
     <div class="qa">
       <div class="q">✅ MAF 的做法与优点</div>
-      <div class="a">MAF 用 <strong>Pydantic</strong> 自动生成 schema（见 <span class="mono">python/packages/core/agent_framework/_tools.py</span> 的 <span class="mono">ToolDefinition.from_function</span>）：<ul>
+      <div class="a">MAF 用 <strong>Pydantic</strong> 自动生成 schema（见 <span class="mono">python/packages/core/agent_framework/_tools.py</span> 的 <span class="mono">FunctionTool</span>）：<ul>
         <li><strong>类型注解</strong> → <span class="mono">type</span> 字段（<span class="mono">str</span> → <span class="mono">"string"</span>，<span class="mono">int</span> → <span class="mono">"integer"</span>……）。</li>
         <li><strong>Field(description=...)</strong> → <span class="mono">description</span> 字段。</li>
         <li><strong>Field(..., ge=1, le=10)</strong> → <span class="mono">minimum</span>/<span class="mono">maximum</span> 约束。</li>
@@ -1380,7 +1380,7 @@ result = <span class="kw">await</span> agent.run(<span class="st">"What's the we
     </div>
     <div class="qa">
       <div class="q">✅ MAF 的做法与优点</div>
-      <div class="a">MAF 的 <span class="mono">@tool</span> <strong>同时支持同步和异步</strong>（见 <span class="mono">python/packages/core/agent_framework/_tools.py</span> 的 <span class="mono">ToolDefinition.invoke</span>）：<ul>
+      <div class="a">MAF 的 <span class="mono">@tool</span> <strong>同时支持同步和异步</strong>（见 <span class="mono">python/packages/core/agent_framework/_tools.py</span> 的 <span class="mono">FunctionTool.invoke</span>）：<ul>
         <li><strong>同步工具</strong>：框架用 <span class="mono">asyncio.to_thread</span>（或 <span class="mono">run_in_executor</span>）在线程池执行，避免阻塞。</li>
         <li><strong>异步工具</strong>：框架直接 <span class="mono">await</span>，不阻塞事件循环。</li>
         <li><strong>自动检测</strong>：<span class="mono">inspect.iscoroutinefunction(...)</span> 判断是否异步。</li>
@@ -1579,7 +1579,7 @@ result = <span class="kw">await</span> agent.run(<span class="st">"What's the we
     </div>
     <div class="qa">
       <div class="q">✅ How MAF does it</div>
-      <div class="a">MAF uses <strong>Pydantic</strong> to auto-generate schemas (see <span class="mono">ToolDefinition.from_function</span> in <span class="mono">python/packages/core/agent_framework/_tools.py</span>):<ul>
+      <div class="a">MAF uses <strong>Pydantic</strong> to auto-generate schemas (see <span class="mono">FunctionTool</span> in <span class="mono">python/packages/core/agent_framework/_tools.py</span>):<ul>
         <li><strong>Type annotations</strong> → <span class="mono">type</span> field (<span class="mono">str</span> → <span class="mono">"string"</span>, <span class="mono">int</span> → <span class="mono">"integer"</span>…).</li>
         <li><strong>Field(description=...)</strong> → <span class="mono">description</span> field.</li>
         <li><strong>Field(..., ge=1, le=10)</strong> → <span class="mono">minimum</span>/<span class="mono">maximum</span> constraints.</li>
@@ -1688,7 +1688,7 @@ result = <span class="kw">await</span> agent.run(<span class="st">"What's the we
     </div>
     <div class="qa">
       <div class="q">✅ How MAF does it</div>
-      <div class="a">MAF's <span class="mono">@tool</span> <strong>supports both sync and async</strong> (see <span class="mono">ToolDefinition.invoke</span> in <span class="mono">python/packages/core/agent_framework/_tools.py</span>):<ul>
+      <div class="a">MAF's <span class="mono">@tool</span> <strong>supports both sync and async</strong> (see <span class="mono">FunctionTool.invoke</span> in <span class="mono">python/packages/core/agent_framework/_tools.py</span>):<ul>
         <li><strong>Sync tools</strong>: framework uses <span class="mono">asyncio.to_thread</span> (or <span class="mono">run_in_executor</span>) to run in thread pool, avoiding blocking.</li>
         <li><strong>Async tools</strong>: framework directly <span class="mono">await</span>s, doesn't block event loop.</li>
         <li><strong>Auto-detection</strong>: <span class="mono">inspect.iscoroutinefunction(...)</span> determines if async.</li>
@@ -1890,8 +1890,7 @@ result2 = <span class="kw">await</span> agent.run(<span class="st">"我叫什么
 
 <span class="cm"># 创建一个记忆提供者：在每次 run 前注入相关记忆</span>
 memory_provider = MemoryContextProvider(
-    memory_store=...,  <span class="cm"># 向量数据库 / Redis / 其他存储</span>
-    relevance_threshold=0.7
+    store=...,  <span class="cm"># MemoryStore：记忆存储后端（向量库 / Redis 等）</span>
 )
 
 agent = Agent(
@@ -1924,9 +1923,9 @@ session2 = agent.create_session()
     <div class="qa">
       <div class="q">✅ MAF 的做法与优点</div>
       <div class="a"><span class="mono">ContextProvider</span> 接口（见 <span class="mono">python/packages/core/agent_framework/</span>）：<ul>
-        <li><strong>在每次 run 前调用</strong>：Agent 执行时，遍历 <span class="mono">context_providers</span> 列表，调用每个 provider 的 <span class="mono">provide_context(...)</span>。</li>
-        <li><strong>返回消息 / 内容</strong>：provider 可返回 <span class="mono">Message</span> 列表（注入历史对话）、<span class="mono">Content</span> 列表（注入文档片段）、或修改 system prompt。</li>
-        <li><strong>内置实现</strong>：<span class="mono">MemoryContextProvider</span>（向量检索记忆）、<span class="mono">InMemoryHistoryProvider</span>（跨会话历史）、<span class="mono">DocumentContextProvider</span>（文档 RAG）。</li>
+        <li><strong>在每次 run 前调用</strong>：Agent 执行时，遍历 <span class="mono">context_providers</span> 列表，调用每个 provider 的 <span class="mono">before_run(...)</span>。</li>
+        <li><strong>注入上下文</strong>：provider 在 <span class="mono">before_run</span> 里向 <span class="mono">SessionContext</span> 添加 <span class="mono">Message</span>（历史对话）、<span class="mono">Content</span>（文档片段）、指令或工具。</li>
+        <li><strong>内置实现</strong>：<span class="mono">MemoryContextProvider</span>（向量检索记忆）、<span class="mono">InMemoryHistoryProvider</span>（跨会话历史）、<span class="mono">FileHistoryProvider</span>（文件持久化历史）。</li>
         <li><strong>可组合</strong>：多个 provider 按顺序执行，可同时用记忆 + 文档检索 + 用户偏好。</li>
       </ul>
       这种设计让上下文逻辑<strong>解耦</strong>，Agent 不关心"记忆从哪来"，只管"有这些上下文"。</div>
@@ -1950,24 +1949,24 @@ session2 = agent.create_session()
       <div class="q">🧪 示例</div>
       <div class="a">
 <pre class="code"><span class="cm"># 开发环境：内存存储（进程重启后丢失）</span>
-<span class="kw">from</span> agent_framework.session <span class="kw">import</span> InMemorySessionStore
-session_store = InMemorySessionStore()
+<span class="kw">from</span> agent_framework <span class="kw">import</span> InMemoryHistoryProvider
+history = InMemoryHistoryProvider()
 
 <span class="cm"># 生产环境：Redis 存储（持久化 + 分布式）</span>
-<span class="kw">from</span> agent_framework.session.redis <span class="kw">import</span> RedisSessionStore
-session_store = RedisSessionStore(redis_url=<span class="st">"redis://localhost:6379"</span>)
+<span class="kw">from</span> agent_framework.redis <span class="kw">import</span> RedisHistoryProvider
+history = RedisHistoryProvider(redis_url=<span class="st">"redis://localhost:6379"</span>)
 
 <span class="cm"># Azure：Cosmos DB 存储</span>
-<span class="kw">from</span> agent_framework.session.cosmos <span class="kw">import</span> CosmosSessionStore
-session_store = CosmosSessionStore(
+<span class="kw">from</span> agent_framework.azure <span class="kw">import</span> CosmosHistoryProvider
+history = CosmosHistoryProvider(
     endpoint=<span class="st">"https://..."</span>,
-    key=<span class="st">"..."</span>,
-    database=<span class="st">"agents"</span>,
-    container=<span class="st">"sessions"</span>
+    credential=<span class="st">"..."</span>,
+    database_name=<span class="st">"agents"</span>,
+    container_name=<span class="st">"sessions"</span>
 )
 
-<span class="cm"># Agent 使用存储</span>
-agent = Agent(client=client, session_store=session_store)
+<span class="cm"># Agent 使用存储（作为 context provider 注入）</span>
+agent = Agent(client=client, context_providers=[history])
 session = agent.create_session(session_id=<span class="st">"user_123_conv_456"</span>)
 <span class="cm"># 历史自动存到后端，下次加载时恢复</span></pre>
       </div>
@@ -1984,16 +1983,16 @@ session = agent.create_session(session_id=<span class="st">"user_123_conv_456"</
     </div>
     <div class="qa">
       <div class="q">✅ MAF 的做法与优点</div>
-      <div class="a"><span class="mono">SessionStore</span> 接口（见 <span class="mono">python/packages/core/agent_framework/</span>）：<ul>
-        <li><strong>抽象接口</strong>：<span class="mono">save_session</span> / <span class="mono">load_session</span> / <span class="mono">delete_session</span>，Agent 只依赖接口。</li>
+      <div class="a"><span class="mono">HistoryProvider</span> 接口（继承自 <span class="mono">ContextProvider</span>，见 <span class="mono">python/packages/core/agent_framework/_sessions.py</span>）：<ul>
+        <li><strong>抽象接口</strong>：子类实现 <span class="mono">get_messages</span> / <span class="mono">save_messages</span>，Agent 通过 <span class="mono">context_providers</span> 依赖接口。</li>
         <li><strong>多种实现</strong>：<ul>
-          <li><span class="mono">InMemorySessionStore</span>：开发用，字典存储。</li>
-          <li><span class="mono">RedisSessionStore</span>：生产用，Redis 哈希存储（<span class="mono">HSET sessions:{id} history ...</span>）。</li>
-          <li><span class="mono">CosmosSessionStore</span>：Azure 用户，Cosmos DB 文档存储。</li>
-          <li><span class="mono">FileSessionStore</span>：单机，JSON 文件存储。</li>
+          <li><span class="mono">InMemoryHistoryProvider</span>：开发用，内存存储。</li>
+          <li><span class="mono">RedisHistoryProvider</span>：生产用，Redis 存储（<span class="mono">agent_framework.redis</span>）。</li>
+          <li><span class="mono">CosmosHistoryProvider</span>：Azure 用户，Cosmos DB 存储（<span class="mono">agent_framework.azure</span>）。</li>
+          <li><span class="mono">FileHistoryProvider</span>：单机，JSON 文件存储。</li>
         </ul></li>
         <li><strong>序列化自动</strong>：<span class="mono">Message.to_dict()</span> 转 JSON，存进后端；加载时 <span class="mono">from_dict</span> 恢复。</li>
-        <li><strong>可扩展</strong>：自定义后端（如接入 PostgreSQL、MongoDB）只需实现 <span class="mono">SessionStore</span> 接口。</li>
+        <li><strong>可扩展</strong>：自定义后端（如接入 PostgreSQL、MongoDB）只需继承 <span class="mono">HistoryProvider</span>。</li>
       </ul></div>
     </div>
     <div class="qa">
@@ -2014,34 +2013,37 @@ session = agent.create_session(session_id=<span class="st">"user_123_conv_456"</
     <div class="qa">
       <div class="q">🧪 示例</div>
       <div class="a">
-<pre class="code"><span class="kw">from</span> agent_framework.context <span class="kw">import</span> ContextWindowCompactionStrategy
-
-<span class="cm"># 策略 A：滑动窗口（保留最近 N 条消息）</span>
-strategy = ContextWindowCompactionStrategy.sliding_window(max_messages=20)
-
-<span class="cm"># 策略 B：摘要压缩（老消息总结成一条）</span>
-strategy = ContextWindowCompactionStrategy.summarize(
-    max_tokens=4000,
-    summary_model=<span class="st">"gpt-4o-mini"</span>
+<pre class="code"><span class="kw">from</span> agent_framework <span class="kw">import</span> (
+    CompactionProvider,
+    SlidingWindowStrategy,
+    SummarizationStrategy,
+    ContextWindowCompactionStrategy,
 )
 
-<span class="cm"># 策略 C：混合（保留系统消息 + 最近消息 + 摘要）</span>
-strategy = ContextWindowCompactionStrategy.hybrid(
-    keep_system=<span class="kw">True</span>,
-    keep_recent=10,
-    summarize_older=<span class="kw">True</span>
+<span class="cm"># 策略 A：滑动窗口（保留最近 N 组消息，丢弃最老的）</span>
+strategy = SlidingWindowStrategy(keep_last_groups=20, preserve_system=<span class="kw">True</span>)
+
+<span class="cm"># 策略 B：摘要压缩（用 LLM 把老消息总结，需传入 client）</span>
+strategy = SummarizationStrategy(client=client, target_count=4)
+
+<span class="cm"># 策略 C：按上下文窗口 token 预算压缩（两阶段：工具结果驱逐 + 截断）</span>
+strategy = ContextWindowCompactionStrategy(
+    max_context_window_tokens=128_000,
+    max_output_tokens=16_384,
 )
 
+<span class="cm"># 用 CompactionProvider 包装策略，作为 context provider 注入</span>
+compaction = CompactionProvider(before_strategy=strategy)
 agent = Agent(
     client=client,
-    context_window_strategy=strategy
+    context_providers=[compaction]
 )
 
-<span class="cm"># 对话超过 20 轮时，自动触发压缩</span>
+<span class="cm"># 对话增长时，框架在每轮前自动按策略压缩</span>
 session = agent.create_session()
 <span class="kw">for</span> i <span class="kw">in</span> <span class="fn">range</span>(30):
     <span class="kw">await</span> agent.run(<span class="st">f"第 {i} 条消息"</span>, session=session)
-    <span class="cm"># → 第 21 条时，策略生效：删掉最老的或生成摘要</span></pre>
+    <span class="cm"># → 超出阈值时策略生效：丢弃最老的组或生成摘要</span></pre>
       </div>
     </div>
     <div class="qa">
@@ -2056,12 +2058,12 @@ session = agent.create_session()
     </div>
     <div class="qa">
       <div class="q">✅ MAF 的做法与优点</div>
-      <div class="a"><span class="mono">ContextWindowCompactionStrategy</span>（见 <span class="mono">python/packages/core/agent_framework/</span>）：<ul>
+      <div class="a">MAF 内置多种压缩策略（<span class="mono">SlidingWindowStrategy</span> / <span class="mono">SummarizationStrategy</span> / <span class="mono">ContextWindowCompactionStrategy</span>，见 <span class="mono">_compaction.py</span>）：<ul>
         <li><strong>滑动窗口</strong>：保留最近 N 条消息，删掉最老的（适合短期对话）。</li>
         <li><strong>摘要压缩</strong>：把老消息总结成一条 system 消息（<span class="st">"之前用户提到……"</span>），保留语义、减少 token。</li>
         <li><strong>混合策略</strong>：保留 system 消息（重要指令）+ 最近消息（当前上下文）+ 摘要中间消息。</li>
         <li><strong>自动触发</strong>：Agent 在 <span class="mono">run</span> 前检查历史长度，超过阈值时调用策略压缩。</li>
-        <li><strong>可配置</strong>：<span class="mono">max_tokens</span>、<span class="mono">max_messages</span>、<span class="mono">summary_model</span> 都可调。</li>
+        <li><strong>可配置</strong>：<span class="mono">keep_last_groups</span>、<span class="mono">target_count</span>、<span class="mono">max_context_window_tokens</span> 等参数都可调。</li>
       </ul>
       开发者无需手动管理 context，框架自动优化。</div>
     </div>
@@ -2090,6 +2092,7 @@ session = agent.create_session()
   <div class="tag">💡 设计亮点</div>
   把"短期对话历史"（Session）和"长期可检索记忆"（ContextProvider）<strong>分成两层</strong>：
   前者简单透传，后者可插拔。需求小就只用 Session，需求大再加 Provider，复杂度按需付费。
+  <br>想把记忆换成 Redis / Mem0 / Cosmos 等真正的后端，见<a href="28-memory-backends.html">第 28 课 · 记忆后端</a>。
 </div>
 """
 
@@ -2191,8 +2194,7 @@ result2 = <span class="kw">await</span> agent.run(<span class="st">"What's my na
 
 <span class="cm"># Create a memory provider: injects relevant memories before each run</span>
 memory_provider = MemoryContextProvider(
-    memory_store=...,  <span class="cm"># vector DB / Redis / other storage</span>
-    relevance_threshold=0.7
+    store=...,  <span class="cm"># MemoryStore: the memory storage backend (vector DB / Redis / etc.)</span>
 )
 
 agent = Agent(
@@ -2225,9 +2227,9 @@ session2 = agent.create_session()
     <div class="qa">
       <div class="q">✅ How MAF does it</div>
       <div class="a"><span class="mono">ContextProvider</span> interface (see <span class="mono">python/packages/core/agent_framework/</span>):<ul>
-        <li><strong>Called before each run</strong>: Agent execution iterates through <span class="mono">context_providers</span> list, calls each provider's <span class="mono">provide_context(...)</span>.</li>
-        <li><strong>Returns messages / content</strong>: provider can return <span class="mono">Message</span> lists (inject history), <span class="mono">Content</span> lists (inject doc snippets), or modify system prompt.</li>
-        <li><strong>Built-in implementations</strong>: <span class="mono">MemoryContextProvider</span> (vector retrieval memory), <span class="mono">InMemoryHistoryProvider</span> (cross-session history), <span class="mono">DocumentContextProvider</span> (doc RAG).</li>
+        <li><strong>Called before each run</strong>: Agent execution iterates through <span class="mono">context_providers</span> list, calls each provider's <span class="mono">before_run(...)</span>.</li>
+        <li><strong>Injects context</strong>: in <span class="mono">before_run</span> the provider adds <span class="mono">Message</span>s (history), <span class="mono">Content</span> (doc snippets), instructions, or tools to the <span class="mono">SessionContext</span>.</li>
+        <li><strong>Built-in implementations</strong>: <span class="mono">MemoryContextProvider</span> (vector retrieval memory), <span class="mono">InMemoryHistoryProvider</span> (cross-session history), <span class="mono">FileHistoryProvider</span> (file-backed history).</li>
         <li><strong>Composable</strong>: multiple providers execute in order, can use memory + doc retrieval + user preferences together.</li>
       </ul>
       This design <strong>decouples</strong> context logic; Agent doesn't care "where memory comes from", only "have this context".</div>
@@ -2251,24 +2253,24 @@ session2 = agent.create_session()
       <div class="q">🧪 Example</div>
       <div class="a">
 <pre class="code"><span class="cm"># Dev environment: in-memory storage (lost on restart)</span>
-<span class="kw">from</span> agent_framework.session <span class="kw">import</span> InMemorySessionStore
-session_store = InMemorySessionStore()
+<span class="kw">from</span> agent_framework <span class="kw">import</span> InMemoryHistoryProvider
+history = InMemoryHistoryProvider()
 
 <span class="cm"># Production: Redis storage (persistent + distributed)</span>
-<span class="kw">from</span> agent_framework.session.redis <span class="kw">import</span> RedisSessionStore
-session_store = RedisSessionStore(redis_url=<span class="st">"redis://localhost:6379"</span>)
+<span class="kw">from</span> agent_framework.redis <span class="kw">import</span> RedisHistoryProvider
+history = RedisHistoryProvider(redis_url=<span class="st">"redis://localhost:6379"</span>)
 
 <span class="cm"># Azure: Cosmos DB storage</span>
-<span class="kw">from</span> agent_framework.session.cosmos <span class="kw">import</span> CosmosSessionStore
-session_store = CosmosSessionStore(
+<span class="kw">from</span> agent_framework.azure <span class="kw">import</span> CosmosHistoryProvider
+history = CosmosHistoryProvider(
     endpoint=<span class="st">"https://..."</span>,
-    key=<span class="st">"..."</span>,
-    database=<span class="st">"agents"</span>,
-    container=<span class="st">"sessions"</span>
+    credential=<span class="st">"..."</span>,
+    database_name=<span class="st">"agents"</span>,
+    container_name=<span class="st">"sessions"</span>
 )
 
-<span class="cm"># Agent uses the store</span>
-agent = Agent(client=client, session_store=session_store)
+<span class="cm"># Agent uses the provider (injected as a context provider)</span>
+agent = Agent(client=client, context_providers=[history])
 session = agent.create_session(session_id=<span class="st">"user_123_conv_456"</span>)
 <span class="cm"># History auto-saved to backend, restored on next load</span></pre>
       </div>
@@ -2285,16 +2287,16 @@ session = agent.create_session(session_id=<span class="st">"user_123_conv_456"</
     </div>
     <div class="qa">
       <div class="q">✅ How MAF does it</div>
-      <div class="a"><span class="mono">SessionStore</span> interface (see <span class="mono">python/packages/core/agent_framework/</span>):<ul>
-        <li><strong>Abstract interface</strong>: <span class="mono">save_session</span> / <span class="mono">load_session</span> / <span class="mono">delete_session</span>, Agent depends only on interface.</li>
+      <div class="a"><span class="mono">HistoryProvider</span> interface (subclass of <span class="mono">ContextProvider</span>, see <span class="mono">python/packages/core/agent_framework/_sessions.py</span>):<ul>
+        <li><strong>Abstract interface</strong>: subclasses implement <span class="mono">get_messages</span> / <span class="mono">save_messages</span>, Agent depends on it via <span class="mono">context_providers</span>.</li>
         <li><strong>Multiple implementations</strong>:<ul>
-          <li><span class="mono">InMemorySessionStore</span>: for dev, dict storage.</li>
-          <li><span class="mono">RedisSessionStore</span>: for production, Redis hash storage (<span class="mono">HSET sessions:{id} history ...</span>).</li>
-          <li><span class="mono">CosmosSessionStore</span>: for Azure users, Cosmos DB document storage.</li>
-          <li><span class="mono">FileSessionStore</span>: single-server, JSON file storage.</li>
+          <li><span class="mono">InMemoryHistoryProvider</span>: for dev, in-memory storage.</li>
+          <li><span class="mono">RedisHistoryProvider</span>: for production, Redis storage (<span class="mono">agent_framework.redis</span>).</li>
+          <li><span class="mono">CosmosHistoryProvider</span>: for Azure users, Cosmos DB storage (<span class="mono">agent_framework.azure</span>).</li>
+          <li><span class="mono">FileHistoryProvider</span>: single-server, JSON file storage.</li>
         </ul></li>
         <li><strong>Auto-serialization</strong>: <span class="mono">Message.to_dict()</span> converts to JSON, stores in backend; on load <span class="mono">from_dict</span> restores.</li>
-        <li><strong>Extensible</strong>: custom backends (e.g., integrate PostgreSQL, MongoDB) just implement <span class="mono">SessionStore</span> interface.</li>
+        <li><strong>Extensible</strong>: custom backends (e.g., integrate PostgreSQL, MongoDB) just subclass <span class="mono">HistoryProvider</span>.</li>
       </ul></div>
     </div>
     <div class="qa">
@@ -2315,34 +2317,37 @@ session = agent.create_session(session_id=<span class="st">"user_123_conv_456"</
     <div class="qa">
       <div class="q">🧪 Example</div>
       <div class="a">
-<pre class="code"><span class="kw">from</span> agent_framework.context <span class="kw">import</span> ContextWindowCompactionStrategy
-
-<span class="cm"># Strategy A: sliding window (keep recent N messages)</span>
-strategy = ContextWindowCompactionStrategy.sliding_window(max_messages=20)
-
-<span class="cm"># Strategy B: summarization (old messages summarized into one)</span>
-strategy = ContextWindowCompactionStrategy.summarize(
-    max_tokens=4000,
-    summary_model=<span class="st">"gpt-4o-mini"</span>
+<pre class="code"><span class="kw">from</span> agent_framework <span class="kw">import</span> (
+    CompactionProvider,
+    SlidingWindowStrategy,
+    SummarizationStrategy,
+    ContextWindowCompactionStrategy,
 )
 
-<span class="cm"># Strategy C: hybrid (keep system + recent + summarize middle)</span>
-strategy = ContextWindowCompactionStrategy.hybrid(
-    keep_system=<span class="kw">True</span>,
-    keep_recent=10,
-    summarize_older=<span class="kw">True</span>
+<span class="cm"># Strategy A: sliding window (keep recent N groups, drop oldest)</span>
+strategy = SlidingWindowStrategy(keep_last_groups=20, preserve_system=<span class="kw">True</span>)
+
+<span class="cm"># Strategy B: summarization (LLM summarizes old messages; needs a client)</span>
+strategy = SummarizationStrategy(client=client, target_count=4)
+
+<span class="cm"># Strategy C: compact by context-window token budget (two-phase: tool-result eviction + truncation)</span>
+strategy = ContextWindowCompactionStrategy(
+    max_context_window_tokens=128_000,
+    max_output_tokens=16_384,
 )
 
+<span class="cm"># Wrap the strategy in a CompactionProvider, inject as a context provider</span>
+compaction = CompactionProvider(before_strategy=strategy)
 agent = Agent(
     client=client,
-    context_window_strategy=strategy
+    context_providers=[compaction]
 )
 
-<span class="cm"># After 20 turns, compaction auto-triggers</span>
+<span class="cm"># As the conversation grows, the framework compacts before each run</span>
 session = agent.create_session()
 <span class="kw">for</span> i <span class="kw">in</span> <span class="fn">range</span>(30):
     <span class="kw">await</span> agent.run(<span class="st">f"Message {i}"</span>, session=session)
-    <span class="cm"># → At turn 21, strategy kicks in: delete oldest or generate summary</span></pre>
+    <span class="cm"># → When over threshold the strategy kicks in: drop oldest groups or summarize</span></pre>
       </div>
     </div>
     <div class="qa">
@@ -2357,12 +2362,12 @@ session = agent.create_session()
     </div>
     <div class="qa">
       <div class="q">✅ How MAF does it</div>
-      <div class="a"><span class="mono">ContextWindowCompactionStrategy</span> (see <span class="mono">python/packages/core/agent_framework/</span>):<ul>
+      <div class="a">MAF ships several compaction strategies (<span class="mono">SlidingWindowStrategy</span> / <span class="mono">SummarizationStrategy</span> / <span class="mono">ContextWindowCompactionStrategy</span>, see <span class="mono">_compaction.py</span>):<ul>
         <li><strong>Sliding window</strong>: keep recent N messages, delete oldest (good for short-term conversations).</li>
         <li><strong>Summarization</strong>: summarize old messages into one system message (<span class="st">"Previously user mentioned…"</span>), preserve semantics, reduce tokens.</li>
         <li><strong>Hybrid strategy</strong>: keep system messages (important instructions) + recent messages (current context) + summarize middle messages.</li>
         <li><strong>Auto-trigger</strong>: Agent checks history length before <span class="mono">run</span>, calls strategy to compact if over threshold.</li>
-        <li><strong>Configurable</strong>: <span class="mono">max_tokens</span>, <span class="mono">max_messages</span>, <span class="mono">summary_model</span> all tunable.</li>
+        <li><strong>Configurable</strong>: <span class="mono">keep_last_groups</span>, <span class="mono">target_count</span>, <span class="mono">max_context_window_tokens</span> and more.</li>
       </ul>
       Developers don't manually manage context; framework auto-optimizes.</div>
     </div>
@@ -2392,5 +2397,6 @@ session = agent.create_session()
   Short-term history (Session) and long-term searchable memory (ContextProvider) are <strong>two layers</strong>:
   the former is a simple pass-through, the latter is pluggable. Use just Session for small needs, add a Provider for
   big ones — complexity is pay-as-you-go.
+  <br>To swap memory for real backends like Redis / Mem0 / Cosmos, see <a href="28-memory-backends.html">Lesson 28 · Memory Backends</a>.
 </div>
 """

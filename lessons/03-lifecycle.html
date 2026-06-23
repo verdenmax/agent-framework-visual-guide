@@ -235,6 +235,17 @@ table.t td.mono, table.t td .mono { font-family: ui-monospace, monospace; font-s
   background:var(--accent); color:#fff; border-radius:10px; font-size:.9rem; font-weight:650;
   box-shadow:var(--shadow); transition:.15s; }
 .pdf-btn:hover { background:var(--accent-ink); transform:translateY(-1px); }
+/* self-test quizzes (appended to each lesson by quizzes.render) */
+.selftest { margin: 2.2rem 0 0; border-top: 2px dashed var(--line); padding-top: 1.2rem; }
+.selftest > h2 { margin-top: .2rem; }
+.quiz { background: var(--panel); border: 1px solid var(--line); border-left: 4px solid var(--blue);
+  border-radius: 12px; padding: .9rem 1.1rem; margin: 1rem 0; box-shadow: var(--shadow); }
+.quiz .qn { font-weight: 650; }
+.quiz ol.opts { list-style: upper-alpha; margin: .55rem 0 .6rem 1.5rem; padding: 0; }
+.quiz ol.opts li { margin: .3rem 0; padding-left: .15rem; }
+.quiz details.accordion { margin: .5rem 0 0; }
+.selftest code { font-family: ui-monospace, monospace; font-size: .9em; color: var(--accent-ink);
+  background: var(--accent-soft); padding: 0 .28em; border-radius: 4px; }
 </style>
 </head><body>
 <div class="topbar">
@@ -242,11 +253,11 @@ table.t td.mono, table.t td .mono { font-family: ui-monospace, monospace; font-s
     <a class="home" href="../index.html">📘 <span class="i18n" data-lang="zh">Agent Framework 图解教程 · </span><span class="i18n" data-lang="en">Agent Framework Visual Guide · </span><b><span class="i18n" data-lang="zh">目录</span><span class="i18n" data-lang="en">Contents</span></b></a>
     <div class="pills">
       <span class="pill"><span class="i18n" data-lang="zh">第一部分 · 宏观全景</span><span class="i18n" data-lang="en">Part 1 · Big Picture</span></span>
-      <span class="pill">03 / 27</span>
+      <span class="pill">03 / 31</span>
       <span class="langtoggle">EN</span>
     </div>
   </div>
-  <div class="progress"><span style="width:11%"></span></div>
+  <div class="progress"><span style="width:9%"></span></div>
 </div>
 <div class="wrap">
   <div class="hero">
@@ -432,7 +443,7 @@ print(result.text)
 <span class="cm">   → ChatClient 抛出 ChatClientError</span>
 
 <span class="cm"># 2) 工具函数抛异常</span>
-<span class="kw">@ai_function</span>
+<span class="kw">@tool</span>
 <span class="kw">def</span> get_weather(city: str) -&gt; str:
     <span class="kw">raise</span> RuntimeError(<span class="st">"weather API down"</span>)
 <span class="cm">   → Agent 捕获后包成 FunctionResultContent(error=...)</span>
@@ -476,7 +487,41 @@ print(result.text)
   <strong>循环被封装在框架里</strong>：调用方只看到"输入→输出"，而"想—做—再想"的复杂度被 Agent 吸收，
   这正是它比裸调 LLM SDK 省心的根源。
 </div>
+<div class="selftest">
+<h2>🧪 自测 · 想一想为什么这么设计</h2>
+<div class="quiz">
+  <div class="qn">1. 你只写了一行 <code>await agent.run(&quot;…&quot;)</code>，但模型要调工具时会“调模型 → 执行工具 → 再调模型”地循环好几轮。这个循环发生在哪？</div>
+  <ol class="opts">
+    <li>在 <code>run()</code> 内部自动跑完，你对外只调用一次</li>
+    <li>你必须自己写 <code>while</code> 循环反复调 <code>run()</code></li>
+    <li>在每个工具函数自己的代码里</li>
+    <li>在 <code>print()</code> 输出时</li>
+  </ol>
+  <details class="accordion">
+    <summary>看答案与解析 <span class="hint">点击展开</span></summary>
+    <div class="acc-body"><div class="qa"><div class="a"><strong>答案：A</strong>。这正是经典的 Agent 循环（think → act → observe）：模型产出 <code>function_call</code>，框架执行工具、把 <code>function_result</code> 追加进消息、再回到“调模型”那步，直到模型不再要工具（有上限 <code>DEFAULT_MAX_ITERATIONS=40</code>）。你对外只 <code>run</code> 一次。</div></div></div>
+  </details>
 </div>
+<div class="quiz">
+  <div class="qn">2. 多轮对话里“模型记得上文”，本质靠的是什么？</div>
+  <ol class="opts">
+    <li>模型内部存了一块持久记忆</li>
+    <li>靠 <code>finish_reason</code> 字段携带历史</li>
+    <li>框架用一个全局变量记住所有人的对话</li>
+    <li>把同一个 <code>session</code>（<code>AgentSession</code>）透传给每次 <code>run()</code>，历史自动累积进消息列表</li>
+  </ol>
+  <details class="accordion">
+    <summary>看答案与解析 <span class="hint">点击展开</span></summary>
+    <div class="acc-body"><div class="qa"><div class="a"><strong>答案：D</strong>。<code>run()</code> 默认<strong>无状态</strong>；要连续性就 <code>agent.create_session()</code> 再每次 <code>run(…, session=session)</code>，用户消息 + 回复会自动追加进会话历史。状态的唯一载体是不断变长的消息列表，而不是模型“记住”了什么。</div></div></div>
+  </details>
+</div>
+<div class="card spark">
+  <div class="tag">💭 发散思考（没有标准答案，动手或动脑想想）</div>
+  <ul>
+    <li><code>run()</code> 组装请求时把 instructions / 历史 / 当前输入 / 工具 schema 拼到一起发给模型。如果你的 Agent 挂了 20 个工具又开了很长对话，你预计哪部分会最先吃满上下文窗口？据此谈谈“工具数量”和“历史长度”各自带来的 token 成本与取舍。</li>
+  </ul>
+</div>
+</div></div>
 <div class="i18n" data-lang="en">
 <p class="lead">You write just one line — <span class="inline">await agent.run("…")</span> — but a chain of events
 happens underneath. Understand this <strong>lifecycle</strong> and every later "internals" lesson gets easy.</p>
@@ -659,7 +704,7 @@ print(result.text)
 <span class="cm">   → ChatClient raises ChatClientError</span>
 
 <span class="cm"># 2) Tool function raises</span>
-<span class="kw">@ai_function</span>
+<span class="kw">@tool</span>
 <span class="kw">def</span> get_weather(city: str) -&gt; str:
     <span class="kw">raise</span> RuntimeError(<span class="st">"weather API down"</span>)
 <span class="cm">   → Agent wraps it as FunctionResultContent(error=...),</span>
@@ -705,7 +750,41 @@ print(result.text)
   <strong>The loop is encapsulated in the framework</strong>: callers see only "input → output", while the
   think–act–think complexity is absorbed by the Agent — that's why it's calmer than raw LLM SDK calls.
 </div>
+<div class="selftest">
+<h2>🧪 Self-test - think about the design</h2>
+<div class="quiz">
+  <div class="qn">1. You wrote just one line <code>await agent.run(&quot;…&quot;)</code>, yet when the model needs tools it loops &quot;call model → run tool → call model&quot; several rounds. Where does that loop run?</div>
+  <ol class="opts">
+    <li>Inside <code>run()</code>, completed automatically - you call it just once</li>
+    <li>You must write your own <code>while</code> loop calling <code>run()</code> repeatedly</li>
+    <li>Inside each tool function's own code</li>
+    <li>While <code>print()</code> renders output</li>
+  </ol>
+  <details class="accordion">
+    <summary>Show answer &amp; explanation <span class="hint">click to expand</span></summary>
+    <div class="acc-body"><div class="qa"><div class="a"><strong>Answer: A</strong>. This is the classic agent loop (think → act → observe): the model emits a <code>function_call</code>, the framework runs the tool, appends the <code>function_result</code> to the messages, and returns to &quot;call model&quot; until the model stops asking for tools (capped at <code>DEFAULT_MAX_ITERATIONS=40</code>). You only <code>run</code> once.</div></div></div>
+  </details>
 </div>
+<div class="quiz">
+  <div class="qn">2. In a multi-turn chat, what fundamentally makes &quot;the model remember earlier turns&quot; work?</div>
+  <ol class="opts">
+    <li>The model keeps a block of persistent memory inside it</li>
+    <li>The <code>finish_reason</code> field carries the history</li>
+    <li>The framework keeps everyone's chat in one global variable</li>
+    <li>Passing the same <code>session</code> (<code>AgentSession</code>) into each <code>run()</code>, so history accumulates into the message list</li>
+  </ol>
+  <details class="accordion">
+    <summary>Show answer &amp; explanation <span class="hint">click to expand</span></summary>
+    <div class="acc-body"><div class="qa"><div class="a"><strong>Answer: D</strong>. <code>run()</code> is <strong>stateless</strong> by default; for continuity you call <code>agent.create_session()</code> then <code>run(…, session=session)</code> each time, and user messages + replies append to the session's history. The only carrier of state is the growing message list, not anything the model &quot;remembers&quot;.</div></div></div>
+  </details>
+</div>
+<div class="card spark">
+  <div class="tag">💭 Open questions (no single right answer - just think or try)</div>
+  <ul>
+    <li>When <code>run()</code> assembles a request it stitches instructions / history / current input / tool schemas together for the model. If your Agent has 20 tools and a long conversation, which part do you expect to fill the context window first? Use that to discuss the token cost and tradeoffs of &quot;number of tools&quot; vs &quot;history length&quot;.</li>
+  </ul>
+</div>
+</div></div>
   <div class="footnav"><a class="prev" href="02-monorepo.html"><div class="dir"><span class="i18n" data-lang="zh">← 上一课</span><span class="i18n" data-lang="en">← Prev</span></div><div class="ttl"><span class="i18n" data-lang="zh">Monorepo 全景</span><span class="i18n" data-lang="en">Monorepo Tour</span></div></a><a class="next" href="04-messages.html"><div class="dir"><span class="i18n" data-lang="zh">下一课 →</span><span class="i18n" data-lang="en">Next →</span></div><div class="ttl"><span class="i18n" data-lang="zh">消息与内容</span><span class="i18n" data-lang="en">Messages & Content</span></div></a></div>
 </div>
 

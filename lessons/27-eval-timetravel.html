@@ -2,17 +2,17 @@
 <html lang="zh-CN" data-lang="zh"><head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>25 · 评估与时间旅行 — Evaluation & Time-Travel · Agent Framework 图解教程 · Visual Guide</title>
-<meta name="description" content="第五部分 · 自己动手做 Agent｜评估与时间旅行（Evaluation & Time-Travel）：面向新手的 Agent Framework 图解教程，配真实源码对应与设计亮点。">
+<title>28 · 评估与时间旅行 — Evaluation & Time-Travel · Agent Framework 图解教程 · Visual Guide</title>
+<meta name="description" content="第六部分 · 协议与生态｜评估与时间旅行（Evaluation & Time-Travel）：面向新手的 Agent Framework 图解教程，配真实源码对应与设计亮点。">
 <meta name="theme-color" content="#0078d4">
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml;base64,PHN2ZyB4bWxucz0naHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmcnIHZpZXdCb3g9JzAgMCAzMiAzMic+PHJlY3Qgd2lkdGg9JzMyJyBoZWlnaHQ9JzMyJyByeD0nNycgZmlsbD0nIzAwNzhkNCcvPjx0ZXh0IHg9JzE2JyB5PScyMicgZm9udC1mYW1pbHk9J3N5c3RlbS11aSxzYW5zLXNlcmlmJyBmb250LXNpemU9JzEzJyBmb250LXdlaWdodD0nNzAwJyBmaWxsPScjZmZmJyB0ZXh0LWFuY2hvcj0nbWlkZGxlJz5BRjwvdGV4dD48L3N2Zz4=">
 <meta property="og:type" content="article">
 <meta property="og:site_name" content="Agent Framework 图解教程 · Visual Guide">
-<meta property="og:title" content="25 · 评估与时间旅行 — Evaluation & Time-Travel · Agent Framework 图解教程 · Visual Guide">
-<meta property="og:description" content="第五部分 · 自己动手做 Agent｜评估与时间旅行（Evaluation & Time-Travel）：面向新手的 Agent Framework 图解教程，配真实源码对应与设计亮点。">
+<meta property="og:title" content="28 · 评估与时间旅行 — Evaluation & Time-Travel · Agent Framework 图解教程 · Visual Guide">
+<meta property="og:description" content="第六部分 · 协议与生态｜评估与时间旅行（Evaluation & Time-Travel）：面向新手的 Agent Framework 图解教程，配真实源码对应与设计亮点。">
 <meta name="twitter:card" content="summary">
-<meta name="twitter:title" content="25 · 评估与时间旅行 — Evaluation & Time-Travel · Agent Framework 图解教程 · Visual Guide">
-<meta name="twitter:description" content="第五部分 · 自己动手做 Agent｜评估与时间旅行（Evaluation & Time-Travel）：面向新手的 Agent Framework 图解教程，配真实源码对应与设计亮点。">
+<meta name="twitter:title" content="28 · 评估与时间旅行 — Evaluation & Time-Travel · Agent Framework 图解教程 · Visual Guide">
+<meta name="twitter:description" content="第六部分 · 协议与生态｜评估与时间旅行（Evaluation & Time-Travel）：面向新手的 Agent Framework 图解教程，配真实源码对应与设计亮点。">
 <script>try{var l=localStorage.getItem('af-guide-lang')||'zh';document.documentElement.setAttribute('data-lang',l);}catch(e){}</script>
 <style>
 * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -235,22 +235,33 @@ table.t td.mono, table.t td .mono { font-family: ui-monospace, monospace; font-s
   background:var(--accent); color:#fff; border-radius:10px; font-size:.9rem; font-weight:650;
   box-shadow:var(--shadow); transition:.15s; }
 .pdf-btn:hover { background:var(--accent-ink); transform:translateY(-1px); }
+/* self-test quizzes (appended to each lesson by quizzes.render) */
+.selftest { margin: 2.2rem 0 0; border-top: 2px dashed var(--line); padding-top: 1.2rem; }
+.selftest > h2 { margin-top: .2rem; }
+.quiz { background: var(--panel); border: 1px solid var(--line); border-left: 4px solid var(--blue);
+  border-radius: 12px; padding: .9rem 1.1rem; margin: 1rem 0; box-shadow: var(--shadow); }
+.quiz .qn { font-weight: 650; }
+.quiz ol.opts { list-style: upper-alpha; margin: .55rem 0 .6rem 1.5rem; padding: 0; }
+.quiz ol.opts li { margin: .3rem 0; padding-left: .15rem; }
+.quiz details.accordion { margin: .5rem 0 0; }
+.selftest code { font-family: ui-monospace, monospace; font-size: .9em; color: var(--accent-ink);
+  background: var(--accent-soft); padding: 0 .28em; border-radius: 4px; }
 </style>
 </head><body>
 <div class="topbar">
   <div class="topbar-inner">
     <a class="home" href="../index.html">📘 <span class="i18n" data-lang="zh">Agent Framework 图解教程 · </span><span class="i18n" data-lang="en">Agent Framework Visual Guide · </span><b><span class="i18n" data-lang="zh">目录</span><span class="i18n" data-lang="en">Contents</span></b></a>
     <div class="pills">
-      <span class="pill"><span class="i18n" data-lang="zh">第五部分 · 自己动手做 Agent</span><span class="i18n" data-lang="en">Part 5 · Build Your Own</span></span>
-      <span class="pill">25 / 27</span>
+      <span class="pill"><span class="i18n" data-lang="zh">第六部分 · 协议与生态</span><span class="i18n" data-lang="en">Part 6 · Protocols & Ecosystem</span></span>
+      <span class="pill">28 / 31</span>
       <span class="langtoggle">EN</span>
     </div>
   </div>
-  <div class="progress"><span style="width:92%"></span></div>
+  <div class="progress"><span style="width:90%"></span></div>
 </div>
 <div class="wrap">
   <div class="hero">
-    <div class="part"><span class="i18n" data-lang="zh">第五部分 · 自己动手做 Agent</span><span class="i18n" data-lang="en">Part 5 · Build Your Own</span></div>
+    <div class="part"><span class="i18n" data-lang="zh">第六部分 · 协议与生态</span><span class="i18n" data-lang="en">Part 6 · Protocols & Ecosystem</span></div>
     <h1><span class="i18n" data-lang="zh">评估与时间旅行</span><span class="i18n" data-lang="en">Evaluation & Time-Travel</span></h1>
   </div>
   <div class="i18n" data-lang="zh">
@@ -295,6 +306,92 @@ results = <span class="kw">await</span> evaluate_agent(
 )
 results[0].raise_for_status()  <span class="cm"># CI 中断言通过</span></pre>
 </div>
+
+<h2>🧪 实战追踪：评估如何在 CI 里挡住一次"回归"</h2>
+<p>评估的真正价值不是"打个分"，而是<strong>在 prompt/模型变动时自动发现质量下滑</strong>。场景：你把 Agent 的 instructions 改成"回答更简洁"，结果它把关键短语"退款政策"也省掉了——靠裸眼根本看不出来。评估集会替你逮住：</p>
+<div class="vflow">
+  <div class="step"><div class="num">1</div><div class="sc"><h4>固化基线</h4><p>把一组 <span class="mono">queries</span> 和期望（<span class="mono">keyword_check("退款政策")</span>:1062 / <span class="mono">expected_output</span>）固化成评估集——这就是 Agent 的"测试用例"。</p></div></div>
+  <div class="step"><div class="num">2</div><div class="sc"><h4>做改动</h4><p>改 instructions、换模型或调工具。任何一处变动都可能悄悄改变输出质量。</p></div></div>
+  <div class="step"><div class="num">3</div><div class="sc"><h4>一行重跑</h4><p><span class="mono">evaluate_agent(agent=, queries=, evaluators=)</span>（<span class="mono">_evaluation.py:1629</span>）自动为每个 query 调 <span class="mono">agent.run()</span>，把交互转成 <span class="mono">EvalItem</span>（<span class="mono">:182</span>），再交给 <span class="mono">Evaluator.evaluate(items, *, eval_name)</span>（<span class="mono">:705</span>）打分。</p></div></div>
+  <div class="step"><div class="num">4</div><div class="sc"><h4>比对结果</h4><p>返回 <span class="mono">list[EvalResults]</span>（<span class="mono">:373</span>）。这次 <span class="mono">r.passed/r.total</span>（<span class="mono">:441/:451</span>）从 2/2 掉到 1/2，那条 <span class="mono">item.status</span> 变成 <span class="mono">"failed"</span>——关键短语丢了。</p></div></div>
+  <div class="step"><div class="num">5</div><div class="sc"><h4>CI 门控</h4><p><span class="mono">results[0].raise_for_status()</span>（<span class="mono">:470</span>）抛错 → 流水线变红 → 这次回归在合并前被挡下。评估从"人工抽查"升级成"自动护栏"。</p></div></div>
+</div>
+
+<div class="flow">
+  <div class="node hl"><div class="nt">queries</div><div class="nd">测试输入</div></div>
+  <div class="arrow">→</div>
+  <div class="node"><div class="nt">agent.run()</div><div class="nd">逐条执行</div></div>
+  <div class="arrow">→</div>
+  <div class="node"><div class="nt">EvalItem</div><div class="nd">输入+响应+期望</div></div>
+  <div class="arrow">→</div>
+  <div class="node"><div class="nt">Evaluator.evaluate</div><div class="nd">打分</div></div>
+  <div class="arrow">→</div>
+  <div class="node hl"><div class="nt">EvalResults</div><div class="nd">passed/total</div></div>
+</div>
+<p class="note"><span class="mono">evaluate_agent</span> 全是<strong>关键字参数</strong>（<span class="mono">*</span> 之后），<span class="mono">evaluators=</span> 是唯一必填项；只要传了 <span class="mono">responses=</span> 就跳过跑 Agent、直接评分已有响应。一条流水线把"批量跑 + 打分 + 断言"压成一次调用。</p>
+
+<h2>🧪 实战追踪：Time-travel 如何从断点回放调试</h2>
+<p>第二个场景：一个 5 步工作流在第 4 步因网络抖动失败。没有检查点，你只能从头重跑 4 步——既费时间又烧 token。有了检查点存储，每个超步后都落了一张 <span class="mono">WorkflowCheckpoint</span>，沿 <span class="mono">previous_checkpoint_id</span> 串成一条可回溯的<strong>时间线</strong>：</p>
+<div class="vflow">
+  <div class="step"><div class="num">1</div><div class="sc"><h4>开启检查点</h4><p>构建时传 <span class="mono">WorkflowBuilder(checkpoint_storage=storage)</span>（<span class="mono">_workflow_builder.py:96</span>）。注意：这是<strong>构造参数</strong>，不是 <span class="mono">with_checkpointing()</span> 方法。每个超步结束后框架自动 <span class="mono">save</span>（<span class="mono">:122</span>）一张检查点。</p></div></div>
+  <div class="step"><div class="num">2</div><div class="sc"><h4>串成时间线</h4><p>每张 <span class="mono">WorkflowCheckpoint</span>（<span class="mono">_checkpoint.py:31</span>）带 <span class="mono">previous_checkpoint_id</span>（<span class="mono">:75</span>）指向上一张——这条链就是"时间线"，可以倒回任意一帧。它还存 <span class="mono">workflow_name / graph_signature_hash / iteration_count</span>（<span class="mono">:71/:72/:84</span>）。</p></div></div>
+  <div class="step"><div class="num">3</div><div class="sc"><h4>出事</h4><p>第 4 步抛错；执行停下，但 step1–3 的状态已经分别落盘成 cp1/cp2/cp3，<strong>没有丢失</strong>。</p></div></div>
+  <div class="step"><div class="num">4</div><div class="sc"><h4>取回检查点</h4><p><span class="mono">cp = await storage.get_latest(workflow_name=wf.name)</span>（<span class="mono">:169</span>），或按 id 用 <span class="mono">load(checkpoint_id)</span>（<span class="mono">:133</span>）精确取任意一帧；<span class="mono">list_checkpoints</span>（<span class="mono">:147</span>）可列出整条时间线。</p></div></div>
+  <div class="step"><div class="num">5</div><div class="sc"><h4>回放续跑</h4><p><span class="mono">await wf.run(checkpoint_id=cp.checkpoint_id, checkpoint_storage=storage)</span>（<span class="mono">_workflow.py:681</span>）→ 内部 <span class="mono">restore_from_checkpoint</span>（<span class="mono">:660</span>）。已完成步骤跳过，只从断点续跑；<span class="mono">graph_signature_hash</span> 会先校验拓扑是否还匹配，防止把状态回放进一张改过结构的图。</p></div></div>
+</div>
+
+<div class="flow">
+  <div class="node"><div class="nt">cp1</div><div class="nd">step1 后</div></div>
+  <div class="arrow">→</div>
+  <div class="node"><div class="nt">cp2</div><div class="nd">step2 后</div></div>
+  <div class="arrow">→</div>
+  <div class="node hl"><div class="nt">cp3</div><div class="nd">step3 后 · 从这里回放</div></div>
+  <div class="arrow">→</div>
+  <div class="node"><div class="nt">step4…</div><div class="nd">只重跑未完成的</div></div>
+</div>
+<p class="note">链表方向：箭头是 <span class="mono">cp1 → cp2 → cp3</span> 的发生顺序，而 <span class="mono">previous_checkpoint_id</span> 是反向指针（<span class="mono">cp3.previous = cp2</span>）。两种存储实现：<span class="mono">InMemoryCheckpointStorage</span>（<span class="mono">:192</span>，测试用）与 <span class="mono">FileCheckpointStorage</span>（<span class="mono">:239</span>，落盘可跨进程）。</p>
+
+<h2>🔍 真实源码：评估入口与检查点的数据结构</h2>
+<div class="codefile">
+  <div class="cf-head"><span class="dot"></span><span class="path">_evaluation.py / _checkpoint.py</span><span class="ln">评估入口 + 检查点时间线（逐字核对）</span></div>
+<pre class="code"><span class="cm"># _evaluation.py:1629 — 开发期最简评估入口（全关键字参数）</span>
+<span class="kw">async def</span> <span class="fn">evaluate_agent</span>(*, agent=<span class="kw">None</span>, queries=<span class="kw">None</span>, expected_output=<span class="kw">None</span>,
+        expected_tool_calls=<span class="kw">None</span>, responses=<span class="kw">None</span>,
+        evaluators, eval_name=<span class="kw">None</span>, ...) -&gt; list[EvalResults]: ...
+
+<span class="kw">class</span> <span class="fn">Evaluator</span>(Protocol):                              <span class="cm"># :683</span>
+    <span class="kw">async def</span> <span class="fn">evaluate</span>(self, items: Sequence[EvalItem], *,
+                       eval_name: str) -&gt; EvalResults: ...   <span class="cm"># :705</span>
+
+<span class="cm"># _workflows/_checkpoint.py:31 — 一帧 = 时间线上的一个冻结点</span>
+<span class="kw">@dataclass</span>
+<span class="kw">class</span> <span class="fn">WorkflowCheckpoint</span>:
+    workflow_name: str                                   <span class="cm"># :71</span>
+    graph_signature_hash: str                            <span class="cm"># :72 校验拓扑</span>
+    checkpoint_id: CheckpointID                          <span class="cm"># :74</span>
+    previous_checkpoint_id: CheckpointID | <span class="kw">None</span> = <span class="kw">None</span>     <span class="cm"># :75 链=时间线</span>
+    iteration_count: int = 0                             <span class="cm"># :84</span>
+
+<span class="kw">class</span> <span class="fn">CheckpointStorage</span>(Protocol):                       <span class="cm"># :119</span>
+    <span class="kw">async def</span> <span class="fn">save</span>(self, cp) -&gt; CheckpointID: ...           <span class="cm"># :122</span>
+    <span class="kw">async def</span> <span class="fn">load</span>(self, checkpoint_id) -&gt; WorkflowCheckpoint: ...  <span class="cm"># :133</span>
+    <span class="kw">async def</span> <span class="fn">get_latest</span>(self, *, workflow_name): ...       <span class="cm"># :169</span>
+
+<span class="cm"># 回放 = 从某一帧续跑（_workflow.py:681）</span>
+<span class="kw">await</span> wf.run(checkpoint_id=cp.checkpoint_id, checkpoint_storage=storage)</pre>
+</div>
+<p>两段源码对照看，"评估"和"时间旅行"的共性就清楚了：都是<strong>把一次执行变成可检查、可重放的数据</strong>。评估把交互冻成 <span class="mono">EvalItem</span> 交给打分协议；time-travel 把工作流状态冻成 <span class="mono">WorkflowCheckpoint</span> 串进时间线。两者都用 <span class="mono">Protocol</span> 定义可替换的后端（云端/本地评估器、内存/文件存储）。</p>
+
+<h2>为什么"评估 + 回放"要凑成一对</h2>
+<p>把它们放在同一课，是因为二者正好补齐了"让 Agent 可靠"闭环的两段：</p>
+<table class="t">
+  <tr><th>闭环阶段</th><th>谁负责</th><th>对应能力</th></tr>
+  <tr><td><strong>发现</strong>问题</td><td class="mono">evaluate_agent</td><td>批量跑 + 打分，<span class="mono">raise_for_status()</span> 把回归挡在 CI</td></tr>
+  <tr><td><strong>诊断</strong>原因</td><td class="mono">wf.run(checkpoint_id=)</td><td>从失败那一帧回放，逐步看每个 Executor 的输入输出</td></tr>
+  <tr><td><strong>修复</strong>验证</td><td>两者协同</td><td>改完再 <span class="mono">evaluate_agent</span>，分数回升=修复成功</td></tr>
+  <tr><td><strong>审计</strong>复现</td><td class="mono">WorkflowCheckpoint</td><td>检查点是确定性快照，<span class="mono">graph_signature_hash</span> 保证只回放进结构一致的图</td></tr>
+</table>
+<p>没有评估，你改完 prompt 只能"感觉好像变好了"；没有 time-travel，评估告诉你"第 3 条 query 失败了"却说不清<strong>哪一步</strong>错了。两者合起来，Agent 才真正从"能跑"走向"可靠、可回归、可审计"。它们和前面 L23–L26 的能力（技能、工具、托管、互联）一起，构成把 Agent 推上生产的完整工具箱。</p>
 
 <details class="accordion">
   <summary><span class="badge-num">1</span> 评估工作流 <span class="hint">点击展开详解</span></summary>
@@ -478,7 +575,54 @@ results = <span class="kw">await</span> evaluate_agent(agent=agent, queries=[...
   一个 <span class="mono">evaluate_agent()</span> 调用 = 批量跑 Agent + 自动评分 + CI 集成。
   一个 <span class="mono">checkpoint_id</span> 参数 = 从任意断点恢复执行，逐步诊断问题。
 </div>
+<div class="selftest">
+<h2>🧪 自测 · 想一想为什么这么设计</h2>
+<div class="quiz">
+  <div class="qn">1. 在 CI 里，<code>evaluate_agent(...)</code> 之后那行 <code>results[0].raise_for_status()</code> 的作用是？</div>
+  <ol class="opts">
+    <li>把评估结果上传到生产数据库</li>
+    <li>评分不达标时<strong>抛错</strong>，让流水线变红——把质量回归挡在合并前</li>
+    <li>提高模型温度以获得更好的分数</li>
+    <li>把所有失败的 query 自动重跑直到通过</li>
+  </ol>
+  <details class="accordion">
+    <summary>看答案与解析 <span class="hint">点击展开</span></summary>
+    <div class="acc-body"><div class="qa"><div class="a"><strong>答案：B</strong>。<code>evaluate_agent</code>（<code>_evaluation.py:1629</code>）为每个 query 调 <code>agent.run()</code>、转成 <code>EvalItem</code>、交 <code>Evaluator.evaluate</code> 打分，返回 <code>list[EvalResults]</code>。<code>raise_for_status()</code>（<code>:470</code>）类似 <code>requests</code> 的同名方法：分数不达标就抛异常。放进 CI，它就把评估从&quot;人工抽查&quot;变成&quot;自动护栏&quot;——改了 prompt/模型导致 <code>passed/total</code>（<code>:441/:451</code>）下滑时，合并会被自动拦下。</div></div></div>
+  </details>
 </div>
+<div class="quiz">
+  <div class="qn">2. <code>WorkflowCheckpoint</code> 里哪个字段把一串检查点串成可回溯的&quot;时间线&quot;？</div>
+  <ol class="opts">
+    <li><code>previous_checkpoint_id</code>——指向上一帧的反向指针，链起来就是时间线</li>
+    <li><code>workflow_name</code>——它只是个名字</li>
+    <li><code>iteration_count</code>——它只是个递增计数器</li>
+    <li><code>graph_signature_hash</code>——它只校验拓扑</li>
+  </ol>
+  <details class="accordion">
+    <summary>看答案与解析 <span class="hint">点击展开</span></summary>
+    <div class="acc-body"><div class="qa"><div class="a"><strong>答案：A</strong>。<code>WorkflowCheckpoint</code>（<code>_checkpoint.py:31</code>）的 <code>previous_checkpoint_id</code>（<code>:75</code>）指向上一张检查点，串成一条可倒回任意一帧的链=时间线。<code>graph_signature_hash</code>（<code>:72</code>）负责回放前校验拓扑一致、<code>iteration_count</code>（<code>:84</code>）记迭代号、<code>workflow_name</code>（<code>:71</code>）标识归属——它们都重要，但&quot;时间线&quot;靠的是 <code>previous_checkpoint_id</code> 这条链。</div></div></div>
+  </details>
+</div>
+<div class="quiz">
+  <div class="qn">3. 一个 5 步工作流在第 4 步失败。开启了检查点后，最省的恢复方式是？</div>
+  <ol class="opts">
+    <li>从头 <code>wf.run(message=...)</code> 重跑全部 5 步</li>
+    <li>手动把每步的中间结果复制粘贴回去</li>
+    <li><code>wf.run(checkpoint_id=cp3, checkpoint_storage=storage)</code>——从断点那帧回放，已完成步骤跳过</li>
+    <li>删掉检查点再重建工作流</li>
+  </ol>
+  <details class="accordion">
+    <summary>看答案与解析 <span class="hint">点击展开</span></summary>
+    <div class="acc-body"><div class="qa"><div class="a"><strong>答案：C</strong>。传 <code>checkpoint_id</code>（可选配 <code>checkpoint_storage</code>）给 <code>wf.run()</code>（<code>_workflow.py:681</code>）会触发内部 <code>restore_from_checkpoint</code>（<code>:660</code>）：从该帧恢复完整状态，已完成的步骤直接跳过，只从断点续跑——省时也省 token。检查点用 <code>get_latest(workflow_name=)</code>（<code>:169</code>）或按 id <code>load</code>（<code>:133</code>）取回；存储有 <code>InMemoryCheckpointStorage</code>（<code>:192</code>）和 <code>FileCheckpointStorage</code>（<code>:239</code>）两种实现。</div></div></div>
+  </details>
+</div>
+<div class="card spark">
+  <div class="tag">💭 发散思考（没有标准答案，动手或动脑想想）</div>
+  <ul>
+    <li>你的 Agent 在一次回归里&quot;第 3 条 query&quot;评分掉了，而它背后是一个多步工作流。(1) 评估（<code>evaluate_agent</code>）和时间旅行（<code>wf.run(checkpoint_id=)</code>）在&quot;发现→诊断→修复→验证&quot;闭环里各自负责哪一段？(2) 为什么说检查点是&quot;确定性快照&quot;、<code>graph_signature_hash</code> 在回放时保护了什么？(3) 如果你改了工作流的图结构再去回放旧检查点，会发生什么、为什么这是好事？</li>
+  </ul>
+</div>
+</div></div>
 <div class="i18n" data-lang="en">
 <p class="lead"><strong>Evaluation</strong> systematically tests Agent output quality;
 <strong>Time-travel</strong> replays workflow runs from checkpoints for debugging —
@@ -523,6 +667,92 @@ results = <span class="kw">await</span> evaluate_agent(
 )
 results[0].raise_for_status()  <span class="cm"># assert pass in CI</span></pre>
 </div>
+
+<h2>🧪 Worked example: how evaluation blocks a "regression" in CI</h2>
+<p>The real value of evaluation isn't "producing a score" — it's <strong>automatically catching quality drops when prompts/models change</strong>. Scenario: you change the Agent's instructions to "answer more concisely", and it quietly drops the key phrase "refund policy". The naked eye won't catch it; an eval set will:</p>
+<div class="vflow">
+  <div class="step"><div class="num">1</div><div class="sc"><h4>Freeze a baseline</h4><p>Pin a set of <span class="mono">queries</span> plus expectations (<span class="mono">keyword_check("refund policy")</span>:1062 / <span class="mono">expected_output</span>) into an eval set — these are the Agent's "test cases".</p></div></div>
+  <div class="step"><div class="num">2</div><div class="sc"><h4>Make a change</h4><p>Edit the instructions, swap the model, or tweak a tool. Any one of these can silently shift output quality.</p></div></div>
+  <div class="step"><div class="num">3</div><div class="sc"><h4>Re-run in one line</h4><p><span class="mono">evaluate_agent(agent=, queries=, evaluators=)</span> (<span class="mono">_evaluation.py:1629</span>) calls <span class="mono">agent.run()</span> per query, converts each interaction into an <span class="mono">EvalItem</span> (<span class="mono">:182</span>), then hands them to <span class="mono">Evaluator.evaluate(items, *, eval_name)</span> (<span class="mono">:705</span>) for scoring.</p></div></div>
+  <div class="step"><div class="num">4</div><div class="sc"><h4>Compare results</h4><p>It returns <span class="mono">list[EvalResults]</span> (<span class="mono">:373</span>). This time <span class="mono">r.passed/r.total</span> (<span class="mono">:441/:451</span>) drops from 2/2 to 1/2, and that item's <span class="mono">status</span> becomes <span class="mono">"failed"</span> — the key phrase is gone.</p></div></div>
+  <div class="step"><div class="num">5</div><div class="sc"><h4>Gate CI</h4><p><span class="mono">results[0].raise_for_status()</span> (<span class="mono">:470</span>) raises → the pipeline turns red → the regression is blocked before merge. Evaluation goes from "manual spot-check" to "automated guardrail".</p></div></div>
+</div>
+
+<div class="flow">
+  <div class="node hl"><div class="nt">queries</div><div class="nd">test inputs</div></div>
+  <div class="arrow">→</div>
+  <div class="node"><div class="nt">agent.run()</div><div class="nd">run each</div></div>
+  <div class="arrow">→</div>
+  <div class="node"><div class="nt">EvalItem</div><div class="nd">input+response+expected</div></div>
+  <div class="arrow">→</div>
+  <div class="node"><div class="nt">Evaluator.evaluate</div><div class="nd">score</div></div>
+  <div class="arrow">→</div>
+  <div class="node hl"><div class="nt">EvalResults</div><div class="nd">passed/total</div></div>
+</div>
+<p class="note"><span class="mono">evaluate_agent</span> is all <strong>keyword-only</strong> (after the <span class="mono">*</span>), with <span class="mono">evaluators=</span> the only required argument; pass <span class="mono">responses=</span> and it skips running the Agent and scores existing responses directly. One pipeline compresses "batch-run + score + assert" into a single call.</p>
+
+<h2>🧪 Worked example: how time-travel replays from a breakpoint</h2>
+<p>Second scenario: a 5-step workflow fails at step 4 due to a network blip. Without checkpoints you'd rerun all 4 steps — wasting time and tokens. With checkpoint storage, each superstep dropped a <span class="mono">WorkflowCheckpoint</span>, chained via <span class="mono">previous_checkpoint_id</span> into a reversible <strong>timeline</strong>:</p>
+<div class="vflow">
+  <div class="step"><div class="num">1</div><div class="sc"><h4>Enable checkpointing</h4><p>Pass <span class="mono">WorkflowBuilder(checkpoint_storage=storage)</span> (<span class="mono">_workflow_builder.py:96</span>). Note: it's a <strong>constructor argument</strong>, not a <span class="mono">with_checkpointing()</span> method. After each superstep the framework auto-<span class="mono">save</span>s (<span class="mono">:122</span>) a checkpoint.</p></div></div>
+  <div class="step"><div class="num">2</div><div class="sc"><h4>Chain into a timeline</h4><p>Every <span class="mono">WorkflowCheckpoint</span> (<span class="mono">_checkpoint.py:31</span>) carries a <span class="mono">previous_checkpoint_id</span> (<span class="mono">:75</span>) pointing at the prior one — that chain <em>is</em> the timeline, rewindable to any frame. It also stores <span class="mono">workflow_name / graph_signature_hash / iteration_count</span> (<span class="mono">:71/:72/:84</span>).</p></div></div>
+  <div class="step"><div class="num">3</div><div class="sc"><h4>The failure</h4><p>Step 4 throws; execution halts, but the state of steps 1–3 has already been persisted as cp1/cp2/cp3 — <strong>nothing is lost</strong>.</p></div></div>
+  <div class="step"><div class="num">4</div><div class="sc"><h4>Fetch a checkpoint</h4><p><span class="mono">cp = await storage.get_latest(workflow_name=wf.name)</span> (<span class="mono">:169</span>), or grab any exact frame by id with <span class="mono">load(checkpoint_id)</span> (<span class="mono">:133</span>); <span class="mono">list_checkpoints</span> (<span class="mono">:147</span>) enumerates the whole timeline.</p></div></div>
+  <div class="step"><div class="num">5</div><div class="sc"><h4>Replay and resume</h4><p><span class="mono">await wf.run(checkpoint_id=cp.checkpoint_id, checkpoint_storage=storage)</span> (<span class="mono">_workflow.py:681</span>) → internally <span class="mono">restore_from_checkpoint</span> (<span class="mono">:660</span>). Completed steps are skipped; only the breakpoint onward reruns; <span class="mono">graph_signature_hash</span> first validates the topology still matches, preventing replay into a changed graph.</p></div></div>
+</div>
+
+<div class="flow">
+  <div class="node"><div class="nt">cp1</div><div class="nd">after step1</div></div>
+  <div class="arrow">→</div>
+  <div class="node"><div class="nt">cp2</div><div class="nd">after step2</div></div>
+  <div class="arrow">→</div>
+  <div class="node hl"><div class="nt">cp3</div><div class="nd">after step3 · replay here</div></div>
+  <div class="arrow">→</div>
+  <div class="node"><div class="nt">step4…</div><div class="nd">rerun only the unfinished</div></div>
+</div>
+<p class="note">Direction of the chain: the arrows show happen-order <span class="mono">cp1 → cp2 → cp3</span>, while <span class="mono">previous_checkpoint_id</span> is the back-pointer (<span class="mono">cp3.previous = cp2</span>). Two storage impls: <span class="mono">InMemoryCheckpointStorage</span> (<span class="mono">:192</span>, for tests) and <span class="mono">FileCheckpointStorage</span> (<span class="mono">:239</span>, persisted across processes).</p>
+
+<h2>🔍 Real source: the eval entry point and the checkpoint structure</h2>
+<div class="codefile">
+  <div class="cf-head"><span class="dot"></span><span class="path">_evaluation.py / _checkpoint.py</span><span class="ln">eval entry + checkpoint timeline (verified verbatim)</span></div>
+<pre class="code"><span class="cm"># _evaluation.py:1629 — the simplest dev-time eval entry (all keyword args)</span>
+<span class="kw">async def</span> <span class="fn">evaluate_agent</span>(*, agent=<span class="kw">None</span>, queries=<span class="kw">None</span>, expected_output=<span class="kw">None</span>,
+        expected_tool_calls=<span class="kw">None</span>, responses=<span class="kw">None</span>,
+        evaluators, eval_name=<span class="kw">None</span>, ...) -&gt; list[EvalResults]: ...
+
+<span class="kw">class</span> <span class="fn">Evaluator</span>(Protocol):                              <span class="cm"># :683</span>
+    <span class="kw">async def</span> <span class="fn">evaluate</span>(self, items: Sequence[EvalItem], *,
+                       eval_name: str) -&gt; EvalResults: ...   <span class="cm"># :705</span>
+
+<span class="cm"># _workflows/_checkpoint.py:31 — one frame = a frozen point on a timeline</span>
+<span class="kw">@dataclass</span>
+<span class="kw">class</span> <span class="fn">WorkflowCheckpoint</span>:
+    workflow_name: str                                   <span class="cm"># :71</span>
+    graph_signature_hash: str                            <span class="cm"># :72 validates topology</span>
+    checkpoint_id: CheckpointID                          <span class="cm"># :74</span>
+    previous_checkpoint_id: CheckpointID | <span class="kw">None</span> = <span class="kw">None</span>     <span class="cm"># :75 chain = timeline</span>
+    iteration_count: int = 0                             <span class="cm"># :84</span>
+
+<span class="kw">class</span> <span class="fn">CheckpointStorage</span>(Protocol):                       <span class="cm"># :119</span>
+    <span class="kw">async def</span> <span class="fn">save</span>(self, cp) -&gt; CheckpointID: ...           <span class="cm"># :122</span>
+    <span class="kw">async def</span> <span class="fn">load</span>(self, checkpoint_id) -&gt; WorkflowCheckpoint: ...  <span class="cm"># :133</span>
+    <span class="kw">async def</span> <span class="fn">get_latest</span>(self, *, workflow_name): ...       <span class="cm"># :169</span>
+
+<span class="cm"># replay = resume from a frame (_workflow.py:681)</span>
+<span class="kw">await</span> wf.run(checkpoint_id=cp.checkpoint_id, checkpoint_storage=storage)</pre>
+</div>
+<p>Read the two side by side and the commonality between "evaluation" and "time-travel" is clear: both <strong>turn one execution into inspectable, replayable data</strong>. Evaluation freezes the interaction into an <span class="mono">EvalItem</span> handed to a scoring protocol; time-travel freezes the workflow state into a <span class="mono">WorkflowCheckpoint</span> chained on a timeline. Both define swappable backends via a <span class="mono">Protocol</span> (cloud/local evaluators, in-memory/file storage).</p>
+
+<h2>Why "evaluation + replay" make a pair</h2>
+<p>They share a lesson because they complete the two halves of the "make the Agent reliable" loop:</p>
+<table class="t">
+  <tr><th>Loop stage</th><th>Owner</th><th>Capability</th></tr>
+  <tr><td><strong>Detect</strong> the problem</td><td class="mono">evaluate_agent</td><td>batch-run + score; <span class="mono">raise_for_status()</span> blocks regressions in CI</td></tr>
+  <tr><td><strong>Diagnose</strong> the cause</td><td class="mono">wf.run(checkpoint_id=)</td><td>replay from the failing frame, step through each Executor's I/O</td></tr>
+  <tr><td><strong>Fix</strong> &amp; verify</td><td>both together</td><td>re-run <span class="mono">evaluate_agent</span>; the score recovering = the fix worked</td></tr>
+  <tr><td><strong>Audit</strong> &amp; reproduce</td><td class="mono">WorkflowCheckpoint</td><td>a checkpoint is a deterministic snapshot; <span class="mono">graph_signature_hash</span> ensures replay only into a matching graph</td></tr>
+</table>
+<p>Without evaluation, after editing a prompt you can only "feel like it got better"; without time-travel, evaluation tells you "query 3 failed" but not <strong>which step</strong> broke. Together, the Agent truly moves from "it runs" to "reliable, regression-proof, auditable". Alongside the capabilities of L23–L26 (skills, tools, hosting, interconnect), they form the complete toolbox for pushing an Agent into production.</p>
 
 <details class="accordion">
   <summary><span class="badge-num">1</span> Evaluation workflow <span class="hint">expand</span></summary>
@@ -706,7 +936,54 @@ results = <span class="kw">await</span> evaluate_agent(agent=agent, queries=[...
   or tracing systems needed. One <span class="mono">evaluate_agent()</span> call = batch Agent runs + auto scoring + CI integration.
   One <span class="mono">checkpoint_id</span> parameter = resume from any breakpoint, diagnosing issues step by step.
 </div>
+<div class="selftest">
+<h2>🧪 Self-test - think about the design</h2>
+<div class="quiz">
+  <div class="qn">1. In CI, what does the line <code>results[0].raise_for_status()</code> after <code>evaluate_agent(...)</code> do?</div>
+  <ol class="opts">
+    <li>Uploads the eval results to the production database</li>
+    <li><strong>Raises</strong> when scores fall short, turning the pipeline red — blocking a quality regression before merge</li>
+    <li>Raises the model temperature for better scores</li>
+    <li>Auto-reruns every failed query until it passes</li>
+  </ol>
+  <details class="accordion">
+    <summary>Show answer &amp; explanation <span class="hint">click to expand</span></summary>
+    <div class="acc-body"><div class="qa"><div class="a"><strong>Answer: B</strong>. <code>evaluate_agent</code> (<code>_evaluation.py:1629</code>) calls <code>agent.run()</code> per query, converts each into an <code>EvalItem</code>, scores via <code>Evaluator.evaluate</code>, and returns <code>list[EvalResults]</code>. <code>raise_for_status()</code> (<code>:470</code>) mirrors the <code>requests</code> method of the same name: it raises when scores fall short. Dropped into CI, it turns evaluation from a &quot;manual spot-check&quot; into an &quot;automated guardrail&quot; — when a prompt/model change drops <code>passed/total</code> (<code>:441/:451</code>), the merge is blocked automatically.</div></div></div>
+  </details>
 </div>
+<div class="quiz">
+  <div class="qn">2. Which field of <code>WorkflowCheckpoint</code> chains a series of checkpoints into a rewindable &quot;timeline&quot;?</div>
+  <ol class="opts">
+    <li><code>previous_checkpoint_id</code> — a back-pointer to the prior frame; the chain is the timeline</li>
+    <li><code>workflow_name</code> — it's just a name</li>
+    <li><code>iteration_count</code> — it's just an incrementing counter</li>
+    <li><code>graph_signature_hash</code> — it only validates topology</li>
+  </ol>
+  <details class="accordion">
+    <summary>Show answer &amp; explanation <span class="hint">click to expand</span></summary>
+    <div class="acc-body"><div class="qa"><div class="a"><strong>Answer: A</strong>. On <code>WorkflowCheckpoint</code> (<code>_checkpoint.py:31</code>), <code>previous_checkpoint_id</code> (<code>:75</code>) points at the prior checkpoint, forming a chain rewindable to any frame — the timeline. <code>graph_signature_hash</code> (<code>:72</code>) validates topology before replay, <code>iteration_count</code> (<code>:84</code>) records the iteration, and <code>workflow_name</code> (<code>:71</code>) identifies ownership — all matter, but the &quot;timeline&quot; comes from the <code>previous_checkpoint_id</code> chain.</div></div></div>
+  </details>
+</div>
+<div class="quiz">
+  <div class="qn">3. A 5-step workflow fails at step 4. With checkpointing enabled, what is the cheapest way to recover?</div>
+  <ol class="opts">
+    <li>Rerun all 5 steps from scratch with <code>wf.run(message=...)</code></li>
+    <li>Manually copy-paste each step's intermediate result back in</li>
+    <li><code>wf.run(checkpoint_id=cp3, checkpoint_storage=storage)</code> — replay from the breakpoint frame; completed steps are skipped</li>
+    <li>Delete the checkpoints and rebuild the workflow</li>
+  </ol>
+  <details class="accordion">
+    <summary>Show answer &amp; explanation <span class="hint">click to expand</span></summary>
+    <div class="acc-body"><div class="qa"><div class="a"><strong>Answer: C</strong>. Passing <code>checkpoint_id</code> (optionally with <code>checkpoint_storage</code>) to <code>wf.run()</code> (<code>_workflow.py:681</code>) triggers the internal <code>restore_from_checkpoint</code> (<code>:660</code>): it restores full state from that frame, skips completed steps, and resumes only from the breakpoint — saving time and tokens. Fetch checkpoints via <code>get_latest(workflow_name=)</code> (<code>:169</code>) or by id with <code>load</code> (<code>:133</code>); storage comes as <code>InMemoryCheckpointStorage</code> (<code>:192</code>) or <code>FileCheckpointStorage</code> (<code>:239</code>).</div></div></div>
+  </details>
+</div>
+<div class="card spark">
+  <div class="tag">💭 Open questions (no single right answer - just think or try)</div>
+  <ul>
+    <li>Your Agent regresses: &quot;query 3&quot; drops in score, and behind it sits a multi-step workflow. (1) In the &quot;detect → diagnose → fix → verify&quot; loop, which stage does evaluation (<code>evaluate_agent</code>) own versus time-travel (<code>wf.run(checkpoint_id=)</code>)? (2) Why is a checkpoint a &quot;deterministic snapshot&quot;, and what does <code>graph_signature_hash</code> protect during replay? (3) If you change the workflow's graph structure and then replay an old checkpoint, what happens and why is that a good thing?</li>
+  </ul>
+</div>
+</div></div>
   <div class="footnav"><a class="prev" href="26-a2a-agui.html"><div class="dir"><span class="i18n" data-lang="zh">← 上一课</span><span class="i18n" data-lang="en">← Prev</span></div><div class="ttl"><span class="i18n" data-lang="zh">A2A + AG-UI 协议</span><span class="i18n" data-lang="en">A2A & AG-UI Protocols</span></div></a><a class="next" href="21-vs-others.html"><div class="dir"><span class="i18n" data-lang="zh">下一课 →</span><span class="i18n" data-lang="en">Next →</span></div><div class="ttl"><span class="i18n" data-lang="zh">横向对比：AF vs 其他框架</span><span class="i18n" data-lang="en">AF vs Other Frameworks</span></div></a></div>
 </div>
 

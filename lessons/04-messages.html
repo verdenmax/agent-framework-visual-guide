@@ -235,6 +235,17 @@ table.t td.mono, table.t td .mono { font-family: ui-monospace, monospace; font-s
   background:var(--accent); color:#fff; border-radius:10px; font-size:.9rem; font-weight:650;
   box-shadow:var(--shadow); transition:.15s; }
 .pdf-btn:hover { background:var(--accent-ink); transform:translateY(-1px); }
+/* self-test quizzes (appended to each lesson by quizzes.render) */
+.selftest { margin: 2.2rem 0 0; border-top: 2px dashed var(--line); padding-top: 1.2rem; }
+.selftest > h2 { margin-top: .2rem; }
+.quiz { background: var(--panel); border: 1px solid var(--line); border-left: 4px solid var(--blue);
+  border-radius: 12px; padding: .9rem 1.1rem; margin: 1rem 0; box-shadow: var(--shadow); }
+.quiz .qn { font-weight: 650; }
+.quiz ol.opts { list-style: upper-alpha; margin: .55rem 0 .6rem 1.5rem; padding: 0; }
+.quiz ol.opts li { margin: .3rem 0; padding-left: .15rem; }
+.quiz details.accordion { margin: .5rem 0 0; }
+.selftest code { font-family: ui-monospace, monospace; font-size: .9em; color: var(--accent-ink);
+  background: var(--accent-soft); padding: 0 .28em; border-radius: 4px; }
 </style>
 </head><body>
 <div class="topbar">
@@ -242,11 +253,11 @@ table.t td.mono, table.t td .mono { font-family: ui-monospace, monospace; font-s
     <a class="home" href="../index.html">📘 <span class="i18n" data-lang="zh">Agent Framework 图解教程 · </span><span class="i18n" data-lang="en">Agent Framework Visual Guide · </span><b><span class="i18n" data-lang="zh">目录</span><span class="i18n" data-lang="en">Contents</span></b></a>
     <div class="pills">
       <span class="pill"><span class="i18n" data-lang="zh">第二部分 · 用户视角</span><span class="i18n" data-lang="en">Part 2 · User's View</span></span>
-      <span class="pill">04 / 27</span>
+      <span class="pill">04 / 31</span>
       <span class="langtoggle">EN</span>
     </div>
   </div>
-  <div class="progress"><span style="width:14%"></span></div>
+  <div class="progress"><span style="width:12%"></span></div>
 </div>
 <div class="wrap">
   <div class="hero">
@@ -521,7 +532,7 @@ msg_back = Message.from_dict(d2)  <span class="cm"># 完全恢复</span></pre>
       <div class="q">✅ MAF 的做法与优点</div>
       <div class="a">MAF 提供<strong>统一抽象</strong>，但<strong>双向转换</strong>能力齐全：<ul>
         <li><span class="mono">BaseChatClient</span> 子类（如 <span class="mono">OpenAIChatClient</span>）内部自动把 <span class="mono">Message</span> 转成厂商格式，调完API再转回来。</li>
-        <li>如需直接转换：<span class="mono">from agent_framework.ai.openai import to_openai_messages, from_openai_messages</span>（见 <span class="mono">python/packages/core/agent_framework/openai/</span>）。</li>
+        <li>转换逻辑封装在客户端内部（私有方法 <span class="mono">_prepare_messages_for_openai</span>，见 <span class="mono">python/packages/openai/agent_framework_openai/_chat_client.py</span>），一般无需手动调用。</li>
         <li><strong>类型安全</strong>：IDE 自动补全 <span class="mono">Message(...)</span> / <span class="mono">Content.from_...</span>，编译期发现错误。</li>
         <li><strong>可测试</strong>：单元测试不依赖真实 LLM，mock <span class="mono">Message</span> 即可。</li>
       </ul></div>
@@ -552,7 +563,41 @@ msg_back = Message.from_dict(d2)  <span class="cm"># 完全恢复</span></pre>
   把"文本、图片、工具调用、工具结果"<strong>统一成一种 Content</strong>，靠 <span class="mono">type</span> 字段区分。
   消息结构因此既简单又可扩展——新增一种内容不破坏老代码。
 </div>
+<div class="selftest">
+<h2>🧪 自测 · 想一想为什么这么设计</h2>
+<div class="quiz">
+  <div class="qn">1. MAF 不给每种内容（文字 / 图片 / 工具调用 / 工具结果）各写一个类，而是用<strong>一个统一的 <code>Content</code></strong> 加 <code>type</code> 字段。这样做的核心好处是？</div>
+  <ol class="opts">
+    <li>一条 <code>Message</code> 的 <code>contents</code> 是 <code>Content</code> 列表，每个带 <code>type</code>（<code>&quot;text&quot;</code>/<code>&quot;uri&quot;</code>/<code>&quot;function_call&quot;</code>…），框架按 type 路由；加新内容类型只需加一个 type，老消息照常工作</li>
+    <li>因为这样模型推理更准确</li>
+    <li>因为每个厂商都需要独立的 Message 类</li>
+    <li>因为 Python 不支持定义多个类</li>
+  </ol>
+  <details class="accordion">
+    <summary>看答案与解析 <span class="hint">点击展开</span></summary>
+    <div class="acc-body"><div class="qa"><div class="a"><strong>答案：A</strong>。这是<strong>判别联合（discriminated union）</strong>：统一成 <code>Content</code> 列表后，代码只需关心“一条消息有多个内容块”，图文混排、工具调用 / 结果都用同一容器，并用工厂方法 <code>Content.from_text()</code> / <code>from_uri()</code> / <code>from_function_call()</code> 构造。跨厂商把各家格式归一成一套，业务代码零修改。</div></div></div>
+  </details>
 </div>
+<div class="quiz">
+  <div class="qn">2. 消息的 <code>role</code>（<code>&quot;system&quot;</code>/<code>&quot;user&quot;</code>/<code>&quot;assistant&quot;</code>/<code>&quot;tool&quot;</code>）在 MAF 里是什么类型？</div>
+  <ol class="opts">
+    <li>每个角色一个子类</li>
+    <li>一个封闭的 <code>Enum</code>，无法扩展</li>
+    <li>一个整数 ID</li>
+    <li><code>Role</code> 是字符串型（<code>NewType</code> over <code>str</code>）——直接用字符串值，甚至能用自定义角色</li>
+  </ol>
+  <details class="accordion">
+    <summary>看答案与解析 <span class="hint">点击展开</span></summary>
+    <div class="acc-body"><div class="qa"><div class="a"><strong>答案：D</strong>。<code>Role = NewType(&quot;Role&quot;, str)</code>，所以直接写 <code>Message(&quot;user&quot;, […])</code>。选字符串而非封闭 <code>Enum</code> 是“可扩展”取舍：将来出现新角色或厂商特有角色不必改框架；代价是少了 <code>Enum</code> 的编译期约束，靠约定与文档兜底。</div></div></div>
+  </details>
+</div>
+<div class="card spark">
+  <div class="tag">💭 发散思考（没有标准答案，动手或动脑想想）</div>
+  <ul>
+    <li><code>Message</code> 的 <code>contents</code> 为什么设计成“列表”而不是“单个内容”？举一个必须用多内容块的真实场景（提示：多模态，或一轮里既有文字又有工具调用），并说说这对“跨厂商统一格式”有什么帮助。</li>
+  </ul>
+</div>
+</div></div>
 <div class="i18n" data-lang="en">
 <p class="lead">Talking to a model is really passing a list of <strong>messages</strong> back and forth. MAF makes
 messages <strong>structured objects</strong> (<span class="inline">Message</span>) instead of bare dicts — type-safe,
@@ -822,7 +867,7 @@ msg_back = Message.from_dict(d2)  <span class="cm"># fully restored</span></pre>
       <div class="q">✅ How MAF does it</div>
       <div class="a">MAF provides <strong>unified abstraction</strong> with <strong>bidirectional conversion</strong>:<ul>
         <li><span class="mono">BaseChatClient</span> subclasses (like <span class="mono">OpenAIChatClient</span>) auto-convert <span class="mono">Message</span> to vendor format, call API, convert back.</li>
-        <li>For direct conversion: <span class="mono">from agent_framework.ai.openai import to_openai_messages, from_openai_messages</span> (see <span class="mono">python/packages/core/agent_framework/openai/</span>).</li>
+        <li>Conversion is encapsulated inside the client (private <span class="mono">_prepare_messages_for_openai</span>, see <span class="mono">python/packages/openai/agent_framework_openai/_chat_client.py</span>); you rarely call it directly.</li>
         <li><strong>Type safety</strong>: IDE auto-completes <span class="mono">Message(...)</span> / <span class="mono">Content.from_...</span>, catches errors at edit time.</li>
         <li><strong>Testable</strong>: unit tests don't depend on real LLMs, just mock <span class="mono">Message</span>.</li>
       </ul></div>
@@ -853,7 +898,41 @@ msg_back = Message.from_dict(d2)  <span class="cm"># fully restored</span></pre>
   Text, images, tool calls and tool results are <strong>unified into one Content</strong>, discriminated by a
   <span class="mono">type</span> field. The message shape stays simple yet extensible — adding a content kind breaks nothing.
 </div>
+<div class="selftest">
+<h2>🧪 Self-test - think about the design</h2>
+<div class="quiz">
+  <div class="qn">1. Instead of a separate class per content kind (text / image / function call / result), MAF uses <strong>one unified <code>Content</code></strong> with a <code>type</code> field. The core benefit?</div>
+  <ol class="opts">
+    <li>A <code>Message</code>'s <code>contents</code> is a list of <code>Content</code>, each carrying a <code>type</code> (<code>&quot;text&quot;</code>/<code>&quot;uri&quot;</code>/<code>&quot;function_call&quot;</code>…); the framework routes by type, and a new kind is just a new type while old messages keep working</li>
+    <li>Because it makes the model reason more accurately</li>
+    <li>Because each vendor needs its own Message class</li>
+    <li>Because Python can't define multiple classes</li>
+  </ol>
+  <details class="accordion">
+    <summary>Show answer &amp; explanation <span class="hint">click to expand</span></summary>
+    <div class="acc-body"><div class="qa"><div class="a"><strong>Answer: A</strong>. This is a <strong>discriminated union</strong>: with a unified <code>Content</code> list, code only cares that &quot;a message has several content blocks&quot;; mixed text+image and function call/result all share one container, built via factory methods <code>Content.from_text()</code> / <code>from_uri()</code> / <code>from_function_call()</code>. It normalizes every vendor's format into one, so business code never changes.</div></div></div>
+  </details>
 </div>
+<div class="quiz">
+  <div class="qn">2. What type is a message's <code>role</code> (<code>&quot;system&quot;</code>/<code>&quot;user&quot;</code>/<code>&quot;assistant&quot;</code>/<code>&quot;tool&quot;</code>) in MAF?</div>
+  <ol class="opts">
+    <li>A subclass per role</li>
+    <li>A closed <code>Enum</code> that can't be extended</li>
+    <li>An integer id</li>
+    <li><code>Role</code> is string-based (a <code>NewType</code> over <code>str</code>) - use the string value directly, even custom roles</li>
+  </ol>
+  <details class="accordion">
+    <summary>Show answer &amp; explanation <span class="hint">click to expand</span></summary>
+    <div class="acc-body"><div class="qa"><div class="a"><strong>Answer: D</strong>. <code>Role = NewType(&quot;Role&quot;, str)</code>, so you just write <code>Message(&quot;user&quot;, […])</code>. Choosing a string over a closed <code>Enum</code> is an extensibility tradeoff: future or vendor-specific roles need no framework change; the cost is losing the <code>Enum</code>'s compile-time guardrails, backed instead by convention and docs.</div></div></div>
+  </details>
+</div>
+<div class="card spark">
+  <div class="tag">💭 Open questions (no single right answer - just think or try)</div>
+  <ul>
+    <li>Why is <code>Message.contents</code> a <em>list</em> rather than a single content? Give a real scenario that needs multiple blocks (hint: multimodal, or text + a function call in one turn), and explain how that helps &quot;one format across vendors&quot;.</li>
+  </ul>
+</div>
+</div></div>
   <div class="footnav"><a class="prev" href="03-lifecycle.html"><div class="dir"><span class="i18n" data-lang="zh">← 上一课</span><span class="i18n" data-lang="en">← Prev</span></div><div class="ttl"><span class="i18n" data-lang="zh">一次 run() 的生命周期</span><span class="i18n" data-lang="en">Lifecycle of a Run</span></div></a><a class="next" href="05-chat-models.html"><div class="dir"><span class="i18n" data-lang="zh">下一课 →</span><span class="i18n" data-lang="en">Next →</span></div><div class="ttl"><span class="i18n" data-lang="zh">ChatClient 与创建 Agent</span><span class="i18n" data-lang="en">ChatClient & Creating Agents</span></div></a></div>
 </div>
 

@@ -10,6 +10,7 @@ import part4
 import part5
 import part6
 import part7
+import part8
 
 # filename -> {"zh": html, "en": html}; order matches shell.PAGES.
 CONTENT = {
@@ -28,11 +29,14 @@ CONTENT = {
     "13-orchestration.html": {"zh": part3.L13_ZH, "en": part3.L13_EN},
     "14-streaming-observability.html": {"zh": part3.L14_ZH, "en": part3.L14_EN},
     "15-contributing.html": {"zh": part4.L15_ZH, "en": part4.L15_EN},
+    "29-devui.html": {"zh": part8.L29_ZH, "en": part8.L29_EN},
+    "30-observability.html": {"zh": part8.L30_ZH, "en": part8.L30_EN},
     "16-providers.html": {"zh": part5.L16_ZH, "en": part5.L16_EN},
     "17-declarative.html": {"zh": part5.L17_ZH, "en": part5.L17_EN},
     "18-custom-middleware.html": {"zh": part5.L18_ZH, "en": part5.L18_EN},
     "19-durability-hitl.html": {"zh": part5.L19_ZH, "en": part5.L19_EN},
     "20-capstone.html": {"zh": part5.L20_ZH, "en": part5.L20_EN},
+    "28-memory-backends.html": {"zh": part8.L28_ZH, "en": part8.L28_EN},
     "23-skills.html": {"zh": part7.L23_ZH, "en": part7.L23_EN},
     "24-mcp.html": {"zh": part7.L24_ZH, "en": part7.L24_EN},
     "25-hosted-agents.html": {"zh": part7.L25_ZH, "en": part7.L25_EN},
@@ -40,4 +44,5 @@ CONTENT = {
     "27-eval-timetravel.html": {"zh": part7.L27_ZH, "en": part7.L27_EN},
     "21-vs-others.html": {"zh": part6.L21_ZH, "en": part6.L21_EN},
     "22-stack-map.html": {"zh": part6.L22_ZH, "en": part6.L22_EN},
+    "31-glossary.html": {"zh": part8.L31_ZH, "en": part8.L31_EN},
 }

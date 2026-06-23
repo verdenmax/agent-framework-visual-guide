@@ -235,6 +235,17 @@ table.t td.mono, table.t td .mono { font-family: ui-monospace, monospace; font-s
   background:var(--accent); color:#fff; border-radius:10px; font-size:.9rem; font-weight:650;
   box-shadow:var(--shadow); transition:.15s; }
 .pdf-btn:hover { background:var(--accent-ink); transform:translateY(-1px); }
+/* self-test quizzes (appended to each lesson by quizzes.render) */
+.selftest { margin: 2.2rem 0 0; border-top: 2px dashed var(--line); padding-top: 1.2rem; }
+.selftest > h2 { margin-top: .2rem; }
+.quiz { background: var(--panel); border: 1px solid var(--line); border-left: 4px solid var(--blue);
+  border-radius: 12px; padding: .9rem 1.1rem; margin: 1rem 0; box-shadow: var(--shadow); }
+.quiz .qn { font-weight: 650; }
+.quiz ol.opts { list-style: upper-alpha; margin: .55rem 0 .6rem 1.5rem; padding: 0; }
+.quiz ol.opts li { margin: .3rem 0; padding-left: .15rem; }
+.quiz details.accordion { margin: .5rem 0 0; }
+.selftest code { font-family: ui-monospace, monospace; font-size: .9em; color: var(--accent-ink);
+  background: var(--accent-soft); padding: 0 .28em; border-radius: 4px; }
 </style>
 </head><body>
 <div class="topbar">
@@ -242,7 +253,7 @@ table.t td.mono, table.t td .mono { font-family: ui-monospace, monospace; font-s
     <a class="home" href="../index.html">📘 <span class="i18n" data-lang="zh">Agent Framework 图解教程 · </span><span class="i18n" data-lang="en">Agent Framework Visual Guide · </span><b><span class="i18n" data-lang="zh">目录</span><span class="i18n" data-lang="en">Contents</span></b></a>
     <div class="pills">
       <span class="pill"><span class="i18n" data-lang="zh">第一部分 · 宏观全景</span><span class="i18n" data-lang="en">Part 1 · Big Picture</span></span>
-      <span class="pill">01 / 27</span>
+      <span class="pill">01 / 31</span>
       <span class="langtoggle">EN</span>
     </div>
   </div>
@@ -347,7 +358,7 @@ r = client.messages.create(model=<span class="st">"claude-3-7-sonnet"</span>, ma
 换成 MAF 之后，只换一个 client，其余代码不动：
 <pre class="code"><span class="kw">from</span> agent_framework <span class="kw">import</span> Agent
 <span class="kw">from</span> agent_framework.openai <span class="kw">import</span> OpenAIChatClient
-<span class="cm"># from agent_framework.anthropic import AnthropicChatClient  # 改这一行就够了</span>
+<span class="cm"># from agent_framework.anthropic import AnthropicClient  # 改这一行就够了</span>
 agent = Agent(client=OpenAIChatClient(model=<span class="st">"gpt-4o"</span>), instructions=<span class="st">"…"</span>)
 <span class="kw">await</span> agent.run(<span class="st">"你好"</span>)</pre></div>
     </div>
@@ -362,7 +373,7 @@ agent = Agent(client=OpenAIChatClient(model=<span class="st">"gpt-4o"</span>), i
       <div class="q">✅ MAF 的做法与优点</div>
       <div class="a">MAF 把所有厂商抽象成统一的 <span class="mono">ChatClient</span> 接口，
         <span class="mono">FoundryChatClient</span> / <span class="mono">OpenAIChatClient</span> /
-        <span class="mono">AnthropicChatClient</span> / <span class="mono">OllamaChatClient</span> 全部实现同一组方法
+        <span class="mono">AnthropicClient</span> / <span class="mono">OllamaChatClient</span> 全部实现同一组方法
         （<span class="mono">get_response()</span> / <span class="mono">get_streaming_response()</span>）。
         Agent、工具、工作流只依赖接口，"换一行 import"即可切换厂商。</div>
     </div>
@@ -397,15 +408,15 @@ messages = [
     <div class="qa">
       <div class="q">❓ 为什么这件事必要</div>
       <div class="a">真实业务里消息绝不只是字符串：还有图像、工具调用、工具结果、思维链、引用等"内容块"。
-        裸字典每加一种就要全工程改 if/else；用类型化的 <span class="mono">Contents</span>，
+        裸字典每加一种就要全工程改 if/else；用类型化的 <span class="mono">Content</span>，
         新内容只是<strong>多一个 Content 类型</strong>，老代码完全不动。</div>
     </div>
     <div class="qa">
       <div class="q">✅ MAF 的做法与优点</div>
       <div class="a">见 <span class="mono">agent_framework/_types.py</span>：<span class="mono">Role</span> 是枚举
         （<span class="mono">system / user / assistant / tool</span>），<span class="mono">Message</span>
-        持有 <span class="mono">contents: list[Contents]</span>，<span class="mono">Contents</span> 是
-        <span class="mono">Content</span> 统一类型，用 <span class="mono">Content.from_text()</span> 等工厂方法构造。
+        持有 <span class="mono">contents: list[Content]</span>，<span class="mono">Content</span> 是
+        统一内容类型，用 <span class="mono">Content.from_text()</span> 等工厂方法构造。
         好处：① 静态检查 + 补全；② 多模态 / 工具结果自然容纳；③ Workflow 跨进程序列化零成本。</div>
     </div>
     <div class="qa">
@@ -422,7 +433,7 @@ messages = [
   <div class="acc-body">
     <div class="qa">
       <div class="q">🧪 示例</div>
-      <div class="a">裸 function calling vs MAF 的 <span class="mono">@ai_function</span>：
+      <div class="a">裸 function calling vs MAF 的 <span class="mono">@tool</span>：
 <pre class="code"><span class="cm"># 裸 SDK：自己写 schema、自己 dispatch、自己回灌</span>
 tools = [{
   <span class="st">"type"</span>: <span class="st">"function"</span>,
@@ -434,9 +445,9 @@ tools = [{
 <span class="cm"># 后续：解析 tool_calls → 找函数 → 调用 → 把结果塞回 messages → 再发一次……</span>
 
 <span class="cm"># MAF：装饰器自动生成 schema，自动跑循环</span>
-<span class="kw">from</span> agent_framework <span class="kw">import</span> ai_function
+<span class="kw">from</span> agent_framework <span class="kw">import</span> tool
 
-<span class="kw">@ai_function</span>
+<span class="kw">@tool</span>
 <span class="kw">def</span> get_weather(city: str) -&gt; str:
     <span class="st">"返回城市天气。"</span>
     <span class="kw">return</span> f<span class="st">"{city} 今天 23°C"</span>
@@ -451,7 +462,7 @@ agent = Agent(client=client, tools=[get_weather])</pre></div>
     </div>
     <div class="qa">
       <div class="q">✅ MAF 的做法与优点</div>
-      <div class="a"><span class="mono">@ai_function</span>（见 <span class="mono">_tools.py</span>）借助
+      <div class="a"><span class="mono">@tool</span>（见 <span class="mono">_tools.py</span>）借助
         <span class="mono">inspect</span> + 类型注解生成 JSON Schema，自动注入到 ChatClient 请求；
         模型返回 <span class="mono">FunctionCallContent</span> 时，Agent 在<strong>同一个循环</strong>里
         执行函数、把 <span class="mono">FunctionResultContent</span> 追加回消息，再次请求模型——你不用写一行胶水。</div>
@@ -523,7 +534,54 @@ result = <span class="kw">await</span> agent.run(<span class="st">"先查上海�
   把"换模型只改一行"做成默认体验：<strong>ChatClient 是厂商无关的统一抽象</strong>，
   Agent / 工具 / 工作流全部构建在它之上，于是<strong>可移植性</strong>从第一行代码就免费获得。
 </div>
+<div class="selftest">
+<h2>🧪 自测 · 想一想为什么这么设计</h2>
+<div class="quiz">
+  <div class="qn">1. Agent Framework 把“换一家模型厂商”变成基本只改一行代码。这主要靠的是什么设计？</div>
+  <ol class="opts">
+    <li>它把所有厂商的代码复制进你的项目</li>
+    <li>它帮你自动训练模型</li>
+    <li>统一的 ChatClient 抽象把厂商差异挡在同一接口后面</li>
+    <li>它只支持一家厂商</li>
+  </ol>
+  <details class="accordion">
+    <summary>看答案与解析 <span class="hint">点击展开</span></summary>
+    <div class="acc-body"><div class="qa"><div class="a"><strong>答案：C</strong>。Agent 依赖抽象的 ChatClient，而非具体厂商 SDK；换厂商只是换一个 ChatClient 实现，Agent 与工具/记忆逻辑都不动——这正是“面向接口”的取舍。</div></div></div>
+  </details>
 </div>
+<div class="quiz">
+  <div class="qn">2. 下面哪一项<strong>不是</strong> Agent Framework 想替你抹平的“上生产”麻烦？</div>
+  <ol class="opts">
+    <li>可观测性（OpenTelemetry）</li>
+    <li>检查点与人在环审批</li>
+    <li>替你决定该用哪个机器学习算法训练模型</li>
+    <li>持久化 / 可恢复的工作流</li>
+  </ol>
+  <details class="accordion">
+    <summary>看答案与解析 <span class="hint">点击展开</span></summary>
+    <div class="acc-body"><div class="qa"><div class="a"><strong>答案：C</strong>。Agent Framework 负责模型“周边”的工程管道（编排、可观测、持久化、审批），<strong>不</strong>负责训练模型本身——训练不在它的职责范围。</div></div></div>
+  </details>
+</div>
+<div class="quiz">
+  <div class="qn">3. 最小示例里要<strong>先建一个 ChatClient，再把它包成 Agent</strong>。为什么不干脆把“连模型”和“Agent 行为”塞进同一个类？</div>
+  <ol class="opts">
+    <li>因为每个厂商都得重写一份 Agent</li>
+    <li>因为 Python 不允许一个类做两件事</li>
+    <li>因为合在一起会让模型训练变慢</li>
+    <li>ChatClient 负责“怎么和某厂商的模型通话”，Agent 负责“人设 / 工具 / 循环”；分层后换厂商只改 ChatClient 那一行，Agent 逻辑不动</li>
+  </ol>
+  <details class="accordion">
+    <summary>看答案与解析 <span class="hint">点击展开</span></summary>
+    <div class="acc-body"><div class="qa"><div class="a"><strong>答案：D</strong>。<code>ChatClient</code> 是厂商无关的“连接层”，<code>Agent</code> 是其上的“行为层”（name / instructions / tools / run 循环）。两层分离正是“换厂商基本只改一行”的根因——同一个 <code>Agent</code> 能套在任何 <code>ChatClient</code> 上（<code>Agent(client=…)</code> 或 <code>client.as_agent(…)</code>）。</div></div></div>
+  </details>
+</div>
+<div class="card spark">
+  <div class="tag">💭 发散思考（没有标准答案，动手或动脑想想）</div>
+  <ul>
+    <li>假设你已经用某厂商 SDK 直接写了一个聊天脚本。请列出迁移到 Agent Framework 后，你认为最先会“消失”的三段样板代码，并说明各自由框架的哪个概念接管（ChatClient / Message / @tool / Workflow 任选）。</li>
+  </ul>
+</div>
+</div></div>
 <div class="i18n" data-lang="en">
 <p class="lead" style="font-size:1.06rem;color:var(--muted);margin-top:-.6rem">
 Microsoft Agent Framework (MAF) is an <strong>open-source framework</strong> written in
@@ -623,7 +681,7 @@ r = client.messages.create(model=<span class="st">"claude-3-7-sonnet"</span>, ma
 With MAF only the client swaps; the rest stays:
 <pre class="code"><span class="kw">from</span> agent_framework <span class="kw">import</span> Agent
 <span class="kw">from</span> agent_framework.openai <span class="kw">import</span> OpenAIChatClient
-<span class="cm"># from agent_framework.anthropic import AnthropicChatClient  # only this line changes</span>
+<span class="cm"># from agent_framework.anthropic import AnthropicClient  # only this line changes</span>
 agent = Agent(client=OpenAIChatClient(model=<span class="st">"gpt-4o"</span>), instructions=<span class="st">"…"</span>)
 <span class="kw">await</span> agent.run(<span class="st">"hi"</span>)</pre></div>
     </div>
@@ -638,7 +696,7 @@ agent = Agent(client=OpenAIChatClient(model=<span class="st">"gpt-4o"</span>), i
       <div class="q">✅ How MAF does it</div>
       <div class="a">MAF abstracts every vendor into a uniform <span class="mono">ChatClient</span> interface.
         <span class="mono">FoundryChatClient</span>, <span class="mono">OpenAIChatClient</span>,
-        <span class="mono">AnthropicChatClient</span> and <span class="mono">OllamaChatClient</span> all implement
+        <span class="mono">AnthropicClient</span> and <span class="mono">OllamaChatClient</span> all implement
         the same surface (<span class="mono">get_response()</span>, <span class="mono">get_streaming_response()</span>).
         Agents, tools and workflows depend on the interface only.</div>
     </div>
@@ -673,15 +731,15 @@ messages = [
     <div class="qa">
       <div class="q">❓ Why this matters</div>
       <div class="a">Real workloads carry more than strings: images, tool calls, tool results, thinking blocks, citations.
-        Raw dicts force a project-wide if/else rewrite for each new kind; typed <span class="mono">Contents</span>
+        Raw dicts force a project-wide if/else rewrite for each new kind; typed <span class="mono">Content</span>
         means adding a new content type leaves old code untouched.</div>
     </div>
     <div class="qa">
       <div class="q">✅ How MAF does it</div>
       <div class="a">See <span class="mono">agent_framework/_types.py</span>: <span class="mono">Role</span> is an enum
         (<span class="mono">system / user / assistant / tool</span>), <span class="mono">Message</span> holds
-        <span class="mono">contents: list[Contents]</span>, and <span class="mono">Contents</span> is the union of
-        <span class="mono">Content</span> — a unified type built via factory methods like <span class="mono">Content.from_text()</span>.
+        <span class="mono">contents: list[Content]</span>, where <span class="mono">Content</span> is
+        a unified type built via factory methods like <span class="mono">Content.from_text()</span>.
         Wins: ① static checking + completion; ② multimodal &amp; tool results fit naturally;
         ③ free serialization for Workflow cross-process transport.</div>
     </div>
@@ -699,7 +757,7 @@ messages = [
   <div class="acc-body">
     <div class="qa">
       <div class="q">🧪 Example</div>
-      <div class="a">Raw function-calling vs MAF's <span class="mono">@ai_function</span>:
+      <div class="a">Raw function-calling vs MAF's <span class="mono">@tool</span>:
 <pre class="code"><span class="cm"># Raw SDK: write schema, dispatch, feed result back yourself</span>
 tools = [{
   <span class="st">"type"</span>: <span class="st">"function"</span>,
@@ -711,9 +769,9 @@ tools = [{
 <span class="cm"># Then: parse tool_calls → find function → invoke → append result → call again…</span>
 
 <span class="cm"># MAF: decorator generates schema, agent runs the loop</span>
-<span class="kw">from</span> agent_framework <span class="kw">import</span> ai_function
+<span class="kw">from</span> agent_framework <span class="kw">import</span> tool
 
-<span class="kw">@ai_function</span>
+<span class="kw">@tool</span>
 <span class="kw">def</span> get_weather(city: str) -&gt; str:
     <span class="st">"Return the weather for a city."</span>
     <span class="kw">return</span> f<span class="st">"{city} is 23°C"</span>
@@ -728,7 +786,7 @@ agent = Agent(client=client, tools=[get_weather])</pre></div>
     </div>
     <div class="qa">
       <div class="q">✅ How MAF does it</div>
-      <div class="a"><span class="mono">@ai_function</span> (see <span class="mono">_tools.py</span>) uses
+      <div class="a"><span class="mono">@tool</span> (see <span class="mono">_tools.py</span>) uses
         <span class="mono">inspect</span> + type hints to produce a JSON Schema, auto-injects it into ChatClient requests;
         when the model returns <span class="mono">FunctionCallContent</span>, the Agent — in the
         <strong>same loop</strong> — executes the function, appends <span class="mono">FunctionResultContent</span>
@@ -801,7 +859,54 @@ result = <span class="kw">await</span> agent.run(<span class="st">"Check Shangha
   "Switch models with one line" is the default: the <strong>ChatClient is a vendor-agnostic abstraction</strong>,
   and agents / tools / workflows are all built on top — so <strong>portability</strong> is free from line one.
 </div>
+<div class="selftest">
+<h2>🧪 Self-test - think about the design</h2>
+<div class="quiz">
+  <div class="qn">1. Agent Framework makes 'switch model vendor' basically a one-line change. Which design mainly enables that?</div>
+  <ol class="opts">
+    <li>It copies every vendor's code into your project</li>
+    <li>It trains the model for you</li>
+    <li>A uniform ChatClient abstraction hides vendor differences behind one interface</li>
+    <li>It supports only one vendor</li>
+  </ol>
+  <details class="accordion">
+    <summary>Show answer &amp; explanation <span class="hint">click to expand</span></summary>
+    <div class="acc-body"><div class="qa"><div class="a"><strong>Answer: C</strong>. An Agent depends on the abstract ChatClient, not a concrete vendor SDK; switching vendors just swaps a ChatClient implementation while agent/tool/memory logic stays put - the classic 'program to an interface' tradeoff.</div></div></div>
+  </details>
 </div>
+<div class="quiz">
+  <div class="qn">2. Which is <strong>not</strong> one of the production headaches Agent Framework aims to smooth over?</div>
+  <ol class="opts">
+    <li>Observability (OpenTelemetry)</li>
+    <li>Checkpointing and human-in-the-loop approval</li>
+    <li>Choosing which ML algorithm to train your model with</li>
+    <li>Durable / resumable workflows</li>
+  </ol>
+  <details class="accordion">
+    <summary>Show answer &amp; explanation <span class="hint">click to expand</span></summary>
+    <div class="acc-body"><div class="qa"><div class="a"><strong>Answer: C</strong>. Agent Framework owns the engineering plumbing <em>around</em> the model (orchestration, observability, durability, approval); it does <strong>not</strong> train the model itself - training is out of scope.</div></div></div>
+  </details>
+</div>
+<div class="quiz">
+  <div class="qn">3. The minimal sample first builds a ChatClient, then wraps it in an Agent. Why not fold &quot;talk to the model&quot; and &quot;agent behavior&quot; into a single class?</div>
+  <ol class="opts">
+    <li>Because each vendor needs its own rewritten Agent</li>
+    <li>Because Python forbids a class from doing two things</li>
+    <li>Because merging them slows down model training</li>
+    <li>ChatClient owns &quot;how to talk to a vendor's model&quot;, Agent owns &quot;persona / tools / loop&quot;; splitting them means switching vendors changes only the ChatClient line while Agent logic stays put</li>
+  </ol>
+  <details class="accordion">
+    <summary>Show answer &amp; explanation <span class="hint">click to expand</span></summary>
+    <div class="acc-body"><div class="qa"><div class="a"><strong>Answer: D</strong>. <code>ChatClient</code> is the vendor-neutral connection layer; <code>Agent</code> is the behavior layer on top (name / instructions / tools / run loop). That separation is exactly why a vendor swap is &quot;basically one line&quot; - the same <code>Agent</code> wraps any <code>ChatClient</code> (<code>Agent(client=…)</code> or <code>client.as_agent(…)</code>).</div></div></div>
+  </details>
+</div>
+<div class="card spark">
+  <div class="tag">💭 Open questions (no single right answer - just think or try)</div>
+  <ul>
+    <li>Suppose you already wrote a chat script directly against a vendor SDK. List the three pieces of boilerplate you expect to 'disappear' first after moving to Agent Framework, and say which framework concept (ChatClient / Message / @tool / Workflow) takes over each.</li>
+  </ul>
+</div>
+</div></div>
   <div class="footnav"><a class="prev" href="../index.html"><div class="dir"><span class="i18n" data-lang="zh">← 返回</span><span class="i18n" data-lang="en">← Back</span></div><div class="ttl"><span class="i18n" data-lang="zh">目录</span><span class="i18n" data-lang="en">Contents</span></div></a><a class="next" href="02-monorepo.html"><div class="dir"><span class="i18n" data-lang="zh">下一课 →</span><span class="i18n" data-lang="en">Next →</span></div><div class="ttl"><span class="i18n" data-lang="zh">Monorepo 全景</span><span class="i18n" data-lang="en">Monorepo Tour</span></div></a></div>
 </div>
 

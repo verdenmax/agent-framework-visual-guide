@@ -235,6 +235,17 @@ table.t td.mono, table.t td .mono { font-family: ui-monospace, monospace; font-s
   background:var(--accent); color:#fff; border-radius:10px; font-size:.9rem; font-weight:650;
   box-shadow:var(--shadow); transition:.15s; }
 .pdf-btn:hover { background:var(--accent-ink); transform:translateY(-1px); }
+/* self-test quizzes (appended to each lesson by quizzes.render) */
+.selftest { margin: 2.2rem 0 0; border-top: 2px dashed var(--line); padding-top: 1.2rem; }
+.selftest > h2 { margin-top: .2rem; }
+.quiz { background: var(--panel); border: 1px solid var(--line); border-left: 4px solid var(--blue);
+  border-radius: 12px; padding: .9rem 1.1rem; margin: 1rem 0; box-shadow: var(--shadow); }
+.quiz .qn { font-weight: 650; }
+.quiz ol.opts { list-style: upper-alpha; margin: .55rem 0 .6rem 1.5rem; padding: 0; }
+.quiz ol.opts li { margin: .3rem 0; padding-left: .15rem; }
+.quiz details.accordion { margin: .5rem 0 0; }
+.selftest code { font-family: ui-monospace, monospace; font-size: .9em; color: var(--accent-ink);
+  background: var(--accent-soft); padding: 0 .28em; border-radius: 4px; }
 </style>
 </head><body>
 <div class="topbar">
@@ -242,11 +253,11 @@ table.t td.mono, table.t td .mono { font-family: ui-monospace, monospace; font-s
     <a class="home" href="../index.html">📘 <span class="i18n" data-lang="zh">Agent Framework 图解教程 · </span><span class="i18n" data-lang="en">Agent Framework Visual Guide · </span><b><span class="i18n" data-lang="zh">目录</span><span class="i18n" data-lang="en">Contents</span></b></a>
     <div class="pills">
       <span class="pill"><span class="i18n" data-lang="zh">第三部分 · 内部源码</span><span class="i18n" data-lang="en">Part 3 · Internals</span></span>
-      <span class="pill">13 / 27</span>
+      <span class="pill">13 / 31</span>
       <span class="langtoggle">EN</span>
     </div>
   </div>
-  <div class="progress"><span style="width:48%"></span></div>
+  <div class="progress"><span style="width:41%"></span></div>
 </div>
 <div class="wrap">
   <div class="hero">
@@ -281,6 +292,137 @@ table.t td.mono, table.t td .mono { font-family: ui-monospace, monospace; font-s
 workflow = SequentialBuilder(participants=[writer, reviewer]).build()
 result = <span class="kw">await</span> workflow.run(<span class="st">"Write a poem about the sea"</span>)</pre>
 </div>
+
+<h2>追踪一次 Handoff 编排：客服分流</h2>
+<p>抽象的"五种模式"先放一放，我们挑最直观的 <strong>Handoff</strong> 端到端走一遍。场景：客服系统有三个 Agent——
+<span class="mono">triage</span>（分流）、<span class="mono">billing</span>（计费专家）、<span class="mono">tech</span>（技术专家）。
+用户进来先碰到 triage，由 triage 自己判断该转给谁。</p>
+
+<div class="codefile">
+  <div class="cf-head"><span class="dot"></span><span class="path">搭建 Handoff 图</span></div>
+<pre><span class="kw">from</span> agent_framework.orchestrations <span class="kw">import</span> HandoffBuilder
+
+workflow = (
+    HandoffBuilder(participants=[triage, billing, tech])
+    .with_start_agent(triage)
+    .add_handoff(triage, [billing], description=<span class="st">"账单/扣费问题"</span>)
+    .add_handoff(triage, [tech],    description=<span class="st">"技术故障"</span>)
+    .build()
+)
+result = <span class="kw">await</span> workflow.run(<span class="st">"我这个月被重复扣费了两次"</span>)</pre>
+</div>
+
+<div class="vflow">
+  <div class="step"><div class="num">1</div><div class="sc"><h4>triage 上场，手里多了两把"交接工具"</h4>
+    <p>每个 <span class="mono">add_handoff(triage, [X])</span> 都会让框架<strong>自动给 triage 注册一个工具</strong>
+    <span class="mono">handoff_to_&lt;X.id&gt;</span>（<span class="mono">_handoff.py:122</span>）。所以 triage 除了正常回答，还能调
+    <span class="mono">handoff_to_billing</span> / <span class="mono">handoff_to_tech</span>。</p></div></div>
+  <div class="step"><div class="num">2</div><div class="sc"><h4>triage 判定：这是计费问题</h4>
+    <p>模型读到"重复扣费"，决定不自己答，而是<strong>调用交接工具</strong>——形式上就是第 10 课的普通函数调用，只是这个工具的语义是"移交"：</p>
+<pre class="code">assistant_msg = Message(<span class="st">"assistant"</span>, [
+  Content.from_function_call(name=<span class="st">"handoff_to_billing"</span>, arguments=<span class="st">"{}"</span>)
+])</pre></div></div>
+  <div class="step"><div class="num">3</div><div class="sc"><h4>框架拦截，发出 handoff_sent 事件</h4>
+    <p>框架识别出这是交接工具调用，<strong>不</strong>把它当普通工具执行，而是切换活跃 Agent 并发出事件（<span class="mono">_handoff.py:413</span>）：</p>
+<pre class="code">WorkflowEvent(<span class="st">"handoff_sent"</span>,
+  data=HandoffSentEvent(source=<span class="st">"triage"</span>, target=<span class="st">"billing"</span>))</pre></div></div>
+  <div class="step"><div class="num">4</div><div class="sc"><h4>billing 接手，看到完整对话历史</h4>
+    <p>被交接的 <span class="mono">billing</span> 收到的<strong>不是一句转述</strong>，而是<strong>整段对话</strong>（含用户原话"重复扣费"）。
+    它据此核对账单、给出处理结果。若还需用户补充信息，可发 <span class="mono">HandoffAgentUserRequest</span>（<span class="mono">_handoff.py:436</span>）等用户回话。</p></div></div>
+  <div class="step"><div class="num">5</div><div class="sc"><h4>满足终止条件 → 返回</h4>
+    <p>billing 产出答复、且没有进一步交接，工作流终止。<span class="mono">result.get_outputs()</span> 拿到最终回复。
+    全程<strong>没有外部调度器</strong>在写 if-else——是 triage 自己"决定"交给谁。</p></div></div>
+</div>
+
+<div class="card detail">
+  <div class="tag">🔬 读懂这条轨迹</div>
+  Handoff 的精髓是<strong>把"路由决策"交给 Agent 自己</strong>，而实现手段是一次<strong>普通的工具调用</strong>：
+  框架把"可交接给谁"编译成若干 <span class="mono">handoff_to_*</span> 工具塞进当前 Agent，Agent 调哪个工具就交给谁。
+  这带来两个常被忽视的好处：① 路由理由<strong>写在工具描述里</strong>（"账单/扣费问题"），模型据此选择，决策可解释；
+  ② 因为底层是 Workflow 图，交接过程<strong>天然可检查点、可恢复</strong>——这是 OpenAI Swarm 那种"靠函数返回值交接"给不了的。
+  还要注意：控制权是<strong>单向</strong>移交的——billing 接手后 triage 即退场（除非你也给 billing 配了交回 triage 的 handoff）。
+</div>
+
+<h2>五种模式的拓扑与取舍</h2>
+<p>上面只是 Handoff 一种。把五种模式按<strong>拓扑结构</strong>和<strong>"谁决定下一步"</strong>排在一起，选型就清楚了：</p>
+<table class="t">
+  <tr><th>模式</th><th>拓扑</th><th>谁决定下一步</th><th>典型场景</th></tr>
+  <tr><td><strong>Sequential</strong></td><td>A → B → C 链</td><td>固定顺序（建图时定死）</td><td>写作→评审→润色流水线</td></tr>
+  <tr><td><strong>Concurrent</strong></td><td>fan-out → fan-in</td><td>全部并行，聚合器收尾</td><td>多视角同时分析、投票</td></tr>
+  <tr><td><strong>Handoff</strong></td><td>Agent 间有向交接</td><td><strong>当前 Agent</strong>（调交接工具）</td><td>客服分流、专家路由</td></tr>
+  <tr><td><strong>Group Chat</strong></td><td>共享群聊</td><td><strong>selector</strong>（函数/模型）每轮选</td><td>辩论、头脑风暴</td></tr>
+  <tr><td><strong>Magentic</strong></td><td>指挥官 + 工人</td><td><strong>manager</strong>（看进度账本）</td><td>调研+编码+测试等复杂任务</td></tr>
+</table>
+<p>读这张表的钥匙是<strong>第三列"谁决定下一步"</strong>——它决定了控制权落在哪儿。
+Sequential / Concurrent 把顺序<strong>写死在图里</strong>（最可预测，建图时就定了）；
+Handoff 把决策权交给<strong>当前 Agent</strong>（最灵活，但下一步取决于模型当下的判断，最难预测）；
+Group Chat 用一个集中的 <span class="mono">selection_func</span>（<span class="mono">_group_chat.py:615</span>）每轮挑发言人，把"谁说话"从各 Agent 手里收回到一个选择器；
+Magentic 则由 manager 看账本统一调度。一条规律：<strong>越往下，自治程度越高、可预测性越低</strong>——按你对"可控 vs 灵活"的偏好来选。
+另一条正交的轴是<strong>延迟</strong>：只有 Concurrent 是真并行，它把总耗时从"各 Agent 之和"压到"各 Agent 之最大"，其余四种本质上是串行推进的。</p>
+<div class="flow">
+  <div class="node hl"><div class="nt">triage</div><div class="nd">分流 Agent</div></div>
+  <div class="arrow">→</div>
+  <div class="node"><div class="nt">handoff_to_billing</div><div class="nd">调交接工具</div></div>
+  <div class="arrow">→</div>
+  <div class="node hl"><div class="nt">billing</div><div class="nd">接手 + 完整历史</div></div>
+  <div class="arrow">→</div>
+  <div class="node"><div class="nt">output</div><div class="nd">退款已处理</div></div>
+</div>
+
+<h2>🔍 真实源码：Handoff 的入口与交接</h2>
+<div class="codefile">
+  <div class="cf-head"><span class="dot"></span><span class="path">orchestrations/_handoff.py</span><span class="ln">链式构造 + 自动交接工具（简化自 :122 / :711 / :929）</span></div>
+<pre class="code"><span class="kw">def</span> <span class="fn">get_handoff_tool_name</span>(target_id: str) -> str:
+    <span class="kw">return</span> <span class="st">f"handoff_to_{target_id}"</span>           <span class="cm"># 交接工具的命名约定</span>
+
+<span class="kw">class</span> <span class="fn">HandoffBuilder</span>:
+    <span class="kw">def</span> <span class="fn">add_handoff</span>(self, source: Agent, targets: Sequence[Agent],
+                    *, description: str | None = <span class="kw">None</span>) -> <span class="st">"HandoffBuilder"</span>:
+        <span class="cm"># 登记一条交接路径；description 会变成交接工具的说明，供模型判断</span>
+        ...
+        <span class="kw">return</span> self                           <span class="cm"># 链式</span>
+
+    <span class="kw">def</span> <span class="fn">build</span>(self) -> Workflow:
+        <span class="cm"># 给每个 source 注册 handoff_to_* 工具，再连成一张 Workflow 图</span>
+        ...</pre>
+</div>
+<p>看清楚了：编排器并不是另起炉灶的新机制，而是<strong>把多 Agent 拓扑编译成上一课的 Workflow 图</strong>。
+正因如此，编排同样白拿 Workflow 的检查点、流式事件与 OTel 追踪。</p>
+
+<h2>进阶：Magentic 的"计划→复核→执行"循环</h2>
+<p>Handoff 是 Agent 之间的平级交接；当任务复杂到需要<strong>全局规划</strong>（如"调研 → 写代码 → 跑测试"），就轮到 Magentic。
+它有一个 <span class="mono">StandardMagenticManager</span> 当指挥官，每一轮用一张<strong>进度账本</strong>
+（<span class="mono">MagenticProgressLedger</span>，<span class="mono">_magentic.py:307</span>）评估五件事，再决定下一步：</p>
+<table class="t">
+  <tr><th>账本字段</th><th>指挥官在问</th><th>据此做什么</th></tr>
+  <tr><td class="mono">is_request_satisfied</td><td>任务完成了吗？</td><td>是 → 收尾输出</td></tr>
+  <tr><td class="mono">is_in_loop</td><td>是不是在原地打转？</td><td>是 → 重置计划</td></tr>
+  <tr><td class="mono">is_progress_being_made</td><td>这一轮有进展吗？</td><td>否 → stall 计数 +1</td></tr>
+  <tr><td class="mono">next_speaker</td><td>下一个该谁干？</td><td>选中对应工人 Agent</td></tr>
+  <tr><td class="mono">instruction_or_question</td><td>给他什么指令？</td><td>下发子任务</td></tr>
+</table>
+<p>这张账本正是 Magentic 不会沦为"放养式群聊"的原因：每轮都<strong>显式自检</strong>是否完成、是否打转、是否有进展。
+卡住次数超过 <span class="mono">max_stall_count</span>（<span class="mono">_magentic.py:540</span>，默认 3）就触发计划重置；
+轮数超过 <span class="mono">max_round_count</span> 则强制收尾，避免无限烧 token。
+你还能开 <span class="mono">enable_plan_review=True</span>（<span class="mono">_magentic.py:1418</span>），让人在<strong>计划阶段</strong>就介入审核——
+指挥官会发出 <span class="mono">MagenticPlanReviewRequest</span> 等你批准或改写，再开始执行。这就是"复核"这一环的落点。</p>
+
+<div class="card detail"><h4>🔬 账本从哪来</h4>
+<p>这张账本不是代码写死的规则，而是指挥官每轮让 LLM 以<strong>结构化输出</strong>填的一张表
+（提示模板见 <span class="mono">_magentic.py:220</span>）：模型读完当前对话与计划，回答"完成了吗 / 在打转吗 / 有进展吗 / 下一个谁 / 给什么指令"。
+所以 Magentic 的"自检"本质是<strong>用一次 LLM 调用做调度决策</strong>——这也是它比固定拓扑更贵、却更能应对开放式任务的原因。</p></div>
+
+<h2>为什么要把协作固化成模式</h2>
+<p>这些拓扑你都能用 <span class="mono">WorkflowBuilder</span> 手画。那为什么还要五个 Builder？因为<strong>常见多 Agent 协作就那么几种形状</strong>，
+每次手搭既啰嗦又容易接错边。Builder 把"意图"一句话说清，正确的图由框架生成：</p>
+<table class="t">
+  <tr><th>你想表达</th><th>手搭图的负担</th><th>Builder 一行</th></tr>
+  <tr><td>顺序流水线</td><td>逐条 add_edge + 终止判断</td><td class="mono">SequentialBuilder(participants=[...])</td></tr>
+  <tr><td>并行 + 聚合</td><td>fan-out/fan-in + 写聚合器</td><td class="mono">ConcurrentBuilder(...).with_aggregator(...)</td></tr>
+  <tr><td>Agent 自主路由</td><td>手动给每个 Agent 注册交接工具</td><td class="mono">HandoffBuilder(...).add_handoff(...)</td></tr>
+</table>
+<p>取舍很清晰：<strong>能用模式就用模式</strong>（少写、少错、可读）；当你的拓扑不在这五种里——比如带复杂条件分支的混合流程——
+再<strong>退回 <span class="mono">WorkflowBuilder</span> 手画</strong>。模式是糖，不是牢笼。</p>
 
 <details class="accordion">
   <summary><span class="badge-num">1</span> Handoff 和 Group Chat 有什么区别？ <span class="hint">点击展开</span></summary>
@@ -345,22 +487,22 @@ result = <span class="kw">await</span> workflow.run(<span class="st">&quot;Analy
   <summary><span class="badge-num">4</span> HandoffBuilder 深入 <span class="hint">点击展开详解</span></summary>
   <div class="acc-body">
     <div class="qa"><div class="q">🧪 示例</div><div class="a">
-<pre class="code"><span class="kw">from</span> agent_framework.orchestrations <span class="kw">import</span> HandoffBuilder, HandoffConfiguration
+<pre class="code"><span class="kw">from</span> agent_framework.orchestrations <span class="kw">import</span> HandoffBuilder
 
-workflow = HandoffBuilder(
-    participants=[
+workflow = (
+    HandoffBuilder(participants=[
         triage_agent,   <span class="cm"># 入口 Agent</span>
         billing_agent,  <span class="cm"># 计费专家</span>
         tech_agent,     <span class="cm"># 技术专家</span>
-    ],
-    handoff_configs=[
-        HandoffConfiguration(target=billing_agent, description=<span class="st">&quot;billing issues&quot;</span>),
-        HandoffConfiguration(target=tech_agent, description=<span class="st">&quot;technical problems&quot;</span>),
-    ],
-).build()</pre></div></div>
+    ])
+    .with_start_agent(triage_agent)
+    .add_handoff(triage_agent, [billing_agent], description=<span class="st">&quot;billing issues&quot;</span>)
+    .add_handoff(triage_agent, [tech_agent], description=<span class="st">&quot;technical problems&quot;</span>)
+    .build()
+)</pre></div></div>
     <div class="qa"><div class="q">❓ 为什么这件事必要</div><div class="a">在客服/专家路由场景中，当前 Agent 判断"这个问题我不擅长"后需要<strong>显式交接</strong>给另一个 Agent。
       Handoff 模式让 Agent 自己决定交接时机和目标，而不是由外部调度器硬编码路由规则。</div></div>
-    <div class="qa"><div class="q">✅ MAF 的做法与优点</div><div class="a"><span class="mono">HandoffConfiguration</span> 用 <span class="mono">target</span> + <span class="mono">description</span> 描述每条交接路径。
+    <div class="qa"><div class="q">✅ MAF 的做法与优点</div><div class="a">每个 <span class="mono">.add_handoff(source, [target], description=...)</span> 声明一条带描述的交接路径。
       框架会自动给当前 Agent 注入一个"交接工具"——Agent 调用该工具即触发切换。
       被交接的 Agent 会收到完整对话历史。如果 Agent 想让用户提供额外信息，可以发出 <span class="mono">HandoffAgentUserRequest</span>。</div></div>
     <div class="qa"><div class="q">🔀 还有什么其他方案</div><div class="a">OpenAI Swarm 也有 handoff 概念，但通过函数返回值实现，不支持异步和持久化。
@@ -387,7 +529,7 @@ workflow = MagenticBuilder(
     <div class="qa"><div class="q">❓ 为什么这件事必要</div><div class="a">复杂任务（如"调研+编码+测试"）需要一个<strong>全局规划者</strong>分解子任务并分配给最合适的 Agent。
       没有指挥官，Agent 之间会陷入无方向的对话循环。</div></div>
     <div class="qa"><div class="q">✅ MAF 的做法与优点</div><div class="a">MagenticBuilder 实现了 <strong>Plan → Review → Execute</strong> 循环：
-      ① <span class="mono">MagenticManager</span>（指挥官）用 TaskLedger 维护事实和计划；
+      ① <span class="mono">StandardMagenticManager</span>（指挥官）用 task ledger 维护事实和计划；
       ② 每轮通过 <span class="mono">MagenticProgressLedger</span> 评估进展，选出 <span class="mono">next_speaker</span>；
       ③ 检测到卡住（<span class="mono">is_in_loop</span>）会自动重置计划。
       支持 <span class="mono">enable_plan_review=True</span> 让人工在计划阶段介入审核。</div></div>
@@ -409,8 +551,56 @@ workflow = MagenticBuilder(
   <div class="tag">💡 设计亮点</div>
   <strong>编排模式 = 预置拓扑的 Workflow</strong>：你用 Builder 声明意图，框架帮你画出正确的图。
   需要更复杂的拓扑？直接用 <span class="mono">WorkflowBuilder</span> 手画。
+  <br>这些编排模式如何组成一个完整应用，见<a href="20-capstone.html">第 20 课 · 端到端实战</a>。
 </div>
+<div class="selftest">
+<h2>🧪 自测 · 想一想为什么这么设计</h2>
+<div class="quiz">
+  <div class="qn">1. Handoff 和 Group Chat 都能多 Agent 协作，二者最本质的区别是<strong>谁决定下一个发言者</strong>。它是怎么分的？</div>
+  <ol class="opts">
+    <li>两者都必须由人类每轮手动指定下一个</li>
+    <li>两者都由固定轮转顺序决定，没有区别</li>
+    <li>Handoff 用 <code>selection_func</code>，Group Chat 靠当前 Agent 自己交接</li>
+    <li>Handoff 由<strong>当前 Agent</strong> 自己调 handoff 工具决定交给谁；Group Chat 由一个<strong>集中的 <code>selection_func</code></strong> 每轮挑人</li>
+  </ol>
+  <details class="accordion">
+    <summary>看答案与解析 <span class="hint">点击展开</span></summary>
+    <div class="acc-body"><div class="qa"><div class="a"><strong>答案：D</strong>。Handoff 把决策权下放给当前 Agent——它通过一个名为 <code>handoff_to_&lt;target&gt;</code> 的工具（<code>_handoff.py:122</code>）把控制权转走，最灵活也最难预测；Group Chat 则把'谁说话'收回到一个 <code>selection_func</code>（<code>_group_chat.py:615</code>）集中决定，更可控。</div></div></div>
+  </details>
 </div>
+<div class="quiz">
+  <div class="qn">2. 你要让三个 Agent <strong>各自独立</strong>地从不同角度审一份合同，再汇总成一份报告，且希望<strong>总延迟 ≈ 最慢的那个</strong>而不是三者之和。该选哪种编排？</div>
+  <ol class="opts">
+    <li>Handoff——让第一个 Agent 决定交给谁</li>
+    <li>Magentic——派一个指挥官逐轮调度</li>
+    <li><strong>Concurrent</strong>（并发）——唯一真并行，延迟压到各 Agent 之最大</li>
+    <li>Sequential（顺序）——一个接一个传递</li>
+  </ol>
+  <details class="accordion">
+    <summary>看答案与解析 <span class="hint">点击展开</span></summary>
+    <div class="acc-body"><div class="qa"><div class="a"><strong>答案：C</strong>。任务之间<strong>无依赖</strong>且要压低延迟，正是 Concurrent 的主场：它把同一输入 fan-out 给多个 Agent 并行跑，再用 aggregator 汇总（<code>_concurrent.py:267</code>）。Sequential/Handoff/Magentic 本质串行，总耗时是各步之和。</div></div></div>
+  </details>
+</div>
+<div class="quiz">
+  <div class="qn">3. Magentic 的指挥官凭什么不会把多 Agent 协作变成'放养式群聊'？</div>
+  <ol class="opts">
+    <li>它只允许一个 Agent 存在</li>
+    <li>它把所有 Agent 锁成固定轮转顺序</li>
+    <li>它随机选择下一个发言者</li>
+    <li>每轮都让 LLM 填一张<strong>进度账本</strong>（完成？打转？有进展？下一个谁？给什么指令？），据此显式自检与调度</li>
+  </ol>
+  <details class="accordion">
+    <summary>看答案与解析 <span class="hint">点击展开</span></summary>
+    <div class="acc-body"><div class="qa"><div class="a"><strong>答案：D</strong>。<code>MagenticProgressLedger</code>（<code>_magentic.py:307</code>）有五个字段：<code>is_request_satisfied / is_in_loop / is_progress_being_made / next_speaker / instruction_or_question</code>。指挥官每轮让 LLM 以结构化输出填它，于是显式判断该收尾、该重置还是该派谁干；卡住超过 <code>max_stall_count</code>（默认 3）就重置计划。</div></div></div>
+  </details>
+</div>
+<div class="card spark">
+  <div class="tag">💭 发散思考（没有标准答案，动手或动脑想想）</div>
+  <ul>
+    <li>用 <strong>Handoff</strong> 设计一个客服分流系统：一个 <code>triage</code> 入口 Agent，外加 <code>billing</code>（账单）和 <code>tech</code>（技术）两个专家。请说明：(1) 哪个是 <code>with_start_agent</code> 起点；(2) 至少需要哪几条 <code>add_handoff</code> 边、方向如何；(3) 当两个专家都无法解决时，你会在何处用 <code>ctx.request_info()</code> 升级给人工，以及为什么 Handoff 比让单个大 Agent 硬扛更合适？</li>
+  </ul>
+</div>
+</div></div>
 <div class="i18n" data-lang="en">
 <p class="lead">When you need <strong>multiple Agents to collaborate</strong>, MAF provides five ready-made
 orchestration patterns — pick a Builder, pass participants, <span class="inline">.build()</span>.</p>
@@ -440,6 +630,137 @@ orchestration patterns — pick a Builder, pass participants, <span class="inlin
 workflow = SequentialBuilder(participants=[writer, reviewer]).build()
 result = <span class="kw">await</span> workflow.run(<span class="st">"Write a poem about the sea"</span>)</pre>
 </div>
+
+<h2>Tracing one Handoff orchestration: support triage</h2>
+<p>Let's set the abstract "five patterns" aside and walk the most intuitive one — <strong>Handoff</strong> — end to end. Scenario: a support system has three Agents:
+<span class="mono">triage</span> (routing), <span class="mono">billing</span> (billing expert), and <span class="mono">tech</span> (technical expert).
+A user always hits triage first, and triage itself decides who to hand off to.</p>
+
+<div class="codefile">
+  <div class="cf-head"><span class="dot"></span><span class="path">build the Handoff graph</span></div>
+<pre><span class="kw">from</span> agent_framework.orchestrations <span class="kw">import</span> HandoffBuilder
+
+workflow = (
+    HandoffBuilder(participants=[triage, billing, tech])
+    .with_start_agent(triage)
+    .add_handoff(triage, [billing], description=<span class="st">"billing / charge issues"</span>)
+    .add_handoff(triage, [tech],    description=<span class="st">"technical failures"</span>)
+    .build()
+)
+result = <span class="kw">await</span> workflow.run(<span class="st">"I was double-charged twice this month"</span>)</pre>
+</div>
+
+<div class="vflow">
+  <div class="step"><div class="num">1</div><div class="sc"><h4>triage enters with two new "handoff tools"</h4>
+    <p>Each <span class="mono">add_handoff(triage, [X])</span> makes the framework <strong>auto-register a tool</strong>
+    <span class="mono">handoff_to_&lt;X.id&gt;</span> on triage (<span class="mono">_handoff.py:122</span>). So besides answering normally, triage can call
+    <span class="mono">handoff_to_billing</span> / <span class="mono">handoff_to_tech</span>.</p></div></div>
+  <div class="step"><div class="num">2</div><div class="sc"><h4>triage decides: this is a billing issue</h4>
+    <p>Reading "double-charged," the model chooses not to answer itself but to <strong>call a handoff tool</strong> — mechanically the same ordinary function call from Lesson 10, except this tool's semantics are "hand off":</p>
+<pre class="code">assistant_msg = Message(<span class="st">"assistant"</span>, [
+  Content.from_function_call(name=<span class="st">"handoff_to_billing"</span>, arguments=<span class="st">"{}"</span>)
+])</pre></div></div>
+  <div class="step"><div class="num">3</div><div class="sc"><h4>The framework intercepts and emits handoff_sent</h4>
+    <p>Recognizing a handoff-tool call, the framework does <strong>not</strong> run it as a normal tool; it switches the active Agent and emits an event (<span class="mono">_handoff.py:413</span>):</p>
+<pre class="code">WorkflowEvent(<span class="st">"handoff_sent"</span>,
+  data=HandoffSentEvent(source=<span class="st">"triage"</span>, target=<span class="st">"billing"</span>))</pre></div></div>
+  <div class="step"><div class="num">4</div><div class="sc"><h4>billing takes over with the full conversation history</h4>
+    <p>The handed-to <span class="mono">billing</span> receives <strong>not a one-line summary</strong> but the <strong>entire conversation</strong> (including the user's own "double-charged").
+    It reconciles the bill and resolves it. If it needs more from the user, it can emit a <span class="mono">HandoffAgentUserRequest</span> (<span class="mono">_handoff.py:436</span>) and wait for a reply.</p></div></div>
+  <div class="step"><div class="num">5</div><div class="sc"><h4>Termination condition met → return</h4>
+    <p>billing produces a reply with no further handoff, so the workflow terminates. <span class="mono">result.get_outputs()</span> holds the final answer.
+    Throughout, <strong>no external dispatcher</strong> wrote any if/else — triage itself "decided" whom to hand off to.</p></div></div>
+</div>
+
+<div class="card detail">
+  <div class="tag">🔬 Reading this trace</div>
+  Handoff's essence is <strong>delegating the "routing decision" to the Agent itself</strong>, implemented as an <strong>ordinary tool call</strong>:
+  the framework compiles "who you may hand off to" into a set of <span class="mono">handoff_to_*</span> tools on the current Agent — whichever tool it calls is who gets the task.
+  Two often-missed benefits: ① the routing rationale <strong>lives in the tool description</strong> ("billing / charge issues"), the model selects accordingly, and the decision is explainable;
+  ② because the substrate is a Workflow graph, the handoff is <strong>naturally checkpointable and resumable</strong> — something OpenAI Swarm's "hand off via function return value" cannot offer.
+  Also note: control transfers <strong>one-way</strong> — once billing takes over, triage steps off the stage (unless you also gave billing a handoff back to triage).
+</div>
+
+<h2>The five patterns: topology and tradeoffs</h2>
+<p>That was just Handoff. Lining up all five by <strong>topology</strong> and <strong>"who decides the next step"</strong> makes selection obvious:</p>
+<table class="t">
+  <tr><th>Pattern</th><th>Topology</th><th>Who decides next</th><th>Typical scenario</th></tr>
+  <tr><td><strong>Sequential</strong></td><td>A → B → C chain</td><td>Fixed order (pinned at build time)</td><td>write→review→polish pipeline</td></tr>
+  <tr><td><strong>Concurrent</strong></td><td>fan-out → fan-in</td><td>All in parallel, aggregator finishes</td><td>multi-angle analysis, voting</td></tr>
+  <tr><td><strong>Handoff</strong></td><td>directed agent handoff</td><td><strong>current Agent</strong> (calls a handoff tool)</td><td>support triage, expert routing</td></tr>
+  <tr><td><strong>Group Chat</strong></td><td>shared chat</td><td><strong>selector</strong> (function/model) each turn</td><td>debate, brainstorming</td></tr>
+  <tr><td><strong>Magentic</strong></td><td>manager + workers</td><td><strong>manager</strong> (reads a progress ledger)</td><td>research+code+test complex tasks</td></tr>
+</table>
+<p>The key to reading this table is the <strong>third column, "who decides next"</strong> — it determines where control sits.
+Sequential / Concurrent <strong>pin the order into the graph</strong> (most predictable, fixed at build time);
+Handoff hands the decision to the <strong>current Agent</strong> (most flexible, but the next step depends on the model's in-the-moment judgment — least predictable);
+Group Chat uses a centralized <span class="mono">selection_func</span> (<span class="mono">_group_chat.py:615</span>) to pick a speaker each turn, pulling "who talks" out of the Agents' hands and into one selector;
+Magentic lets a manager schedule via its ledger. One rule of thumb: <strong>the further down, the more autonomy and the less predictability</strong> — choose by your preference for "control vs flexibility."
+An orthogonal axis is <strong>latency</strong>: only Concurrent is truly parallel, collapsing total time from "sum of agents" to "max of agents"; the other four advance serially at heart.</p>
+<div class="flow">
+  <div class="node hl"><div class="nt">triage</div><div class="nd">routing agent</div></div>
+  <div class="arrow">→</div>
+  <div class="node"><div class="nt">handoff_to_billing</div><div class="nd">calls handoff tool</div></div>
+  <div class="arrow">→</div>
+  <div class="node hl"><div class="nt">billing</div><div class="nd">takes over + full history</div></div>
+  <div class="arrow">→</div>
+  <div class="node"><div class="nt">output</div><div class="nd">refund handled</div></div>
+</div>
+
+<h2>🔍 Real source: Handoff's entry and the handoff itself</h2>
+<div class="codefile">
+  <div class="cf-head"><span class="dot"></span><span class="path">orchestrations/_handoff.py</span><span class="ln">chained build + auto handoff tools (simplified from :122 / :711 / :929)</span></div>
+<pre class="code"><span class="kw">def</span> <span class="fn">get_handoff_tool_name</span>(target_id: str) -> str:
+    <span class="kw">return</span> <span class="st">f"handoff_to_{target_id}"</span>           <span class="cm"># handoff-tool naming convention</span>
+
+<span class="kw">class</span> <span class="fn">HandoffBuilder</span>:
+    <span class="kw">def</span> <span class="fn">add_handoff</span>(self, source: Agent, targets: Sequence[Agent],
+                    *, description: str | None = <span class="kw">None</span>) -> <span class="st">"HandoffBuilder"</span>:
+        <span class="cm"># register one handoff path; description becomes the tool's doc for the model</span>
+        ...
+        <span class="kw">return</span> self                           <span class="cm"># chainable</span>
+
+    <span class="kw">def</span> <span class="fn">build</span>(self) -> Workflow:
+        <span class="cm"># register a handoff_to_* tool per source, then wire a Workflow graph</span>
+        ...</pre>
+</div>
+<p>The takeaway: orchestrators aren't a brand-new mechanism — they <strong>compile a multi-agent topology into the Workflow graph from the previous lesson</strong>.
+That's exactly why orchestration inherits Workflow's checkpoints, streaming events, and OTel tracing for free.</p>
+
+<h2>Going deeper: Magentic's "plan → review → execute" loop</h2>
+<p>Handoff is a peer-to-peer transfer between Agents; when a task is complex enough to need <strong>global planning</strong> (e.g. "research → write code → run tests"), Magentic takes over.
+It uses a <span class="mono">StandardMagenticManager</span> as conductor, and each round evaluates five things via a <strong>progress ledger</strong>
+(<span class="mono">MagenticProgressLedger</span>, <span class="mono">_magentic.py:307</span>) before deciding the next step:</p>
+<table class="t">
+  <tr><th>Ledger field</th><th>What the conductor asks</th><th>What it does next</th></tr>
+  <tr><td class="mono">is_request_satisfied</td><td>Is the task done?</td><td>Yes → finalize output</td></tr>
+  <tr><td class="mono">is_in_loop</td><td>Are we spinning in place?</td><td>Yes → reset the plan</td></tr>
+  <tr><td class="mono">is_progress_being_made</td><td>Did this round make progress?</td><td>No → stall count +1</td></tr>
+  <tr><td class="mono">next_speaker</td><td>Who should act next?</td><td>pick the right worker Agent</td></tr>
+  <tr><td class="mono">instruction_or_question</td><td>What instruction to give?</td><td>dispatch the sub-task</td></tr>
+</table>
+<p>This ledger is exactly why Magentic doesn't degrade into a "free-for-all group chat": every round it <strong>explicitly self-checks</strong> whether it's done, looping, or making progress.
+When stalls exceed <span class="mono">max_stall_count</span> (<span class="mono">_magentic.py:540</span>, default 3) it triggers a plan reset;
+when rounds exceed <span class="mono">max_round_count</span> it force-finalizes to avoid burning tokens forever.
+You can also set <span class="mono">enable_plan_review=True</span> (<span class="mono">_magentic.py:1418</span>) to insert a human at the <strong>planning stage</strong> —
+the conductor emits a <span class="mono">MagenticPlanReviewRequest</span> and waits for you to approve or revise before executing. That's where the "review" step lands.</p>
+
+<div class="card detail"><h4>🔬 Where the ledger comes from</h4>
+<p>This ledger isn't a hard-coded rule set — it's a table the conductor asks the LLM to fill in as <strong>structured output</strong> every round
+(prompt template at <span class="mono">_magentic.py:220</span>): the model reads the current conversation and plan, then answers "done? / looping? / progressing? / who's next? / what instruction?".
+So Magentic's "self-check" is fundamentally <strong>one LLM call making a scheduling decision</strong> — which is why it costs more than a fixed topology but copes far better with open-ended tasks.</p></div>
+
+<h2>Why crystallize collaboration into patterns</h2>
+<p>You could hand-draw all these topologies with <span class="mono">WorkflowBuilder</span>. So why five Builders? Because <strong>common multi-agent collaboration comes in only a handful of shapes</strong>,
+and hand-wiring each time is verbose and easy to mis-connect. A Builder states the <strong>intent</strong> in one line, and the framework generates the correct graph:</p>
+<table class="t">
+  <tr><th>What you mean</th><th>Hand-built graph burden</th><th>One-line Builder</th></tr>
+  <tr><td>Sequential pipeline</td><td>add_edge one by one + termination logic</td><td class="mono">SequentialBuilder(participants=[...])</td></tr>
+  <tr><td>Parallel + aggregate</td><td>fan-out/fan-in + write an aggregator</td><td class="mono">ConcurrentBuilder(...).with_aggregator(...)</td></tr>
+  <tr><td>Agent self-routing</td><td>manually register handoff tools per Agent</td><td class="mono">HandoffBuilder(...).add_handoff(...)</td></tr>
+</table>
+<p>The tradeoff is clear: <strong>use a pattern when one fits</strong> (less code, fewer mistakes, more readable); when your topology isn't among the five — say a hybrid flow with complex conditional branching —
+<strong>drop back to hand-drawing with <span class="mono">WorkflowBuilder</span></strong>. Patterns are sugar, not a cage.</p>
 
 <details class="accordion">
   <summary><span class="badge-num">1</span> Handoff vs Group Chat? <span class="hint">expand</span></summary>
@@ -506,22 +827,22 @@ result = <span class="kw">await</span> workflow.run(<span class="st">&quot;Analy
   <summary><span class="badge-num">4</span> HandoffBuilder deep dive <span class="hint">click to expand</span></summary>
   <div class="acc-body">
     <div class="qa"><div class="q">🧪 Example</div><div class="a">
-<pre class="code"><span class="kw">from</span> agent_framework.orchestrations <span class="kw">import</span> HandoffBuilder, HandoffConfiguration
+<pre class="code"><span class="kw">from</span> agent_framework.orchestrations <span class="kw">import</span> HandoffBuilder
 
-workflow = HandoffBuilder(
-    participants=[
+workflow = (
+    HandoffBuilder(participants=[
         triage_agent,   <span class="cm"># entry Agent</span>
         billing_agent,  <span class="cm"># billing expert</span>
         tech_agent,     <span class="cm"># tech expert</span>
-    ],
-    handoff_configs=[
-        HandoffConfiguration(target=billing_agent, description=<span class="st">&quot;billing issues&quot;</span>),
-        HandoffConfiguration(target=tech_agent, description=<span class="st">&quot;technical problems&quot;</span>),
-    ],
-).build()</pre></div></div>
+    ])
+    .with_start_agent(triage_agent)
+    .add_handoff(triage_agent, [billing_agent], description=<span class="st">&quot;billing issues&quot;</span>)
+    .add_handoff(triage_agent, [tech_agent], description=<span class="st">&quot;technical problems&quot;</span>)
+    .build()
+)</pre></div></div>
     <div class="qa"><div class="q">❓ Why this matters</div><div class="a">In customer-service / expert-routing scenarios, the current Agent judges "this isn't my expertise" and needs
       to <strong>explicitly hand off</strong> to another Agent. Handoff mode lets the Agent itself decide when and to whom — rather than an external scheduler hard-coding routing rules.</div></div>
-    <div class="qa"><div class="q">✅ How MAF does it</div><div class="a"><span class="mono">HandoffConfiguration</span> pairs a <span class="mono">target</span> with a <span class="mono">description</span> for each handoff path.
+    <div class="qa"><div class="q">✅ How MAF does it</div><div class="a">Each <span class="mono">.add_handoff(source, [target], description=...)</span> declares a handoff path with its own description.
       The framework auto-injects a "handoff tool" into the current Agent — calling that tool triggers the switch.
       The receiving Agent gets the full conversation history. If an Agent needs additional user info, it can emit a <span class="mono">HandoffAgentUserRequest</span>.</div></div>
     <div class="qa"><div class="q">🔀 Alternatives</div><div class="a">OpenAI Swarm has a handoff concept too, but via function return values without async or persistence support.
@@ -548,7 +869,7 @@ The conductor generates a <span class="mono">MagenticProgressLedger</span> track
     <div class="qa"><div class="q">❓ Why this matters</div><div class="a">Complex tasks (e.g., "research + code + test") need a <strong>global planner</strong> to decompose sub-tasks and assign
       them to the best Agent. Without a conductor, agents fall into directionless conversation loops.</div></div>
     <div class="qa"><div class="q">✅ How MAF does it</div><div class="a">MagenticBuilder implements a <strong>Plan → Review → Execute</strong> cycle:
-      ① <span class="mono">MagenticManager</span> (conductor) maintains facts and plans via a TaskLedger;
+      ① <span class="mono">StandardMagenticManager</span> (conductor) maintains facts and plans via a task ledger;
       ② Each round, a <span class="mono">MagenticProgressLedger</span> evaluates progress and picks <span class="mono">next_speaker</span>;
       ③ If a stall is detected (<span class="mono">is_in_loop</span>), the plan auto-resets.
       Supports <span class="mono">enable_plan_review=True</span> for human review at the planning stage.</div></div>
@@ -570,8 +891,56 @@ The conductor generates a <span class="mono">MagenticProgressLedger</span> track
   <div class="tag">💡 Design highlight</div>
   <strong>Orchestration = pre-wired Workflow topology</strong>: you declare intent with a Builder, the framework
   draws the right graph. Need a more complex topology? Use <span class="mono">WorkflowBuilder</span> directly.
+  <br>See how these patterns compose into a full app in <a href="20-capstone.html">Lesson 20 · Capstone</a>.
 </div>
+<div class="selftest">
+<h2>🧪 Self-test - think about the design</h2>
+<div class="quiz">
+  <div class="qn">1. Handoff and Group Chat both enable multi-agent collaboration; the most essential difference is <strong>who decides the next speaker</strong>. How does it split?</div>
+  <ol class="opts">
+    <li>Both require a human to name the next speaker every turn</li>
+    <li>Both decide by a fixed round-robin order; there's no difference</li>
+    <li>Handoff uses <code>selection_func</code>; Group Chat relies on the current Agent to hand off</li>
+    <li>Handoff lets the <strong>current Agent</strong> decide via a handoff tool; Group Chat uses a <strong>centralized <code>selection_func</code></strong> to pick each turn</li>
+  </ol>
+  <details class="accordion">
+    <summary>Show answer &amp; explanation <span class="hint">click to expand</span></summary>
+    <div class="acc-body"><div class="qa"><div class="a"><strong>Answer: D</strong>. Handoff delegates the decision to the current Agent — it transfers control via a tool named <code>handoff_to_&lt;target&gt;</code> (<code>_handoff.py:122</code>), the most flexible but least predictable; Group Chat pulls 'who talks' back into a single <code>selection_func</code> (<code>_group_chat.py:615</code>), more controllable.</div></div></div>
+  </details>
 </div>
+<div class="quiz">
+  <div class="qn">2. You want three Agents to review a contract <strong>independently</strong> from different angles, then aggregate into one report, with <strong>total latency ≈ the slowest one</strong> rather than the sum. Which orchestration?</div>
+  <ol class="opts">
+    <li>Handoff — let the first Agent decide whom to pass to</li>
+    <li>Magentic — assign a manager to schedule round by round</li>
+    <li><strong>Concurrent</strong> — the only truly parallel one, collapsing latency to the max of the agents</li>
+    <li>Sequential — pass one after another</li>
+  </ol>
+  <details class="accordion">
+    <summary>Show answer &amp; explanation <span class="hint">click to expand</span></summary>
+    <div class="acc-body"><div class="qa"><div class="a"><strong>Answer: C</strong>. Independent subtasks plus a latency target is Concurrent's home turf: it fans the same input out to multiple Agents in parallel, then merges via an aggregator (<code>_concurrent.py:267</code>). Sequential/Handoff/Magentic advance serially, so total time is the sum of steps.</div></div></div>
+  </details>
+</div>
+<div class="quiz">
+  <div class="qn">3. What keeps Magentic's manager from turning multi-agent collaboration into a 'free-for-all group chat'?</div>
+  <ol class="opts">
+    <li>It allows only one Agent to exist</li>
+    <li>It locks all Agents into a fixed round-robin order</li>
+    <li>It picks the next speaker at random</li>
+    <li>Each round it has the LLM fill a <strong>progress ledger</strong> (done? looping? progressing? who's next? what instruction?) and schedules from that explicit self-check</li>
+  </ol>
+  <details class="accordion">
+    <summary>Show answer &amp; explanation <span class="hint">click to expand</span></summary>
+    <div class="acc-body"><div class="qa"><div class="a"><strong>Answer: D</strong>. <code>MagenticProgressLedger</code> (<code>_magentic.py:307</code>) has five fields: <code>is_request_satisfied / is_in_loop / is_progress_being_made / next_speaker / instruction_or_question</code>. The manager has the LLM fill it as structured output each round, so it explicitly decides to finalize, reset, or dispatch; exceeding <code>max_stall_count</code> (default 3) resets the plan.</div></div></div>
+  </details>
+</div>
+<div class="card spark">
+  <div class="tag">💭 Open questions (no single right answer - just think or try)</div>
+  <ul>
+    <li>Design a customer-service triage with <strong>Handoff</strong>: a <code>triage</code> entry Agent plus two experts <code>billing</code> and <code>tech</code>. Explain: (1) which is the <code>with_start_agent</code> start; (2) which <code>add_handoff</code> edges you need at minimum and their direction; (3) where you'd escalate to a human via <code>ctx.request_info()</code> when neither expert can resolve it, and why Handoff fits better than forcing one giant Agent to do it all.</li>
+  </ul>
+</div>
+</div></div>
   <div class="footnav"><a class="prev" href="12-workflows.html"><div class="dir"><span class="i18n" data-lang="zh">← 上一课</span><span class="i18n" data-lang="en">← Prev</span></div><div class="ttl"><span class="i18n" data-lang="zh">Workflows 工作流引擎</span><span class="i18n" data-lang="en">Workflows Engine</span></div></a><a class="next" href="14-streaming-observability.html"><div class="dir"><span class="i18n" data-lang="zh">下一课 →</span><span class="i18n" data-lang="en">Next →</span></div><div class="ttl"><span class="i18n" data-lang="zh">流式与可观测性</span><span class="i18n" data-lang="en">Streaming & Observability</span></div></a></div>
 </div>
 

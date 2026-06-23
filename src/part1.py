@@ -1026,6 +1026,21 @@ L03_ZH = r"""
   → 直到厨师出菜（最终回答），服务员端给你（<span class="mono">AgentResponse</span>）。
 </div>
 
+<h2>一眼看懂：一次 run 的流水线</h2>
+<div class="flow">
+  <div class="node"><div class="nt">你的代码</div><div class="nd">run("…")</div></div>
+  <div class="arrow">→</div>
+  <div class="node"><div class="nt">Agent 组装</div><div class="nd">instructions + 历史 + 工具</div></div>
+  <div class="arrow">→</div>
+  <div class="node"><div class="nt">ChatClient</div><div class="nd">厂商无关接口</div></div>
+  <div class="arrow">→</div>
+  <div class="node"><div class="nt">LLM</div><div class="nd">回复 / function_call</div></div>
+  <div class="arrow">→</div>
+  <div class="node hl"><div class="nt">工具循环</div><div class="nd">执行→回灌→再想</div></div>
+  <div class="arrow">→</div>
+  <div class="node"><div class="nt">AgentResponse</div><div class="nd">最终回答</div></div>
+</div>
+
 <h2>一次 run 的完整数据流</h2>
 <div class="vflow">
   <div class="step"><div class="num">1</div><div class="sc"><h4>你的输入</h4>
@@ -1040,6 +1055,16 @@ L03_ZH = r"""
   <div class="step"><div class="num">5</div><div class="sc"><h4>收敛与返回</h4>
     <p>当模型不再要工具，循环结束，得到 <span class="mono">AgentResponse</span>（流式则是一串 <span class="mono">AgentResponseUpdate</span>）。</p></div></div>
 </div>
+
+<h2>生命周期各阶段一览</h2>
+<table class="t">
+  <tr><th>阶段</th><th>谁来做</th><th>产出</th></tr>
+  <tr><td class="mono">输入</td><td>你的代码</td><td>字符串 / Message（+ 可选 session）</td></tr>
+  <tr><td class="mono">组装</td><td>Agent（_agents.py）</td><td>instructions + 历史 + 输入 + tools schema</td></tr>
+  <tr><td class="mono">调用</td><td>ChatClient</td><td>ChatResponse（可能含 function_call）</td></tr>
+  <tr><td class="mono">工具循环</td><td>Agent + 你的函数</td><td>FunctionResultContent 回灌，回到"调用"</td></tr>
+  <tr><td class="mono">收敛</td><td>Agent</td><td>AgentResponse / 一串 AgentResponseUpdate</td></tr>
+</table>
 
 <div class="card macro">
   <div class="tag">🌍 宏观理解</div>
@@ -1252,6 +1277,21 @@ happens underneath. Understand this <strong>lifecycle</strong> and every later "
   brings the result back → until the dish is ready (final answer), served to you (<span class="mono">AgentResponse</span>).
 </div>
 
+<h2>At a glance: the run pipeline</h2>
+<div class="flow">
+  <div class="node"><div class="nt">Your code</div><div class="nd">run("…")</div></div>
+  <div class="arrow">→</div>
+  <div class="node"><div class="nt">Agent assembles</div><div class="nd">instructions + history + tools</div></div>
+  <div class="arrow">→</div>
+  <div class="node"><div class="nt">ChatClient</div><div class="nd">vendor-agnostic</div></div>
+  <div class="arrow">→</div>
+  <div class="node"><div class="nt">LLM</div><div class="nd">reply / function_call</div></div>
+  <div class="arrow">→</div>
+  <div class="node hl"><div class="nt">Tool loop</div><div class="nd">execute→feed back→rethink</div></div>
+  <div class="arrow">→</div>
+  <div class="node"><div class="nt">AgentResponse</div><div class="nd">final answer</div></div>
+</div>
+
 <h2>The full data flow of one run</h2>
 <div class="vflow">
   <div class="step"><div class="num">1</div><div class="sc"><h4>Your input</h4>
@@ -1267,6 +1307,16 @@ happens underneath. Understand this <strong>lifecycle</strong> and every later "
     <p>When the model stops asking for tools, the loop ends with an <span class="mono">AgentResponse</span>
       (or a stream of <span class="mono">AgentResponseUpdate</span> when streaming).</p></div></div>
 </div>
+
+<h2>Lifecycle stages at a glance</h2>
+<table class="t">
+  <tr><th>Stage</th><th>Who does it</th><th>Output</th></tr>
+  <tr><td class="mono">Input</td><td>Your code</td><td>string / Message (+ optional session)</td></tr>
+  <tr><td class="mono">Assemble</td><td>Agent (_agents.py)</td><td>instructions + history + input + tools schema</td></tr>
+  <tr><td class="mono">Call</td><td>ChatClient</td><td>ChatResponse (may carry function_call)</td></tr>
+  <tr><td class="mono">Tool loop</td><td>Agent + your function</td><td>FunctionResultContent fed back, loops to "Call"</td></tr>
+  <tr><td class="mono">Converge</td><td>Agent</td><td>AgentResponse / stream of AgentResponseUpdate</td></tr>
+</table>
 
 <div class="card macro">
   <div class="tag">🌍 Big picture</div>

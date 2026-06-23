@@ -937,6 +937,21 @@ happens underneath. Understand this <strong>lifecycle</strong> and every later "
   brings the result back → until the dish is ready (final answer), served to you (<span class="mono">AgentResponse</span>).
 </div>
 
+<h2>At a glance: the run pipeline</h2>
+<div class="flow">
+  <div class="node"><div class="nt">Your code</div><div class="nd">run("…")</div></div>
+  <div class="arrow">→</div>
+  <div class="node"><div class="nt">Agent assembles</div><div class="nd">instructions + history + tools</div></div>
+  <div class="arrow">→</div>
+  <div class="node"><div class="nt">ChatClient</div><div class="nd">vendor-agnostic</div></div>
+  <div class="arrow">→</div>
+  <div class="node"><div class="nt">LLM</div><div class="nd">reply / function_call</div></div>
+  <div class="arrow">→</div>
+  <div class="node hl"><div class="nt">Tool loop</div><div class="nd">execute→feed back→rethink</div></div>
+  <div class="arrow">→</div>
+  <div class="node"><div class="nt">AgentResponse</div><div class="nd">final answer</div></div>
+</div>
+
 <h2>The full data flow of one run</h2>
 <div class="vflow">
   <div class="step"><div class="num">1</div><div class="sc"><h4>Your input</h4>
@@ -952,6 +967,16 @@ happens underneath. Understand this <strong>lifecycle</strong> and every later "
     <p>When the model stops asking for tools, the loop ends with an <span class="mono">AgentResponse</span>
       (or a stream of <span class="mono">AgentResponseUpdate</span> when streaming).</p></div></div>
 </div>
+
+<h2>Lifecycle stages at a glance</h2>
+<table class="t">
+  <tr><th>Stage</th><th>Who does it</th><th>Output</th></tr>
+  <tr><td class="mono">Input</td><td>Your code</td><td>string / Message (+ optional session)</td></tr>
+  <tr><td class="mono">Assemble</td><td>Agent (_agents.py)</td><td>instructions + history + input + tools schema</td></tr>
+  <tr><td class="mono">Call</td><td>ChatClient</td><td>ChatResponse (may carry function_call)</td></tr>
+  <tr><td class="mono">Tool loop</td><td>Agent + your function</td><td>FunctionResultContent fed back, loops to "Call"</td></tr>
+  <tr><td class="mono">Converge</td><td>Agent</td><td>AgentResponse / stream of AgentResponseUpdate</td></tr>
+</table>
 
 <div class="card macro">
   <div class="tag">🌍 Big picture</div>

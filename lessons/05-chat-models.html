@@ -292,6 +292,17 @@ agent = Agent(
 </div>
 <p>两种都行；<span class="inline">as_agent</span> 读起来更顺。底下都是同一个 <span class="mono">Agent</span>。</p>
 
+<h2>从 ChatClient 到 Agent</h2>
+<div class="flow">
+  <div class="node"><div class="nt">ChatClient</div><div class="nd">连到某个模型</div></div>
+  <div class="arrow">→</div>
+  <div class="node"><div class="nt">.as_agent(…)</div><div class="nd">加名字 / 指令 / 工具</div></div>
+  <div class="arrow">→</div>
+  <div class="node hl"><div class="nt">Agent</div><div class="nd">带循环的智能体</div></div>
+  <div class="arrow">→</div>
+  <div class="node"><div class="nt">agent.run(…)</div><div class="nd">跑起来</div></div>
+</div>
+
 <h2>跑起来：run 与流式</h2>
 <div class="codefile">
   <div class="cf-head"><span class="dot"></span><span class="path">非流式 vs 流式</span></div>
@@ -306,6 +317,15 @@ result = <span class="kw">await</span> agent.run(<span class="st">"What is the c
 </div>
 <p>同一个 <span class="inline">run()</span>：不传 <span class="mono">stream</span> 返回完整 <span class="mono">AgentResponse</span>；
 传 <span class="mono">stream=True</span> 返回一个异步迭代器，逐块给 <span class="mono">AgentResponseUpdate</span>。</p>
+
+<h2>run() vs run(stream=True)</h2>
+<table class="t">
+  <tr><th>对比项</th><th>run("…")（非流式）</th><th>run("…", stream=True)（流式）</th></tr>
+  <tr><td>返回类型</td><td class="mono">AgentResponse</td><td class="mono">AgentResponseUpdate 的异步迭代器</td></tr>
+  <tr><td>消费方式</td><td class="mono">result = await agent.run(…)</td><td class="mono">async for chunk in agent.run(…, stream=True)</td></tr>
+  <tr><td>首字延迟</td><td>等全部生成完</td><td>立刻逐块返回</td></tr>
+  <tr><td>适用场景</td><td>批处理 / 脚本 / 需要完整结果</td><td>聊天 UI / 长回答 / 实时展示</td></tr>
+</table>
 
 <div class="card detail">
   <div class="tag">🔬 换厂商</div>
@@ -613,6 +633,17 @@ agent = Agent(
 </div>
 <p>Both work; <span class="inline">as_agent</span> reads more fluently. Same <span class="mono">Agent</span> underneath.</p>
 
+<h2>From ChatClient to Agent</h2>
+<div class="flow">
+  <div class="node"><div class="nt">ChatClient</div><div class="nd">talks to a model</div></div>
+  <div class="arrow">→</div>
+  <div class="node"><div class="nt">.as_agent(…)</div><div class="nd">add name / instructions / tools</div></div>
+  <div class="arrow">→</div>
+  <div class="node hl"><div class="nt">Agent</div><div class="nd">agent with the loop</div></div>
+  <div class="arrow">→</div>
+  <div class="node"><div class="nt">agent.run(…)</div><div class="nd">run it</div></div>
+</div>
+
 <h2>Run it: blocking and streaming</h2>
 <div class="codefile">
   <div class="cf-head"><span class="dot"></span><span class="path">non-streaming vs streaming</span></div>
@@ -627,6 +658,15 @@ result = <span class="kw">await</span> agent.run(<span class="st">"What is the c
 </div>
 <p>One <span class="inline">run()</span>: without <span class="mono">stream</span> it returns a full <span class="mono">AgentResponse</span>;
 with <span class="mono">stream=True</span> it returns an async iterator yielding <span class="mono">AgentResponseUpdate</span> chunks.</p>
+
+<h2>run() vs run(stream=True)</h2>
+<table class="t">
+  <tr><th>Aspect</th><th>run("…") (non-streaming)</th><th>run("…", stream=True) (streaming)</th></tr>
+  <tr><td>Return type</td><td class="mono">AgentResponse</td><td class="mono">async iterator of AgentResponseUpdate</td></tr>
+  <tr><td>How to consume</td><td class="mono">result = await agent.run(…)</td><td class="mono">async for chunk in agent.run(…, stream=True)</td></tr>
+  <tr><td>Time-to-first-token</td><td>wait for full generation</td><td>chunks arrive immediately</td></tr>
+  <tr><td>When to use</td><td>batch / scripts / need full result</td><td>chat UI / long answers / live display</td></tr>
+</table>
 
 <div class="card detail">
   <div class="tag">🔬 Switching vendors</div>

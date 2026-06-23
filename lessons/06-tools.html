@@ -295,6 +295,19 @@ agent = Agent(client=client, name=<span class="st">"WeatherAgent"</span>,
 result = <span class="kw">await</span> agent.run(<span class="st">"What's the weather in Seattle?"</span>)</pre>
 </div>
 
+<h2>工具调用的流水线</h2>
+<div class="flow">
+  <div class="node"><div class="nt">@tool 函数</div><div class="nd">普通 Python 函数</div></div>
+  <div class="arrow">→</div>
+  <div class="node"><div class="nt">JSON Schema</div><div class="nd">由签名自动生成</div></div>
+  <div class="arrow">→</div>
+  <div class="node"><div class="nt">模型选择</div><div class="nd">产出 function_call</div></div>
+  <div class="arrow">→</div>
+  <div class="node hl"><div class="nt">框架执行</div><div class="nd">调用你的函数</div></div>
+  <div class="arrow">→</div>
+  <div class="node"><div class="nt">结果回灌</div><div class="nd">function_result 交回模型</div></div>
+</div>
+
 <h2>三件事自动发生</h2>
 <div class="vflow">
   <div class="step"><div class="num">1</div><div class="sc"><h4>生成 schema</h4>
@@ -304,6 +317,17 @@ result = <span class="kw">await</span> agent.run(<span class="st">"What's the we
   <div class="step"><div class="num">3</div><div class="sc"><h4>框架执行并回灌</h4>
     <p>Agent 调用你的函数，把 <span class="mono">function_result</span> 追加进对话，再让模型继续。</p></div></div>
 </div>
+
+<h2>函数各部分 → schema 字段</h2>
+<table class="t">
+  <tr><th>函数的这部分</th><th>映射到 schema</th><th>例子</th></tr>
+  <tr><td class="mono">函数名</td><td class="mono">name</td><td>get_weather → "get_weather"</td></tr>
+  <tr><td class="mono">docstring</td><td class="mono">description</td><td>"Get the weather…" → 工具用途</td></tr>
+  <tr><td class="mono">参数类型注解</td><td class="mono">parameters.type</td><td>str → "string"，int → "integer"</td></tr>
+  <tr><td class="mono">Field(description=…)</td><td class="mono">参数 description</td><td>告诉模型每个参数的含义</td></tr>
+  <tr><td class="mono">Field(ge=…, le=…)</td><td class="mono">minimum / maximum</td><td>约束取值范围</td></tr>
+  <tr><td class="mono">有无默认值</td><td class="mono">required</td><td>无默认 → 必填</td></tr>
+</table>
 
 <div class="card warn">
   <div class="tag">⚠️ 审批模式</div>
@@ -635,6 +659,19 @@ agent = Agent(client=client, name=<span class="st">"WeatherAgent"</span>,
 result = <span class="kw">await</span> agent.run(<span class="st">"What's the weather in Seattle?"</span>)</pre>
 </div>
 
+<h2>The tool-call pipeline</h2>
+<div class="flow">
+  <div class="node"><div class="nt">@tool function</div><div class="nd">plain Python function</div></div>
+  <div class="arrow">→</div>
+  <div class="node"><div class="nt">JSON Schema</div><div class="nd">auto-built from signature</div></div>
+  <div class="arrow">→</div>
+  <div class="node"><div class="nt">Model picks</div><div class="nd">emits a function_call</div></div>
+  <div class="arrow">→</div>
+  <div class="node hl"><div class="nt">Framework runs</div><div class="nd">calls your function</div></div>
+  <div class="arrow">→</div>
+  <div class="node"><div class="nt">Result fed back</div><div class="nd">function_result to the model</div></div>
+</div>
+
 <h2>Three things happen automatically</h2>
 <div class="vflow">
   <div class="step"><div class="num">1</div><div class="sc"><h4>Generate schema</h4>
@@ -644,6 +681,17 @@ result = <span class="kw">await</span> agent.run(<span class="st">"What's the we
   <div class="step"><div class="num">3</div><div class="sc"><h4>Framework executes &amp; feeds back</h4>
     <p>The Agent runs your function, appends the <span class="mono">function_result</span>, and lets the model continue.</p></div></div>
 </div>
+
+<h2>Function parts → schema fields</h2>
+<table class="t">
+  <tr><th>This part of the function</th><th>Maps to schema</th><th>Example</th></tr>
+  <tr><td class="mono">function name</td><td class="mono">name</td><td>get_weather → "get_weather"</td></tr>
+  <tr><td class="mono">docstring</td><td class="mono">description</td><td>"Get the weather…" → what it does</td></tr>
+  <tr><td class="mono">param type hint</td><td class="mono">parameters.type</td><td>str → "string", int → "integer"</td></tr>
+  <tr><td class="mono">Field(description=…)</td><td class="mono">param description</td><td>tells the model each param's meaning</td></tr>
+  <tr><td class="mono">Field(ge=…, le=…)</td><td class="mono">minimum / maximum</td><td>constrain the value range</td></tr>
+  <tr><td class="mono">has a default?</td><td class="mono">required</td><td>no default → required</td></tr>
+</table>
 
 <div class="card warn">
   <div class="tag">⚠️ Approval mode</div>

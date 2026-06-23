@@ -633,6 +633,17 @@ agent = Agent(
 </div>
 <p>两种都行；<span class="inline">as_agent</span> 读起来更顺。底下都是同一个 <span class="mono">Agent</span>。</p>
 
+<h2>从 ChatClient 到 Agent</h2>
+<div class="flow">
+  <div class="node"><div class="nt">ChatClient</div><div class="nd">连到某个模型</div></div>
+  <div class="arrow">→</div>
+  <div class="node"><div class="nt">.as_agent(…)</div><div class="nd">加名字 / 指令 / 工具</div></div>
+  <div class="arrow">→</div>
+  <div class="node hl"><div class="nt">Agent</div><div class="nd">带循环的智能体</div></div>
+  <div class="arrow">→</div>
+  <div class="node"><div class="nt">agent.run(…)</div><div class="nd">跑起来</div></div>
+</div>
+
 <h2>跑起来：run 与流式</h2>
 <div class="codefile">
   <div class="cf-head"><span class="dot"></span><span class="path">非流式 vs 流式</span></div>
@@ -647,6 +658,15 @@ result = <span class="kw">await</span> agent.run(<span class="st">"What is the c
 </div>
 <p>同一个 <span class="inline">run()</span>：不传 <span class="mono">stream</span> 返回完整 <span class="mono">AgentResponse</span>；
 传 <span class="mono">stream=True</span> 返回一个异步迭代器，逐块给 <span class="mono">AgentResponseUpdate</span>。</p>
+
+<h2>run() vs run(stream=True)</h2>
+<table class="t">
+  <tr><th>对比项</th><th>run("…")（非流式）</th><th>run("…", stream=True)（流式）</th></tr>
+  <tr><td>返回类型</td><td class="mono">AgentResponse</td><td class="mono">AgentResponseUpdate 的异步迭代器</td></tr>
+  <tr><td>消费方式</td><td class="mono">result = await agent.run(…)</td><td class="mono">async for chunk in agent.run(…, stream=True)</td></tr>
+  <tr><td>首字延迟</td><td>等全部生成完</td><td>立刻逐块返回</td></tr>
+  <tr><td>适用场景</td><td>批处理 / 脚本 / 需要完整结果</td><td>聊天 UI / 长回答 / 实时展示</td></tr>
+</table>
 
 <div class="card detail">
   <div class="tag">🔬 换厂商</div>
@@ -921,6 +941,17 @@ agent = Agent(
 </div>
 <p>Both work; <span class="inline">as_agent</span> reads more fluently. Same <span class="mono">Agent</span> underneath.</p>
 
+<h2>From ChatClient to Agent</h2>
+<div class="flow">
+  <div class="node"><div class="nt">ChatClient</div><div class="nd">talks to a model</div></div>
+  <div class="arrow">→</div>
+  <div class="node"><div class="nt">.as_agent(…)</div><div class="nd">add name / instructions / tools</div></div>
+  <div class="arrow">→</div>
+  <div class="node hl"><div class="nt">Agent</div><div class="nd">agent with the loop</div></div>
+  <div class="arrow">→</div>
+  <div class="node"><div class="nt">agent.run(…)</div><div class="nd">run it</div></div>
+</div>
+
 <h2>Run it: blocking and streaming</h2>
 <div class="codefile">
   <div class="cf-head"><span class="dot"></span><span class="path">non-streaming vs streaming</span></div>
@@ -935,6 +966,15 @@ result = <span class="kw">await</span> agent.run(<span class="st">"What is the c
 </div>
 <p>One <span class="inline">run()</span>: without <span class="mono">stream</span> it returns a full <span class="mono">AgentResponse</span>;
 with <span class="mono">stream=True</span> it returns an async iterator yielding <span class="mono">AgentResponseUpdate</span> chunks.</p>
+
+<h2>run() vs run(stream=True)</h2>
+<table class="t">
+  <tr><th>Aspect</th><th>run("…") (non-streaming)</th><th>run("…", stream=True) (streaming)</th></tr>
+  <tr><td>Return type</td><td class="mono">AgentResponse</td><td class="mono">async iterator of AgentResponseUpdate</td></tr>
+  <tr><td>How to consume</td><td class="mono">result = await agent.run(…)</td><td class="mono">async for chunk in agent.run(…, stream=True)</td></tr>
+  <tr><td>Time-to-first-token</td><td>wait for full generation</td><td>chunks arrive immediately</td></tr>
+  <tr><td>When to use</td><td>batch / scripts / need full result</td><td>chat UI / long answers / live display</td></tr>
+</table>
 
 <div class="card detail">
   <div class="tag">🔬 Switching vendors</div>
@@ -1211,6 +1251,19 @@ agent = Agent(client=client, name=<span class="st">"WeatherAgent"</span>,
 result = <span class="kw">await</span> agent.run(<span class="st">"What's the weather in Seattle?"</span>)</pre>
 </div>
 
+<h2>工具调用的流水线</h2>
+<div class="flow">
+  <div class="node"><div class="nt">@tool 函数</div><div class="nd">普通 Python 函数</div></div>
+  <div class="arrow">→</div>
+  <div class="node"><div class="nt">JSON Schema</div><div class="nd">由签名自动生成</div></div>
+  <div class="arrow">→</div>
+  <div class="node"><div class="nt">模型选择</div><div class="nd">产出 function_call</div></div>
+  <div class="arrow">→</div>
+  <div class="node hl"><div class="nt">框架执行</div><div class="nd">调用你的函数</div></div>
+  <div class="arrow">→</div>
+  <div class="node"><div class="nt">结果回灌</div><div class="nd">function_result 交回模型</div></div>
+</div>
+
 <h2>三件事自动发生</h2>
 <div class="vflow">
   <div class="step"><div class="num">1</div><div class="sc"><h4>生成 schema</h4>
@@ -1220,6 +1273,17 @@ result = <span class="kw">await</span> agent.run(<span class="st">"What's the we
   <div class="step"><div class="num">3</div><div class="sc"><h4>框架执行并回灌</h4>
     <p>Agent 调用你的函数，把 <span class="mono">function_result</span> 追加进对话，再让模型继续。</p></div></div>
 </div>
+
+<h2>函数各部分 → schema 字段</h2>
+<table class="t">
+  <tr><th>函数的这部分</th><th>映射到 schema</th><th>例子</th></tr>
+  <tr><td class="mono">函数名</td><td class="mono">name</td><td>get_weather → "get_weather"</td></tr>
+  <tr><td class="mono">docstring</td><td class="mono">description</td><td>"Get the weather…" → 工具用途</td></tr>
+  <tr><td class="mono">参数类型注解</td><td class="mono">parameters.type</td><td>str → "string"，int → "integer"</td></tr>
+  <tr><td class="mono">Field(description=…)</td><td class="mono">参数 description</td><td>告诉模型每个参数的含义</td></tr>
+  <tr><td class="mono">Field(ge=…, le=…)</td><td class="mono">minimum / maximum</td><td>约束取值范围</td></tr>
+  <tr><td class="mono">有无默认值</td><td class="mono">required</td><td>无默认 → 必填</td></tr>
+</table>
 
 <div class="card warn">
   <div class="tag">⚠️ 审批模式</div>
@@ -1518,6 +1582,19 @@ agent = Agent(client=client, name=<span class="st">"WeatherAgent"</span>,
 result = <span class="kw">await</span> agent.run(<span class="st">"What's the weather in Seattle?"</span>)</pre>
 </div>
 
+<h2>The tool-call pipeline</h2>
+<div class="flow">
+  <div class="node"><div class="nt">@tool function</div><div class="nd">plain Python function</div></div>
+  <div class="arrow">→</div>
+  <div class="node"><div class="nt">JSON Schema</div><div class="nd">auto-built from signature</div></div>
+  <div class="arrow">→</div>
+  <div class="node"><div class="nt">Model picks</div><div class="nd">emits a function_call</div></div>
+  <div class="arrow">→</div>
+  <div class="node hl"><div class="nt">Framework runs</div><div class="nd">calls your function</div></div>
+  <div class="arrow">→</div>
+  <div class="node"><div class="nt">Result fed back</div><div class="nd">function_result to the model</div></div>
+</div>
+
 <h2>Three things happen automatically</h2>
 <div class="vflow">
   <div class="step"><div class="num">1</div><div class="sc"><h4>Generate schema</h4>
@@ -1527,6 +1604,17 @@ result = <span class="kw">await</span> agent.run(<span class="st">"What's the we
   <div class="step"><div class="num">3</div><div class="sc"><h4>Framework executes &amp; feeds back</h4>
     <p>The Agent runs your function, appends the <span class="mono">function_result</span>, and lets the model continue.</p></div></div>
 </div>
+
+<h2>Function parts → schema fields</h2>
+<table class="t">
+  <tr><th>This part of the function</th><th>Maps to schema</th><th>Example</th></tr>
+  <tr><td class="mono">function name</td><td class="mono">name</td><td>get_weather → "get_weather"</td></tr>
+  <tr><td class="mono">docstring</td><td class="mono">description</td><td>"Get the weather…" → what it does</td></tr>
+  <tr><td class="mono">param type hint</td><td class="mono">parameters.type</td><td>str → "string", int → "integer"</td></tr>
+  <tr><td class="mono">Field(description=…)</td><td class="mono">param description</td><td>tells the model each param's meaning</td></tr>
+  <tr><td class="mono">Field(ge=…, le=…)</td><td class="mono">minimum / maximum</td><td>constrain the value range</td></tr>
+  <tr><td class="mono">has a default?</td><td class="mono">required</td><td>no default → required</td></tr>
+</table>
 
 <div class="card warn">
   <div class="tag">⚠️ Approval mode</div>
@@ -1805,6 +1893,16 @@ L07_ZH = r"""
   <strong>ContextProvider</strong> 则像一位<strong>助理</strong>，在每次回答前把"相关的旧记忆 / 外部知识"悄悄塞进上下文。
 </div>
 
+<h2>记忆的三层栈</h2>
+<div class="layers">
+  <div class="layer l-core"><div class="lh"><span class="badge">短期</span><span class="name">AgentSession</span></div>
+    <div class="ld">单次会话的对话历史：把同一个 session 透传给每次 run，历史自动累积。</div></div>
+  <div class="layer l-main"><div class="lh"><span class="badge">注入</span><span class="name">ContextProvider</span></div>
+    <div class="ld">上下文管线：每次 run 前 before_run() 注入相关记忆 / 检索结果，run 后 after_run() 写回。</div></div>
+  <div class="layer l-part"><div class="lh"><span class="badge">后端</span><span class="name">HistoryProvider / MemoryStore</span></div>
+    <div class="ld">真正存数据的地方：内存 / 文件 / 向量库 / Redis / Cosmos——可插拔替换。</div></div>
+</div>
+
 <h2>多轮对话：带上会话</h2>
 <div class="codefile">
   <div class="cf-head"><span class="dot"></span><span class="path">samples/01-get-started/03_multi_turn.py</span></div>
@@ -1827,6 +1925,26 @@ result = <span class="kw">await</span> agent.run(
   <span class="inline">ContextProvider</span>：例如 <span class="inline">MemoryContextProvider</span> 把记忆存进可检索的库，
   每次 run 前自动把相关条目拼进上下文。（记忆库 / 各存储后端见第 16 课与各 provider 包。）
 </div>
+
+<h2>带记忆的一次 run</h2>
+<div class="vflow">
+  <div class="step"><div class="num">1</div><div class="sc"><h4>before_run() 注入</h4>
+    <p>每个 <span class="mono">ContextProvider</span> 在模型调用前，把会话历史 / 检索到的相关记忆拼进 <span class="mono">SessionContext</span>。</p></div></div>
+  <div class="step"><div class="num">2</div><div class="sc"><h4>组装并调用 LLM</h4>
+    <p>Agent 把注入的上下文 + 本轮输入一起发给模型，拿回回复。</p></div></div>
+  <div class="step"><div class="num">3</div><div class="sc"><h4>after_run() 写回</h4>
+    <p>回答生成后，provider 的 <span class="mono">after_run()</span> 把新一轮消息 / 抽取的事实存回后端，供下次检索。</p></div></div>
+</div>
+
+<h2>两类记忆对比</h2>
+<table class="t">
+  <tr><th>维度</th><th>短期：会话历史</th><th>长期：Provider 记忆</th></tr>
+  <tr><td>载体</td><td class="mono">AgentSession</td><td class="mono">MemoryContextProvider 等</td></tr>
+  <tr><td>范围</td><td>单次会话内</td><td>跨会话 / 跨用户</td></tr>
+  <tr><td>存储</td><td>会话对象内的消息列表</td><td>向量库 / 数据库（可检索）</td></tr>
+  <tr><td>注入方式</td><td>透传 session，历史自动带上</td><td>before_run() 检索后注入</td></tr>
+  <tr><td>典型用途</td><td>"明天呢？"这类上下文延续</td><td>用户偏好 / RAG 知识检索</td></tr>
+</table>
 
 <details class="accordion">
   <summary><span class="badge-num">1</span> create_session vs 不传 session <span class="hint">点击展开详解</span></summary>
@@ -2108,6 +2226,16 @@ pass the same <strong>session (<span class="mono">AgentSession</span>)</strong> 
   that quietly slips "relevant old memories / external knowledge" into the context before each answer.
 </div>
 
+<h2>The memory stack: three layers</h2>
+<div class="layers">
+  <div class="layer l-core"><div class="lh"><span class="badge">short-term</span><span class="name">AgentSession</span></div>
+    <div class="ld">Conversation history for one session: pass the same session to every run and history accumulates.</div></div>
+  <div class="layer l-main"><div class="lh"><span class="badge">inject</span><span class="name">ContextProvider</span></div>
+    <div class="ld">Context pipeline: before_run() injects relevant memory / retrieved context, after_run() writes back.</div></div>
+  <div class="layer l-part"><div class="lh"><span class="badge">backend</span><span class="name">HistoryProvider / MemoryStore</span></div>
+    <div class="ld">Where data actually lives: in-memory / file / vector store / Redis / Cosmos — pluggable.</div></div>
+</div>
+
 <h2>Multi-turn: carry a session</h2>
 <div class="codefile">
   <div class="cf-head"><span class="dot"></span><span class="path">samples/01-get-started/03_multi_turn.py</span></div>
@@ -2131,6 +2259,26 @@ history accumulates. Omit the session and each call starts fresh.</p>
   <span class="inline">MemoryContextProvider</span> stores memories in a searchable store and splices relevant entries
   into context before each run. (Memory stores / backends: Lesson 16 and the provider packages.)
 </div>
+
+<h2>One run, with memory</h2>
+<div class="vflow">
+  <div class="step"><div class="num">1</div><div class="sc"><h4>before_run() injects</h4>
+    <p>Before the model call, each <span class="mono">ContextProvider</span> adds session history / retrieved memory into the <span class="mono">SessionContext</span>.</p></div></div>
+  <div class="step"><div class="num">2</div><div class="sc"><h4>Assemble &amp; call the LLM</h4>
+    <p>The Agent sends the injected context + this turn's input to the model and gets a reply.</p></div></div>
+  <div class="step"><div class="num">3</div><div class="sc"><h4>after_run() writes back</h4>
+    <p>Once the answer is produced, the provider's <span class="mono">after_run()</span> stores the new messages / extracted facts back to the backend for next time.</p></div></div>
+</div>
+
+<h2>Two kinds of memory</h2>
+<table class="t">
+  <tr><th>Dimension</th><th>Short-term: session history</th><th>Long-term: provider memory</th></tr>
+  <tr><td>Carrier</td><td class="mono">AgentSession</td><td class="mono">MemoryContextProvider, etc.</td></tr>
+  <tr><td>Scope</td><td>within one session</td><td>across sessions / users</td></tr>
+  <tr><td>Storage</td><td>message list inside the session</td><td>vector store / database (searchable)</td></tr>
+  <tr><td>How injected</td><td>pass the session; history rides along</td><td>before_run() retrieves then injects</td></tr>
+  <tr><td>Typical use</td><td>"and tomorrow?" continuity</td><td>user preferences / RAG retrieval</td></tr>
+</table>
 
 <details class="accordion">
   <summary><span class="badge-num">1</span> With vs without session <span class="hint">click to expand</span></summary>

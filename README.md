@@ -4,9 +4,11 @@
 [![📄 中文 PDF](https://img.shields.io/badge/%F0%9F%93%84%20%E4%B8%AD%E6%96%87%20PDF-Download-b4690e?style=for-the-badge)](https://github.com/verdenmax/agent-framework-visual-guide/releases/latest/download/agent-framework-visual-guide.zh.pdf)
 [![📄 English PDF](https://img.shields.io/badge/%F0%9F%93%84%20English%20PDF-Download-b4690e?style=for-the-badge)](https://github.com/verdenmax/agent-framework-visual-guide/releases/latest/download/agent-framework-visual-guide.en.pdf)
 
-![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)
+![Code: MIT](https://img.shields.io/badge/code-MIT-green.svg)
+![Content: CC BY 4.0](https://img.shields.io/badge/content-CC%20BY%204.0-blue.svg)
 ![Lessons](https://img.shields.io/badge/lessons-31-blue.svg)
 ![Parts](https://img.shields.io/badge/parts-8-9cf.svg)
+![Quizzes](https://img.shields.io/badge/self--tests-every%20lesson-purple.svg)
 ![Built with](https://img.shields.io/badge/built%20with-Python%203-3776AB.svg?logo=python&logoColor=white)
 ![Dependencies](https://img.shields.io/badge/dependencies-none-brightgreen.svg)
 ![Language](https://img.shields.io/badge/docs-%E4%B8%AD%E6%96%87%20%2F%20EN-orange.svg)
@@ -95,10 +97,13 @@ python -m http.server 8000
 ## 🎨 每页包含 · What Each Page Has
 
 - 🌍 **宏观理解** / Big Picture — 大局观，为什么这样设计
-- 🔬 **细节 / 代码对应** / Source References — 指向真实源码文件
+- 🎨 **手绘图解** / Diagrams — 流程图 · 分层图 · 对照表，把抽象关系画出来
+- 🔭 **worked-example 追踪** / Worked Example — 用一个真实输入端到端逐步走一遍
+- 🔬 **真实源码对应** / Source References — 引用并标注 `agent-framework` 真实文件与类（逐课核对、无伪造 API）
 - 🧩 **生活类比** / Analogy — 日常事物帮助理解抽象概念
 - ✅ **关键要点** / Key Points — 每课小结
 - 💡 **设计亮点** / Design Highlight — 最精妙的设计思想
+- 🧪 **自测题** / Self-test — 每课「想一想为什么这么设计」的选择题 + 发散思考题
 - 🔄 **中 / EN 切换** — 顶栏一键切换，`localStorage` 记住选择
 
 ## 📁 项目结构 · Project Structure
@@ -119,7 +124,7 @@ agent-framework-visual-guide/
 ├── .github/workflows/
 │   ├── deploy.yml          自动部署 Pages + PDF + Release
 │   └── ci.yml              防回归（HTML 漂移 + 内链检查）
-├── README.md · LICENSE
+├── README.md · LICENSE · LICENSE-CONTENT
 ```
 
 ## 🛠️ 重新生成 · Rebuild

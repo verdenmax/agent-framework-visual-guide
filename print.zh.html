@@ -1234,6 +1234,44 @@ messages = [
 <p><span class="inline">Message</span> 的第二个参数 <span class="mono">contents</span> 接受字符串（自动转成文本内容）、
 <span class="mono">Content</span> 对象，或它们的列表。读文本用 <span class="inline">msg.text</span>。</p>
 
+<h2>动手追踪：一条消息里到底装了什么</h2>
+<p>抽象讲完，我们造一条<strong>同时带文本和工具调用</strong>的真实消息，一步步看它的形状。
+源码在 <span class="mono">_types.py</span>：<span class="mono">Message</span> 在 1672 行，<span class="mono">Content</span> 在 455 行。</p>
+<div class="vflow">
+  <div class="step"><div class="num">1</div><div class="sc"><h4>选身份（Role）</h4>
+    <p><span class="mono">role</span> 只是一个字符串标签：<span class="mono">Role = NewType("Role", str)</span>，
+    合法取值由 <span class="mono">RoleLiteral</span> 圈定——system / user / assistant / tool。这里我们要造模型那一侧的输出，用 <span class="mono">"assistant"</span>。</p></div></div>
+  <div class="step"><div class="num">2</div><div class="sc"><h4>造内容块（Content）</h4>
+    <p><span class="mono">Content</span> 是<strong>统一类</strong>，靠工厂方法造不同种类。我们造两块：一段文本 + 一次工具调用。</p>
+<pre class="code">text = Content.from_text(<span class="st">"我帮你查一下旧金山时间。"</span>)
+call = Content.from_function_call(
+    call_id=<span class="st">"call_1"</span>, name=<span class="st">"get_time"</span>,
+    arguments={<span class="st">"city"</span>: <span class="st">"SF"</span>})
+<span class="cm"># 每块都带 .type：text.type=="text"，call.type=="function_call"</span></pre></div></div>
+  <div class="step"><div class="num">3</div><div class="sc"><h4>装进信封（Message）</h4>
+    <p>第二个参数 <span class="mono">contents</span> 收<strong>一个列表</strong>，<span class="mono">_parse_content_list</span>（<span class="mono">_types.py:47</span>）逐项规整成 <span class="mono">Content</span>：</p>
+<pre class="code">msg = Message(<span class="st">"assistant"</span>, [text, call])
+<span class="cm"># msg.role     -> "assistant"</span>
+<span class="cm"># msg.contents -> [Content(type="text"), Content(type="function_call")]</span></pre></div></div>
+  <div class="step"><div class="num">4</div><div class="sc"><h4>看真实形状（to_dict）</h4>
+    <p>序列化后是<strong>纯 JSON</strong>——文本和工具调用用同一套结构并列，各自靠 <span class="mono">type</span> 区分：</p>
+<pre class="code">msg.to_dict()
+<span class="cm"># {"type": "chat_message", "role": "assistant",</span>
+<span class="cm">#  "contents": [</span>
+<span class="cm">#    {"type": "text", "text": "我帮你查一下旧金山时间。"},</span>
+<span class="cm">#    {"type": "function_call", "call_id": "call_1",</span>
+<span class="cm">#     "name": "get_time", "arguments": {"city": "SF"}}],</span>
+<span class="cm">#  "additional_properties": {}}</span></pre></div></div>
+  <div class="step"><div class="num">5</div><div class="sc"><h4>工具回灌，靠 call_id 对齐</h4>
+    <p>工具跑完，结果用 <span class="mono">role="tool"</span> 的消息 + <span class="mono">function_result</span> 回灌，<span class="mono">call_id</span> 必须和上面那次调用一致：</p>
+<pre class="code">tool_msg = Message(<span class="st">"tool"</span>, [
+    Content.from_function_result(
+        call_id=<span class="st">"call_1"</span>, result=<span class="st">"14:05"</span>)])
+<span class="cm"># 注意：from_function_result 只认 call_id + result，没有 name 参数</span>
+<span class="cm"># msg.text 只拼接 type=="text" 的块；function_call / result 不计入</span></pre></div></div>
+</div>
+<p>这一趟下来你会发现：<strong>一条消息 = 一个 role + 一个 Content 列表</strong>，无论里面装的是文字、图片还是工具往返，形状都一样。这正是后面"工具循环"（<a href="08-agent-internals.html">第 8 课</a>）能用一条消息链表达整段对话的原因。</p>
+
 <details class="accordion" open>
   <summary><span class="badge-num">1</span> Content 能装哪些东西？ <span class="hint">点击展开详解</span></summary>
   <div class="acc-body">
@@ -1330,9 +1368,8 @@ msg_call = Message(<span class="st">"assistant"</span>, [
 <span class="cm"># 框架回灌：role="tool" 消息带 function_result</span>
 msg_result = Message(<span class="st">"tool"</span>, [
     Content.from_function_result(
-        name=<span class="st">"get_weather"</span>,
-        result=<span class="st">"Sunny, 72°F"</span>,
-        call_id=<span class="st">"call_abc123"</span>
+        call_id=<span class="st">"call_abc123"</span>,
+        result=<span class="st">"Sunny, 72°F"</span>
     )
 ])
 <span class="cm"># 这两条追加进对话历史，模型继续生成最终答案</span></pre>
@@ -1384,7 +1421,7 @@ msg_restored = Message.from_dict(d)
 
 <span class="cm"># 工具调用也能完整序列化</span>
 msg_with_tool = Message(<span class="st">"assistant"</span>, [
-    Content.from_function_call(name=<span class="st">"foo"</span>, arguments={<span class="st">"x"</span>: 1})
+    Content.from_function_call(call_id=<span class="st">"call_1"</span>, name=<span class="st">"foo"</span>, arguments={<span class="st">"x"</span>: 1})
 ])
 d2 = msg_with_tool.to_dict()
 msg_back = Message.from_dict(d2)  <span class="cm"># 完全恢复</span></pre>
@@ -1593,11 +1630,40 @@ result = <span class="kw">await</span> agent.run(<span class="st">"What is the c
   <tr><td>适用场景</td><td>批处理 / 脚本 / 需要完整结果</td><td>聊天 UI / 长回答 / 实时展示</td></tr>
 </table>
 
+<h2>动手追踪：从 ChatClient 一路跑到结果</h2>
+<p>把上面拆开的概念串成一趟<strong>真实调用</strong>，每一步标出它<strong>产出什么</strong>。源码：<span class="mono">as_agent</span> 在 <span class="mono">_clients.py:571</span>，<span class="mono">run</span> 的三个重载在 <span class="mono">_agents.py:845</span>。</p>
+<div class="vflow">
+  <div class="step"><div class="num">1</div><div class="sc"><h4>建客户端（ChatClient）</h4>
+    <p>选一个 provider，实例化一个连到模型的句柄——<strong>无人设、无工具、无历史</strong>（ChatClient 是无状态的）。</p>
+<pre class="code"><span class="kw">from</span> agent_framework.openai <span class="kw">import</span> OpenAIChatClient
+client = OpenAIChatClient(model=<span class="st">"gpt-4o"</span>)
+<span class="cm"># 产出：一个能"发请求→解析响应"的客户端</span></pre></div></div>
+  <div class="step"><div class="num">2</div><div class="sc"><h4>.as_agent(…) 包成 Agent</h4>
+    <p><span class="mono">as_agent</span> 内部就是 <span class="mono">Agent(client=self, …)</span>，把名字 / 指令 / 工具 / 中间件 / 循环裹上去：</p>
+<pre class="code">agent = client.as_agent(
+    name=<span class="st">"Helper"</span>,
+    instructions=<span class="st">"简洁作答。"</span>)
+<span class="cm"># 产出：一个 Agent，复用同一个 client（可造多个共享连接）</span></pre></div></div>
+  <div class="step"><div class="num">3</div><div class="sc"><h4>await agent.run("…")：非流式</h4>
+    <p>返回一个<strong>可 await</strong> 的对象；await 之后拿到完整 <span class="mono">AgentResponse</span>。整段工具循环（若有工具）在这一趟内部跑完，最后才给你结果。</p>
+<pre class="code">response = <span class="kw">await</span> agent.run(<span class="st">"2+2 等于几？"</span>)
+<span class="fn">print</span>(response.text)   <span class="cm"># -> "4"</span></pre></div></div>
+  <div class="step"><div class="num">4</div><div class="sc"><h4>agent.run(…, stream=True)：流式</h4>
+    <p>这次返回的是一个 <span class="mono">ResponseStream</span>（<strong>不是</strong>协程，别 await 它本身）。用 <span class="mono">async for</span> 逐块取 <span class="mono">AgentResponseUpdate</span>，<span class="mono">update.text</span> 是增量片段：</p>
+<pre class="code">stream = agent.run(<span class="st">"讲个冷知识。"</span>, stream=<span class="kw">True</span>)
+<span class="kw">async for</span> update <span class="kw">in</span> stream:
+    <span class="fn">print</span>(update.text, end=<span class="st">""</span>)</pre></div></div>
+  <div class="step"><div class="num">5</div><div class="sc"><h4>流式收尾：聚合成同一个结果</h4>
+    <p>迭代结束后调 <span class="mono">get_final_response()</span>，框架把所有增量聚合成<strong>和非流式一样</strong>的 <span class="mono">AgentResponse</span>。两条路终点一致，只是"先给全部"还是"边给边吐"：</p>
+<pre class="code">final = <span class="kw">await</span> stream.get_final_response()
+<span class="cm"># final 是一个完整 AgentResponse，等价于第 3 步的 response</span></pre></div></div>
+</div>
+
 <div class="card detail">
   <div class="tag">🔬 换厂商</div>
   把 <span class="inline">FoundryChatClient</span> 换成 <span class="inline">OpenAIChatClient</span>、
   <span class="inline">AnthropicClient</span>、<span class="inline">OllamaChatClient</span>……Agent 那层<strong>一行都不用改</strong>。
-  各 client 来自对应 provider 包（见第 16 课）。
+  各 client 来自对应 provider 包（见<a href="16-providers.html">第 16 课</a>）。
 </div>
 
 <details class="accordion" open>

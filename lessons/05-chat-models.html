@@ -327,11 +327,40 @@ result = <span class="kw">await</span> agent.run(<span class="st">"What is the c
   <tr><td>适用场景</td><td>批处理 / 脚本 / 需要完整结果</td><td>聊天 UI / 长回答 / 实时展示</td></tr>
 </table>
 
+<h2>动手追踪：从 ChatClient 一路跑到结果</h2>
+<p>把上面拆开的概念串成一趟<strong>真实调用</strong>，每一步标出它<strong>产出什么</strong>。源码：<span class="mono">as_agent</span> 在 <span class="mono">_clients.py:571</span>，<span class="mono">run</span> 的三个重载在 <span class="mono">_agents.py:845</span>。</p>
+<div class="vflow">
+  <div class="step"><div class="num">1</div><div class="sc"><h4>建客户端（ChatClient）</h4>
+    <p>选一个 provider，实例化一个连到模型的句柄——<strong>无人设、无工具、无历史</strong>（ChatClient 是无状态的）。</p>
+<pre class="code"><span class="kw">from</span> agent_framework.openai <span class="kw">import</span> OpenAIChatClient
+client = OpenAIChatClient(model=<span class="st">"gpt-4o"</span>)
+<span class="cm"># 产出：一个能"发请求→解析响应"的客户端</span></pre></div></div>
+  <div class="step"><div class="num">2</div><div class="sc"><h4>.as_agent(…) 包成 Agent</h4>
+    <p><span class="mono">as_agent</span> 内部就是 <span class="mono">Agent(client=self, …)</span>，把名字 / 指令 / 工具 / 中间件 / 循环裹上去：</p>
+<pre class="code">agent = client.as_agent(
+    name=<span class="st">"Helper"</span>,
+    instructions=<span class="st">"简洁作答。"</span>)
+<span class="cm"># 产出：一个 Agent，复用同一个 client（可造多个共享连接）</span></pre></div></div>
+  <div class="step"><div class="num">3</div><div class="sc"><h4>await agent.run("…")：非流式</h4>
+    <p>返回一个<strong>可 await</strong> 的对象；await 之后拿到完整 <span class="mono">AgentResponse</span>。整段工具循环（若有工具）在这一趟内部跑完，最后才给你结果。</p>
+<pre class="code">response = <span class="kw">await</span> agent.run(<span class="st">"2+2 等于几？"</span>)
+<span class="fn">print</span>(response.text)   <span class="cm"># -> "4"</span></pre></div></div>
+  <div class="step"><div class="num">4</div><div class="sc"><h4>agent.run(…, stream=True)：流式</h4>
+    <p>这次返回的是一个 <span class="mono">ResponseStream</span>（<strong>不是</strong>协程，别 await 它本身）。用 <span class="mono">async for</span> 逐块取 <span class="mono">AgentResponseUpdate</span>，<span class="mono">update.text</span> 是增量片段：</p>
+<pre class="code">stream = agent.run(<span class="st">"讲个冷知识。"</span>, stream=<span class="kw">True</span>)
+<span class="kw">async for</span> update <span class="kw">in</span> stream:
+    <span class="fn">print</span>(update.text, end=<span class="st">""</span>)</pre></div></div>
+  <div class="step"><div class="num">5</div><div class="sc"><h4>流式收尾：聚合成同一个结果</h4>
+    <p>迭代结束后调 <span class="mono">get_final_response()</span>，框架把所有增量聚合成<strong>和非流式一样</strong>的 <span class="mono">AgentResponse</span>。两条路终点一致，只是"先给全部"还是"边给边吐"：</p>
+<pre class="code">final = <span class="kw">await</span> stream.get_final_response()
+<span class="cm"># final 是一个完整 AgentResponse，等价于第 3 步的 response</span></pre></div></div>
+</div>
+
 <div class="card detail">
   <div class="tag">🔬 换厂商</div>
   把 <span class="inline">FoundryChatClient</span> 换成 <span class="inline">OpenAIChatClient</span>、
   <span class="inline">AnthropicClient</span>、<span class="inline">OllamaChatClient</span>……Agent 那层<strong>一行都不用改</strong>。
-  各 client 来自对应 provider 包（见第 16 课）。
+  各 client 来自对应 provider 包（见<a href="16-providers.html">第 16 课</a>）。
 </div>
 
 <details class="accordion">
@@ -668,11 +697,40 @@ with <span class="mono">stream=True</span> it returns an async iterator yielding
   <tr><td>When to use</td><td>batch / scripts / need full result</td><td>chat UI / long answers / live display</td></tr>
 </table>
 
+<h2>Worked example: from ChatClient all the way to a result</h2>
+<p>Let's thread those concepts into one <strong>real call</strong>, marking what each step <strong>produces</strong>. Source: <span class="mono">as_agent</span> at <span class="mono">_clients.py:571</span>, the three <span class="mono">run</span> overloads at <span class="mono">_agents.py:845</span>.</p>
+<div class="vflow">
+  <div class="step"><div class="num">1</div><div class="sc"><h4>Build the client (ChatClient)</h4>
+    <p>Pick a provider and instantiate a handle to a model — <strong>no persona, no tools, no history</strong> (a ChatClient is stateless).</p>
+<pre class="code"><span class="kw">from</span> agent_framework.openai <span class="kw">import</span> OpenAIChatClient
+client = OpenAIChatClient(model=<span class="st">"gpt-4o"</span>)
+<span class="cm"># produces: a client that does "send request -> parse response"</span></pre></div></div>
+  <div class="step"><div class="num">2</div><div class="sc"><h4>.as_agent(…) wraps it into an Agent</h4>
+    <p><span class="mono">as_agent</span> is just <span class="mono">Agent(client=self, …)</span> under the hood, wrapping a name / instructions / tools / middleware / loop:</p>
+<pre class="code">agent = client.as_agent(
+    name=<span class="st">"Helper"</span>,
+    instructions=<span class="st">"Answer concisely."</span>)
+<span class="cm"># produces: an Agent reusing the same client (make many, share the pool)</span></pre></div></div>
+  <div class="step"><div class="num">3</div><div class="sc"><h4>await agent.run("…"): non-streaming</h4>
+    <p>Returns an <strong>awaitable</strong>; await it for a full <span class="mono">AgentResponse</span>. The entire tool loop (if any) runs inside this single trip and you only get the result at the end.</p>
+<pre class="code">response = <span class="kw">await</span> agent.run(<span class="st">"What is 2+2?"</span>)
+<span class="fn">print</span>(response.text)   <span class="cm"># -> "4"</span></pre></div></div>
+  <div class="step"><div class="num">4</div><div class="sc"><h4>agent.run(…, stream=True): streaming</h4>
+    <p>This time it returns a <span class="mono">ResponseStream</span> (<strong>not</strong> a coroutine — don't await it directly). Use <span class="mono">async for</span> to pull <span class="mono">AgentResponseUpdate</span> chunks; <span class="mono">update.text</span> is the delta:</p>
+<pre class="code">stream = agent.run(<span class="st">"Tell me a fun fact."</span>, stream=<span class="kw">True</span>)
+<span class="kw">async for</span> update <span class="kw">in</span> stream:
+    <span class="fn">print</span>(update.text, end=<span class="st">""</span>)</pre></div></div>
+  <div class="step"><div class="num">5</div><div class="sc"><h4>Finish streaming: aggregate into one result</h4>
+    <p>After iterating, call <span class="mono">get_final_response()</span>; the framework folds every delta into the <strong>same</strong> <span class="mono">AgentResponse</span> you'd get non-streaming. Both paths end identically — "all at once" vs. "as it arrives":</p>
+<pre class="code">final = <span class="kw">await</span> stream.get_final_response()
+<span class="cm"># final is a complete AgentResponse, equivalent to step 3's response</span></pre></div></div>
+</div>
+
 <div class="card detail">
   <div class="tag">🔬 Switching vendors</div>
   Replace <span class="inline">FoundryChatClient</span> with <span class="inline">OpenAIChatClient</span>,
   <span class="inline">AnthropicClient</span>, <span class="inline">OllamaChatClient</span>… and the Agent layer
-  <strong>doesn't change at all</strong>. Each client comes from its provider package (Lesson 16).
+  <strong>doesn't change at all</strong>. Each client comes from its provider package (<a href="16-providers.html">Lesson 16</a>).
 </div>
 
 <details class="accordion">

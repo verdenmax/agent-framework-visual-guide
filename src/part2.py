@@ -39,6 +39,44 @@ messages = [
 <p><span class="inline">Message</span> 的第二个参数 <span class="mono">contents</span> 接受字符串（自动转成文本内容）、
 <span class="mono">Content</span> 对象，或它们的列表。读文本用 <span class="inline">msg.text</span>。</p>
 
+<h2>动手追踪：一条消息里到底装了什么</h2>
+<p>抽象讲完，我们造一条<strong>同时带文本和工具调用</strong>的真实消息，一步步看它的形状。
+源码在 <span class="mono">_types.py</span>：<span class="mono">Message</span> 在 1672 行，<span class="mono">Content</span> 在 455 行。</p>
+<div class="vflow">
+  <div class="step"><div class="num">1</div><div class="sc"><h4>选身份（Role）</h4>
+    <p><span class="mono">role</span> 只是一个字符串标签：<span class="mono">Role = NewType("Role", str)</span>，
+    合法取值由 <span class="mono">RoleLiteral</span> 圈定——system / user / assistant / tool。这里我们要造模型那一侧的输出，用 <span class="mono">"assistant"</span>。</p></div></div>
+  <div class="step"><div class="num">2</div><div class="sc"><h4>造内容块（Content）</h4>
+    <p><span class="mono">Content</span> 是<strong>统一类</strong>，靠工厂方法造不同种类。我们造两块：一段文本 + 一次工具调用。</p>
+<pre class="code">text = Content.from_text(<span class="st">"我帮你查一下旧金山时间。"</span>)
+call = Content.from_function_call(
+    call_id=<span class="st">"call_1"</span>, name=<span class="st">"get_time"</span>,
+    arguments={<span class="st">"city"</span>: <span class="st">"SF"</span>})
+<span class="cm"># 每块都带 .type：text.type=="text"，call.type=="function_call"</span></pre></div></div>
+  <div class="step"><div class="num">3</div><div class="sc"><h4>装进信封（Message）</h4>
+    <p>第二个参数 <span class="mono">contents</span> 收<strong>一个列表</strong>，<span class="mono">_parse_content_list</span>（<span class="mono">_types.py:47</span>）逐项规整成 <span class="mono">Content</span>：</p>
+<pre class="code">msg = Message(<span class="st">"assistant"</span>, [text, call])
+<span class="cm"># msg.role     -> "assistant"</span>
+<span class="cm"># msg.contents -> [Content(type="text"), Content(type="function_call")]</span></pre></div></div>
+  <div class="step"><div class="num">4</div><div class="sc"><h4>看真实形状（to_dict）</h4>
+    <p>序列化后是<strong>纯 JSON</strong>——文本和工具调用用同一套结构并列，各自靠 <span class="mono">type</span> 区分：</p>
+<pre class="code">msg.to_dict()
+<span class="cm"># {"type": "chat_message", "role": "assistant",</span>
+<span class="cm">#  "contents": [</span>
+<span class="cm">#    {"type": "text", "text": "我帮你查一下旧金山时间。"},</span>
+<span class="cm">#    {"type": "function_call", "call_id": "call_1",</span>
+<span class="cm">#     "name": "get_time", "arguments": {"city": "SF"}}],</span>
+<span class="cm">#  "additional_properties": {}}</span></pre></div></div>
+  <div class="step"><div class="num">5</div><div class="sc"><h4>工具回灌，靠 call_id 对齐</h4>
+    <p>工具跑完，结果用 <span class="mono">role="tool"</span> 的消息 + <span class="mono">function_result</span> 回灌，<span class="mono">call_id</span> 必须和上面那次调用一致：</p>
+<pre class="code">tool_msg = Message(<span class="st">"tool"</span>, [
+    Content.from_function_result(
+        call_id=<span class="st">"call_1"</span>, result=<span class="st">"14:05"</span>)])
+<span class="cm"># 注意：from_function_result 只认 call_id + result，没有 name 参数</span>
+<span class="cm"># msg.text 只拼接 type=="text" 的块；function_call / result 不计入</span></pre></div></div>
+</div>
+<p>这一趟下来你会发现：<strong>一条消息 = 一个 role + 一个 Content 列表</strong>，无论里面装的是文字、图片还是工具往返，形状都一样。这正是后面"工具循环"（<a href="08-agent-internals.html">第 8 课</a>）能用一条消息链表达整段对话的原因。</p>
+
 <details class="accordion">
   <summary><span class="badge-num">1</span> Content 能装哪些东西？ <span class="hint">点击展开详解</span></summary>
   <div class="acc-body">
@@ -135,9 +173,8 @@ msg_call = Message(<span class="st">"assistant"</span>, [
 <span class="cm"># 框架回灌：role="tool" 消息带 function_result</span>
 msg_result = Message(<span class="st">"tool"</span>, [
     Content.from_function_result(
-        name=<span class="st">"get_weather"</span>,
-        result=<span class="st">"Sunny, 72°F"</span>,
-        call_id=<span class="st">"call_abc123"</span>
+        call_id=<span class="st">"call_abc123"</span>,
+        result=<span class="st">"Sunny, 72°F"</span>
     )
 ])
 <span class="cm"># 这两条追加进对话历史，模型继续生成最终答案</span></pre>
@@ -189,7 +226,7 @@ msg_restored = Message.from_dict(d)
 
 <span class="cm"># 工具调用也能完整序列化</span>
 msg_with_tool = Message(<span class="st">"assistant"</span>, [
-    Content.from_function_call(name=<span class="st">"foo"</span>, arguments={<span class="st">"x"</span>: 1})
+    Content.from_function_call(call_id=<span class="st">"call_1"</span>, name=<span class="st">"foo"</span>, arguments={<span class="st">"x"</span>: 1})
 ])
 d2 = msg_with_tool.to_dict()
 msg_back = Message.from_dict(d2)  <span class="cm"># 完全恢复</span></pre>
@@ -341,6 +378,44 @@ messages = [
 <p><span class="inline">Message</span>'s second argument <span class="mono">contents</span> accepts a string (auto-converted to text),
 a <span class="mono">Content</span> object, or a list of them. Read the text via <span class="inline">msg.text</span>.</p>
 
+<h2>Worked example: what a single message actually carries</h2>
+<p>Enough abstraction — let's build a real message that carries <strong>both text and a tool call</strong> and watch its shape, step by step.
+The source lives in <span class="mono">_types.py</span>: <span class="mono">Message</span> at line 1672, <span class="mono">Content</span> at line 455.</p>
+<div class="vflow">
+  <div class="step"><div class="num">1</div><div class="sc"><h4>Pick a role</h4>
+    <p><span class="mono">role</span> is just a string tag: <span class="mono">Role = NewType("Role", str)</span>,
+    with valid values fenced by <span class="mono">RoleLiteral</span> — system / user / assistant / tool. We're building the model's side, so <span class="mono">"assistant"</span>.</p></div></div>
+  <div class="step"><div class="num">2</div><div class="sc"><h4>Make content blocks (Content)</h4>
+    <p><span class="mono">Content</span> is a <strong>single unified class</strong>; factory methods build the variants. We make two blocks: a text and a function call.</p>
+<pre class="code">text = Content.from_text(<span class="st">"Let me check the time in SF."</span>)
+call = Content.from_function_call(
+    call_id=<span class="st">"call_1"</span>, name=<span class="st">"get_time"</span>,
+    arguments={<span class="st">"city"</span>: <span class="st">"SF"</span>})
+<span class="cm"># each block has .type: text.type=="text", call.type=="function_call"</span></pre></div></div>
+  <div class="step"><div class="num">3</div><div class="sc"><h4>Seal the envelope (Message)</h4>
+    <p>The second argument <span class="mono">contents</span> takes <strong>a list</strong>; <span class="mono">_parse_content_list</span> (<span class="mono">_types.py:47</span>) normalizes each item into a <span class="mono">Content</span>:</p>
+<pre class="code">msg = Message(<span class="st">"assistant"</span>, [text, call])
+<span class="cm"># msg.role     -> "assistant"</span>
+<span class="cm"># msg.contents -> [Content(type="text"), Content(type="function_call")]</span></pre></div></div>
+  <div class="step"><div class="num">4</div><div class="sc"><h4>See the real shape (to_dict)</h4>
+    <p>Serialized, it's <strong>plain JSON</strong> — text and tool call sit side by side in one structure, each told apart by <span class="mono">type</span>:</p>
+<pre class="code">msg.to_dict()
+<span class="cm"># {"type": "chat_message", "role": "assistant",</span>
+<span class="cm">#  "contents": [</span>
+<span class="cm">#    {"type": "text", "text": "Let me check the time in SF."},</span>
+<span class="cm">#    {"type": "function_call", "call_id": "call_1",</span>
+<span class="cm">#     "name": "get_time", "arguments": {"city": "SF"}}],</span>
+<span class="cm">#  "additional_properties": {}}</span></pre></div></div>
+  <div class="step"><div class="num">5</div><div class="sc"><h4>Feed the result back, matched by call_id</h4>
+    <p>Once the tool runs, its result returns as a <span class="mono">role="tool"</span> message + <span class="mono">function_result</span>; the <span class="mono">call_id</span> must match the call above:</p>
+<pre class="code">tool_msg = Message(<span class="st">"tool"</span>, [
+    Content.from_function_result(
+        call_id=<span class="st">"call_1"</span>, result=<span class="st">"14:05"</span>)])
+<span class="cm"># note: from_function_result takes only call_id + result, no name param</span>
+<span class="cm"># msg.text joins only type=="text" blocks; function_call / result don't count</span></pre></div></div>
+</div>
+<p>The takeaway: <strong>one message = one role + one list of Content</strong>, whether it carries text, an image or a tool round-trip — the shape never changes. That is exactly why the "tool loop" (<a href="08-agent-internals.html">Lesson 8</a>) can express a whole conversation as a single chain of messages.</p>
+
 <details class="accordion">
   <summary><span class="badge-num">1</span> What can a Content hold? <span class="hint">click to expand</span></summary>
   <div class="acc-body">
@@ -491,7 +566,7 @@ msg_restored = Message.from_dict(d)
 
 <span class="cm"># Tool calls also fully serialize</span>
 msg_with_tool = Message(<span class="st">"assistant"</span>, [
-    Content.from_function_call(name=<span class="st">"foo"</span>, arguments={<span class="st">"x"</span>: 1})
+    Content.from_function_call(call_id=<span class="st">"call_1"</span>, name=<span class="st">"foo"</span>, arguments={<span class="st">"x"</span>: 1})
 ])
 d2 = msg_with_tool.to_dict()
 msg_back = Message.from_dict(d2)  <span class="cm"># fully restored</span></pre>
@@ -668,11 +743,40 @@ result = <span class="kw">await</span> agent.run(<span class="st">"What is the c
   <tr><td>适用场景</td><td>批处理 / 脚本 / 需要完整结果</td><td>聊天 UI / 长回答 / 实时展示</td></tr>
 </table>
 
+<h2>动手追踪：从 ChatClient 一路跑到结果</h2>
+<p>把上面拆开的概念串成一趟<strong>真实调用</strong>，每一步标出它<strong>产出什么</strong>。源码：<span class="mono">as_agent</span> 在 <span class="mono">_clients.py:571</span>，<span class="mono">run</span> 的三个重载在 <span class="mono">_agents.py:845</span>。</p>
+<div class="vflow">
+  <div class="step"><div class="num">1</div><div class="sc"><h4>建客户端（ChatClient）</h4>
+    <p>选一个 provider，实例化一个连到模型的句柄——<strong>无人设、无工具、无历史</strong>（ChatClient 是无状态的）。</p>
+<pre class="code"><span class="kw">from</span> agent_framework.openai <span class="kw">import</span> OpenAIChatClient
+client = OpenAIChatClient(model=<span class="st">"gpt-4o"</span>)
+<span class="cm"># 产出：一个能"发请求→解析响应"的客户端</span></pre></div></div>
+  <div class="step"><div class="num">2</div><div class="sc"><h4>.as_agent(…) 包成 Agent</h4>
+    <p><span class="mono">as_agent</span> 内部就是 <span class="mono">Agent(client=self, …)</span>，把名字 / 指令 / 工具 / 中间件 / 循环裹上去：</p>
+<pre class="code">agent = client.as_agent(
+    name=<span class="st">"Helper"</span>,
+    instructions=<span class="st">"简洁作答。"</span>)
+<span class="cm"># 产出：一个 Agent，复用同一个 client（可造多个共享连接）</span></pre></div></div>
+  <div class="step"><div class="num">3</div><div class="sc"><h4>await agent.run("…")：非流式</h4>
+    <p>返回一个<strong>可 await</strong> 的对象；await 之后拿到完整 <span class="mono">AgentResponse</span>。整段工具循环（若有工具）在这一趟内部跑完，最后才给你结果。</p>
+<pre class="code">response = <span class="kw">await</span> agent.run(<span class="st">"2+2 等于几？"</span>)
+<span class="fn">print</span>(response.text)   <span class="cm"># -> "4"</span></pre></div></div>
+  <div class="step"><div class="num">4</div><div class="sc"><h4>agent.run(…, stream=True)：流式</h4>
+    <p>这次返回的是一个 <span class="mono">ResponseStream</span>（<strong>不是</strong>协程，别 await 它本身）。用 <span class="mono">async for</span> 逐块取 <span class="mono">AgentResponseUpdate</span>，<span class="mono">update.text</span> 是增量片段：</p>
+<pre class="code">stream = agent.run(<span class="st">"讲个冷知识。"</span>, stream=<span class="kw">True</span>)
+<span class="kw">async for</span> update <span class="kw">in</span> stream:
+    <span class="fn">print</span>(update.text, end=<span class="st">""</span>)</pre></div></div>
+  <div class="step"><div class="num">5</div><div class="sc"><h4>流式收尾：聚合成同一个结果</h4>
+    <p>迭代结束后调 <span class="mono">get_final_response()</span>，框架把所有增量聚合成<strong>和非流式一样</strong>的 <span class="mono">AgentResponse</span>。两条路终点一致，只是"先给全部"还是"边给边吐"：</p>
+<pre class="code">final = <span class="kw">await</span> stream.get_final_response()
+<span class="cm"># final 是一个完整 AgentResponse，等价于第 3 步的 response</span></pre></div></div>
+</div>
+
 <div class="card detail">
   <div class="tag">🔬 换厂商</div>
   把 <span class="inline">FoundryChatClient</span> 换成 <span class="inline">OpenAIChatClient</span>、
   <span class="inline">AnthropicClient</span>、<span class="inline">OllamaChatClient</span>……Agent 那层<strong>一行都不用改</strong>。
-  各 client 来自对应 provider 包（见第 16 课）。
+  各 client 来自对应 provider 包（见<a href="16-providers.html">第 16 课</a>）。
 </div>
 
 <details class="accordion">
@@ -976,11 +1080,40 @@ with <span class="mono">stream=True</span> it returns an async iterator yielding
   <tr><td>When to use</td><td>batch / scripts / need full result</td><td>chat UI / long answers / live display</td></tr>
 </table>
 
+<h2>Worked example: from ChatClient all the way to a result</h2>
+<p>Let's thread those concepts into one <strong>real call</strong>, marking what each step <strong>produces</strong>. Source: <span class="mono">as_agent</span> at <span class="mono">_clients.py:571</span>, the three <span class="mono">run</span> overloads at <span class="mono">_agents.py:845</span>.</p>
+<div class="vflow">
+  <div class="step"><div class="num">1</div><div class="sc"><h4>Build the client (ChatClient)</h4>
+    <p>Pick a provider and instantiate a handle to a model — <strong>no persona, no tools, no history</strong> (a ChatClient is stateless).</p>
+<pre class="code"><span class="kw">from</span> agent_framework.openai <span class="kw">import</span> OpenAIChatClient
+client = OpenAIChatClient(model=<span class="st">"gpt-4o"</span>)
+<span class="cm"># produces: a client that does "send request -> parse response"</span></pre></div></div>
+  <div class="step"><div class="num">2</div><div class="sc"><h4>.as_agent(…) wraps it into an Agent</h4>
+    <p><span class="mono">as_agent</span> is just <span class="mono">Agent(client=self, …)</span> under the hood, wrapping a name / instructions / tools / middleware / loop:</p>
+<pre class="code">agent = client.as_agent(
+    name=<span class="st">"Helper"</span>,
+    instructions=<span class="st">"Answer concisely."</span>)
+<span class="cm"># produces: an Agent reusing the same client (make many, share the pool)</span></pre></div></div>
+  <div class="step"><div class="num">3</div><div class="sc"><h4>await agent.run("…"): non-streaming</h4>
+    <p>Returns an <strong>awaitable</strong>; await it for a full <span class="mono">AgentResponse</span>. The entire tool loop (if any) runs inside this single trip and you only get the result at the end.</p>
+<pre class="code">response = <span class="kw">await</span> agent.run(<span class="st">"What is 2+2?"</span>)
+<span class="fn">print</span>(response.text)   <span class="cm"># -> "4"</span></pre></div></div>
+  <div class="step"><div class="num">4</div><div class="sc"><h4>agent.run(…, stream=True): streaming</h4>
+    <p>This time it returns a <span class="mono">ResponseStream</span> (<strong>not</strong> a coroutine — don't await it directly). Use <span class="mono">async for</span> to pull <span class="mono">AgentResponseUpdate</span> chunks; <span class="mono">update.text</span> is the delta:</p>
+<pre class="code">stream = agent.run(<span class="st">"Tell me a fun fact."</span>, stream=<span class="kw">True</span>)
+<span class="kw">async for</span> update <span class="kw">in</span> stream:
+    <span class="fn">print</span>(update.text, end=<span class="st">""</span>)</pre></div></div>
+  <div class="step"><div class="num">5</div><div class="sc"><h4>Finish streaming: aggregate into one result</h4>
+    <p>After iterating, call <span class="mono">get_final_response()</span>; the framework folds every delta into the <strong>same</strong> <span class="mono">AgentResponse</span> you'd get non-streaming. Both paths end identically — "all at once" vs. "as it arrives":</p>
+<pre class="code">final = <span class="kw">await</span> stream.get_final_response()
+<span class="cm"># final is a complete AgentResponse, equivalent to step 3's response</span></pre></div></div>
+</div>
+
 <div class="card detail">
   <div class="tag">🔬 Switching vendors</div>
   Replace <span class="inline">FoundryChatClient</span> with <span class="inline">OpenAIChatClient</span>,
   <span class="inline">AnthropicClient</span>, <span class="inline">OllamaChatClient</span>… and the Agent layer
-  <strong>doesn't change at all</strong>. Each client comes from its provider package (Lesson 16).
+  <strong>doesn't change at all</strong>. Each client comes from its provider package (<a href="16-providers.html">Lesson 16</a>).
 </div>
 
 <details class="accordion">

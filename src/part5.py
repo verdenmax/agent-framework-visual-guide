@@ -34,6 +34,46 @@ L16_ZH = r"""
 </div>
 <p>只有前两个框会随厂商变（包名 + ChatClient 类）；后两个框<strong>对所有 provider 完全一样</strong>。这就是“万能插座”：换插头不用换电器——把 OpenAI 换成 Anthropic，下游 Agent 代码一行不改。</p>
 
+<div class="codefile">
+  <div class="cf-head"><span class="dot"></span><span class="path">写一次 Agent，只换 ChatClient 那一行</span></div>
+<pre><span class="kw">from</span> agent_framework <span class="kw">import</span> Agent
+
+<span class="cm"># —— 只有这一段随厂商变（import + 实例化）——</span>
+<span class="kw">from</span> agent_framework.openai <span class="kw">import</span> OpenAIChatClient
+client = OpenAIChatClient(model=<span class="st">"gpt-4o"</span>)
+
+<span class="cm"># 想换 Claude？换成下面两行（其余一字不动）：</span>
+<span class="cm"># from agent_framework.anthropic import AnthropicClient</span>
+<span class="cm"># client = AnthropicClient(model="claude-sonnet-4-5-20250929")</span>
+
+<span class="cm"># 本地 Ollama：</span>
+<span class="cm"># from agent_framework.ollama import OllamaChatClient</span>
+<span class="cm"># client = OllamaChatClient(model="llama3.1")</span>
+
+<span class="cm"># —— 下面对所有厂商完全一样 ——</span>
+agent = Agent(client=client, name=<span class="st">"Assistant"</span>,
+              instructions=<span class="st">"You are helpful."</span>)
+response = <span class="kw">await</span> agent.run(<span class="st">"Hello!"</span>)</pre>
+</div>
+
+<h2>动手追踪：换插头不换电器</h2>
+<p>用一次<strong>真实的厂商切换</strong>把"写一次、到处跑"走一遍——看清楚到底哪一行变、哪一行不变。</p>
+<div class="vflow">
+  <div class="step"><div class="num">1</div><div class="sc"><h4>写死 Agent 逻辑（一次）</h4>
+    <p><span class="mono">name</span> / <span class="mono">instructions</span> / <span class="mono">tools</span> / 中间件，加上 <span class="mono">agent.run(…)</span>——这一整块对所有厂商<strong>一字不改</strong>，先写好放着。</p></div></div>
+  <div class="step"><div class="num">2</div><div class="sc"><h4>插上 OpenAI 插头</h4>
+    <p>实例化对应的 ChatClient，<span class="mono">Agent(client=client, …)</span> 就接到了 GPT-4o：</p>
+<pre class="code"><span class="kw">from</span> agent_framework.openai <span class="kw">import</span> OpenAIChatClient
+client = OpenAIChatClient(model=<span class="st">"gpt-4o"</span>)</pre></div></div>
+  <div class="step"><div class="num">3</div><div class="sc"><h4>只换这一行 → Anthropic</h4>
+    <p>把 import 和 client 那两行换掉，<strong>Agent 定义和 run 调用一个字符都不动</strong>：</p>
+<pre class="code"><span class="kw">from</span> agent_framework.anthropic <span class="kw">import</span> AnthropicClient
+client = AnthropicClient(model=<span class="st">"claude-sonnet-4-5-20250929"</span>)</pre></div></div>
+  <div class="step"><div class="num">4</div><div class="sc"><h4>为什么能行</h4>
+    <p><span class="mono">as_agent</span> / <span class="mono">run</span> 只认 <span class="mono">ChatClient</span> 抽象；把 <span class="mono">Message</span> 翻译成各家 wire 格式、再翻译回来，发生在 client 内部（各 <span class="mono">BaseChatClient</span> 子类）。所以下游<strong>零改动</strong>就换了模型后端。</p></div></div>
+</div>
+<p><strong>这套抽象的折中：</strong>统一接口换来了可移植性，但每家的"独门能力"（厂商专属采样参数、特殊内容类型）不会凭空消失——它们通过 <span class="mono">default_options</span> 或厂商专属的 typed options 透传。换句话说，MAF 用一套通用接口覆盖 80% 的公共路径，同时留一个"逃生舱口"让你按需触达某家的高级特性。可移植性优先，但没有把天花板焊死。</p>
+
 <details class="accordion">
   <summary><span class="badge-num">1</span> FoundryChatClient 配置 <span class="hint">点击展开详解</span></summary>
   <div class="acc-body">
@@ -151,7 +191,7 @@ ollama pull llama3.1
 
 client = OllamaChatClient(
     model=<span class="st">"llama3.1"</span>,
-    endpoint=<span class="st">"http://localhost:11434"</span>  <span class="cm"># 默认值</span>
+    host=<span class="st">"http://localhost:11434"</span>  <span class="cm"># 默认值</span>
 )</pre>
       </div>
     </div>
@@ -265,6 +305,46 @@ This lesson surveys the main provider packages and shows the <strong>import-to-r
   <div class="node"><div class="nt">agent.run(…)</div><div class="nd">vendor-agnostic</div></div>
 </div>
 <p>Only the first two boxes change per vendor (package name + ChatClient class); the last two are <strong>identical for every provider</strong>. That's the &quot;universal socket&quot;: swap the plug, keep the appliance - switch OpenAI for Anthropic and the downstream Agent code doesn't change a line.</p>
+
+<div class="codefile">
+  <div class="cf-head"><span class="dot"></span><span class="path">write the Agent once, swap only the ChatClient line</span></div>
+<pre><span class="kw">from</span> agent_framework <span class="kw">import</span> Agent
+
+<span class="cm"># —— only this block changes per vendor (import + instantiation) ——</span>
+<span class="kw">from</span> agent_framework.openai <span class="kw">import</span> OpenAIChatClient
+client = OpenAIChatClient(model=<span class="st">"gpt-4o"</span>)
+
+<span class="cm"># Want Claude? Use these two lines instead (nothing else moves):</span>
+<span class="cm"># from agent_framework.anthropic import AnthropicClient</span>
+<span class="cm"># client = AnthropicClient(model="claude-sonnet-4-5-20250929")</span>
+
+<span class="cm"># Local Ollama:</span>
+<span class="cm"># from agent_framework.ollama import OllamaChatClient</span>
+<span class="cm"># client = OllamaChatClient(model="llama3.1")</span>
+
+<span class="cm"># —— everything below is identical for every vendor ——</span>
+agent = Agent(client=client, name=<span class="st">"Assistant"</span>,
+              instructions=<span class="st">"You are helpful."</span>)
+response = <span class="kw">await</span> agent.run(<span class="st">"Hello!"</span>)</pre>
+</div>
+
+<h2>Worked example: swap the plug, keep the appliance</h2>
+<p>Let's walk "write once, run anywhere" through one <strong>real vendor switch</strong> — to see exactly which line changes and which line doesn't.</p>
+<div class="vflow">
+  <div class="step"><div class="num">1</div><div class="sc"><h4>Pin the Agent logic (once)</h4>
+    <p><span class="mono">name</span> / <span class="mono">instructions</span> / <span class="mono">tools</span> / middleware, plus <span class="mono">agent.run(…)</span> — this whole block is <strong>identical for every vendor</strong>. Write it once and leave it.</p></div></div>
+  <div class="step"><div class="num">2</div><div class="sc"><h4>Plug in OpenAI</h4>
+    <p>Instantiate the matching ChatClient and <span class="mono">Agent(client=client, …)</span> is wired to GPT-4o:</p>
+<pre class="code"><span class="kw">from</span> agent_framework.openai <span class="kw">import</span> OpenAIChatClient
+client = OpenAIChatClient(model=<span class="st">"gpt-4o"</span>)</pre></div></div>
+  <div class="step"><div class="num">3</div><div class="sc"><h4>Swap just this line → Anthropic</h4>
+    <p>Replace the import and client lines; the <strong>Agent definition and run call don't move a character</strong>:</p>
+<pre class="code"><span class="kw">from</span> agent_framework.anthropic <span class="kw">import</span> AnthropicClient
+client = AnthropicClient(model=<span class="st">"claude-sonnet-4-5-20250929"</span>)</pre></div></div>
+  <div class="step"><div class="num">4</div><div class="sc"><h4>Why it works</h4>
+    <p><span class="mono">as_agent</span> / <span class="mono">run</span> only know the <span class="mono">ChatClient</span> abstraction; translating <span class="mono">Message</span> into each vendor's wire format and back happens inside the client (each <span class="mono">BaseChatClient</span> subclass). So the downstream changes <strong>by zero</strong> when you switch model backends.</p></div></div>
+</div>
+<p><strong>The trade-off of this abstraction:</strong> a unified interface buys portability, but each vendor's "signature powers" (provider-specific sampling parameters, special content types) don't vanish — they flow through <span class="mono">default_options</span> or a vendor's typed options. In other words, MAF covers ~80% of the common path with one interface and keeps an "escape hatch" so you can still reach a vendor's advanced features when needed. Portability first, without welding the ceiling shut.</p>
 
 <details class="accordion">
   <summary><span class="badge-num">1</span> FoundryChatClient configuration <span class="hint">expand</span></summary>
@@ -383,7 +463,7 @@ ollama pull llama3.1
 
 client = OllamaChatClient(
     model=<span class="st">&quot;llama3.1&quot;</span>,
-    endpoint=<span class="st">&quot;http://localhost:11434&quot;</span>  <span class="cm"># default</span>
+    host=<span class="st">&quot;http://localhost:11434&quot;</span>  <span class="cm"># default</span>
 )</pre>
       </div>
     </div>
@@ -955,6 +1035,32 @@ L18_ZH = r"""
   <tr><td class="mono">ChatMiddleware</td><td>单次 LLM 调用</td><td class="mono">ChatContext</td><td>每次发请求给模型</td></tr>
 </table>
 
+<h2>动手追踪：一个计时中间件跑起来</h2>
+<p>把"洋葱模型"落到一个最小、可运行的 <span class="mono">AgentMiddleware</span> 上：定义 → 挂到 Agent → 看一次请求怎么穿过它。源码：<span class="mono">AgentMiddleware</span> 在 <span class="mono">_middleware.py:469</span>，<span class="mono">AgentContext</span> 在 <span class="mono">_middleware.py:93</span>。</p>
+<div class="vflow">
+  <div class="step"><div class="num">1</div><div class="sc"><h4>写一个计时中间件</h4>
+    <p>继承 <span class="mono">AgentMiddleware</span>，只实现一个 <span class="mono">process</span>。<span class="mono">await call_next()</span> 是分界线，前后各放一句：</p>
+<pre class="code"><span class="kw">import</span> time
+<span class="kw">from</span> agent_framework <span class="kw">import</span> AgentMiddleware, AgentContext
+
+<span class="kw">class</span> <span class="fn">TimingMiddleware</span>(AgentMiddleware):
+    <span class="kw">async def</span> <span class="fn">process</span>(self, context: AgentContext, call_next):
+        start = time.monotonic()             <span class="cm"># 进站</span>
+        <span class="kw">await</span> call_next()                      <span class="cm"># 真正执行（无参！）</span>
+        elapsed = time.monotonic() - start   <span class="cm"># 出站</span>
+        <span class="fn">print</span>(f<span class="st">"{context.agent.name}: {elapsed:.2f}s"</span>)</pre></div></div>
+  <div class="step"><div class="num">2</div><div class="sc"><h4>挂到 Agent 上</h4>
+    <p>放进 <span class="mono">middleware=[…]</span> 列表，框架会在<strong>每次 run</strong> 时自动套上：</p>
+<pre class="code">agent = Agent(client=client, name=<span class="st">"Helper"</span>,
+              middleware=[TimingMiddleware()])</pre></div></div>
+  <div class="step"><div class="num">3</div><div class="sc"><h4>请求进站（call_next 之前）</h4>
+    <p><span class="mono">agent.run("…")</span> 触发后，框架先调用 <span class="mono">process</span>。此刻 <span class="mono">context</span> 已装好：<span class="mono">context.agent.name == "Helper"</span>，<span class="mono">context.messages</span> 是即将发出的消息列表。<span class="mono">start</span> 记下起点。</p></div></div>
+  <div class="step"><div class="num">4</div><div class="sc"><h4>真正执行（await call_next）</h4>
+    <p><span class="mono">call_next()</span> <strong>不带任何参数</strong>，把控制权交给内层中间件、最终交给 agent 的真实执行（调模型、跑工具循环）。它返回时，<span class="mono">context.result</span> 已被填成一个 <span class="mono">AgentResponse</span>。</p></div></div>
+  <div class="step"><div class="num">5</div><div class="sc"><h4>响应出站（call_next 之后）</h4>
+    <p>算出 <span class="mono">elapsed</span>，可顺手读 <span class="mono">context.result.text</span> 再打日志。注意 <span class="mono">process</span> <strong>不 return 任何东西</strong>——所有数据都挂在 <span class="mono">context</span> 上流动。这正是 <a href="11-middleware.html">第 11 课</a>确认过的"无参 <span class="mono">call_next()</span>"约定。</p></div></div>
+</div>
+
 <details class="accordion">
   <summary><span class="badge-num">1</span> 完整的日志中间件 <span class="hint">点击展开详解</span></summary>
   <div class="acc-body">
@@ -1183,6 +1289,32 @@ L18_EN = r"""
   <tr><td class="mono">FunctionMiddleware</td><td>a single tool / function call</td><td class="mono">FunctionInvocationContext</td><td>per tool call</td></tr>
   <tr><td class="mono">ChatMiddleware</td><td>a single LLM call</td><td class="mono">ChatContext</td><td>per model request</td></tr>
 </table>
+
+<h2>Worked example: a timing middleware in action</h2>
+<p>Let's ground the "onion model" in a minimal, runnable <span class="mono">AgentMiddleware</span>: define it → attach it to the Agent → watch one request travel through. Source: <span class="mono">AgentMiddleware</span> at <span class="mono">_middleware.py:469</span>, <span class="mono">AgentContext</span> at <span class="mono">_middleware.py:93</span>.</p>
+<div class="vflow">
+  <div class="step"><div class="num">1</div><div class="sc"><h4>Write a timing middleware</h4>
+    <p>Subclass <span class="mono">AgentMiddleware</span> and implement one <span class="mono">process</span>. <span class="mono">await call_next()</span> is the dividing line — one statement on each side:</p>
+<pre class="code"><span class="kw">import</span> time
+<span class="kw">from</span> agent_framework <span class="kw">import</span> AgentMiddleware, AgentContext
+
+<span class="kw">class</span> <span class="fn">TimingMiddleware</span>(AgentMiddleware):
+    <span class="kw">async def</span> <span class="fn">process</span>(self, context: AgentContext, call_next):
+        start = time.monotonic()             <span class="cm"># inbound</span>
+        <span class="kw">await</span> call_next()                      <span class="cm"># the real execution (no args!)</span>
+        elapsed = time.monotonic() - start   <span class="cm"># outbound</span>
+        <span class="fn">print</span>(f<span class="st">"{context.agent.name}: {elapsed:.2f}s"</span>)</pre></div></div>
+  <div class="step"><div class="num">2</div><div class="sc"><h4>Attach it to the Agent</h4>
+    <p>Drop it into the <span class="mono">middleware=[…]</span> list; the framework wraps it around <strong>every run</strong> automatically:</p>
+<pre class="code">agent = Agent(client=client, name=<span class="st">"Helper"</span>,
+              middleware=[TimingMiddleware()])</pre></div></div>
+  <div class="step"><div class="num">3</div><div class="sc"><h4>Request goes in (before call_next)</h4>
+    <p>When <span class="mono">agent.run("…")</span> fires, the framework calls <span class="mono">process</span> first. By now <span class="mono">context</span> is populated: <span class="mono">context.agent.name == "Helper"</span>, <span class="mono">context.messages</span> is the list about to be sent. <span class="mono">start</span> records the entry point.</p></div></div>
+  <div class="step"><div class="num">4</div><div class="sc"><h4>The real execution (await call_next)</h4>
+    <p><span class="mono">call_next()</span> <strong>takes no arguments</strong>; it hands control to inner middleware and ultimately the agent's real execution (calling the model, running the tool loop). When it returns, <span class="mono">context.result</span> has been filled with an <span class="mono">AgentResponse</span>.</p></div></div>
+  <div class="step"><div class="num">5</div><div class="sc"><h4>Response comes out (after call_next)</h4>
+    <p>Compute <span class="mono">elapsed</span>, optionally read <span class="mono">context.result.text</span>, then log. Note that <span class="mono">process</span> <strong>returns nothing</strong> — all data flows through <span class="mono">context</span>. That's exactly the "no-arg <span class="mono">call_next()</span>" contract confirmed in <a href="11-middleware.html">Lesson 11</a>.</p></div></div>
+</div>
 
 <details class="accordion">
   <summary><span class="badge-num">1</span> Complete logging middleware <span class="hint">expand</span></summary>
@@ -1829,6 +1961,72 @@ result = <span class="kw">await</span> workflow.run(<span class="st">"Write abou
   <div class="node hl"><div class="nt">workflow.run</div><div class="nd">端到端跑通</div></div>
 </div>
 <p>每个箭头都对应你前面学过的一课：<strong>Provider</strong>（L16）接模型，<strong>工具 / 中间件</strong>（L06 / L18）增强单个 Agent，<strong>Builder</strong>（L12-13）把多个 Agent 编排起来，<strong>检查点</strong>（L19）让它能恢复。capstone 的价值就是看清这些零件如何<strong>正交组合</strong>——各自独立，又能拼在一起。</p>
+
+<h2>动手追踪：一次端到端的多 Agent 运行</h2>
+<p>把上面的"零件图"换成一次<strong>真实输入</strong>，端到端走一遍——看用户的一句话如何被编排装配、经过两个 Agent（其中一个还会调工具），最后收敛成一段完整对话。这条链路就是真实样例 <span class="mono">sequential_agents.py</span> 的运行轨迹。</p>
+<div class="vflow">
+  <div class="step"><div class="num">1</div><div class="sc"><h4>用户给一句话</h4>
+    <p>入口只有一行：<span class="mono">await workflow.run("给一款平价电动自行车写条广告语")</span>。这句 <span class="mono">prompt</span> 会成为整段共享对话的第一条 <span class="mono">user</span> 消息（<a href="04-messages.html">第 4 课</a>）。</p></div></div>
+  <div class="step"><div class="num">2</div><div class="sc"><h4>编排装配（build 时已完成）</h4>
+    <p><span class="mono">SequentialBuilder(participants=[writer, reviewer]).build()</span> 早在运行前就把链路接好了：它在参与者之间插入适配节点（<span class="mono">input-conversation → writer → to-conversation → reviewer → complete</span>），把一段<strong>共享对话</strong>顺着这条链往下传。</p></div></div>
+  <div class="step"><div class="num">3</div><div class="sc"><h4>Writer 跑，可能先调工具</h4>
+    <p>writer 拿到 prompt，若需要先 <span class="mono">web_search(...)</span>——这正是<a href="10-tool-internals.html">第 10 课</a>的工具循环：模型回 <span class="mono">function_call</span> → 框架执行工具 → 把 <span class="mono">function_result</span> 回灌 → 模型再作答。最后产出一条 <span class="mono">assistant</span> 消息，append 进共享对话。</p></div></div>
+  <div class="step"><div class="num">4</div><div class="sc"><h4>对话往下传，串行交棒</h4>
+    <p>框架把"到此为止的整段对话"（user + writer 的回复）作为 <strong>reviewer 的输入</strong>。这就是 <span class="mono">SequentialBuilder</span> 的本质：不是把孤立结果拼接，而是让一段对话<strong>顺序流过</strong>每个参与者。</p></div></div>
+  <div class="step"><div class="num">5</div><div class="sc"><h4>Reviewer 跑</h4>
+    <p>reviewer 读到 writer 的产出，给出审稿意见，同样 append 进对话。两个 Agent 都不知道自己身处一个 workflow——它们只是各自 <span class="mono">run</span> 了一次（<a href="05-chat-models.html">第 5 课</a>）。</p></div></div>
+  <div class="step"><div class="num">6</div><div class="sc"><h4>收集结果</h4>
+    <p><span class="mono">await workflow.run(...)</span> 返回一个 <span class="mono">WorkflowRunResult</span>；<span class="mono">result.get_outputs()</span> 给出每个参与者的 <span class="mono">AgentResponse</span>，遍历 <span class="mono">response.messages</span> 就能拼出最终对话——user 的需求、writer 的广告语、reviewer 的点评，依次排好。</p></div></div>
+</div>
+
+<div class="codefile">
+  <div class="cf-head"><span class="dot"></span><span class="path">基于 samples/03-workflows/orchestrations/sequential_agents.py（简化）</span></div>
+<pre><span class="kw">import</span> asyncio
+<span class="kw">from</span> typing <span class="kw">import</span> Annotated, cast
+
+<span class="kw">from</span> agent_framework <span class="kw">import</span> Agent, AgentResponse, tool
+<span class="kw">from</span> agent_framework.openai <span class="kw">import</span> OpenAIChatClient
+<span class="kw">from</span> agent_framework.orchestrations <span class="kw">import</span> SequentialBuilder
+<span class="kw">from</span> pydantic <span class="kw">import</span> Field
+
+
+<span class="nb">@tool</span>
+<span class="kw">def</span> <span class="fn">web_search</span>(query: Annotated[str, Field(description=<span class="st">"搜索关键词"</span>)]) -&gt; str:
+    <span class="st">&quot;&quot;&quot;查一句话事实。&quot;&quot;&quot;</span>
+    <span class="kw">return</span> f<span class="st">"(stub) results for {query}"</span>
+
+
+<span class="kw">async def</span> <span class="fn">main</span>() -&gt; <span class="kw">None</span>:
+    client = OpenAIChatClient(model=<span class="st">"gpt-4o"</span>)
+
+    writer = Agent(
+        client=client, name=<span class="st">"writer"</span>,
+        instructions=<span class="st">"写一句精炼广告语，必要时调用 web_search。"</span>,
+        tools=[web_search])
+    reviewer = Agent(
+        client=client, name=<span class="st">"reviewer"</span>,
+        instructions=<span class="st">"审阅上一条 assistant 消息，给出简短改进意见。"</span>)
+
+    <span class="cm"># 编排：writer -&gt; reviewer，二者共享同一段对话</span>
+    workflow = SequentialBuilder(
+        participants=[writer, reviewer], output_from=<span class="st">"all"</span>).build()
+
+    result = <span class="kw">await</span> workflow.run(<span class="st">"给一款平价电动自行车写条广告语"</span>)
+    <span class="kw">for</span> output <span class="kw">in</span> result.get_outputs():
+        response = cast(AgentResponse, output)
+        <span class="kw">for</span> msg <span class="kw">in</span> response.messages:
+            <span class="fn">print</span>(f<span class="st">"[{msg.author_name}] {msg.text}"</span>)
+
+
+asyncio.run(main())</pre>
+</div>
+
+<h2>为什么这一课把前面全串起来了</h2>
+<p>这段不到 30 行的代码，其实是把前面每一课的产出物各取一件、拼在一起。<span class="mono">Message</span>（<a href="04-messages.html">第 4 课</a>）是 writer 和 reviewer 之间那段"共享对话"的原子；<span class="mono">ChatClient → Agent</span>（<a href="05-chat-models.html">第 5 课</a>）把一个模型句柄变成带人设的参与者；<span class="mono">@tool</span>（<a href="06-tools.html">第 6 课</a> / <a href="10-tool-internals.html">第 10 课</a>）让 writer 能在动笔前查资料；<span class="mono">SequentialBuilder</span>（<a href="12-workflows.html">第 12</a> / <a href="13-orchestration.html">13 课</a>）再把两个独立 Agent 接成一条有向工作流。</p>
+<p>关键在<strong>"正交组合"</strong>：每个零件都不知道别的零件存在。writer 不知道自己身处一个 workflow；<span class="mono">SequentialBuilder</span> 不关心 writer 内部有没有工具；换 provider（<a href="16-providers.html">第 16 课</a>）、加中间件（<a href="18-custom-middleware.html">第 18 课</a>）、开检查点（<a href="19-durability-hitl.html">第 19 课</a>）都是在某一根<strong>正交轴</strong>上加东西，互不干扰。正因如此，复杂度才是"增量"而非"指数"——从 hello agent 到生产级多 Agent，每一步只加几行。</p>
+<p>这也让调试和演进变得自然：想加可观测性？在某个 Agent 上挂一个 <span class="mono">TimingMiddleware</span>（<a href="18-custom-middleware.html">第 18 课</a>），workflow 一行不改。想让它崩溃后能续跑？给 builder 传一个 <span class="mono">checkpoint_storage</span>（<a href="19-durability-hitl.html">第 19 课</a>）。想从 OpenAI 切到本地 Ollama？只换 client 那一行（<a href="16-providers.html">第 16 课</a>）。capstone 的"完成感"不在于代码有多长，而在于你已经认识每一个零件，剩下的只是把它们摆在一起。</p>
+<p>顺着这条思路往下走，扩展同样是"换零件"：把 <span class="mono">SequentialBuilder</span> 换成 <span class="mono">ConcurrentBuilder</span>，两个 Agent 就从串行交棒变成并行各写一版再汇总（<a href="13-orchestration.html">第 13 课</a>）；再加第三个参与者，只是往 <span class="mono">participants</span> 列表里多塞一个 Agent；想边跑边看输出，把 <span class="mono">run</span> 换成 <span class="mono">run(stream=True)</span> 即可（<a href="05-chat-models.html">第 5 课</a> / <a href="14-streaming-observability.html">第 14 课</a>）。每一种"升级"都不需要重写主干——这正是把前面 19 课学到的正交能力，一次性兑现的地方。</p>
+
 <details class="accordion">
   <summary><span class="badge-num">1</span> 完整代码骨架（扩展版） <span class="hint">点击展开详解</span></summary>
   <div class="acc-body">
@@ -2070,6 +2268,72 @@ result = <span class="kw">await</span> workflow.run(<span class="st">"Write abou
   <div class="node hl"><div class="nt">workflow.run</div><div class="nd">end to end</div></div>
 </div>
 <p>Every arrow maps to an earlier lesson: <strong>Provider</strong> (L16) supplies the model, <strong>tools / middleware</strong> (L06 / L18) enrich a single Agent, the <strong>Builder</strong> (L12-13) orchestrates multiple Agents, and <strong>checkpointing</strong> (L19) makes it recoverable. The capstone's value is seeing how these pieces <strong>compose orthogonally</strong> - each independent, yet snapping together.</p>
+
+<h2>Worked example: one end-to-end multi-agent run</h2>
+<p>Let's replace the "parts diagram" with one <strong>real input</strong> and trace it end to end — watching how a single user sentence gets assembled by the orchestration, passes through two Agents (one of which even calls a tool), and finally converges into a complete conversation. This path is exactly the run trace of the real sample <span class="mono">sequential_agents.py</span>.</p>
+<div class="vflow">
+  <div class="step"><div class="num">1</div><div class="sc"><h4>The user gives one sentence</h4>
+    <p>The entry point is a single line: <span class="mono">await workflow.run("Write a tagline for a budget eBike")</span>. That <span class="mono">prompt</span> becomes the first <span class="mono">user</span> message of the shared conversation (<a href="04-messages.html">Lesson 4</a>).</p></div></div>
+  <div class="step"><div class="num">2</div><div class="sc"><h4>Orchestration assembly (done at build time)</h4>
+    <p><span class="mono">SequentialBuilder(participants=[writer, reviewer]).build()</span> wired the chain before the run even started: it inserts adapter nodes between participants (<span class="mono">input-conversation → writer → to-conversation → reviewer → complete</span>) and flows one <strong>shared conversation</strong> down that chain.</p></div></div>
+  <div class="step"><div class="num">3</div><div class="sc"><h4>Writer runs, maybe calls a tool first</h4>
+    <p>The writer gets the prompt and may first call <span class="mono">web_search(...)</span> — exactly the tool loop from <a href="10-tool-internals.html">Lesson 10</a>: model returns a <span class="mono">function_call</span> → framework runs the tool → feeds back a <span class="mono">function_result</span> → model answers. It produces an <span class="mono">assistant</span> message appended to the shared conversation.</p></div></div>
+  <div class="step"><div class="num">4</div><div class="sc"><h4>The conversation flows on — sequential hand-off</h4>
+    <p>The framework passes "the whole conversation so far" (user + writer's reply) as <strong>the reviewer's input</strong>. That's the essence of <span class="mono">SequentialBuilder</span>: not stitching isolated results, but letting one conversation <strong>flow in order</strong> through each participant.</p></div></div>
+  <div class="step"><div class="num">5</div><div class="sc"><h4>Reviewer runs</h4>
+    <p>The reviewer reads the writer's output and gives feedback, also appended to the conversation. Neither Agent knows it lives inside a workflow — each simply <span class="mono">run</span> once (<a href="05-chat-models.html">Lesson 5</a>).</p></div></div>
+  <div class="step"><div class="num">6</div><div class="sc"><h4>Collect the results</h4>
+    <p><span class="mono">await workflow.run(...)</span> returns a <span class="mono">WorkflowRunResult</span>; <span class="mono">result.get_outputs()</span> gives each participant's <span class="mono">AgentResponse</span>, and iterating <span class="mono">response.messages</span> reconstructs the final conversation — the user's ask, the writer's tagline, the reviewer's critique, in order.</p></div></div>
+</div>
+
+<div class="codefile">
+  <div class="cf-head"><span class="dot"></span><span class="path">based on samples/03-workflows/orchestrations/sequential_agents.py (simplified)</span></div>
+<pre><span class="kw">import</span> asyncio
+<span class="kw">from</span> typing <span class="kw">import</span> Annotated, cast
+
+<span class="kw">from</span> agent_framework <span class="kw">import</span> Agent, AgentResponse, tool
+<span class="kw">from</span> agent_framework.openai <span class="kw">import</span> OpenAIChatClient
+<span class="kw">from</span> agent_framework.orchestrations <span class="kw">import</span> SequentialBuilder
+<span class="kw">from</span> pydantic <span class="kw">import</span> Field
+
+
+<span class="nb">@tool</span>
+<span class="kw">def</span> <span class="fn">web_search</span>(query: Annotated[str, Field(description=<span class="st">"search keywords"</span>)]) -&gt; str:
+    <span class="st">&quot;&quot;&quot;Look up a one-line fact.&quot;&quot;&quot;</span>
+    <span class="kw">return</span> f<span class="st">"(stub) results for {query}"</span>
+
+
+<span class="kw">async def</span> <span class="fn">main</span>() -&gt; <span class="kw">None</span>:
+    client = OpenAIChatClient(model=<span class="st">"gpt-4o"</span>)
+
+    writer = Agent(
+        client=client, name=<span class="st">"writer"</span>,
+        instructions=<span class="st">"Write one punchy tagline; call web_search if needed."</span>,
+        tools=[web_search])
+    reviewer = Agent(
+        client=client, name=<span class="st">"reviewer"</span>,
+        instructions=<span class="st">"Review the previous assistant message; give brief feedback."</span>)
+
+    <span class="cm"># orchestration: writer -&gt; reviewer, sharing one conversation</span>
+    workflow = SequentialBuilder(
+        participants=[writer, reviewer], output_from=<span class="st">"all"</span>).build()
+
+    result = <span class="kw">await</span> workflow.run(<span class="st">"Write a tagline for a budget eBike"</span>)
+    <span class="kw">for</span> output <span class="kw">in</span> result.get_outputs():
+        response = cast(AgentResponse, output)
+        <span class="kw">for</span> msg <span class="kw">in</span> response.messages:
+            <span class="fn">print</span>(f<span class="st">"[{msg.author_name}] {msg.text}"</span>)
+
+
+asyncio.run(main())</pre>
+</div>
+
+<h2>Why this lesson ties everything together</h2>
+<p>This sub-30-line program is really one item taken from every earlier lesson, snapped together. <span class="mono">Message</span> (<a href="04-messages.html">Lesson 4</a>) is the atom of the "shared conversation" passed between writer and reviewer; <span class="mono">ChatClient → Agent</span> (<a href="05-chat-models.html">Lesson 5</a>) turns a model handle into a participant with a persona; <span class="mono">@tool</span> (<a href="06-tools.html">Lesson 6</a> / <a href="10-tool-internals.html">Lesson 10</a>) lets the writer look things up before drafting; and <span class="mono">SequentialBuilder</span> (<a href="12-workflows.html">Lesson 12</a> / <a href="13-orchestration.html">13</a>) wires two independent Agents into one directed workflow.</p>
+<p>The key is <strong>orthogonal composition</strong>: no piece knows the others exist. The writer doesn't know it lives in a workflow; <span class="mono">SequentialBuilder</span> doesn't care whether the writer has tools inside; switching provider (<a href="16-providers.html">Lesson 16</a>), adding middleware (<a href="18-custom-middleware.html">Lesson 18</a>), enabling checkpoints (<a href="19-durability-hitl.html">Lesson 19</a>) each add something on a separate <strong>orthogonal axis</strong>, without interfering. That's why complexity is <strong>incremental</strong>, not exponential — from hello agent to production multi-agent, each step adds only a few lines.</p>
+<p>It also makes debugging and evolution natural: want observability? Attach a <span class="mono">TimingMiddleware</span> (<a href="18-custom-middleware.html">Lesson 18</a>) to an Agent and the workflow doesn't change a line. Want it to resume after a crash? Pass a <span class="mono">checkpoint_storage</span> to the builder (<a href="19-durability-hitl.html">Lesson 19</a>). Want to switch from OpenAI to local Ollama? Change only the client line (<a href="16-providers.html">Lesson 16</a>). The capstone's sense of "done" isn't about how much code there is — it's that you now recognize every piece, and the rest is just arranging them.</p>
+<p>Following that thread, extending it is also "swap a part": replace <span class="mono">SequentialBuilder</span> with <span class="mono">ConcurrentBuilder</span> and the two Agents go from serial hand-off to writing competing drafts in parallel, then merging (<a href="13-orchestration.html">Lesson 13</a>); add a third participant by dropping one more Agent into the <span class="mono">participants</span> list; want to watch output as it streams? Swap <span class="mono">run</span> for <span class="mono">run(stream=True)</span> (<a href="05-chat-models.html">Lesson 5</a> / <a href="14-streaming-observability.html">Lesson 14</a>). None of these upgrades require rewriting the backbone — which is exactly where the orthogonal skills from the previous 19 lessons all pay off at once.</p>
+
 <details class="accordion">
   <summary><span class="badge-num">1</span> Extended code skeleton <span class="hint">expand</span></summary>
   <div class="acc-body">

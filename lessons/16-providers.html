@@ -297,6 +297,46 @@ table.t td.mono, table.t td .mono { font-family: ui-monospace, monospace; font-s
 </div>
 <p>只有前两个框会随厂商变（包名 + ChatClient 类）；后两个框<strong>对所有 provider 完全一样</strong>。这就是“万能插座”：换插头不用换电器——把 OpenAI 换成 Anthropic，下游 Agent 代码一行不改。</p>
 
+<div class="codefile">
+  <div class="cf-head"><span class="dot"></span><span class="path">写一次 Agent，只换 ChatClient 那一行</span></div>
+<pre><span class="kw">from</span> agent_framework <span class="kw">import</span> Agent
+
+<span class="cm"># —— 只有这一段随厂商变（import + 实例化）——</span>
+<span class="kw">from</span> agent_framework.openai <span class="kw">import</span> OpenAIChatClient
+client = OpenAIChatClient(model=<span class="st">"gpt-4o"</span>)
+
+<span class="cm"># 想换 Claude？换成下面两行（其余一字不动）：</span>
+<span class="cm"># from agent_framework.anthropic import AnthropicClient</span>
+<span class="cm"># client = AnthropicClient(model="claude-sonnet-4-5-20250929")</span>
+
+<span class="cm"># 本地 Ollama：</span>
+<span class="cm"># from agent_framework.ollama import OllamaChatClient</span>
+<span class="cm"># client = OllamaChatClient(model="llama3.1")</span>
+
+<span class="cm"># —— 下面对所有厂商完全一样 ——</span>
+agent = Agent(client=client, name=<span class="st">"Assistant"</span>,
+              instructions=<span class="st">"You are helpful."</span>)
+response = <span class="kw">await</span> agent.run(<span class="st">"Hello!"</span>)</pre>
+</div>
+
+<h2>动手追踪：换插头不换电器</h2>
+<p>用一次<strong>真实的厂商切换</strong>把"写一次、到处跑"走一遍——看清楚到底哪一行变、哪一行不变。</p>
+<div class="vflow">
+  <div class="step"><div class="num">1</div><div class="sc"><h4>写死 Agent 逻辑（一次）</h4>
+    <p><span class="mono">name</span> / <span class="mono">instructions</span> / <span class="mono">tools</span> / 中间件，加上 <span class="mono">agent.run(…)</span>——这一整块对所有厂商<strong>一字不改</strong>，先写好放着。</p></div></div>
+  <div class="step"><div class="num">2</div><div class="sc"><h4>插上 OpenAI 插头</h4>
+    <p>实例化对应的 ChatClient，<span class="mono">Agent(client=client, …)</span> 就接到了 GPT-4o：</p>
+<pre class="code"><span class="kw">from</span> agent_framework.openai <span class="kw">import</span> OpenAIChatClient
+client = OpenAIChatClient(model=<span class="st">"gpt-4o"</span>)</pre></div></div>
+  <div class="step"><div class="num">3</div><div class="sc"><h4>只换这一行 → Anthropic</h4>
+    <p>把 import 和 client 那两行换掉，<strong>Agent 定义和 run 调用一个字符都不动</strong>：</p>
+<pre class="code"><span class="kw">from</span> agent_framework.anthropic <span class="kw">import</span> AnthropicClient
+client = AnthropicClient(model=<span class="st">"claude-sonnet-4-5-20250929"</span>)</pre></div></div>
+  <div class="step"><div class="num">4</div><div class="sc"><h4>为什么能行</h4>
+    <p><span class="mono">as_agent</span> / <span class="mono">run</span> 只认 <span class="mono">ChatClient</span> 抽象；把 <span class="mono">Message</span> 翻译成各家 wire 格式、再翻译回来，发生在 client 内部（各 <span class="mono">BaseChatClient</span> 子类）。所以下游<strong>零改动</strong>就换了模型后端。</p></div></div>
+</div>
+<p><strong>这套抽象的折中：</strong>统一接口换来了可移植性，但每家的"独门能力"（厂商专属采样参数、特殊内容类型）不会凭空消失——它们通过 <span class="mono">default_options</span> 或厂商专属的 typed options 透传。换句话说，MAF 用一套通用接口覆盖 80% 的公共路径，同时留一个"逃生舱口"让你按需触达某家的高级特性。可移植性优先，但没有把天花板焊死。</p>
+
 <details class="accordion">
   <summary><span class="badge-num">1</span> FoundryChatClient 配置 <span class="hint">点击展开详解</span></summary>
   <div class="acc-body">
@@ -414,7 +454,7 @@ ollama pull llama3.1
 
 client = OllamaChatClient(
     model=<span class="st">"llama3.1"</span>,
-    endpoint=<span class="st">"http://localhost:11434"</span>  <span class="cm"># 默认值</span>
+    host=<span class="st">"http://localhost:11434"</span>  <span class="cm"># 默认值</span>
 )</pre>
       </div>
     </div>
@@ -575,6 +615,46 @@ This lesson surveys the main provider packages and shows the <strong>import-to-r
 </div>
 <p>Only the first two boxes change per vendor (package name + ChatClient class); the last two are <strong>identical for every provider</strong>. That's the &quot;universal socket&quot;: swap the plug, keep the appliance - switch OpenAI for Anthropic and the downstream Agent code doesn't change a line.</p>
 
+<div class="codefile">
+  <div class="cf-head"><span class="dot"></span><span class="path">write the Agent once, swap only the ChatClient line</span></div>
+<pre><span class="kw">from</span> agent_framework <span class="kw">import</span> Agent
+
+<span class="cm"># —— only this block changes per vendor (import + instantiation) ——</span>
+<span class="kw">from</span> agent_framework.openai <span class="kw">import</span> OpenAIChatClient
+client = OpenAIChatClient(model=<span class="st">"gpt-4o"</span>)
+
+<span class="cm"># Want Claude? Use these two lines instead (nothing else moves):</span>
+<span class="cm"># from agent_framework.anthropic import AnthropicClient</span>
+<span class="cm"># client = AnthropicClient(model="claude-sonnet-4-5-20250929")</span>
+
+<span class="cm"># Local Ollama:</span>
+<span class="cm"># from agent_framework.ollama import OllamaChatClient</span>
+<span class="cm"># client = OllamaChatClient(model="llama3.1")</span>
+
+<span class="cm"># —— everything below is identical for every vendor ——</span>
+agent = Agent(client=client, name=<span class="st">"Assistant"</span>,
+              instructions=<span class="st">"You are helpful."</span>)
+response = <span class="kw">await</span> agent.run(<span class="st">"Hello!"</span>)</pre>
+</div>
+
+<h2>Worked example: swap the plug, keep the appliance</h2>
+<p>Let's walk "write once, run anywhere" through one <strong>real vendor switch</strong> — to see exactly which line changes and which line doesn't.</p>
+<div class="vflow">
+  <div class="step"><div class="num">1</div><div class="sc"><h4>Pin the Agent logic (once)</h4>
+    <p><span class="mono">name</span> / <span class="mono">instructions</span> / <span class="mono">tools</span> / middleware, plus <span class="mono">agent.run(…)</span> — this whole block is <strong>identical for every vendor</strong>. Write it once and leave it.</p></div></div>
+  <div class="step"><div class="num">2</div><div class="sc"><h4>Plug in OpenAI</h4>
+    <p>Instantiate the matching ChatClient and <span class="mono">Agent(client=client, …)</span> is wired to GPT-4o:</p>
+<pre class="code"><span class="kw">from</span> agent_framework.openai <span class="kw">import</span> OpenAIChatClient
+client = OpenAIChatClient(model=<span class="st">"gpt-4o"</span>)</pre></div></div>
+  <div class="step"><div class="num">3</div><div class="sc"><h4>Swap just this line → Anthropic</h4>
+    <p>Replace the import and client lines; the <strong>Agent definition and run call don't move a character</strong>:</p>
+<pre class="code"><span class="kw">from</span> agent_framework.anthropic <span class="kw">import</span> AnthropicClient
+client = AnthropicClient(model=<span class="st">"claude-sonnet-4-5-20250929"</span>)</pre></div></div>
+  <div class="step"><div class="num">4</div><div class="sc"><h4>Why it works</h4>
+    <p><span class="mono">as_agent</span> / <span class="mono">run</span> only know the <span class="mono">ChatClient</span> abstraction; translating <span class="mono">Message</span> into each vendor's wire format and back happens inside the client (each <span class="mono">BaseChatClient</span> subclass). So the downstream changes <strong>by zero</strong> when you switch model backends.</p></div></div>
+</div>
+<p><strong>The trade-off of this abstraction:</strong> a unified interface buys portability, but each vendor's "signature powers" (provider-specific sampling parameters, special content types) don't vanish — they flow through <span class="mono">default_options</span> or a vendor's typed options. In other words, MAF covers ~80% of the common path with one interface and keeps an "escape hatch" so you can still reach a vendor's advanced features when needed. Portability first, without welding the ceiling shut.</p>
+
 <details class="accordion">
   <summary><span class="badge-num">1</span> FoundryChatClient configuration <span class="hint">expand</span></summary>
   <div class="acc-body">
@@ -692,7 +772,7 @@ ollama pull llama3.1
 
 client = OllamaChatClient(
     model=<span class="st">&quot;llama3.1&quot;</span>,
-    endpoint=<span class="st">&quot;http://localhost:11434&quot;</span>  <span class="cm"># default</span>
+    host=<span class="st">&quot;http://localhost:11434&quot;</span>  <span class="cm"># default</span>
 )</pre>
       </div>
     </div>

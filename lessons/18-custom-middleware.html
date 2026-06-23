@@ -330,6 +330,32 @@ table.t td.mono, table.t td .mono { font-family: ui-monospace, monospace; font-s
   <tr><td class="mono">ChatMiddleware</td><td>单次 LLM 调用</td><td class="mono">ChatContext</td><td>每次发请求给模型</td></tr>
 </table>
 
+<h2>动手追踪：一个计时中间件跑起来</h2>
+<p>把"洋葱模型"落到一个最小、可运行的 <span class="mono">AgentMiddleware</span> 上：定义 → 挂到 Agent → 看一次请求怎么穿过它。源码：<span class="mono">AgentMiddleware</span> 在 <span class="mono">_middleware.py:469</span>，<span class="mono">AgentContext</span> 在 <span class="mono">_middleware.py:93</span>。</p>
+<div class="vflow">
+  <div class="step"><div class="num">1</div><div class="sc"><h4>写一个计时中间件</h4>
+    <p>继承 <span class="mono">AgentMiddleware</span>，只实现一个 <span class="mono">process</span>。<span class="mono">await call_next()</span> 是分界线，前后各放一句：</p>
+<pre class="code"><span class="kw">import</span> time
+<span class="kw">from</span> agent_framework <span class="kw">import</span> AgentMiddleware, AgentContext
+
+<span class="kw">class</span> <span class="fn">TimingMiddleware</span>(AgentMiddleware):
+    <span class="kw">async def</span> <span class="fn">process</span>(self, context: AgentContext, call_next):
+        start = time.monotonic()             <span class="cm"># 进站</span>
+        <span class="kw">await</span> call_next()                      <span class="cm"># 真正执行（无参！）</span>
+        elapsed = time.monotonic() - start   <span class="cm"># 出站</span>
+        <span class="fn">print</span>(f<span class="st">"{context.agent.name}: {elapsed:.2f}s"</span>)</pre></div></div>
+  <div class="step"><div class="num">2</div><div class="sc"><h4>挂到 Agent 上</h4>
+    <p>放进 <span class="mono">middleware=[…]</span> 列表，框架会在<strong>每次 run</strong> 时自动套上：</p>
+<pre class="code">agent = Agent(client=client, name=<span class="st">"Helper"</span>,
+              middleware=[TimingMiddleware()])</pre></div></div>
+  <div class="step"><div class="num">3</div><div class="sc"><h4>请求进站（call_next 之前）</h4>
+    <p><span class="mono">agent.run("…")</span> 触发后，框架先调用 <span class="mono">process</span>。此刻 <span class="mono">context</span> 已装好：<span class="mono">context.agent.name == "Helper"</span>，<span class="mono">context.messages</span> 是即将发出的消息列表。<span class="mono">start</span> 记下起点。</p></div></div>
+  <div class="step"><div class="num">4</div><div class="sc"><h4>真正执行（await call_next）</h4>
+    <p><span class="mono">call_next()</span> <strong>不带任何参数</strong>，把控制权交给内层中间件、最终交给 agent 的真实执行（调模型、跑工具循环）。它返回时，<span class="mono">context.result</span> 已被填成一个 <span class="mono">AgentResponse</span>。</p></div></div>
+  <div class="step"><div class="num">5</div><div class="sc"><h4>响应出站（call_next 之后）</h4>
+    <p>算出 <span class="mono">elapsed</span>，可顺手读 <span class="mono">context.result.text</span> 再打日志。注意 <span class="mono">process</span> <strong>不 return 任何东西</strong>——所有数据都挂在 <span class="mono">context</span> 上流动。这正是 <a href="11-middleware.html">第 11 课</a>确认过的"无参 <span class="mono">call_next()</span>"约定。</p></div></div>
+</div>
+
 <details class="accordion">
   <summary><span class="badge-num">1</span> 完整的日志中间件 <span class="hint">点击展开详解</span></summary>
   <div class="acc-body">
@@ -604,6 +630,32 @@ logger = logging.getLogger(__name__)
   <tr><td class="mono">FunctionMiddleware</td><td>a single tool / function call</td><td class="mono">FunctionInvocationContext</td><td>per tool call</td></tr>
   <tr><td class="mono">ChatMiddleware</td><td>a single LLM call</td><td class="mono">ChatContext</td><td>per model request</td></tr>
 </table>
+
+<h2>Worked example: a timing middleware in action</h2>
+<p>Let's ground the "onion model" in a minimal, runnable <span class="mono">AgentMiddleware</span>: define it → attach it to the Agent → watch one request travel through. Source: <span class="mono">AgentMiddleware</span> at <span class="mono">_middleware.py:469</span>, <span class="mono">AgentContext</span> at <span class="mono">_middleware.py:93</span>.</p>
+<div class="vflow">
+  <div class="step"><div class="num">1</div><div class="sc"><h4>Write a timing middleware</h4>
+    <p>Subclass <span class="mono">AgentMiddleware</span> and implement one <span class="mono">process</span>. <span class="mono">await call_next()</span> is the dividing line — one statement on each side:</p>
+<pre class="code"><span class="kw">import</span> time
+<span class="kw">from</span> agent_framework <span class="kw">import</span> AgentMiddleware, AgentContext
+
+<span class="kw">class</span> <span class="fn">TimingMiddleware</span>(AgentMiddleware):
+    <span class="kw">async def</span> <span class="fn">process</span>(self, context: AgentContext, call_next):
+        start = time.monotonic()             <span class="cm"># inbound</span>
+        <span class="kw">await</span> call_next()                      <span class="cm"># the real execution (no args!)</span>
+        elapsed = time.monotonic() - start   <span class="cm"># outbound</span>
+        <span class="fn">print</span>(f<span class="st">"{context.agent.name}: {elapsed:.2f}s"</span>)</pre></div></div>
+  <div class="step"><div class="num">2</div><div class="sc"><h4>Attach it to the Agent</h4>
+    <p>Drop it into the <span class="mono">middleware=[…]</span> list; the framework wraps it around <strong>every run</strong> automatically:</p>
+<pre class="code">agent = Agent(client=client, name=<span class="st">"Helper"</span>,
+              middleware=[TimingMiddleware()])</pre></div></div>
+  <div class="step"><div class="num">3</div><div class="sc"><h4>Request goes in (before call_next)</h4>
+    <p>When <span class="mono">agent.run("…")</span> fires, the framework calls <span class="mono">process</span> first. By now <span class="mono">context</span> is populated: <span class="mono">context.agent.name == "Helper"</span>, <span class="mono">context.messages</span> is the list about to be sent. <span class="mono">start</span> records the entry point.</p></div></div>
+  <div class="step"><div class="num">4</div><div class="sc"><h4>The real execution (await call_next)</h4>
+    <p><span class="mono">call_next()</span> <strong>takes no arguments</strong>; it hands control to inner middleware and ultimately the agent's real execution (calling the model, running the tool loop). When it returns, <span class="mono">context.result</span> has been filled with an <span class="mono">AgentResponse</span>.</p></div></div>
+  <div class="step"><div class="num">5</div><div class="sc"><h4>Response comes out (after call_next)</h4>
+    <p>Compute <span class="mono">elapsed</span>, optionally read <span class="mono">context.result.text</span>, then log. Note that <span class="mono">process</span> <strong>returns nothing</strong> — all data flows through <span class="mono">context</span>. That's exactly the "no-arg <span class="mono">call_next()</span>" contract confirmed in <a href="11-middleware.html">Lesson 11</a>.</p></div></div>
+</div>
 
 <details class="accordion">
   <summary><span class="badge-num">1</span> Complete logging middleware <span class="hint">expand</span></summary>
